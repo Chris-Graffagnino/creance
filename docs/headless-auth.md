@@ -1,5 +1,8 @@
 # Headless auth & permissions for unattended runs
 
+> **Claude Code adapter artifact** — a new adapter supplies its own equivalent; the
+> normative contract is `.claude/workflow/triage.md` §6.
+
 The triage heartbeat (and any scheduled [headless run]) executes with nobody watching.
 Two things make that safe-ish, and both are deliberate tradeoffs you should understand
 before enabling them. (This is the out-of-repo machinery `EXTRACTION.md` §3b warns a

@@ -45,6 +45,28 @@ changing a mapping, update both.
 | **[permission allowlist]** | `settings.json` → `permissions.allow` (prefix-matched) |
 | **[environment block]** | `skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy; other bindings reference it, never copy it) |
 
+### Assumed runtime features
+
+The mappings above bind to Claude Code built-ins whose availability varies by version
+and surface (CLI / desktop / web). This adapter assumes — last probed against the Claude
+Code CLI current as of **2026-06-12**:
+
+- The `/code-review`, `/security-review`, `/run`, and `/verify` built-in skills.
+- The **Workflow** tool (for [orchestrated run]) and the **Explore** subagent (for
+  [bulk-read offload]).
+- The Agent tool's **`model` parameter** (per-dispatch model selection — without it the
+  tier floor for the constitution [reviewer] cannot be enforced).
+- **PreToolUse hooks**, including the `"shell"` and `"statusMessage"` keys used in
+  `settings.json` — verify these against the settings schema for *your* Claude Code
+  version; an unrecognized key can leave the guard unwired.
+- Headless mode (`claude -p`) and long-lived token minting (`claude setup-token`) for
+  scheduled runs.
+
+If any of these is absent on your version/surface, apply the degradation rules in
+`workflow/README.md` rather than silently proceeding. The probes in
+`adapters/claude-code-probes.md` are how you find out — run them on the actual machine
+and surface that will drive the harness.
+
 This adapter's conformance-probe instantiation and dated results live in
 **`adapters/claude-code-probes.md`** (the `workflow/conformance-probes.md` checklist,
 executed 2026-06-11 — re-probe per its header when a mechanism here changes).

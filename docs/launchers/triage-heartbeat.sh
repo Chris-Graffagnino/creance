@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # triage-heartbeat.sh — POSIX/cron launcher template for the /triage dead-man switch.
 #
+# Claude Code adapter artifact — a new adapter supplies its own launcher; the
+# normative contract is .claude/workflow/triage.md §6.
+#
 # Implements the launcher contract in .claude/workflow/triage.md §6. The contract,
 # not this script, is normative — every rewrite must honor it:
 #   1. One line per attempt, appended to a run log next to the inbox; inbox + run-log

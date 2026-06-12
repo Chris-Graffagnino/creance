@@ -41,6 +41,20 @@ Concretely, that includes:
 
 ## Quickstart
 
+### Prerequisites
+
+- **`git`** — the engine's branch/issue/PR discipline assumes it.
+- **`gh`** (GitHub CLI), authenticated — issues, PRs, and review status all go through it.
+- **`bash` on PATH — including on Windows (Git Bash).** The guard hook is wired as
+  `bash "$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh"`; on a machine without `bash` the
+  guard is **silently dead** (the exact failure class in `DESIGN-NOTES.md` §"the guard
+  was silently dead"). CI's wiring check runs on Linux and cannot catch this — run the
+  guard probes (P-GD) on each workstation.
+- **`rg`** (ripgrep) — bundled with Claude Code; not guaranteed on other runtimes, where
+  the verification greps need it installed separately.
+
+### Steps
+
 1. **Use this template** (GitHub) or clone it.
 2. `cp .claude/PROJECT.template.md .claude/PROJECT.md` and fill every `<...>` — it is the
    single source of project facts the engine reads.
