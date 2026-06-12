@@ -100,8 +100,8 @@ outside the repo**.
 | Path | What it is | Template action |
 |---|---|---|
 | `memory/constitution.md` | The project's principles — "law" the constitution-auditor enforces. | Ship `memory/constitution.template.md` (a 3–5 numbered-principle skeleton with a worked example). The reviewers fail-closed without it. |
-| `specs/<feature>/spec.md` | Acceptance criteria (`US#` user stories). | Ship an empty `specs/000-template/spec.md` skeleton. |
-| `specs/<feature>/tasks.md` | The backlog `next-task` drives, incl. the "Criterion ownership" map and tier tags. | Ship a `tasks.md` skeleton showing the task-line format + the ownership-map section. |
+| `specs/<feature>/spec.md` | Acceptance criteria (`US#` user stories). | Ship an empty `specs/000-template/spec.template.md` skeleton (the `.template.md` suffix keeps it out of the `specs/*/spec.md` fallback glob; adopters rename on copy). |
+| `specs/<feature>/tasks.md` | The backlog `next-task` drives, incl. the "Criterion ownership" map and tier tags. | Ship a `tasks.template.md` skeleton showing the task-line format + the ownership-map section (suffixed so its placeholder task IDs are never selectable via the `specs/*/tasks.md` fallback). |
 | `specs/<feature>/contracts/` | Provider-interface contracts the contract-auditor reads. | Ship an empty dir + one example contract. |
 | `AGENTS.md` / `CLAUDE.md` | `CLAUDE.md` just contains `AGENTS.md`; `AGENTS.md` holds the architecture guardrails `PROJECT.md` points at. | Ship a minimal `AGENTS.md` template; keep the `CLAUDE.md` → `AGENTS.md` indirection. |
 
