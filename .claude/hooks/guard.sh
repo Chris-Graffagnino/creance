@@ -14,6 +14,10 @@
 #      absent or names a below-strong tier — the strong floor (issue #94). Tier
 #      names are resolved from .claude/MODELS.md at runtime, never hardcoded.
 # Allows everything else (exit 0). Fails open: any uncertainty -> allow.
+# Telemetry (workflow/telemetry.md): every block appends a `block` record and
+# every constitution-auditor dispatch evaluation appends an `evaluation`
+# record (the per-gate-run liveness signal) to the project's JSONL stream.
+# Logging failures are swallowed — they never change guard exit behavior.
 # Regression tests: .claude/hooks/guard.test.sh (run on every PR by the
 # `verify` CI job) — extend them whenever you touch a rule here.
 set -u
@@ -21,7 +25,42 @@ set -u
 payload="$(cat)"
 
 branch() { git branch --show-current 2>/dev/null; }
-block() { printf '⛔ %s\n' "$1" >&2; exit 2; }
+
+# Telemetry stream path: GUARD_TELEMETRY_FILE is a test/override seam (mirrors
+# GUARD_MODELS_FILE); the default is the shipped convention from
+# workflow/telemetry.md — <home>/.claude/triage/<repo-basename>-telemetry.jsonl.
+telemetry_file() {
+  if [ -n "${GUARD_TELEMETRY_FILE:-}" ]; then
+    printf '%s' "$GUARD_TELEMETRY_FILE"
+    return 0
+  fi
+  local home="${HOME:-${USERPROFILE:-}}" root
+  [ -n "$home" ] || return 1
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  printf '%s/.claude/triage/%s-telemetry.jsonl' "$home" "${root##*/}"
+}
+
+# log_telemetry <record-type> <rule> — append one JSONL line (envelope per
+# workflow/telemetry.md plus rule/tool). Every failure path is swallowed: a
+# telemetry write must never block, fail, or alter the guard's own behavior.
+log_telemetry() {
+  {
+    local f ts repo
+    f="$(telemetry_file)" || return 0
+    [ -n "$f" ] || return 0
+    mkdir -p "$(dirname "$f")" || return 0
+    ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 0
+    repo="$(git rev-parse --show-toplevel 2>/dev/null)"; repo="${repo##*/}"
+    printf '{"record":"%s","timestamp":"%s","repo":"%s","rule":"%s","tool":"%s"}\n' \
+      "$1" "$ts" "$repo" "$2" "$tool" >> "$f"
+  } 2>/dev/null || true
+}
+
+block() { # block <rule> <message>
+  log_telemetry block "$1"
+  printf '⛔ %s\n' "$2" >&2
+  exit 2
+}
 
 # tool_name has no special chars, so a plain grep/sed extraction is safe.
 tool="$(printf '%s' "$payload" \
@@ -80,24 +119,24 @@ model_in() { # model_in <model> <names...> — containment, so full IDs match to
 case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)
     if [ "$(branch)" = "main" ] && in_repo; then
-      block "On 'main' — AGENTS.md forbids editing on main. Create a feature branch first:
+      block edit-on-main "On 'main' — AGENTS.md forbids editing on main. Create a feature branch first:
    git switch -c <type>/<task-id>-<short-desc>   (or run /next-task)"
     fi
     ;;
   Bash|PowerShell)
     # Match against the raw payload; the command field carries these verbatim.
     if printf '%s' "$payload" | grep -qE 'git[[:space:]]+add[[:space:]]+(--all|-A|\.)([[:space:]]|;|&|\\|")'; then
-      block "\`git add .\` / -A / --all is not allowed (AGENTS.md). Stage specific files:
+      block git-add-all "\`git add .\` / -A / --all is not allowed (AGENTS.md). Stage specific files:
    git add <path1> <path2>"
     fi
     if printf '%s' "$payload" | grep -qE 'git[[:space:]]+(commit|push)([[:space:]]|\\|")' && [ "$(branch)" = "main" ]; then
-      block "Never commit or push to 'main' (AGENTS.md). Work on a feature branch and open a PR."
+      block commit-push-on-main "Never commit or push to 'main' (AGENTS.md). Work on a feature branch and open a PR."
     fi
     # Refspec rule: a push can target main from ANY branch (`git push origin HEAD:main`),
     # so match the destination ref, not just the current branch. [^";&|]* keeps the match
     # inside a single shell command, so `git push ... && gh pr create --base main` is allowed.
     if printf '%s' "$payload" | grep -qE 'git[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
-      block "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
+      block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
     fi
     ;;
   Agent|Task)
@@ -107,15 +146,20 @@ case "$tool" in
     # session, exactly the downgrade the floor forbids. Unknown model names and
     # an unreadable table fail open; other subagents are untouched.
     if [ "$(jstr subagent_type)" = "constitution-auditor" ]; then
+      # Liveness signal (workflow/telemetry.md): this path fires on every gate
+      # run (the gate always dispatches the constitution [reviewer]), so one
+      # `evaluation` record per dispatch distinguishes a live guard from
+      # "nothing to block" — logged whatever the check's outcome.
+      log_telemetry evaluation strong-floor
       strong="$(tier_models strong)"
       if [ -n "$strong" ]; then
         model="$(jstr model)"
         if [ -z "$model" ]; then
-          block "constitution-auditor dispatched without a 'model' parameter — it would inherit the session model and can silently break the [strong tier] floor. Pass the strong-tier model from .claude/MODELS.md explicitly on the dispatch."
+          block strong-floor-no-model "constitution-auditor dispatched without a 'model' parameter — it would inherit the session model and can silently break the [strong tier] floor. Pass the strong-tier model from .claude/MODELS.md explicitly on the dispatch."
         fi
         if ! model_in "$model" $strong $(tier_models frontier) \
            && model_in "$model" $(tier_models cheap); then
-          block "constitution-auditor dispatched below the [strong tier] floor (model: '$model'). The constitution reviewer never downgrades — pass a model at-or-above the strong-tier row of .claude/MODELS.md."
+          block strong-floor-below "constitution-auditor dispatched below the [strong tier] floor (model: '$model'). The constitution reviewer never downgrades — pass a model at-or-above the strong-tier row of .claude/MODELS.md."
         fi
       fi
     fi

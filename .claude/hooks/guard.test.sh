@@ -8,6 +8,9 @@
 #   4. any `git push` whose refspec targets `main`, from any branch
 #   5. constitution-auditor Agent dispatch with a missing or below-strong
 #      `model` (tier names from a fixture table via GUARD_MODELS_FILE)
+# plus the telemetry logging paths (workflow/telemetry.md): block records,
+# evaluation records, and the failure-stays-silent case (GUARD_TELEMETRY_FILE
+# is the stream's test seam).
 # Branch-dependent rules run from throwaway repos created in a temp dir (one
 # on `main`, one on a feature branch) — that is how `git branch --show-current`
 # is "stubbed". Needs only bash + git, runs in <1s; wired into the `verify` CI
@@ -20,6 +23,11 @@ set -u
 HOOK="$(cd "$(dirname "$0")" && pwd)/guard.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+
+# Redirect telemetry for the whole run — without this, every blocked payload
+# below would append to the user's real stream (guard.sh's default path).
+TELE="$TMP/telemetry.jsonl"
+export GUARD_TELEMETRY_FILE="$TELE"
 
 MAIN="$TMP/on-main"
 FEAT="$TMP/on-feature"
@@ -124,6 +132,57 @@ unset GUARD_MODELS_FILE
 # Default-path resolution against the real .claude/MODELS.md — the no-model
 # block only needs the strong row to parse, so it survives model renames there.
 check 2 "$FEAT" "r5 block: default table path resolves (no model)" "$(agentnm Agent constitution-auditor)"
+
+# --- telemetry: block + evaluation records (workflow/telemetry.md, US1.AC3/AC4) ---
+# tcount <want> <pattern> <name> — assert how many telemetry lines match.
+tcount() {
+  local want="$1" pat="$2" name="$3" got
+  got="$(grep -cE "$pat" "$TELE" 2>/dev/null)"; [ -n "$got" ] || got=0
+  if [ "$got" -eq "$want" ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL %-55s want %s matching line(s), got %s\n' "$name" "$want" "$got" >&2
+  fi
+}
+
+export GUARD_MODELS_FILE="$MODELS_FIXTURE"
+
+# Block path: one `block` record per blocked action, carrying rule + tool + timestamp.
+: > "$TELE"
+check 2 "$MAIN" "tele: rule-1 block still exits 2" "$(edit Edit "$MAIN_ROOT/src/foo.ts")"
+tcount 1 '"record":"block"' "tele: rule-1 block appends one block record"
+tcount 1 '"record":"block".*"rule":"edit-on-main".*"tool":"Edit"' "tele: block record carries rule + tool"
+tcount 1 '"timestamp":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z"' "tele: block record carries ISO-8601 UTC timestamp"
+
+# Evaluation path: every constitution-auditor dispatch logs liveness, allowed or blocked.
+: > "$TELE"
+check 0 "$FEAT" "tele: dispatch at floor still allowed" "$(agentp Agent constitution-auditor opus)"
+tcount 1 '"record":"evaluation".*"rule":"strong-floor".*"tool":"Agent"' "tele: allowed dispatch appends one evaluation record"
+tcount 0 '"record":"block"' "tele: allowed dispatch appends no block record"
+: > "$TELE"
+check 2 "$FEAT" "tele: no-model dispatch still blocked" "$(agentnm Agent constitution-auditor)"
+tcount 1 '"record":"evaluation"' "tele: blocked dispatch logs evaluation first"
+tcount 1 '"record":"block".*"rule":"strong-floor-no-model"' "tele: blocked dispatch logs the block too"
+
+# Allowed non-guard-relevant actions stay silent — no record spam.
+: > "$TELE"
+check 0 "$FEAT" "tele: plain allowed command" "$(bashp 'git status')"
+check 0 "$FEAT" "tele: other subagent dispatch" "$(agentnm Agent spec-auditor)"
+tcount 0 '.' "tele: allowed non-dispatch actions append nothing"
+unset GUARD_MODELS_FILE
+
+# Failure stays silent: an unwritable stream (parent is a regular file, so
+# mkdir -p and the append both fail) must not change exit codes or stderr.
+touch "$TMP/notadir"
+export GUARD_TELEMETRY_FILE="$TMP/notadir/telemetry.jsonl"
+check 2 "$MAIN" "tele: block exit unchanged when write fails" "$(edit Edit "$MAIN_ROOT/src/foo.ts")"
+check 0 "$FEAT" "tele: allow exit unchanged when write fails" "$(edit Edit "$FEAT_ROOT/src/foo.ts")"
+err="$( cd "$FEAT" && printf '%s' "$(edit Edit "$FEAT_ROOT/src/foo.ts")" | bash "$HOOK" 2>&1 >/dev/null )" || true
+if [ -z "$err" ]; then pass=$((pass + 1)); else
+  fail=$((fail + 1)); printf 'FAIL %-55s allowed action must stay silent, got: %s\n' "tele: failed write emits no stderr on allow" "$err" >&2
+fi
+export GUARD_TELEMETRY_FILE="$TELE"
 
 # --- hook wiring: the PreToolUse matcher must route every tool guard.sh handles ---
 # Conformance-probe finding (issue #110, P-GD.5): rule 5 was dead on the live

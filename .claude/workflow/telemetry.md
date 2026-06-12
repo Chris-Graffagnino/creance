@@ -4,8 +4,7 @@ Every §7 gate run (`next-task.md`) leaves a machine-readable outcome record, so
 behavior and task cost become inspectable trends rather than anecdotes. This file defines
 **what a record is and where records live**. It defines no writer: emission is owned by
 the adapters' gate-loop binding (gate-run records) and the **[guard]** (block and
-evaluation records — their field shapes land with the guard-logging work and live here
-when they do).
+evaluation records, defined below).
 
 > Runtime-neutral: roles in **[brackets]** are defined in `workflow/README.md` → "binding
 > contract" and mapped to concrete mechanisms by the active adapter.
@@ -43,7 +42,7 @@ Every line carries:
 
 | Field | Meaning |
 |---|---|
-| `record` | type discriminator: `gate-run` (defined below); guard `block` / `evaluation` types join this table when the guard-logging task lands |
+| `record` | type discriminator: `gate-run`, `block`, or `evaluation` (each defined below) |
 | `timestamp` | ISO-8601 UTC time the record was written |
 | `repo` | `<repo-basename>` — keys the stream when files are ever co-located |
 
@@ -63,6 +62,26 @@ appended by the dispatcher after the gate loop returns. Fields beyond the envelo
 Tier names, not model IDs: a record naming a concrete model would leak adapter facts into
 a runtime-neutral artifact and break the one-line-model-swap property. The adapter's model
 table remains the only place a tier resolves to a model.
+
+## The `block` and `evaluation` records ([guard])
+
+Both are appended by the **[guard]**, to the same stream, with the same fields beyond the
+envelope:
+
+| Field | Meaning |
+|---|---|
+| `rule` | the guard rule's stable identifier — which rule fired (`block`) or was evaluated (`evaluation`) |
+| `tool` | the tool whose invocation the guard inspected |
+
+- A **`block`** record is appended for **every blocked action**, whatever the rule.
+- An **`evaluation`** record is appended on at least one guard path **guaranteed to fire
+  during every gate run** — the strong-tier floor check on the constitution [reviewer]
+  dispatch — whatever that check's outcome. This is the liveness signal: a window with
+  gate runs but zero `evaluation` records means the guard is silently dead (the triage
+  [workflow]'s GUARD-SILENT check), which "no `block` records" alone cannot distinguish
+  from "nothing to block".
+- Per the law above, a failed write is swallowed: the guard's allow/block decision and
+  exit behavior are identical whether or not the record landed.
 
 ## Consumers
 
