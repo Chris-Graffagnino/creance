@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Encoding tests for US6.AC1 / US6.AC2 / US6.AC3 / US6.AC4 / US6.AC5 (T501).
+# Encoding tests for US6.AC1 / US6.AC2 / US6.AC3 / US6.AC4 / US6.AC5 (T501) and
+# US7.AC1 / US7.AC2 / US7.AC3 / US7.AC4 (T204 — triage "Unacknowledged owner
+# comments").
 #
 # The triage and intake procedures are runtime-neutral prose executed by the
 # engine — `.claude/workflow/triage.md` and `.claude/workflow/intake.md` ARE the
@@ -143,6 +145,58 @@ check "P-IN: retitle + task ID + drafted ACs verified" "$PROBES_FLAT" \
   "retitled to the task-ID convention and the marked comment carries the assigned task ID and drafted acceptance criteria"
 check "P-IN: no closing keyword, no issue closed, no merge" "$PROBES_FLAT" \
   "no closing keyword for the fixture issue appears in any PR the run opens, no issue is closed, and no merge is performed"
+
+# ── US7.AC1 — triage surfaces unacknowledged owner comments, read-only ─────────
+# Detection: unmarked owner-login comments newer than the last harness-marked
+# activity, for each open issue and PR.
+check "US7.AC1 detection: section defined" "$TRIAGE_FLAT" \
+  "**Unacknowledged owner comments.**"
+check "US7.AC1 detection: per open issue and PR" "$TRIAGE_FLAT" \
+  "For each open issue and PR, the unmarked owner-login comments"
+check "US7.AC1 detection: newer than last harness-marked activity" "$TRIAGE_FLAT" \
+  "newer than the **last harness-marked activity** on that thread"
+# Read phase (§1) must fetch the comment/timeline evidence the derivation needs,
+# else a headless run renders the section empty/stale (Codex P2, PR #39).
+check "US7.AC1 read phase: fetch comment threads + timeline events" "$TRIAGE_FLAT" \
+  "**For each open issue and PR, fetch its comment thread and cross-referenced timeline events**"
+check "US7.AC1 output: one line per comment shape" "$TRIAGE_FLAT" \
+  "One line per comment: item number, comment date, the comment's first line."
+# Snapshot output shape: the section, its one-line format, and the explicit
+# empty state (the criterion's negative case).
+check "US7.AC1 output: snapshot section header" "$TRIAGE_FLAT" \
+  "## Unacknowledged owner comments"
+check "US7.AC1 output: one-line-per-comment format" "$TRIAGE_FLAT" \
+  '- #<n> (<issue|PR>) <comment-date> — "<comment'"'"'s first line>"'
+check "US7.AC1 output: explicit empty state" "$TRIAGE_FLAT" \
+  '(or "none — no unmarked owner comment is newer than the last harness-marked activity")'
+
+# ── US7.AC2 — "last harness-marked activity" is defined ────────────────────────
+check "US7.AC2: marked comment OR cross-referenced harness event" "$TRIAGE_FLAT" \
+  "the newest **[comment marker]**-marked comment on the thread, or the newest cross-referenced harness commit/PR event"
+check "US7.AC2: no-marked-activity fallback to last harness action" "$TRIAGE_FLAT" \
+  "when the thread carries no marked activity, any owner comment newer than the item's last cross-referenced harness action counts"
+
+# ── US7.AC3 — detection is read-only; acting on it is next-task's job ───────────
+check "US7.AC3: detection only, triage stays read-only" "$TRIAGE_FLAT" \
+  "**Detection only:** triage names the unacknowledged comment and stays"
+check "US7.AC3: acting on it is next-task's job" "$TRIAGE_FLAT" \
+  "acting on it is the next-task [workflow]'s job"
+check "US7.AC3: posts nothing, marks nothing, mutates nothing" "$TRIAGE_FLAT" \
+  "triage posts nothing, marks nothing, and mutates no thread state"
+
+# ── US7.AC4 — references the [comment marker] role only, no concrete string ─────
+check "US7.AC4: references the [comment marker] role" "$TRIAGE_FLAT" \
+  "The **[comment marker]** separates"
+# Negative case: triage.md must NOT inline the adapter's concrete marker string
+# (the literal lives only adapter-side; workflow/** references the role). The
+# marker's recognizable substring "engine-authored, not owner steering" must be
+# absent from the neutral triage doc.
+if printf '%s' "$TRIAGE_FLAT" | grep -qF -- "engine-authored, not owner steering"; then
+  fail=$((fail + 1))
+  printf 'FAIL US7.AC4: triage.md must not inline the concrete marker string\n' >&2
+else
+  pass=$((pass + 1))
+fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
