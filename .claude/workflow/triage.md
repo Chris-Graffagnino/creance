@@ -44,6 +44,10 @@ procedure is safe to run unattended because it cannot change the repo.
    time the last line describes the **previous** attempt. Only report "no run log" after all
    three resolutions came up empty — a missing log at just the default path is not evidence
    the launcher never ran.
+6. The **telemetry stream** (path from the profile → "Paths" → Telemetry; record shapes
+   per `workflow/telemetry.md`) — **read-only, like every other source here**: never write
+   to, truncate, or rewrite the stream. An absent or empty file is not a read failure —
+   it feeds the "Gate trends" section's explicit no-data state (§2).
 
 ## 2. Derive the findings
 - **Next unblocked task.** Lowest-numbered `[ ]` task whose dependencies are met and which is
@@ -59,6 +63,22 @@ procedure is safe to run unattended because it cannot change the repo.
 - **Constitution watch (look-ahead).** From the profile's "Constitution watch" map, name the
   *upcoming* tasks that touch the highest-risk principles so the human reviews them carefully
   when they land. Cross-reference with which of those are still `[ ]`.
+- **Gate trends (from the telemetry stream).** Over the snapshot window — the trailing 7
+  days unless the profile says otherwise — derive from the stream's `gate-run` records:
+  - **FAIL counts by auditor:** for each auditor name appearing in any record's `rounds`,
+    the count of FAIL verdicts it returned in the window.
+  - **Non-convergence stops:** every record with `outcome: non-convergence`, listed by
+    `task_id`.
+  - **Tier-escalation events:** within a single record's `rounds`, a later round
+    dispatching an auditor at a higher tier than an earlier round dispatched the same
+    auditor — list each as `<task_id>: <auditor> <from-tier> → <to-tier>`.
+  This derivation is **read-only over telemetry** (per `workflow/telemetry.md`, telemetry
+  observes and never decides — trends inform the human, never a gate or tier). When the
+  stream is absent, empty, or has no `gate-run` records in the window, the section still
+  renders, with the explicit no-data state shown in the §4 template — it is never
+  silently omitted and a missing file is never an error. Records that fail to parse are
+  skipped and counted in the section's "skipped malformed lines" note, never repaired
+  in place.
 - **Heartbeat gap (from the run log's last line).** A nonzero exit, or a timestamp older than
   one cadence interval (daily → > ~1 day before now), means the heartbeat had been down and
   this run is the recovery — say so explicitly under "Heartbeat health" so the gap is visible
@@ -107,6 +127,14 @@ shape:
 
 ## Constitution watch (upcoming)
 - <task>: <which principle to guard>
+
+## Gate trends (window: <YYYY-MM-DD>–<YYYY-MM-DD>)
+- FAIL counts by auditor: <auditor>: <n> …   (or "none in window")
+- Non-convergence stops: <task-id> …   (or "none in window")
+- Tier escalations: <task-id>: <auditor> <from-tier> → <to-tier> …   (or "none in window")
+- <"no data yet — telemetry stream absent/empty at <path>" replaces the three lines above
+  when §2's gate-trends derivation found no gate-run records>
+- <"skipped malformed lines: <n>" — present only when nonzero, whether or not data was found>
 
 ## Heartbeat health
 - cli: ok | not found   ·  reads completed: <n>/<n>   ·  notes: <…>
