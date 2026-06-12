@@ -133,6 +133,29 @@ verdict) — an explicit anti-fabrication rule, because an unverified "it works"
 flagged "untested." Every "your call" item ends with a `Decision needed:` / `Recommendation:`
 pair so the owner sees exactly what they're deciding.
 
+## 11. Context residency — frequency-weighted placement
+
+Orthogonal to §1's axis-of-change split, the files form a tiered cache by **frequency of
+use**, and every piece of guidance must live at the cheapest tier that serves it:
+
+- **Always resident (L1):** `AGENTS.md` (imported by `CLAUDE.md` into every session) and
+  skill frontmatter descriptions. Only rules that apply to *every turn* belong here.
+- **One discovery step (L2):** skill bodies that defer to `workflow/*.md` ("read that file
+  now and execute it") — loaded only when the skill fires.
+- **Per-task fetch (L3):** the profile, specs, contracts, and constitution — read per
+  `workflow/next-task.md` §2.
+- **Below L1 — deterministic code:** anything expressible as a check goes in the guard
+  (§4) instead of the prompt. "Never push to main" costs zero resident tokens because it
+  is a veto, not an instruction.
+
+The failure mode this prevents is invisible: the template invites filling `AGENTS.md`
+placeholders, and an adopter who pastes a full procedure manual or style guide into it
+taxes every session of every task — no probe, guard, or CI check catches the regression,
+and bloated resident context degrades model accuracy on every turn. The `AGENTS.md`
+"Discovered Work" section (a summary plus a pointer to `next-task.md` §5.5) is the worked
+example of the intended pattern: the per-turn rule stays resident, the full procedure
+lives one fetch away.
+
 ---
 
 ## Things that look like cruft but are not — quick index

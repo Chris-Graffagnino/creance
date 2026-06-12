@@ -4,6 +4,8 @@
 > section headings — the guard hook and the workflow docs reference this file by name
 > (`AGENTS.md`; `CLAUDE.md` imports it). Project facts belong in `.claude/PROJECT.md`,
 > not here — this file carries the *rules*, the profile carries the *facts*.
+> Everything in this file is resident in every session: keep it to per-turn rules, and
+> push full procedures into `.claude/workflow/**` behind pointers (`DESIGN-NOTES.md` §11).
 
 ## Operating Principles
 - Treat `<specs path, e.g. specs/001-your-feature/>` as the source of truth for scope,
