@@ -1,5 +1,12 @@
 # Extracting `.claude/` into a standalone harness repo
 
+> **Provenance:** this is the carried copy (§4 step 8) inside the extracted template —
+> originally written in the source project (`bird-journal-ai`, cut at `ff16689`,
+> 2026-06-12). In this repo it is live documentation, not history: §2's cut-list explains
+> which files are engine vs. profile, §5 is the standing conformance check after any
+> harness change, and the full procedure is the playbook for the *next* extraction or
+> runtime port.
+
 **Read this first** if your job is to lift this workflow harness out of `bird-journal-ai`
 into its own repository. It is the manifest the source repo's own docs don't provide: which
 files are the engine, which are stained with project facts, what the engine depends on
