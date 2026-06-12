@@ -69,6 +69,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   live tasks files — FAIL (issue #21 class; CI backstop in `ci.yml`).
 - Engine text that depends on the model "noticing" something a deterministic check could
   enforce — JUSTIFY or add the backstop.
+- A change that lets telemetry or evaluation records influence gate outcomes, model-tier
+  assignment, or gate semantics (round limits, veto authority, tier floors) — FAIL
+  (constitution P5; spec 001 non-goals).
+- Reviewer specs, invariants, guards, or `memory/constitution.md` modified by automation
+  outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a gate run —
+  FAIL (constitution P4; spec 001 non-goals).
 
 ### Invariant → enforcement mapping
 
@@ -77,6 +83,8 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 | Runtime-neutral workflow layer | contract-auditor: hunt concrete mechanisms in `workflow/**` | none yet — judgment-only |
 | Guard change ↔ guard test | constitution-auditor: diff touching `guard.sh` without `guard.test.sh` | `guard.test.sh` in CI `verify` (incl. matcher-wiring assertion) |
 | No selectable template artifacts / duplicate task IDs | spec-auditor: tasks-file resolution per this profile | CI `verify` repo-consistency step (fails on `specs/000-template/{spec,tasks}.md` or duplicate `T<nnn>` across live tasks files) |
+| Telemetry observes, never decides (P5) | constitution-auditor: hunt gate/tier logic reading telemetry or evaluation records | none yet — judgment-only |
+| No silent self-modification (P4) | constitution-auditor: hunt automation that writes reviewer specs, guards, invariants, or the constitution outside a PR | none yet — judgment-only |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.
