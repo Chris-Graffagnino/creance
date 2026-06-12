@@ -119,25 +119,10 @@ Every PR body must include `Closes #<issue-number>`. Use heredocs for `gh` bodie
 never use literal `\n` characters.
 
 ## Automated Review Standard
-Review must inspect the linked issue, task ID, relevant contracts/specs, the
-constitution, the PR diff, and the test plan/results.
-
-Prioritize findings in this order:
-1. **Constitution compliance**
-2. Correctness against acceptance criteria
-3. Regression risk
-4. Spec and contract compliance (including provider-swappability and cost invariants)
-5. Scope discipline
-6. Test adequacy, including negative/edge cases
-7. Maintainability and clarity
-8. Style last
-
-Block approval when a constitution principle is violated, acceptance criteria are
-unclear, contracts drift, a vendor is called outside its interface, cost invariants are
-broken, tests are missing/weak, scope is too broad, or correctness cannot be determined.
-
-Approval comments must be evidence-based: name the issue/task reviewed, checks run,
-contract + constitution alignment, and any intentional follow-up scope.
+The full standard — inputs every review must inspect, the finding-priority order,
+block conditions, and the evidence rule for approvals — lives in
+`.claude/workflow/README.md` → "The review standard"; the reviewer specs under
+`.claude/workflow/reviewers/` apply it per dimension.
 
 ## Autonomy and Merge Rules
 - Default mode is review mode: open PRs but do not merge.
