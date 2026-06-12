@@ -30,6 +30,13 @@ procedure is safe to run unattended because it cannot change the repo.
      the `origin` slug once **per the profile's Identity section** and target that slug
      explicitly on every call.
    - List open issues and open PRs (with review decision + check status + last-updated).
+   - **For each open issue and PR, fetch its comment thread and cross-referenced
+     timeline events** — comment bodies, authors, and timestamps, plus the harness
+     commit/PR events cross-referenced on the thread. The "Unacknowledged owner comments"
+     derivation (§2) needs this evidence: without it a headless run renders that section
+     empty or stale and silently misses owner steering. The **[comment marker]** tells the
+     owner-login comments apart from harness bookkeeping (§2; channel rules in
+     `next-task.md` §2.5).
    - An issue is pre-created for every task (one per task ID); reference the existing issue
      number, don't imply a new one.
 4. The **constitution** (path in the profile) is law; you needn't re-read it every run, but use

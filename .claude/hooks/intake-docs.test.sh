@@ -155,6 +155,10 @@ check "US7.AC1 detection: per open issue and PR" "$TRIAGE_FLAT" \
   "For each open issue and PR, the unmarked owner-login comments"
 check "US7.AC1 detection: newer than last harness-marked activity" "$TRIAGE_FLAT" \
   "newer than the **last harness-marked activity** on that thread"
+# Read phase (§1) must fetch the comment/timeline evidence the derivation needs,
+# else a headless run renders the section empty/stale (Codex P2, PR #39).
+check "US7.AC1 read phase: fetch comment threads + timeline events" "$TRIAGE_FLAT" \
+  "**For each open issue and PR, fetch its comment thread and cross-referenced timeline events**"
 check "US7.AC1 output: one line per comment shape" "$TRIAGE_FLAT" \
   "One line per comment: item number, comment date, the comment's first line."
 # Snapshot output shape: the section, its one-line format, and the explicit
