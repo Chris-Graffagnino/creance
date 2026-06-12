@@ -235,7 +235,28 @@ not done until:
   Symmetrically, **every "your call" item ends with a one-line `Decision needed:` … /
   `Recommendation:` … pair** — purely-informational items state
   `Decision needed: none (informational)` — so the owner sees exactly what they are
-  deciding instead of inferring it from an observation.
+  deciding instead of inferring it from an observation. A decision-ready item meets
+  three further conditions, so a one-word reply is always enough to proceed:
+  - **Exhaust autonomous work first.** Surface an item only when no autonomous work on
+    it remains. If the engine can still narrow the question — run a test, check a doc,
+    prepare the reversible default behind its seam (the §5 blocked-dependency instinct,
+    generalized to decision items) — it does that first and surfaces the *narrowed*
+    question, never a half-prepared one that forces the owner to do the analysis or
+    bounce it back.
+  - **Enumerate the exact choices and each one's consequence** (typically 2–3: the
+    recommendation, the main alternative, and reject/defer), so the owner answers in a
+    word instead of asking "what are my options?". Every offered choice must be fully
+    answerable through the comment channel within §2.5's authority bounds — that valve
+    is one-way, so **a merge/land is never an offered choice**. Where the natural intent
+    is "ship it," the item states that answering applies the decision while merging still
+    requires session authorization, so the one-word answer is always fully actionable and
+    never partially obeyed. Purely-informational items keep the
+    `Decision needed: none (informational)` form.
+  - **Refresh the item's world-state immediately before surfacing it** — re-verify it is
+    still live: not already resolved, and not made moot by a newer commit. (The
+    thread-side half — already answered or settled on the issue/PR thread — is §2.5's
+    "don't re-ask" and thread-refresh rules; this condition owns only the world-state
+    half and does not restate them.)
 
 ## 7. Pre-PR gate (required) — maker is not the checker; loop until PASS
 You wrote this code, so you are the worst judge of it. The gate is a **loop, not a
@@ -289,8 +310,11 @@ degradation path).
   any round-up/degradation applied (over time this is the evidence for re-tuning tier
   tags). Its **"verified automatically"**
   section cites the reviewer-verdict comments (next bullet) as its evidence for gate claims,
-  rather than restating maker-written summaries of them. Every **"your call"** item carries
-  the **Decision needed / Recommendation** pair per §6.5.
+  rather than restating maker-written summaries of them. Every **"your call"** item meets
+  §6.5's decision-ready contract — the **Decision needed / Recommendation** pair, autonomous
+  work exhausted, the exact comment-answerable choices enumerated (merge never among them;
+  purely-informational items keep the `Decision needed: none (informational)` form, no
+  choices), and the world-state refresh — composed alongside the §2.5 thread refresh below.
 - **Refresh the thread before composing "your call"** (§2.5): re-read the issue/PR
   comment thread; act on any newer unmarked owner-login steering (within the §2.5
   authority bounds), do not re-ask a `Decision needed:` the owner already answered there,
