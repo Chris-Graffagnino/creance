@@ -312,8 +312,9 @@ degradation path).
   section cites the reviewer-verdict comments (next bullet) as its evidence for gate claims,
   rather than restating maker-written summaries of them. Every **"your call"** item meets
   §6.5's decision-ready contract — the **Decision needed / Recommendation** pair, autonomous
-  work exhausted, the exact comment-answerable choices enumerated (merge never among them),
-  and the world-state refresh — composed alongside the §2.5 thread refresh below.
+  work exhausted, the exact comment-answerable choices enumerated (merge never among them;
+  purely-informational items keep the `Decision needed: none (informational)` form, no
+  choices), and the world-state refresh — composed alongside the §2.5 thread refresh below.
 - **Refresh the thread before composing "your call"** (§2.5): re-read the issue/PR
   comment thread; act on any newer unmarked owner-login steering (within the §2.5
   authority bounds), do not re-ask a `Decision needed:` the owner already answered there,
