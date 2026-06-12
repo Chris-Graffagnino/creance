@@ -11,7 +11,7 @@
       `PROJECT.template.md` → "Paths" (US1)
 - [x] T102 [strong] Emit gate-run records from the Claude adapter gate loop;
       telemetry write failures never affect gate outcome (US1)
-- [ ] T103 [strong] Guard block-logging plus a per-gate-run evaluation record
+- [x] T103 [strong] Guard block-logging plus a per-gate-run evaluation record
       (liveness signal) + regression tests incl. the silent-failure case (US1)
 
 ## Phase 2 — Surfacing & review throughput
