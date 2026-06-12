@@ -1,0 +1,26 @@
+# Line-ending normalization for mixed macOS / Linux / Windows teams.
+# Git stores LF; Windows-only scripts keep CRLF.
+
+* text=auto
+
+*.md      text eol=lf
+*.json    text eol=lf
+*.js      text eol=lf
+*.sh      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+.gitignore     text eol=lf
+.gitattributes text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets — never normalize or diff as text.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.pdf  binary
+*.zip  binary

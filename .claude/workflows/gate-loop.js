@@ -1,0 +1,167 @@
+/* global args, agent, parallel, log */
+// .claude/workflows/gate-loop.js — the Claude Code binding of the [orchestrated run]
+// role. The runtime-neutral spec is .claude/workflow/gate-loop.md (next-task §7 as
+// code). This script owns §7 steps 2/4/5 — parallel reviewer fan-out, fix-and-
+// re-dispatch, the non-convergence stop, verbatim verdict retention. The maker's
+// self-review (§7.1), /code-review (§7.3), and posting the verdicts to the PR (§8)
+// stay with the invoker. Invoke it on a task branch with the work COMMITTED — the
+// reviewers audit `git diff main..HEAD`.
+//
+// Models are NEVER named here: .claude/MODELS.md is the adapter's only model-naming
+// file. The invoker resolves the tier rows and passes them in `args`:
+//   taskId           (required) task/issue ID the acceptance reviewer grades against
+//   strongModel      (required) MODELS.md [strong tier] row — the constitution floor
+//   cheapModel       (required) MODELS.md [cheap tier] row — acceptance + contract
+//   dispatchContract (default false) true when the diff touches a provider
+//                    interface, monetization, or the data model (§7's rule)
+//   maxFixRounds     (default 2) the §7 non-convergence bound
+//   fix              (default true) false → one report-only fan-out, no fix stage
+
+export const meta = {
+  name: 'gate-loop',
+  description:
+    'next-task §7 pre-PR gate as code: parallel auditor fan-out, fix, re-dispatch only failures, two-round non-convergence stop, verdicts kept verbatim',
+  whenToUse:
+    'From /next-task §7 on a committed task branch. Requires args {taskId, strongModel, cheapModel} — the invoker resolves the models from .claude/MODELS.md.',
+  phases: [
+    { title: 'Dispatch', detail: 'parallel reviewer fan-out (re-dispatch: failures only)' },
+    { title: 'Fix', detail: 'maker-role agent commits minimal fixes for blocking findings' },
+  ],
+};
+
+// Tolerate a JSON-encoded string args (an invoker that stringifies reaches the script
+// as one string); anything else unparseable falls through to the hard errors below.
+let input = args;
+if (typeof input === 'string') {
+  try {
+    input = JSON.parse(input);
+  } catch {
+    input = null;
+  }
+}
+
+if (!input || !input.taskId) {
+  throw new Error(
+    'gate-loop: args.taskId is required — the acceptance reviewer cannot grade without it.',
+  );
+}
+if (!input.strongModel || !input.cheapModel) {
+  throw new Error(
+    'gate-loop: args.strongModel and args.cheapModel are required. Resolve them from the ' +
+      '[strong tier] / [cheap tier] rows of .claude/MODELS.md and pass them explicitly — the ' +
+      'constitution floor must never depend on inherited session state.',
+  );
+}
+
+const MAX_FIX_ROUNDS = input.maxFixRounds === undefined ? 2 : input.maxFixRounds;
+const APPLY_FIXES = input.fix === undefined ? true : Boolean(input.fix);
+
+// The whole report is captured verbatim — `report` is exactly what §8 posts to the PR,
+// so the gate's evidence cannot be lost or paraphrased.
+const VERDICT_SCHEMA = {
+  type: 'object',
+  required: ['verdict', 'report'],
+  properties: {
+    verdict: { type: 'string', enum: ['PASS', 'JUSTIFY', 'FAIL'] },
+    report: {
+      type: 'string',
+      description:
+        'Your complete verdict report exactly as your spec defines it (item-by-item table, ' +
+        'overall verdict, evidence) — verbatim markdown; it is posted to the PR unchanged.',
+    },
+  },
+};
+
+const reviewerPrompt =
+  `Task under review: ${input.taskId}. Audit the current branch's committed diff ` +
+  `(git diff main..HEAD) per your spec. Set 'verdict' to your overall verdict and put ` +
+  `your full verdict report, verbatim, in 'report'.`;
+
+const reviewers = [
+  { key: 'spec-auditor', model: input.cheapModel },
+  { key: 'constitution-auditor', model: input.strongModel },
+];
+if (input.dispatchContract) {
+  reviewers.push({ key: 'contract-auditor', model: input.cheapModel });
+}
+
+const verdicts = {}; // reviewer key → its LATEST {verdict, report}, verbatim
+let pending = reviewers;
+let fixRoundsUsed = 0;
+
+while (true) {
+  log(
+    `Gate dispatch ${fixRoundsUsed + 1}/${MAX_FIX_ROUNDS + 1}: ${pending.map((r) => r.key).join(', ')}`,
+  );
+  const results = await parallel(
+    pending.map(
+      (r) => () =>
+        agent(reviewerPrompt, {
+          label: r.key,
+          phase: 'Dispatch',
+          agentType: r.key,
+          model: r.model,
+          schema: VERDICT_SCHEMA,
+        }),
+    ),
+  );
+
+  pending.forEach((r, i) => {
+    if (results[i]) verdicts[r.key] = results[i];
+  });
+  // A reviewer that returned nothing (skipped/errored dispatch) is never a pass — it
+  // stays failing, gets re-dispatched, and if it never reports, the gate FAILs with it
+  // listed under noVerdict.
+  const failing = pending.filter((r, i) => !results[i] || results[i].verdict === 'FAIL');
+
+  if (failing.length === 0) {
+    return {
+      gate: 'PASS',
+      // JUSTIFY clears the gate only with the deviation documented in the PR body.
+      justified: Object.keys(verdicts).filter((k) => verdicts[k].verdict === 'JUSTIFY'),
+      verdicts,
+      fixRoundsUsed,
+    };
+  }
+
+  if (!APPLY_FIXES || fixRoundsUsed >= MAX_FIX_ROUNDS) {
+    return {
+      // Non-convergence: stop and surface in the PR body (§7.4) — the loop never
+      // overrides a reviewer.
+      gate: 'FAIL',
+      failing: failing.map((r) => r.key),
+      noVerdict: pending.filter((r, i) => !results[i]).map((r) => r.key),
+      verdicts,
+      fixRoundsUsed,
+    };
+  }
+
+  const findings = failing.filter((r) => verdicts[r.key] && verdicts[r.key].verdict === 'FAIL');
+  if (findings.length > 0) {
+    log(
+      `Fix round ${fixRoundsUsed + 1}: addressing FAIL findings from ${findings.map((r) => r.key).join(', ')}`,
+    );
+    const briefs = findings
+      .map((r) => `## ${r.key} — FAIL (verbatim)\n\n${verdicts[r.key].report}`)
+      .join('\n\n');
+    // No model override: the fixer inherits the session model — the task's tier by
+    // construction (the per-stage tier map in workflow/next-task.md).
+    await agent(
+      `You are the maker addressing blocking pre-PR gate findings for task ${input.taskId}, ` +
+        `on the current task branch (you are NOT on main; never switch to or commit on main).\n\n` +
+        `${briefs}\n\n` +
+        `Apply the minimal scoped change that addresses each blocking finding — nothing ` +
+        `speculative. Run the tests for whatever you change. Stage SPECIFIC files (never ` +
+        `'git add .') and commit on this branch with message ` +
+        `"fix: [${input.taskId}] address gate findings (round ${fixRoundsUsed + 1})". The ` +
+        `reviewers re-audit the COMMITTED diff (git diff main..HEAD), so an uncommitted fix ` +
+        `is invisible to them. If you judge a finding wrong or out of scope, leave the code ` +
+        `unchanged for that finding and say why in your final message — never override the ` +
+        `reviewer yourself; the gate surfaces non-convergence instead.`,
+      { label: `fix-round-${fixRoundsUsed + 1}`, phase: 'Fix' },
+    );
+  }
+
+  fixRoundsUsed += 1;
+  pending = failing; // re-dispatch ONLY the failures
+}

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git branch:*)",
+      "Bash(git switch:*)",
+      "Bash(git restore:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git remote:*)",
+      "Bash(git show:*)",
+      "Bash(gh auth status:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr create:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr comment:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(gh repo view:*)",
+      "Bash(gh repo set-default:*)",
+      "Bash(bash .claude/hooks/guard.test.sh)",
+      "PowerShell(git status:*)",
+      "PowerShell(git diff:*)",
+      "PowerShell(git log:*)",
+      "PowerShell(git branch:*)",
+      "PowerShell(git switch:*)",
+      "PowerShell(git restore:*)",
+      "PowerShell(git add:*)",
+      "PowerShell(git commit:*)",
+      "PowerShell(git fetch:*)",
+      "PowerShell(git rev-list:*)",
+      "PowerShell(git push:*)",
+      "PowerShell(git pull:*)",
+      "PowerShell(git rev-parse:*)",
+      "PowerShell(git remote:*)",
+      "PowerShell(git show:*)",
+      "PowerShell(gh auth status:*)",
+      "PowerShell(gh issue:*)",
+      "PowerShell(gh pr view:*)",
+      "PowerShell(gh pr list:*)",
+      "PowerShell(gh pr create:*)",
+      "PowerShell(gh pr checks:*)",
+      "PowerShell(gh pr diff:*)",
+      "PowerShell(gh pr comment:*)",
+      "PowerShell(gh pr merge:*)",
+      "PowerShell(gh repo view:*)",
+      "PowerShell(gh repo set-default:*)",
+      "PowerShell(bash .claude/hooks/guard.test.sh)",
+      "Edit",
+      "Write"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.sh\"",
+            "statusMessage": "Enforcing AGENTS.md guardrails…"
+          }
+        ]
+      }
+    ]
+  }
+}

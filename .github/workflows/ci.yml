@@ -1,0 +1,32 @@
+name: CI
+
+# The harness's own deterministic gate. The guard tests include the matcher-wiring
+# assertion (settings.json's PreToolUse matcher must route every tool guard.sh
+# handles) — that assertion exists because the guard was once silently dead while
+# its unit tests stayed green. See .claude/DESIGN-NOTES.md §"the guard was
+# silently dead". Do not remove this job when adapting the template.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Guard hook regression tests (bash + git only, <1s).
+      - name: Guard hook tests
+        run: bash .claude/hooks/guard.test.sh
+
+      # ── Add your project's toolchain steps below (type check, lint, format,
+      #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
+      #    job name `verify` in sync with PROJECT.md "Required check". ──

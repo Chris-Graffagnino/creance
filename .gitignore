@@ -1,0 +1,15 @@
+# ── Machine-local Claude Code state (never travels — see .claude/EXTRACTION.md) ──
+.claude/settings.local.json
+.claude/launch.json
+CLAUDE.local.md
+
+# ── Secrets (headless auth — see docs/headless-auth.md) ──
+.oauth-token
+*.oauth-token
+
+# ── OS junk ──
+.DS_Store
+Thumbs.db
+
+# ── Toolchain (extend per your stack) ──
+node_modules

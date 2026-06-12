@@ -1,0 +1,93 @@
+# `.claude/` — portable task-driven workflow harness
+
+A reusable engine for running engineering work as **one task → one issue → one branch →
+one PR**, with an adversarial **maker ≠ checker** review gate. It is layered for two kinds
+of portability:
+
+- **Project-portable** — no project facts in the engine; everything specific lives in
+  `PROJECT.md` + `memory/constitution.md`. Reuse on a new project by rewriting those.
+- **Runtime-portable** — the *methodology* is runtime-neutral prose in `workflow/`, written
+  against abstract **[roles]**; a per-runtime **adapter** maps each role to a concrete
+  mechanism. The shipped adapter targets Claude Code. Reuse on a non-Claude runtime by
+  writing one new adapter against `workflow/README.md`'s binding contract — the neutral
+  core is reused unchanged.
+
+## The three layers
+
+| Layer | Files | Project-specific? | Runtime-specific? |
+|-------|-------|-------------------|-------------------|
+| **Profile** | `PROJECT.md`, `PROJECT.template.md` | **Yes — edit this** | no |
+| **Methodology** (the engine logic) | `workflow/*.md`, `workflow/reviewers/*.md` | no (reads the profile) | **no — references [roles] only** |
+| **Adapter** (Claude Code binding) | `skills/*/SKILL.md`, `agents/*.md`, `hooks/guard.sh`, `settings.json`, `MODELS.md` | no | yes |
+
+Each binding is thin: a skill/agent file carries only its trigger frontmatter + a
+role→mechanism map, then points at its `workflow/` doc. `settings.local.json` (machine-
+specific permission overrides) is gitignored and does not travel.
+
+## The shipped adapter: Claude Code
+
+How this adapter maps each contract role (the roles' runtime-neutral specs — inputs,
+outputs, constraints — live in `workflow/README.md` → "The binding contract"; this table
+is mechanisms only). Each skill file restates the subset it needs at trigger time — when
+changing a mapping, update both.
+
+| Role | Claude Code mechanism |
+|------|----------------------|
+| **[workflow]** | A skill / slash command (`.claude/skills/<name>/SKILL.md`) |
+| **[reviewer]** | A subagent (`.claude/agents/<name>.md`, `tools:` excludes Edit/Write) dispatched via the Agent tool |
+| **[frontier tier] / [strong tier] / [cheap tier]** | Resolved per the model table in **`MODELS.md`** — the adapter's ONLY file naming models (`--model` headless; the Agent tool's `model` parameter per subagent dispatch — the agent files carry no model pin) |
+| **[code-review pass] / [security-review pass]** | `/code-review` / `/security-review` |
+| **[visual verification]** | The `/run` and `/verify` skills launch and drive the app; the preview tooling captures screenshots (its screen-recording where available, for animation work). Evidence files are committed on the task branch under `docs/visual-evidence/<task-id>/` and embedded in the PR body via commit-SHA-pinned raw URLs (the URL form lives in the [environment block]) — the CLI cannot upload images to GitHub directly. That path is **world-readable** (public repo, permanent git history), so the role's fixtures-only frame constraint is a privacy boundary here, not a style rule |
+| **[orchestrated run]** | The Workflow tool running the adapter script `.claude/workflows/gate-loop.js` (the binding of `workflow/gate-loop.md`). The invoker resolves the strong/cheap rows from `MODELS.md` and passes them in `args` — `{taskId, strongModel, cheapModel, dispatchContract, maxFixRounds?, fix?}`; the script names no models and hard-fails on missing args. It dispatches the auditor subagents (`agentType`) with a structured verdict schema and returns every verdict verbatim; the fix stage is a maker-role agent inheriting the session's (task-tier) model |
+| **[bulk-read offload]** | The `Explore` subagent (spawn on the cheap tier) |
+| **[headless run]** | `claude -p "/<workflow> <args>"` |
+| **[guard]** | A PreToolUse hook → `hooks/guard.sh` (exit 2 blocks; reads the hook's JSON payload on stdin; implements the guard rules normatively listed in `workflow/README.md`) |
+| **[permission allowlist]** | `settings.json` → `permissions.allow` (prefix-matched) |
+| **[environment block]** | `skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy; other bindings reference it, never copy it) |
+
+This adapter's conformance-probe instantiation and dated results live in
+**`adapters/claude-code-probes.md`** (the `workflow/conformance-probes.md` checklist,
+executed 2026-06-11 — re-probe per its header when a mechanism here changes).
+
+## Reuse on a new **project** (same runtime)
+1. Copy `.claude/` into the new repo.
+2. `cp .claude/PROJECT.template.md .claude/PROJECT.md` and fill in every `<...>`.
+3. Add a `memory/constitution.md` — the project's principles ("law"). The reviewers read it.
+4. Add a `specs/` tree (or point `PROJECT.md` "Paths" at wherever your spec/tasks/contracts
+   live; set unused paths to "none").
+5. Confirm `settings.json`'s allowlist fits your tools; keep machine-specific rules in a
+   gitignored `settings.local.json`.
+
+## Adding a new adapter (different runtime)
+1. Reuse `workflow/` + `PROJECT.md` + `memory/constitution.md` **unchanged** — never edit
+   the neutral core to fit a runtime; if a runtime need leaks upward, the fix is a new
+   role in the binding contract, not a mechanism name in `workflow/`.
+2. Read `workflow/README.md` → "The binding contract": every **[role]** with its
+   runtime-neutral spec (inputs / outputs / constraints).
+3. Implement each role in the target runtime's native format — that set of artifacts *is*
+   the adapter, replacing this repo's `skills/` + `agents/` + `hooks/` + `settings.json`.
+   In particular:
+   - Give the adapter exactly **one model table** (this adapter's is `MODELS.md`) mapping
+     the three capability tiers to concrete models, with an effort column where the
+     runtime has a dial — it must be the adapter's **only** file naming models, so a
+     model swap is a one-line change.
+   - Give the adapter exactly **one [environment block]** holding all OS/shell/CLI
+     concrete forms for the new environment, and point every binding at it.
+   - Implement the **[guard]** rules listed in `workflow/README.md` in whatever pre-action
+     hook the runtime offers (deterministic, fails open).
+4. For any role the runtime cannot provide, apply `workflow/README.md` → "How an adapter
+   degrades gracefully" and document the degradation in the adapter.
+5. Sanity-check the split: a search of `workflow/**` must surface no mechanism names from
+   your runtime (or this one) — only `[role]` references — and **no vendor or model
+   names** anywhere outside the adapter's model table (grep for your model table's
+   vocabulary across `.claude/`; exactly one file may match).
+6. **Probe it before trusting it.** Instantiate every probe in
+   `workflow/conformance-probes.md` for the new adapter (the adapter spec carries the
+   instantiation table) and run them — a binding that reads correctly can still not work
+   on a real driver (the active adapter's own probe run caught two live failures; see
+   `adapters/claude-code-probes.md`). Adapter specs and probe records live under
+   `.claude/adapters/` (the Codex CLI spec/stub is `adapters/codex-cli.md` with its
+   dry-run walkthrough alongside).
+
+The engine derives the GitHub repo slug from the `origin` remote, so it works on forks and
+direct repos without edits. No absolute machine paths are baked in.
