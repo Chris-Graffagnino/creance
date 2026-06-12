@@ -186,6 +186,27 @@ execute — not a warning the executor may ignore.
   **in the invocation text itself**. A value carried only by an environment variable or
   an inferred working directory fails — env vars may appear, but only redundantly.
 
+## Procedure probes
+
+Probes for individual procedures in this directory whose write posture warrants a
+dedicated check, beyond the role probes above. Same rules apply (fixtures, never live
+state; record results alongside the adapter's spec).
+
+### P-IN — intake (`intake.md`)
+- **Setup:** a throwaway fixture issue on the tracker — title carrying no task ID, body
+  a plain-language request unambiguous enough to classify (e.g. a small docs chore).
+  Record the base branch's tree state and the live tasks files' content before the run.
+  Close the fixture issue and delete any fixture branch after.
+- **Action:** trigger the intake [workflow] against the fixture issue via the adapter's
+  on-demand path.
+- **Expect:** (a) the issue is classified into exactly one of the five buckets, with the
+  reasoning stated in a **marked** comment on the issue; (b) every drafted artifact
+  (task line, spec text) exists **only on an intake branch** — the base branch and its
+  tasks files are byte-identical after the run; (c) for a converting bucket, the issue
+  is retitled to the task-ID convention and the marked comment carries the assigned
+  task ID and drafted acceptance criteria; (d) no closing keyword for the fixture issue
+  appears in any PR the run opens, no issue is closed, and no merge is performed.
+
 ## Coverage map
 
 | Contract row | Probe |
@@ -203,5 +224,6 @@ execute — not a warning the executor may ignore.
 | [permission allowlist] | P-PA |
 | [environment block] | P-EB |
 | [comment marker] (+ the §2.5 channel rules) | P-CM |
+| intake procedure (`intake.md`) | P-IN |
 | model table property | P-MT |
 | explicit-context rule | P-EC |

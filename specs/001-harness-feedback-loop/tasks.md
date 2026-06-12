@@ -38,6 +38,13 @@
 - [ ] T402 [strong] Triage PROBES-STALE and GUARD-SILENT checks (US5) —
       strong: this machinery guards the guard (see DESIGN-NOTES §4)
 
+## Phase 5 — Issue intake
+
+- [ ] T501 [strong] Issue intake: triage "Unmapped tracker work" detection,
+      runtime-neutral intake workflow doc + skill binding, README row +
+      conformance probe run on the live adapter (US6) — strong: defines how
+      owner requests become scope, constitution-screen semantics included
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -62,6 +69,12 @@
 | US5.AC1 | T401 |
 | US5.AC2 | T402 |
 | US5.AC3 | T402 |
+| US6.AC1 | T501 |
+| US6.AC2 | T501 |
+| US6.AC3 | T501 |
+| US6.AC4 | T501 |
+| US6.AC5 | T501 |
+| US6.AC6 | T501 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 

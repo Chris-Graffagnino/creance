@@ -60,6 +60,14 @@ procedure is safe to run unattended because it cannot change the repo.
 - **Open PRs needing attention.** Any open PR not approved, with failing checks, or untouched
   for a while → list it (protects the "review every PR" loop from staleness).
 - **Open issues** without a matching branch/PR → list as ready-to-start.
+- **Unmapped tracker work.** Open issues whose **title carries no task ID** (format per
+  the profile) and which **no live tasks-file line references** (search every tasks file
+  the profile names for the issue number and for a task line pointing at it) —
+  owner-filed requests that task selection cannot see and will walk past indefinitely.
+  One line per issue: number, title, age. The check is nearly deterministic (an issue
+  list + a text search over the tasks files). **Detection only:** converting an unmapped
+  issue into the backlog is the intake [workflow]'s job (`intake.md`) — triage names it
+  and stays read-only.
 - **Constitution watch (look-ahead).** From the profile's "Constitution watch" map, name the
   *upcoming* tasks that touch the highest-risk principles so the human reviews them carefully
   when they land. Cross-reference with which of those are still `[ ]`.
@@ -121,6 +129,10 @@ shape:
 
 ## Ready issues
 - #<n> <title>   (or "none open")
+
+## Unmapped tracker work
+- #<n> <title> — opened <age/date>   (or "none — every open issue is mapped to a task ID")
+- <when non-empty, end the section with:> run the intake [workflow] (`intake.md`) to convert
 
 ## Blocked / owner action
 - <task IDs + reason, from the profile's blocked-task list>   (or "none")
