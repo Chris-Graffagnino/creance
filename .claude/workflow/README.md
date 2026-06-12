@@ -72,6 +72,31 @@ environment hints (observed in production: a headless run ignored its env-var pa
 until the launcher moved the paths into the prompt). The triage launcher contract
 (`triage.md` §6, rule 1) is the worked example of a conforming wrapper.
 
+## The review standard (binding on every review pass)
+
+Any review of PR-bound work — a [reviewer] dispatch, a [code-review pass], or a degraded
+same-context pass — must inspect the linked issue, the task ID, the relevant
+contracts/specs, the constitution, the PR diff, and the test plan/results.
+
+Prioritize findings in this order:
+1. **Constitution compliance**
+2. Correctness against acceptance criteria
+3. Regression risk
+4. Spec and contract compliance (including provider-swappability and cost invariants)
+5. Scope discipline
+6. Test adequacy, including negative/edge cases
+7. Maintainability and clarity
+8. Style last
+
+Block approval when a constitution principle is violated, acceptance criteria are
+unclear, contracts drift, a vendor is called outside its interface, cost invariants are
+broken, tests are missing/weak, scope is too broad, or correctness cannot be determined.
+
+Approval comments must be evidence-based: name the issue/task reviewed, checks run,
+contract + constitution alignment, and any intentional follow-up scope. (The reviewer
+specs under `reviewers/` are this standard's per-dimension instantiations; their
+verdict-table output shapes are what "evidence-based" looks like in practice.)
+
 ## How an adapter degrades gracefully
 If a runtime lacks a role, the methodology still runs, more weakly:
 - **No [reviewer] isolation** → run the reviewer spec as a second pass in the same context
