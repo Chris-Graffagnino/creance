@@ -133,8 +133,8 @@ shape:
 - Non-convergence stops: <task-id> …   (or "none in window")
 - Tier escalations: <task-id>: <auditor> <from-tier> → <to-tier> …   (or "none in window")
 - <"no data yet — telemetry stream absent/empty at <path>" replaces the three lines above
-  when §2's gate-trends derivation found no gate-run records; "skipped malformed lines: <n>"
-  appended only when nonzero>
+  when §2's gate-trends derivation found no gate-run records>
+- <"skipped malformed lines: <n>" — present only when nonzero, whether or not data was found>
 
 ## Heartbeat health
 - cli: ok | not found   ·  reads completed: <n>/<n>   ·  notes: <…>
