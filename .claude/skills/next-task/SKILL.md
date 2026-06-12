@@ -36,8 +36,13 @@ with this literal final line (write it into the temp `.md` before the `--body-fi
 ```
 
 The line is exact and machine-checkable (P-CM greps for it verbatim) and plainly readable
-by a non-developer. A comment whose body lacks this line, posted from the owner login, is
-owner steering per §2.5; never add the line to text quoted *from* an owner comment.
+by a non-developer. **Recognition is anchored to the comment's final line ONLY**: a
+comment is marked iff its last non-empty line is exactly this string. The marker appearing
+anywhere else (e.g. quoted mid-body) neither marks the comment nor demotes an owner
+comment that embeds it. A comment not so marked, posted from the owner login, is owner
+steering per §2.5. When quoting an owner comment inside a marked comment, render the
+quoted text as a blockquote so it stays visibly distinct from the engine wrapper, and
+never append the footer to the quoted text itself.
 
 **This environment's concrete forms** (Windows PowerShell 5.1 + `gh`) — this section is the
 **[environment block]**: the ONE home for OS/shell/CLI gotchas. Other bindings (e.g.
