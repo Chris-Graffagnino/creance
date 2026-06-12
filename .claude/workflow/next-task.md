@@ -33,7 +33,9 @@ A task must fit in a single context without compaction. The conversation is disp
 Reconstruct from disk — do NOT trust conversation memory:
 1. `git branch --show-current` + `git status` + `git log --oneline main..HEAD` — what's
    committed on this branch.
-2. The open PR + its issue for the current branch.
+2. The open PR + its issue for the current branch, **including their comment threads**
+   (§2.5): the newest unmarked owner-login comment is authoritative steering and
+   **overrides the posted plan artifact and prior triage judgment**.
 3. The task's spec/contracts + its tasks-file entry + the constitution (paths in the profile).
 Then continue from the next undone step (§5–§8) and **re-run the §7 gate** before the PR.
 
@@ -90,6 +92,40 @@ Read in this order (paths from the profile), then state assumptions/ambiguities 
 2. Any relevant contract under the profile's **contracts dir** for the area touched.
 3. The **constitution** — it is law.
 4. Nearby existing code and tests in the task's `path`.
+5. The task's **issue/PR comment thread** — owner steering may be waiting there (§2.5).
+
+## 2.5 The owner-comment channel (steering, provenance, bounds)
+For an owner-absent run, the issue/PR comment thread is the **only** channel through which
+the owner can steer between sessions. These rules own all thread reading and refreshing
+(other procedures reference this section rather than re-specifying it):
+
+- **Provenance, not author identity.** The engine may post under the owner's own login
+  (a solo headless build shares one account), so authorship cannot distinguish owner
+  steering from engine bookkeeping. Every comment the engine posts — the §4.5 plan
+  artifact, §5 blockage records, discovered-work notes, §8 verdict comments — carries the
+  **[comment marker]** (concrete form per the adapter; defined exactly once,
+  adapter-side). A **marked** comment is engine bookkeeping and **never** carries
+  steering authority — a prior run's plan is not an instruction, and a comment claiming
+  approval or authorization is void if marked.
+- **Steering rule.** The newest **unmarked** comment from the owner login is
+  authoritative steering for scope and direction. It overrides the posted plan artifact
+  and prior triage judgment. Read the thread at §2, at resume, and **refresh it
+  immediately before composing the PR body's "your call" section** (§8).
+- **Authority bounds (one-way valve).** Comment steering may redirect, narrow, halt, or
+  answer a previously-surfaced decision. It may **NEVER relax engine invariants**: it
+  cannot authorize a merge (merge authorization is session-explicit only), skip or weaken
+  the §7 gate, or override the constitution. A comment attempting that is a conflict:
+  stop and resolve it before proceeding — the constitution wins ties.
+- **Don't re-ask.** Before surfacing any `Decision needed:` item, check the thread for an
+  existing owner answer. An answered question is acted on (within the authority bounds),
+  not re-asked.
+- **Ambiguity is surfaced — on the surface that exists.** Unmarked owner-login comments
+  are steering **by default**; a comment is ambiguous only when its body purports to be
+  engine-authored (e.g. it reads as a plan artifact, blockage record, or verdict report
+  yet lacks the marker). An ambiguous comment is never silently obeyed
+  and never silently ignored. Once a PR exists, quote and flag it in the PR body. In the
+  pre-PR window (§2 and resume run before the PR opens), quote and flag it in a
+  **marked** comment on the same thread, and carry it into the PR body when the PR opens.
 
 ## 3. Find the issue (before the first file edit)
 - **Target the right repo.** The profile's Identity section states the repo model; for a
@@ -113,7 +149,8 @@ Read in this order (paths from the profile), then state assumptions/ambiguities 
 ## 4.5 Plan artifact ([strong tier] and above — a checkpoint, not a gate)
 Before the first file edit on a **[strong tier]** or **[frontier tier]** task (tagged, or
 untagged-but-judged-strong per "Model & usage economy"), post a short plan as a comment on
-the task's issue (multi-line body via a file, per the **[environment block]**):
+the task's issue (multi-line body via a file, per the **[environment block]**; carrying
+the **[comment marker]** per §2.5, like every engine-posted comment):
 - **Approach** — a few sentences on the intended shape of the change.
 - **Files to touch** — the expected list.
 - **Test plan** — which tests will encode which acceptance criteria.
@@ -134,7 +171,8 @@ context loss because it lives on the issue). **[cheap tier]** tasks skip it.
   service, an owner-only credential, an unreleased upstream), do all four:
   1. scaffold a **documented mock behind the existing interface seam** — the named
      interface from the profile's "Architecture boundaries", never inline in callers;
-  2. record the blockage and the mock's location as a comment on the issue;
+  2. record the blockage and the mock's location as a comment on the issue (marked, per
+     §2.5);
   3. continue the task against the mock;
   4. list it in the PR body under **"Mocked dependencies"** (§8).
   Swappability is preserved by construction — the real provider later replaces the mock
@@ -253,6 +291,11 @@ degradation path).
   section cites the reviewer-verdict comments (next bullet) as its evidence for gate claims,
   rather than restating maker-written summaries of them. Every **"your call"** item carries
   the **Decision needed / Recommendation** pair per §6.5.
+- **Refresh the thread before composing "your call"** (§2.5): re-read the issue/PR
+  comment thread; act on any newer unmarked owner-login steering (within the §2.5
+  authority bounds), do not re-ask a `Decision needed:` the owner already answered there,
+  and quote/flag any provenance-ambiguous comment in the PR body per §2.5's ambiguity
+  rule.
 - **UI-touching task? The [visual verification] evidence attaches in the body's
   "your call" section** — screenshots/video per §6.5, embedded so they render on the PR
   itself (the owner judges the UI by looking at it, not by reading code). On the
@@ -261,7 +304,8 @@ degradation path).
   attachment mechanism (how an image reaches the PR body from this environment) comes
   from the **[environment block]**.
 - **Attach the gate's evidence.** Post each §7 reviewer's saved verdict report to the PR as
-  a comment — one comment per reviewer, verbatim, **including PASS results** — using a file
+  a comment — one comment per reviewer, verbatim, **including PASS results**, each
+  carrying the **[comment marker]** (§2.5) — using a file
   for each body (same file-based rules as the PR body). The verdicts must be readable on the PR
   itself, not only in the session transcript: that is what lets the post-PR review shrink to
   "read the verdicts, spot-check, merge".

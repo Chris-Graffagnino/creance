@@ -42,6 +42,7 @@ never a mechanism — so new roles are added by appending rows, without reshapin
 | **[guard]** | Every imminent repo-mutating action, *before* it executes | Allow, or a deterministic VETO that blocks execution (not a warning) | **Deterministic** — no model judgment in the decision; **fails open** (uncertainty → allow); enforces exactly the guard rules below |
 | **[permission allowlist]** | A proposed routine action | Pre-approval, so unattended runs proceed without an interactive prompt | Matched mechanically against a maintained list; the list lives in the adapter, never in these docs |
 | **[environment block]** | A portable rule stated in a neutral doc (e.g. "pass multi-line text via a file, as UTF-8") | The concrete OS/shell/CLI form of that rule for the active environment | Exactly **ONE copy per adapter** — every OS/shell/CLI specific (encodings, install paths, quoting, invocation forms) lives there and nowhere else; neutral docs may point to this role but never inline its contents |
+| **[comment marker]** | An engine-authored comment body bound for a task's issue/PR thread | The same body carrying a deterministic self-identification marker | The marker's concrete form is defined **exactly once, adapter-side** (never in these docs), is **visible to a non-developer reader** of the thread, and is applied to **every** engine-posted comment. Its job is provenance under a **shared login**: the engine may post under the owner's own account, so author identity cannot separate harness bookkeeping from owner steering — the marker does (third parties cannot post as the owner login, so it need only separate harness-authored from human-authored). Recognition is **deterministic and position-anchored** per the adapter's definition — marker text merely quoted or embedded mid-body neither marks a comment nor demotes an owner comment. Reading rule: a **marked** comment is engine bookkeeping and **never** carries steering authority; the newest **unmarked** owner-login comment is authoritative owner steering, within the authority bounds in `next-task.md` §2.5 |
 
 ### The [guard] rules (what the gate must enforce)
 The deterministic gate blocks, before execution:
@@ -127,6 +128,10 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   follow it to the letter.
 - **No effort dial** → ignore the model table's effort column; tier resolution is
   unaffected. (The effort column is optional per runtime.)
+- **No [comment marker]** → provenance cannot be established, so every owner-login
+  comment that reads like engine bookkeeping is **ambiguous**: apply `next-task.md`
+  §2.5's ambiguity rule (quote and flag it on the surface that exists; never silently
+  obey, never silently ignore). Note the degradation in the PR.
 
 ## Files
 - `next-task.md` — the per-task loop (one task → one issue → one branch → one PR).
