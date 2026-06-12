@@ -12,6 +12,12 @@ Re-probe per the neutral file's "How to use": on a new model family driving this
 or when a mechanism here is swapped (a new guard implementation, a new dispatch path) —
 re-run the probes for the roles that changed and append a dated row.
 
+**P-GD and P-PA are per-machine probes — execute them on every workstation that will
+drive the harness.** Hook-shell availability is machine-local: the guard runs via
+`bash`, and on a machine without it on PATH (Windows without Git Bash) the guard is
+silently dead. CI's wiring assertion runs on Linux, so a green CI proves nothing about
+your workstation.
+
 Placeholders: `<scheduler-task>` is your platform's scheduled entry (a Windows Task
 Scheduler task, a cron entry, a launchd job); `<launcher-script>` is the out-of-repo
 launcher it runs (templates: `docs/launchers/`).

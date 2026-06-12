@@ -4,7 +4,9 @@ This is the **only file in this adapter that names models**. Everything else —
 `workflow/**`, `PROJECT.md`, the skills, the agents, the hooks — references capability
 **tiers**; this table resolves a tier to a concrete model (and an effort level, where the
 runtime exposes a dial). Swapping a model for its successor is a one-line edit here, with
-zero re-tagging anywhere else.
+zero re-tagging anywhere else. This table is **per-adapter**: every adapter carries
+exactly one of its own (the Codex CLI spec's table in `adapters/codex-cli.md` is the
+worked second example) — the harness is not bound to this adapter's vendor.
 
 The rows below are a **sensible default at extraction time — swap per your account**
 (available models, plan, runtime): edit the Model column only; nothing else in the harness
