@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Encoding tests for US6.AC1 / US6.AC3 / US6.AC4 (T501).
+# Encoding tests for US6.AC1 / US6.AC2 / US6.AC3 / US6.AC4 / US6.AC5 (T501).
 #
 # The triage and intake procedures are runtime-neutral prose executed by the
 # engine — `.claude/workflow/triage.md` and `.claude/workflow/intake.md` ARE the
@@ -62,6 +62,28 @@ check "AC1 output: explicit empty state" "$TRIAGE_FLAT" \
 check "AC1 output: non-empty state points at intake" "$TRIAGE_FLAT" \
   "run the intake [workflow] (\`intake.md\`) to convert them"
 
+# ── US6.AC2 — five-bucket classification, constitution screen, never guess ─────
+check "AC2 taxonomy: exactly one bucket per issue" "$INTAKE_FLAT" \
+  "## 2. Classify (exactly one bucket per issue)"
+check "AC2 taxonomy: bucket 1 spec work" "$INTAKE_FLAT" \
+  "1. **Spec work**"
+check "AC2 taxonomy: bucket 2 repo-maintenance" "$INTAKE_FLAT" \
+  "2. **Repo-maintenance**"
+check "AC2 taxonomy: bucket 3 bug against the base branch" "$INTAKE_FLAT" \
+  "3. **Bug against the base branch**"
+check "AC2 taxonomy: bucket 4 duplicate" "$INTAKE_FLAT" \
+  "4. **Duplicate**"
+check "AC2 taxonomy: bucket 5 underspecified" "$INTAKE_FLAT" \
+  "5. **Underspecified**"
+check "AC2 screen: constitution screened before any drafting" "$INTAKE_FLAT" \
+  "## 3. Constitution screen (before any drafting)"
+check "AC2 screen: conflicts surfaced, never silently converted" "$INTAKE_FLAT" \
+  "**surfaced on the issue — never silently converted**"
+check "AC2 underspecified: decision-ready ask shape" "$INTAKE_FLAT" \
+  "\`Decision needed:\` / \`Recommendation:\` pair"
+check "AC2 underspecified: owner intent never guessed" "$INTAKE_FLAT" \
+  "**Never guess owner intent into acceptance criteria.**"
+
 # ── US6.AC3 — conversions land only as PRs; write posture is bounded ───────────
 check "AC3 posture: repo written only on an intake branch" "$INTAKE_FLAT" \
   "**The repo is written only on an intake branch.**"
@@ -85,6 +107,30 @@ check "AC4: cross-link comment is marked (provenance rules)" "$INTAKE_FLAT" \
   "post a marked comment with the assigned task ID"
 check "AC4: marked comment carries the drafted acceptance criteria" "$INTAKE_FLAT" \
   "the drafted acceptance criteria, and the PR reference"
+
+# ── US6.AC5 — skill binding exists; no new binding-contract role ───────────────
+SKILL="$DIR/skills/intake/SKILL.md"
+if [ -r "$SKILL" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL AC5: skill binding file present\n     missing: %s\n' "$SKILL" >&2
+fi
+SKILL_FLAT="$(flat "$SKILL")"
+check "AC5: binding executes the runtime-neutral workflow doc" "$SKILL_FLAT" \
+  "\`.claude/workflow/intake.md\`"
+check "AC5: workflow composes existing roles only" "$INTAKE_FLAT" \
+  "Intake composes existing roles only"
+# Negative case: the binding-contract table in workflow/README.md must NOT gain
+# an intake role row (intake composes existing roles; it appears only in the
+# Files list).
+README_FLAT="$(flat "$DIR/workflow/README.md")"
+if printf '%s' "$README_FLAT" | grep -qF -- "| **[intake]**"; then
+  fail=$((fail + 1))
+  printf 'FAIL AC5: no [intake] role row in the binding-contract table\n' >&2
+else
+  pass=$((pass + 1))
+fi
 
 # ── Runtime-conformance pointer: P-IN probe must exist and encode (b)(c)(d) ────
 PROBES="$DIR/workflow/conformance-probes.md"
