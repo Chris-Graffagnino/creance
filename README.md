@@ -60,8 +60,12 @@ Concretely, that includes:
    single source of project facts the engine reads.
 3. Write your `memory/constitution.md` (start from `memory/constitution.template.md`) —
    the project's non-negotiable principles. The constitution auditor enforces it as law.
-4. Fill the `specs/` tree (skeletons in `specs/000-template/`): a spec with `US#`
-   acceptance criteria, a task backlog, provider contracts if you have swappable seams.
+4. Fill the `specs/` tree: copy `specs/000-template/` to `specs/001-<feature>/`, rename
+   `spec.template.md` → `spec.md` and `tasks.template.md` → `tasks.md`, then fill in a
+   spec with `US#` acceptance criteria, a task backlog, and provider contracts if you
+   have swappable seams. Keep the `.template.md` suffix on the originals — it keeps the
+   skeleton out of the engine's `specs/*/tasks.md` fallback glob, so its placeholder
+   tasks are never selectable by `/next-task`.
 5. Adapt the placeholders in `AGENTS.md` and add your toolchain's commands to
    `.claude/settings.json` → `permissions.allow` (e.g. `Bash(npm test:*)`) and to
    `.github/workflows/ci.yml`.

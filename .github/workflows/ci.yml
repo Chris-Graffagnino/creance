@@ -27,6 +27,12 @@ jobs:
       - name: Guard hook tests
         run: bash .claude/hooks/guard.test.sh
 
+      # Tasks-file resolution stays unambiguous (issue #21): the template skeleton
+      # must never match the engine's specs/*/{spec,tasks}.md fallback globs, and no
+      # task ID may appear in more than one live tasks file.
+      - name: Tasks-file consistency
+        run: bash .claude/hooks/check-tasks-consistency.sh
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──

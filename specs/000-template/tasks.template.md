@@ -1,7 +1,9 @@
 # Tasks — <FEATURE NAME>
 
-> Skeleton backlog for `/next-task`. Task-line format (state the conventions you choose
-> in `.claude/PROJECT.md` → "Task & branch conventions"):
+> Skeleton backlog for `/next-task`. Rename to `tasks.md` when you copy the template dir
+> — the `.template.md` suffix keeps this file out of the `specs/*/tasks.md` fallback glob,
+> so its placeholder task IDs are never selectable. Task-line format (state the
+> conventions you choose in `.claude/PROJECT.md` → "Task & branch conventions"):
 >
 > `- [ ] T<nnn> [<tier>] <description> (US<#>)`
 >
