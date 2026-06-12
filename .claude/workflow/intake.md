@@ -54,9 +54,11 @@ acted on, not re-asked.
    criteria, in an existing spec when the request extends one, or a new spec directory
    (per the profile's spec layout) when it doesn't — updating the profile's paths in the
    same PR so the new spec is discoverable.
-2. **Repo-maintenance** — docs, chores, refactors. A tasks-file entry; no new user story.
+2. **Repo-maintenance** — docs, chores, refactors. A tasks-file entry; no new user
+   story, but never rubric-less (the §4 rule: done-when criteria on the issue).
 3. **Bug against the base branch** — reuse the discovered-work issue shape
-   (`next-task.md` §5.5: file/line evidence, cold-start context); map it to a task entry.
+   (`next-task.md` §5.5: file/line evidence, cold-start context); map it to a task entry
+   with done-when criteria per §4.
 4. **Duplicate** — already covered by an existing task or issue. Post a marked comment
    linking the existing task/issue and recommend the owner close it. No conversion.
 5. **Underspecified** — owner intent cannot be drafted into acceptance criteria without
@@ -93,6 +95,17 @@ valve: owner steering cannot relax engine invariants).
   rows the acceptance [reviewer] resolves ownership from.
 - **Spec text (bucket 1):** the `US#` story and acceptance criteria, each criterion
   independently checkable.
+- **Done-when criteria (buckets 2–3) — no converting bucket drafts a rubric-less
+  task.** The acceptance [reviewer] grades a task against its mapped `US#` criteria in
+  the spec, so a task entry with no `US#` would block the gate now and be ungradable at
+  implementation time. Resolve it one of two ways, stated in the marked comment:
+  - **Map to a story when one fits** — extend an existing `US#` with the new criteria
+    (it becomes a bucket-1-shaped conversion), or
+  - **Carry the rubric on the issue:** write explicit, independently checkable
+    **done-when criteria** into the converted issue's body (the §5 cross-link comment
+    quotes them), and mark the task line as maintenance with its rubric on the issue
+    (e.g. `(#<issue>; repo-maintenance — done-when on issue)`). The gate's acceptance
+    [reviewer] then grades against those criteria, exactly as it would a `US#`'s.
 
 ## 5. Land as a PR, then cross-link
 
