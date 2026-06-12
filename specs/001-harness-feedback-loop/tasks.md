@@ -40,7 +40,7 @@
 
 ## Phase 5 — Issue intake
 
-- [ ] T501 [strong] Issue intake: triage "Unmapped tracker work" detection,
+- [x] T501 [strong] Issue intake: triage "Unmapped tracker work" detection,
       runtime-neutral intake workflow doc + skill binding, README row +
       conformance probe run on the live adapter (US6) — strong: defines how
       owner requests become scope, constitution-screen semantics included

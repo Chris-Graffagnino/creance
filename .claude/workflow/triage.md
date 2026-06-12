@@ -132,7 +132,7 @@ shape:
 
 ## Unmapped tracker work
 - #<n> <title> — opened <age/date>   (or "none — every open issue is mapped to a task ID")
-- <when non-empty, end the section with:> run the intake [workflow] (`intake.md`) to convert
+- <when non-empty, end the section with:> run the intake [workflow] (`intake.md`) to convert them
 
 ## Blocked / owner action
 - <task IDs + reason, from the profile's blocked-task list>   (or "none")

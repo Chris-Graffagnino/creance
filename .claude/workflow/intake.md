@@ -3,7 +3,8 @@
 The owner's entire UI is the issue tracker: filing a plain-language issue is how new
 work is requested. But task selection (`next-task.md` §1) reads only the profile's tasks
 file, so an issue with no task ID is invisible to it. This workflow closes that gap:
-**triage detects** unmapped issues (its "Unmapped tracker work" section, `triage.md` §2);
+**triage detects** unmapped issues (the "Unmapped tracker work" finding, `triage.md` §2,
+rendered as its own snapshot section, `triage.md` §4);
 **intake converts** them — it formalizes each request into a backlog entry and lands the
 formalization as a normal PR. **The owner ratifies the scoping by merging.** GitHub-style
 trackers remain the owner's whole interface: file an issue in plain language, get back a
@@ -66,8 +67,10 @@ acted on, not re-asked.
    through triage until the owner answers; the answer (an unmarked owner comment) feeds
    the next intake run.
 
-State the chosen bucket and the reasoning in the issue's marked comment (§5) so the
-classification is auditable.
+Every bucket ends in a **marked comment that states the chosen bucket and the
+reasoning**, so the classification is auditable: for buckets 4 and 5 that is the comment
+described in the bullet itself; for converting buckets (1–3) it is part of the §5
+cross-link comment.
 
 ## 3. Constitution screen (before any drafting)
 
@@ -94,8 +97,10 @@ valve: owner steering cannot relax engine invariants).
 ## 5. Land as a PR, then cross-link
 
 1. Branch per the profile's branch convention; commit only the drafted artifacts
-   (spec/tasks/profile-path edits). Run the §7 pre-PR gate (`next-task.md` §7) — the
-   acceptance [reviewer] checks the drafted criteria are independently checkable.
+   (spec/tasks/profile-path edits). Run the **full** §7 pre-PR gate (`next-task.md` §7 —
+   every reviewer that section dispatches, constitution [reviewer] included); the
+   acceptance [reviewer] additionally checks the drafted criteria are independently
+   checkable.
 2. Open the PR per `next-task.md` §8's body rules, minus the closing keyword (the
    source issue stays open). The body names the source issue, the bucket, the assigned
    task ID, and any constitution-screen notes. **Stop at the PR** — the owner ratifies
