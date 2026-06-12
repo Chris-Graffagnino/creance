@@ -82,6 +82,12 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   at-or-above exists may the run drop below its tag — and the PR must record that loudly.
 - **One model tier only** → use it everywhere; never silently downgrade the constitution
   reviewer.
+- **No [code-review pass] mechanism** → dispatch a read-only **[reviewer]** with a general
+  code-review brief over the branch diff vs. base; the maker≠checker independence is
+  preserved by the [reviewer] constraints (separate context, no file mutation). Note the
+  degradation in the PR.
+- **No [security-review pass] mechanism** → same, with a security-lens brief scoped to the
+  profile's privacy / credential / payment invariants. Note the degradation in the PR.
 - **No [visual verification] mechanism** → the role's own degradation clause applies to
   every UI-touching task: the PR carries the explicit "tests only — no visual evidence
   produced" statement and lists the affected surfaces as unverified. The statement is
