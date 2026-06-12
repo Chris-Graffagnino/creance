@@ -175,6 +175,23 @@ that the hard way (two live failures on the "production-trusted" adapter; DESIGN
    - `git grep -Fil -e 'Out-File' -e '-Encoding utf8' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md'`
      → exactly **one** file: `skills/next-task/SKILL.md` (the [environment block]).
      (Probe P-EB.)
+   - `git grep -Ein '/(code-review|security-review|run|verify)([^a-z-]|$)' -- AGENTS.md .claude/workflow`
+     → **no hits** (the shared/neutral surfaces name no adapter *skill* — only **[role]**s
+     like `[code-review pass]`). This guards the layering rule (`workflow/README.md` →
+     binding contract; `DESIGN-NOTES.md` §1) on the two surfaces the model-vocabulary greps
+     never scanned: `AGENTS.md` (shared by both runtimes — `CLAUDE.md` is `@AGENTS.md` and
+     Codex reads it natively) and `.claude/workflow/`. Three deliberate choices:
+     **(a)** the needle is **slash-anchored** — bare `code-review` is the legitimate role
+     name `[code-review pass]` and appears throughout the neutral layer; the leading `/`
+     distinguishes a Claude Code skill *invocation* from the role. **(b)** Only the four
+     UI/review skills are listed: `/next-task`, `/triage`, `/constitution-check` are
+     **excluded on purpose** because they collide with ordinary neutral references — the doc
+     *paths* (`workflow/next-task.md`) and the §6 launcher example (`/triage inbox: …`) —
+     and would false-match; the four chosen have no legitimate neutral use. **(c)** the
+     `([^a-z-]|$)` right-bound stops `/run` from matching `/runtime`/`/runner` — the same
+     path-false-match care P-MT takes with a bare `claude`. No `:(exclude)` clauses are
+     needed: the scope (`AGENTS.md` + `.claude/workflow`) already omits every needle-quoting
+     file (this manifest, the probe table, `guard.test.sh`).
 2. **The guard is wired, not just present:** run `bash .claude/hooks/guard.test.sh` — it must
    pass, **including the matcher-wiring assertion** (the test that fails if `settings.json`'s
    PreToolUse matcher stops routing a tool `guard.sh` handles). This assertion exists because

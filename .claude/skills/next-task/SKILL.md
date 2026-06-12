@@ -57,3 +57,9 @@ the temp `.md` with a plain heredoc"; `gh` falls back to `/opt/homebrew/bin/gh` 
   auto-delete on squash-merge and the URL would die; PR head commits stay reachable.
 - §8 verify — `gh pr view <n> --json number,url,state,mergeStateStatus,statusCheckRollup`.
 - §3 issue body — use a heredoc with `gh issue create`.
+- `/triage` inbox/run-log default (`triage.md` §4.3 / §1.5.3) — when neither the `inbox:`
+  argument nor `TRIAGE_INBOX` is given, the portable default directory is
+  `<home>/.claude/triage/` (`<home>` = `$HOME`; PS 5.1: `$env:USERPROFILE`), so the inbox
+  is `<home>/.claude/triage/<repo-basename>-triage.md` and the run log sits beside it as
+  `<repo-basename>-heartbeat.log`. `<repo-basename>` = last segment of
+  `git rev-parse --show-toplevel`.
