@@ -44,6 +44,7 @@ changing a mapping, update both.
 | **[guard]** | A PreToolUse hook → `hooks/guard.sh` (exit 2 blocks; reads the hook's JSON payload on stdin; implements the guard rules normatively listed in `workflow/README.md`) |
 | **[permission allowlist]** | `settings.json` → `permissions.allow` (prefix-matched) |
 | **[environment block]** | `skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy; other bindings reference it, never copy it) |
+| **[comment marker]** | Every engine-posted `gh issue comment` / `gh pr comment` body ends with the marker footer line defined in `skills/next-task/SKILL.md` → "The [comment marker] concrete form" (the single copy, alongside the [environment block]) |
 
 ### Assumed runtime features
 

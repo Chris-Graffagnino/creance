@@ -21,9 +21,23 @@ concrete Claude Code mechanisms:
 | **[guard]** | the PreToolUse hook → `.claude/hooks/guard.sh` |
 | **[permission allowlist]** | `.claude/settings.json` → `permissions.allow` |
 | **[environment block]** | "This environment's concrete forms" below (the single copy) |
+| **[comment marker]** | "The [comment marker] concrete form" below (the single copy) — appended to every engine-posted `gh issue comment` / `gh pr comment` body |
 
 Plan note: usage may be account-wide (interactive + heartbeat + reviewers sharing one
 pool) — apply the methodology's "Model & usage economy" tiering as written.
+
+**The [comment marker] concrete form** — the single adapter-wide definition (other
+bindings reference it; the role's semantics live in `workflow/README.md` and the reading
+rules in `workflow/next-task.md` §2.5). Every engine-posted issue/PR comment body ends
+with this literal final line (write it into the temp `.md` before the `--body-file` call):
+
+```
+🤖 harness comment — engine-authored, not owner steering
+```
+
+The line is exact and machine-checkable (P-CM greps for it verbatim) and plainly readable
+by a non-developer. A comment whose body lacks this line, posted from the owner login, is
+owner steering per §2.5; never add the line to text quoted *from* an owner comment.
 
 **This environment's concrete forms** (Windows PowerShell 5.1 + `gh`) — this section is the
 **[environment block]**: the ONE home for OS/shell/CLI gotchas. Other bindings (e.g.
