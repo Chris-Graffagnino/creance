@@ -24,6 +24,8 @@ CI / merge gate, Architecture boundaries, Invariant checklist, Constitution watc
 - **Tasks (backlog):** <path to tasks.md, or "none — issues are the backlog">
 - **Contracts dir:** <path to contracts/, or "none">
 - **Architecture guardrails:** <path / section, or "none">
+- **Telemetry:** <append-only JSONL path per `workflow/telemetry.md`, or "default" —
+  out-of-repo beside the triage inbox: `<triage inbox dir>/<repo-basename>-telemetry.jsonl`>
 
 ## Task & branch conventions
 - **Task ID format:** <e.g. `T` + 3 digits; or "none — use issue numbers">

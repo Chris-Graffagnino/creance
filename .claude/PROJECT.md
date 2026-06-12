@@ -22,6 +22,9 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;
   no vendor seams in this repo).
+- **Telemetry:** default per `workflow/telemetry.md` — out-of-repo beside the triage
+  inbox: `<triage inbox dir>/creance-telemetry.jsonl` (design default decided by silence
+  on #18).
 
 ## Task & branch conventions
 - **Task ID format:** `T` + 3 digits (phase-numbered: T1xx–T4xx), unique across the repo.
