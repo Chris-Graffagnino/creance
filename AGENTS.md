@@ -19,7 +19,8 @@
 - Match existing code style and architecture even when a different style would be
   preferred.
 - Use deterministic checks to anchor work: tests, type checks, lint, the contract files,
-  the requirements checklist, diffs, and `/code-review`.
+  the requirements checklist, diffs, and the **[code-review pass]** (a binding-contract
+  **[role]**; the active runtime's mechanism is named in `.claude/README.md`).
 - Use `rg`/`rg --files` first for repository search.
 - If specs, contracts, the constitution, or user instructions conflict, stop and
   resolve the conflict before coding. **The constitution wins ties.**
@@ -104,8 +105,9 @@ If a relevant check cannot be run, document why and describe the residual risk.
 Before creating any PR:
 1. Run implementation verification (lint + relevant tests).
 2. Self-review `git diff main..HEAD`.
-3. Confirm the diff is stable, then run the **`/code-review`** skill (use
-   `/security-review` when the change touches privacy, credentials, or payments).
+3. Confirm the diff is stable, then run the **[code-review pass]** (mechanism per the
+   active adapter, `.claude/README.md`); add the **[security-review pass]** when the change
+   touches privacy, credentials, or payments.
 4. Confirm the change passes the **Constitution Check** (`.claude/workflow/constitution-check.md`).
 5. Treat unresolved material findings as blocking unless explicitly documented as false
    positives or out of scope.

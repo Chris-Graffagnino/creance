@@ -78,12 +78,9 @@ Resolve its path in the same order as the run log's (§1.5), and actually check 
    authoritative carrier (the explicit-context rule, `README.md`);
 2. the `TRIAGE_INBOX` environment variable — a **redundant hint only**, never the sole
    carrier; read its value explicitly, do not assume it is unset without looking;
-3. the portable default — a stable home-relative location keyed by repo name:
-
-   `<home>/.claude/triage/<repo-basename>-triage.md`
-
-   where `<home>` is the user's home directory and `<repo-basename>` is the last path segment
-   of the repo root (`git rev-parse --show-toplevel`).
+3. the portable default — a stable home-relative location keyed by repo name; the concrete
+   directory is supplied by the **[environment block]** (`README.md`), with `<repo-basename>`
+   the last path segment of the repo root (`git rev-parse --show-toplevel`).
 
 Create the parent directory if missing.
 
