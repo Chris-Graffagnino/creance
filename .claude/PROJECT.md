@@ -12,9 +12,8 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Base branch:** main
 
 ## Paths
-- **Constitution (law):** `memory/constitution.md` — **not yet written** (only
-  `memory/constitution.template.md` ships). The reviewers fail closed without it; it must
-  land before the first `/next-task` run against the backlog.
+- **Constitution (law):** `memory/constitution.md` (filled from
+  `memory/constitution.template.md`; the reviewers fail closed without it).
 - **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`
 - **Tasks (backlog):** `specs/001-harness-feedback-loop/tasks.md` — the canonical and
   only live tasks file. `specs/000-template/tasks.template.md` is a skeleton, never a
