@@ -33,6 +33,14 @@ jobs:
       - name: Tasks-file consistency
         run: bash .claude/hooks/check-tasks-consistency.sh
 
+      # US6 intake/triage encoding tests (T501): the triage "Unmapped tracker
+      # work" section + snapshot output shape (incl. the explicit empty state)
+      # and intake's write-posture / retitle / marked-comment invariants. The
+      # runtime-neutral workflow docs are the implementation surface; live
+      # runtime conformance is the P-IN probe (conformance-probes.md).
+      - name: Intake/triage encoding tests
+        run: bash .claude/hooks/intake-docs.test.sh
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──
