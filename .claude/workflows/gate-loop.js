@@ -7,6 +7,12 @@
 // stay with the invoker. Invoke it on a task branch with the work COMMITTED — the
 // reviewers audit `git diff main..HEAD`.
 //
+// Every return path carries `telemetry`: the gate-run record payload defined by
+// workflow/telemetry.md, minus the timestamp/repo envelope (this runtime has no clock
+// or filesystem). The DISPATCHER appends it to the telemetry stream after the run
+// returns — the gate's outcome is already in hand by then, so a failed write can
+// never block, fail, or alter the gate (telemetry observes; it never decides).
+//
 // Models are NEVER named here: .claude/MODELS.md is the adapter's only model-naming
 // file. The invoker resolves the tier rows and passes them in `args`:
 //   taskId           (required) task/issue ID the acceptance reviewer grades against
@@ -77,17 +83,37 @@ const reviewerPrompt =
   `(git diff main..HEAD) per your spec. Set 'verdict' to your overall verdict and put ` +
   `your full verdict report, verbatim, in 'report'.`;
 
+// `tier` is the bracketed tier name the reviewer is dispatched at — it is what the
+// telemetry record carries (telemetry.md: tier names, never model IDs; the model args
+// are never copied into the payload).
 const reviewers = [
-  { key: 'spec-auditor', model: input.cheapModel },
-  { key: 'constitution-auditor', model: input.strongModel },
+  { key: 'spec-auditor', model: input.cheapModel, tier: 'cheap' },
+  { key: 'constitution-auditor', model: input.strongModel, tier: 'strong' },
 ];
 if (input.dispatchContract) {
-  reviewers.push({ key: 'contract-auditor', model: input.cheapModel });
+  reviewers.push({ key: 'contract-auditor', model: input.cheapModel, tier: 'cheap' });
 }
 
 const verdicts = {}; // reviewer key → its LATEST {verdict, report}, verbatim
 let pending = reviewers;
 let fixRoundsUsed = 0;
+
+// Telemetry accumulators for the `gate-run` record (workflow/telemetry.md). The loop
+// only BUILDS the payload; the dispatcher appends it to the stream after the run
+// returns — so a failed write structurally cannot alter the gate outcome.
+const roundsHistory = []; // one entry per dispatch round: [{ auditor, tier, verdict }]
+const failReports = {}; // "<auditor>:round-<n>" → verbatim FAIL report, or "NO-RESULT"
+
+// The record minus the envelope fields the script cannot produce (timestamp needs a
+// clock, repo needs the filesystem) — the dispatcher stamps those at append time.
+const telemetry = (outcome) => ({
+  record: 'gate-run',
+  task_id: input.taskId,
+  rounds: roundsHistory,
+  fix_rounds_used: fixRoundsUsed,
+  outcome,
+  fail_reports: failReports,
+});
 
 while (true) {
   log(
@@ -106,6 +132,23 @@ while (true) {
     ),
   );
 
+  const roundNumber = fixRoundsUsed + 1;
+  roundsHistory.push(
+    pending.map((r, i) => ({
+      auditor: r.key,
+      tier: r.tier,
+      verdict: results[i] ? results[i].verdict : 'NO-RESULT',
+    })),
+  );
+  pending.forEach((r, i) => {
+    if (!results[i]) {
+      // A NO-RESULT dispatch has no report — the record carries the literal marker.
+      failReports[`${r.key}:round-${roundNumber}`] = 'NO-RESULT';
+    } else if (results[i].verdict === 'FAIL') {
+      failReports[`${r.key}:round-${roundNumber}`] = results[i].report;
+    }
+  });
+
   pending.forEach((r, i) => {
     if (results[i]) verdicts[r.key] = results[i];
   });
@@ -121,10 +164,14 @@ while (true) {
       justified: Object.keys(verdicts).filter((k) => verdicts[k].verdict === 'JUSTIFY'),
       verdicts,
       fixRoundsUsed,
+      telemetry: telemetry('pass'),
     };
   }
 
   if (!APPLY_FIXES || fixRoundsUsed >= MAX_FIX_ROUNDS) {
+    // `non-convergence` is the §7.4 stop — the fix budget ran out with a reviewer
+    // still failing. A report-only run (fix: false) that fails is a plain `fail`.
+    const outcome = APPLY_FIXES && fixRoundsUsed >= MAX_FIX_ROUNDS ? 'non-convergence' : 'fail';
     return {
       // Non-convergence: stop and surface in the PR body (§7.4) — the loop never
       // overrides a reviewer.
@@ -133,6 +180,7 @@ while (true) {
       noVerdict: pending.filter((r, i) => !results[i]).map((r) => r.key),
       verdicts,
       fixRoundsUsed,
+      telemetry: telemetry(outcome),
     };
   }
 

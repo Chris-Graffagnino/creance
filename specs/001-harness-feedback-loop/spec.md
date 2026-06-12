@@ -41,8 +41,10 @@ inspect rather than anecdotes.
   per-auditor verdict per round, fix-round count, tier dispatched per auditor,
   convergence outcome, timestamp, and — for FAIL verdicts — the verdict report
   text) and names where it is stored via `.claude/PROJECT.md` → "Paths".
-- AC2: The Claude Code gate loop appends one record per gate run; a failed
-  telemetry write never blocks or fails the gate itself.
+- AC2: The Claude Code gate loop produces exactly one record per gate run —
+  the loop builds the record payload on every return path, and its dispatcher
+  appends it after the run returns (the loop's runtime has no clock or
+  filesystem); a failed telemetry write never blocks or fails the gate itself.
 - AC3: The guard hook appends a record for every blocked action (rule fired,
   tool, timestamp) to the same telemetry location, plus an evaluation record
   on at least one path guaranteed to fire during every gate run (e.g., the

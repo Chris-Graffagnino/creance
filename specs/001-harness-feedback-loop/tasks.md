@@ -9,7 +9,7 @@
 - [x] T101 [strong] Define runtime-neutral telemetry record + storage path
       convention in the workflow layer; add "Telemetry" row to
       `PROJECT.template.md` → "Paths" (US1)
-- [ ] T102 [strong] Emit gate-run records from the Claude adapter gate loop;
+- [x] T102 [strong] Emit gate-run records from the Claude adapter gate loop;
       telemetry write failures never affect gate outcome (US1)
 - [ ] T103 [strong] Guard block-logging plus a per-gate-run evaluation record
       (liveness signal) + regression tests incl. the silent-failure case (US1)

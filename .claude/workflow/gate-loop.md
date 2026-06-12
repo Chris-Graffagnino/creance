@@ -16,7 +16,9 @@ cycle, the non-convergence stop, and verbatim verdict retention. It does NOT own
 - §7 step 1 (the maker's self-review) — run it before invoking the loop;
 - §7 step 3 (the **[code-review pass]** / **[security-review pass]**) — run it alongside;
 - §8 (attaching the verdicts to the PR) — the loop *returns* every verdict; posting them
-  is the dispatcher's job, exactly as today.
+  is the dispatcher's job, exactly as today;
+- appending the telemetry record — the loop *builds* the `gate-run` payload
+  (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below).
 
 The loop runs against the task branch's **committed** diff versus the base branch — the
 reviewers see only commits, so commit before invoking it.
@@ -55,6 +57,12 @@ loop:
               under reviewers/, on its resolved model, returning the structured verdict
               { verdict: PASS | JUSTIFY | FAIL,  report: <its full report, verbatim> }
 
+    record this dispatch round into the telemetry payload (see "Telemetry"):
+        one { auditor, tier, verdict } entry per dispatched reviewer — verdict
+        NO-RESULT for a reviewer that returned nothing; every FAIL report (and the
+        literal string NO-RESULT for a no-result dispatch) kept verbatim in
+        fail_reports, keyed by auditor and round
+
     for each reviewer in pending that returned a result:
         verdicts[reviewer] ← that result          # overwrite: the latest verdict wins
 
@@ -63,12 +71,14 @@ loop:
               # a missing verdict is never a pass — it stays failing
 
     if failing is empty:
-        return { gate: PASS, verdicts,
+        return { gate: PASS, verdicts, telemetry(outcome: pass),
                  justified: reviewers whose latest verdict is JUSTIFY }
                  # JUSTIFY clears the gate only with the deviation documented in the PR body
 
     if not apply-fixes, or fix-rounds-used = max-fix-rounds:
-        return { gate: FAIL, failing, verdicts }
+        return { gate: FAIL, failing, verdicts,
+                 telemetry(outcome: non-convergence when the fix budget ran out,
+                           else fail) }
                  # non-convergence: stop and surface the disagreement in the PR body —
                  # the loop never overrides a reviewer (maker is not the checker)
 
@@ -105,6 +115,23 @@ full report **verbatim** in `report` — the same item-by-item table its spec de
 `report` string is what §8 posts to the PR, unchanged. The map keeps every dispatched
 reviewer's **latest** verdict, so the gate's outcome and its evidence travel together in
 the return value; the outcome can never live only in a conversation.
+
+## Telemetry (one record per gate run — built by the loop, appended by the dispatcher)
+
+Every return path carries a telemetry-ready `gate-run` payload per `telemetry.md`:
+`task_id`, the per-round `{ auditor, tier, verdict }` history, `fix_rounds_used`, the
+`outcome` (`pass` / `fail` / `non-convergence`), and `fail_reports` verbatim. The payload
+names **tiers, never models** — the loop never sees past its dispatch parameters, and the
+model values are never copied into the record.
+
+The split is deliberate: the loop **builds**, the **dispatcher appends** — stamping the
+envelope (`timestamp`, `repo`), resolving the stream location from the profile
+(`telemetry.md` → "Storage convention", parent directory created if missing), and
+appending one JSONL line **after the gate's outcome is already returned**. Ordering is
+the enforcement of `telemetry.md`'s law: a failed append happens downstream of the
+outcome, so it structurally cannot block, fail, or alter the gate — the dispatcher
+treats a write failure as silent-to-the-gate (note it, proceed exactly as if it had
+succeeded). One record per completed gate invocation, whatever the outcome.
 
 ## Constraints inherited (not relaxed by orchestration)
 
