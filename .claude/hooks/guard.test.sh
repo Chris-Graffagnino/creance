@@ -184,6 +184,60 @@ if [ -z "$err" ]; then pass=$((pass + 1)); else
 fi
 export GUARD_TELEMETRY_FILE="$TELE"
 
+# --- telemetry: profile path resolution (PROJECT.md → "Paths" → Telemetry) ---
+# Precedence: GUARD_TELEMETRY_FILE seam > profile override > shipped default.
+# Fixtures via GUARD_PROJECT_FILE (the profile's test seam).
+HOMEFIX="$TMP/home"; mkdir -p "$HOMEFIX"
+PROF_REL="$TMP/profile-rel.md"
+cat > "$PROF_REL" <<'EOF'
+## Paths
+- **Telemetry:** `custom/stream.jsonl` (in-repo override)
+- **Tasks:** `specs/tasks.md`
+EOF
+PROF_ABS="$TMP/profile-abs.md"
+printf -- '- **Telemetry:** `%s`\n' "$TMP/abs-stream.jsonl" > "$PROF_ABS"
+PROF_DEFAULT="$TMP/profile-default.md"
+cat > "$PROF_DEFAULT" <<'EOF'
+- **Telemetry:** default per `workflow/telemetry.md` — out-of-repo beside the
+  triage inbox: `<triage inbox dir>/<repo-basename>-telemetry.jsonl`
+EOF
+
+unset GUARD_TELEMETRY_FILE
+export GUARD_PROJECT_FILE="$PROF_REL"
+check 2 "$FEAT" "tele: block under relative profile override" "$(bashp 'git add .')"
+TELE="$FEAT_ROOT/custom/stream.jsonl"
+tcount 1 '"record":"block".*"rule":"git-add-all"' "tele: relative override resolves against repo root"
+
+export GUARD_PROJECT_FILE="$PROF_ABS"
+check 2 "$FEAT" "tele: block under absolute profile override" "$(bashp 'git add .')"
+TELE="$TMP/abs-stream.jsonl"
+tcount 1 '"record":"block"' "tele: absolute override honored"
+
+# A placeholder-bearing (<...>) Telemetry value is prose describing the default,
+# not an override — the stream must land at the shipped default path. HOME is
+# pointed at a fixture so the test never touches the user's real stream.
+export GUARD_PROJECT_FILE="$PROF_DEFAULT"
+OLD_HOME="$HOME"; export HOME="$HOMEFIX"
+check 2 "$FEAT" "tele: block under placeholder profile value" "$(bashp 'git add .')"
+export HOME="$OLD_HOME"
+TELE="$HOMEFIX/.claude/triage/on-feature-telemetry.jsonl"
+tcount 1 '"record":"block"' "tele: placeholder value falls back to shipped default"
+
+export GUARD_PROJECT_FILE="$TMP/no-such-profile.md"
+export HOME="$HOMEFIX"
+check 2 "$MAIN" "tele: block under missing profile file" "$(edit Edit "$MAIN_ROOT/src/foo.ts")"
+export HOME="$OLD_HOME"
+TELE="$HOMEFIX/.claude/triage/on-main-telemetry.jsonl"
+tcount 1 '"record":"block".*"rule":"edit-on-main"' "tele: missing profile falls back to shipped default"
+
+# The env seam outranks any profile override.
+TELE="$TMP/telemetry.jsonl"
+export GUARD_TELEMETRY_FILE="$TELE" GUARD_PROJECT_FILE="$PROF_ABS"
+: > "$TELE"
+check 2 "$FEAT" "tele: block with both seam and override set" "$(bashp 'git add .')"
+tcount 1 '"record":"block"' "tele: env seam outranks the profile override"
+unset GUARD_PROJECT_FILE
+
 # --- hook wiring: the PreToolUse matcher must route every tool guard.sh handles ---
 # Conformance-probe finding (issue #110, P-GD.5): rule 5 was dead on the live
 # driver because settings.json's matcher omitted Agent|Task — guard.sh never saw

@@ -26,15 +26,34 @@ payload="$(cat)"
 
 branch() { git branch --show-current 2>/dev/null; }
 
-# Telemetry stream path: GUARD_TELEMETRY_FILE is a test/override seam (mirrors
-# GUARD_MODELS_FILE); the default is the shipped convention from
-# workflow/telemetry.md — <home>/.claude/triage/<repo-basename>-telemetry.jsonl.
+# Telemetry stream path, resolved in precedence order:
+#   1. GUARD_TELEMETRY_FILE — test/override seam (mirrors GUARD_MODELS_FILE);
+#   2. the profile's override — .claude/PROJECT.md → "Paths" → Telemetry is
+#      authoritative (workflow/telemetry.md). A concrete override is the
+#      bullet's first backticked `.jsonl` path; a placeholder-bearing value
+#      (contains `<...>`) describes the default in prose and is not one;
+#   3. the shipped default — <home>/.claude/triage/<repo-basename>-telemetry.jsonl.
+profile_file="${GUARD_PROJECT_FILE:-$(cd "$(dirname "$0")" && pwd)/../PROJECT.md}"
+profile_telemetry() {
+  sed -n '/^[-*][[:space:]]*\*\*Telemetry:\*\*/,/^[-*#]/p' "$profile_file" 2>/dev/null \
+    | grep -oE '`[^`<]+\.jsonl`' | head -1 | tr -d '`'
+}
 telemetry_file() {
   if [ -n "${GUARD_TELEMETRY_FILE:-}" ]; then
     printf '%s' "$GUARD_TELEMETRY_FILE"
     return 0
   fi
-  local home="${HOME:-${USERPROFILE:-}}" root
+  local home="${HOME:-${USERPROFILE:-}}" root p
+  p="$(profile_telemetry)"
+  if [ -n "$p" ]; then
+    case "$p" in
+      "~/"*) [ -n "$home" ] || return 1; printf '%s/%s' "$home" "${p#\~/}" ;;
+      /*|[a-zA-Z]:*) printf '%s' "$p" ;;
+      *) root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+         printf '%s/%s' "$root" "$p" ;;
+    esac
+    return 0
+  fi
   [ -n "$home" ] || return 1
   root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
   printf '%s/.claude/triage/%s-telemetry.jsonl' "$home" "${root##*/}"
