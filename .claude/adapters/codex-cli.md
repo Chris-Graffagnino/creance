@@ -22,7 +22,7 @@ instructions.
 | **[reviewer]** | A separate `codex exec --sandbox read-only --approval never` process per reviewer — the read-only constraint is **OS-enforced** (Seatbelt / bubblewrap+seccomp / Windows execution accounts), stronger than a convention or a hook. Prompt = the reviewer spec path + dispatch parameters; verdict captured via `--output-last-message <file>`; parallel dispatch = concurrent processes |
 | **[frontier tier] / [strong tier] / [cheap tier]** | Resolved per the model table below — this spec's table section is the adapter's ONLY model-naming surface. Effort is a per-invocation dial: `-c model_reasoning_effort="<value>"` (or a `--profile`) |
 | **[code-review pass]** | `codex review` (CLI subcommand) / `/review` (TUI) — a dedicated reviewer agent over the diff; on GitHub PRs, `@codex review`. AGENTS.md "Review guidelines" sections steer it |
-| **[security-review pass]** | **Degradation** — no dedicated security subcommand: run a read-only `codex exec` reviewer with a security-lens brief (privacy/location/payments per the profile), same isolation as a [reviewer] |
+| **[security-review pass]** | **Degradation** (per `workflow/README.md` → "No [security-review pass] mechanism") — no dedicated security subcommand: run a read-only `codex exec` reviewer with a security-lens brief (privacy/location/payments per the profile), same isolation as a [reviewer] |
 | **[visual verification]** | `codex exec --sandbox workspace-write` runs the project's own render/screenshot tooling; evidence committed under `docs/visual-evidence/<task-id>/` and embedded via commit-SHA-pinned raw URLs (same channel as the active adapter — it is a repo convention, not a runtime one). Codex's `--image`/`-i` flag closes the loop: the model re-reads the artifact it produced before claiming the UI renders |
 | **[orchestrated run]** | **Stub** — a gate-loop driver script (the analog of the active adapter's `workflows/gate-loop.js`) that implements `workflow/gate-loop.md` control flow by spawning the reviewer processes above and reading their `--output-last-message` files. Not built (a non-goal); until it exists this adapter runs `next-task.md` §7's prose loop — the documented degradation |
 | **[bulk-read offload]** | A child `codex exec --sandbox read-only` on the cheap row, brief in the prompt, summary back via `--output-last-message`. Separate context and read-only **by process construction** |
@@ -133,7 +133,7 @@ unchanged: no display/device → the PR carries "tests only — no visual eviden
 | Role | Degradation |
 |---|---|
 | [workflow] | No auto-trigger registry; procedure named in invocation text (above) |
-| [security-review pass] | No dedicated mechanism; security-lens read-only reviewer run |
+| [security-review pass] | Per the contract's "No [security-review pass] mechanism" clause: no dedicated mechanism; security-lens read-only reviewer run |
 | [orchestrated run] | Stub until the driver script exists; §7 prose loop meanwhile |
 | [guard] rule 1 | Enforced at commit time, not edit time (compensating control above) |
 | Everything else | Bound natively, no degradation |
