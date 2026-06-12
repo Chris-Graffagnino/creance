@@ -68,6 +68,19 @@ procedure is safe to run unattended because it cannot change the repo.
   list + a text search over the tasks files). **Detection only:** converting an unmapped
   issue into the backlog is the intake [workflow]'s job (`intake.md`) — triage names it
   and stays read-only.
+- **Unacknowledged owner comments.** For each open issue and PR, the unmarked
+  owner-login comments newer than the **last harness-marked activity** on that thread —
+  owner steering the harness has not yet acted on. The **[comment marker]** separates
+  engine bookkeeping from owner steering (its role is defined in the binding contract;
+  the channel rules live in `next-task.md` §2.5): a **marked** comment is harness
+  bookkeeping, the newest **unmarked** owner-login comment is authoritative steering.
+  *Last harness-marked activity* = the newest **[comment marker]**-marked comment on the
+  thread, or the newest cross-referenced harness commit/PR event; when the thread carries
+  no marked activity, any owner comment newer than the item's last cross-referenced
+  harness action counts. One line per comment: item number, comment date, the comment's
+  first line. **Detection only:** triage names the unacknowledged comment and stays
+  read-only — acting on it is the next-task [workflow]'s job (per `next-task.md`
+  §2/resume rules); triage posts nothing, marks nothing, and mutates no thread state.
 - **Constitution watch (look-ahead).** From the profile's "Constitution watch" map, name the
   *upcoming* tasks that touch the highest-risk principles so the human reviews them carefully
   when they land. Cross-reference with which of those are still `[ ]`.
@@ -133,6 +146,9 @@ shape:
 ## Unmapped tracker work
 - #<n> <title> — opened <age/date>   (or "none — every open issue is mapped to a task ID")
 - <when non-empty, end the section with:> run the intake [workflow] (`intake.md`) to convert them
+
+## Unacknowledged owner comments
+- #<n> (<issue|PR>) <comment-date> — "<comment's first line>"   (or "none — no unmarked owner comment is newer than the last harness-marked activity")
 
 ## Blocked / owner action
 - <task IDs + reason, from the profile's blocked-task list>   (or "none")

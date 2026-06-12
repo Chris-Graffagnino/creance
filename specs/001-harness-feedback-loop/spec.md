@@ -172,3 +172,29 @@ indefinitely, and I ratify the harness's scoping by merging.
   fixture issue; verify classification and drafting occur with no edits
   outside the intake branch) is added to the neutral probe checklist,
   instantiated for the active adapter, and passes on it with results recorded.
+
+### US7 — Triage surfaces unacknowledged owner steering
+As a project owner whose only steering channel between runs is the issue/PR
+comment thread, I want the morning triage snapshot to surface owner comments the
+harness has not yet acknowledged, so that steering I leave between runs is
+provably seen instead of sitting unread until next-task happens to touch that
+thread.
+
+**Acceptance Criteria**
+- AC1: The triage snapshot includes an "Unacknowledged owner comments" section —
+  for each open issue and PR, unmarked owner-login comments (per the
+  [comment marker] role) newer than the last harness-marked activity on that
+  thread — one line per comment (item number/URL, comment date, first line of
+  the comment), with an explicit empty state when none exist, rendered
+  consistently with the other snapshot sections (never silently omitted).
+- AC2: The workflow defines "last harness-marked activity" on a thread as the
+  newest [comment marker]-marked comment or cross-referenced harness commit/PR
+  event; when no marked activity exists, any owner comment newer than the item's
+  last cross-referenced harness action counts as unacknowledged.
+- AC3: The detection is read-only — triage posts no comment, marks nothing, and
+  mutates no thread or repo state; acting on a surfaced comment remains the
+  next-task [workflow]'s job, consistent with triage's existing read-only
+  contract.
+- AC4: The section references the [comment marker] role only — never a concrete
+  marker string, tool, vendor, or model name — preserving the `workflow/**`
+  grep discipline.

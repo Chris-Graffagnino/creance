@@ -20,6 +20,9 @@
 - [ ] T202 [cheap] Triage "Discovered-work clusters" section (US2)
 - [ ] T203 [strong] Risk-ranked PR digest leading the next-task PR body;
       verbatim per-reviewer verdict comments retained unmodified (US4)
+- [ ] T204 [cheap] Triage "Unacknowledged owner comments" section: unmarked
+      owner-login comments newer than the last harness-marked activity, read-only,
+      referencing the [comment marker] role (US7)
 
 ## Phase 3 — Retrospective back-test
 
@@ -75,6 +78,10 @@
 | US6.AC4 | T501 |
 | US6.AC5 | T501 |
 | US6.AC6 | T501 |
+| US7.AC1 | T204 |
+| US7.AC2 | T204 |
+| US7.AC3 | T204 |
+| US7.AC4 | T204 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
