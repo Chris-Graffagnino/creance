@@ -57,7 +57,7 @@ appended by the dispatcher after the gate loop returns. Fields beyond the envelo
 | `rounds` | per-round dispatch history: an ordered list, one entry per dispatch round, each holding `{ auditor, tier, verdict }` for every [reviewer] dispatched that round — `auditor` is the reviewer role name (its spec file under `workflow/reviewers/`), `tier` the capability tier it was dispatched at (the bracketed tier name, not a model ID), `verdict` PASS / JUSTIFY / FAIL / NO-RESULT |
 | `fix_rounds_used` | how many fix-and-re-dispatch rounds ran (`gate-loop.md`) |
 | `outcome` | `pass`, `fail`, or `non-convergence` — the gate's overall return |
-| `fail_reports` | for every FAIL (and NO-RESULT) verdict in `rounds`: the reviewer's verdict report text **verbatim**, keyed by auditor and round — this is what the risk-ranked PR digest later cites for near-misses |
+| `fail_reports` | for every FAIL verdict in `rounds`: the reviewer's verdict report text **verbatim**, keyed by auditor and round (a NO-RESULT dispatch has no report — record the literal string `NO-RESULT` for it) — this is what the risk-ranked PR digest later cites for near-misses |
 
 Tier names, not model IDs: a record naming a concrete model would leak adapter facts into
 a runtime-neutral artifact and break the one-line-model-swap property. The adapter's model
