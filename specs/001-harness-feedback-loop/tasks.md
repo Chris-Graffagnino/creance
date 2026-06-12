@@ -6,7 +6,7 @@
 
 ## Phase 1 — Telemetry foundation
 
-- [ ] T101 [strong] Define runtime-neutral telemetry record + storage path
+- [x] T101 [strong] Define runtime-neutral telemetry record + storage path
       convention in the workflow layer; add "Telemetry" row to
       `PROJECT.template.md` → "Paths" (US1)
 - [ ] T102 [strong] Emit gate-run records from the Claude adapter gate loop;
