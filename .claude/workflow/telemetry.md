@@ -10,7 +10,7 @@ when they do).
 > Runtime-neutral: roles in **[brackets]** are defined in `workflow/README.md` → "binding
 > contract" and mapped to concrete mechanisms by the active adapter.
 
-## The law this file lives under (constitution P5)
+## The law this file lives under
 
 **Telemetry observes; it never decides.** Records are append-only observations. Nothing —
 no gate, no [reviewer] dispatch, no tier resolution, no triage write — may read telemetry
@@ -24,7 +24,7 @@ proceeds exactly as if the write had succeeded).
 ## Storage convention
 
 - **Format:** one file, **append-only JSONL** — one JSON object per line, never edited or
-  rewritten in place. No dashboards, no databases (spec 001 non-goals).
+  rewritten in place. No dashboards, no databases — the stream itself is the contract.
 - **Location:** resolved from the profile — `.claude/PROJECT.md` → "Paths" → **Telemetry**
   is authoritative. The shipped default keeps project repos clean by living **out-of-repo
   beside the triage inbox**: `<triage inbox directory>/<repo-basename>-telemetry.jsonl`,
@@ -34,7 +34,8 @@ proceeds exactly as if the write had succeeded).
   any path, including in-repo.
 - Emitters create the parent directory if missing. The location is shared by every record
   type below — one stream per project, discriminated by the `record` field.
-- **No cross-project aggregation:** each project's stream is its own (spec 001 non-goals).
+- **No cross-project aggregation:** each project's stream is its own — each project's
+  feedback loop is its own.
 
 ## Record envelope (all record types)
 
@@ -68,4 +69,5 @@ table remains the only place a tier resolves to a model.
 - The triage [workflow]'s trend surfacing reads this stream **read-only** and renders an
   explicit no-data state when the file is absent or empty.
 - The retrospective [workflow] cites `fail_reports` as evidence; it proposes changes via
-  PR only (constitution P4).
+  PR only — telemetry never feeds an automatic rewrite of reviewer specs, guards, or the
+  constitution.
