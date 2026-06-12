@@ -25,7 +25,9 @@
 
 - [ ] T301 [strong] Retrospective workflow doc: dispatch, classification
       taxonomy, propose-via-PR rule, strong-tier floor (US3)
-- [ ] T302 [cheap] Claude Code skill binding for the retrospective (US3)
+- [ ] T302 [cheap] Claude Code skill binding for the retrospective;
+      dispatches the constitution auditor at-or-above the strong-tier
+      floor (US3)
 - [ ] T303 [cheap] Conformance probe for the retrospective workflow; run on
       the live adapter and record results (US3)
 

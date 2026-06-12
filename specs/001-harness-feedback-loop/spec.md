@@ -95,7 +95,10 @@ tightened hunt rule, a new invariant row, or a documented known-gap.
 - AC4: The constitution auditor runs at strong tier in retrospectives, same
   floor the guard enforces for gate runs.
 - AC5: A Claude Code skill binding exposes the workflow, which dispatches the
-  existing reviewer roles read-only — no new binding-contract role is created.
+  existing reviewer roles read-only — no new binding-contract role is created —
+  and dispatches the constitution auditor at or above the strong-tier floor
+  (AC4), so the binding itself is reviewed against the floor, not just the
+  workflow doc.
 - AC6: A conformance probe for the retrospective workflow is added and passes
   on the live adapter, with results recorded.
 
