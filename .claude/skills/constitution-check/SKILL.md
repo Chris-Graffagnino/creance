@@ -1,6 +1,6 @@
 ---
 name: constitution-check
-description: Verify a change complies with the project's constitution and cost/privacy invariants before a PR. Use when reviewing a diff, before opening a PR, when the user asks "does this pass the constitution", "constitution check", or whenever a feature touches the project's high-risk invariants (e.g. streaks/momentum, user data, identification, monetization, first-run).
+description: Verify a change complies with the project's constitution and cost/privacy invariants before a PR. Use when reviewing a diff, before opening a PR, when the user asks "does this pass the constitution", "constitution check", or whenever a feature touches the project's high-risk invariants (the high-risk areas named in your profile's Invariant checklist, .claude/PROJECT.md).
 ---
 
 # /constitution-check — Claude Code binding
