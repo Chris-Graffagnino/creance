@@ -49,8 +49,8 @@ inspect rather than anecdotes.
   strong-tier floor check on the constitution-auditor dispatch), so guard
   liveness is distinguishable from "nothing to block"; logging failures never
   change guard exit behavior.
-- AC4: Guard regression tests cover the block-logging path, including the
-  failure-stays-silent case.
+- AC4: Guard regression tests cover both logging paths (block records and
+  evaluation records), including the failure-stays-silent case.
 
 ### US2 — Triage trend surfacing
 As a harness operator, I want the morning triage snapshot to surface telemetry
