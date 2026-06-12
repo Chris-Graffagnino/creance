@@ -20,6 +20,14 @@ The **task ID** under review. If it was not provided, say so and stop — do not
 3. The mapped `US#` in the **spec** — its acceptance criteria. **These criteria are the
    rubric you grade against.** Apply them as written; do not soften or reinterpret.
 
+**Maintenance tasks (no `US#`):** a task line carrying no `US#` but marked as carrying
+its rubric on its issue (the intake convention, `workflow/intake.md` §4 — e.g.
+`(#<issue>; repo-maintenance — done-when on issue)`) is graded against the **done-when
+criteria in that issue's body**, exactly as you would a `US#`'s acceptance criteria
+(hard-FAIL rule intact). A task line with **neither** a `US#` **nor** issue-carried
+done-when criteria has no rubric — that gap is itself the blocking finding: verdict
+**FAIL**, minimal fix the missing criteria.
+
 If `.claude/PROJECT.md` is missing, fall back to `specs/*/tasks.md` + `specs/*/spec.md` and
 say so.
 

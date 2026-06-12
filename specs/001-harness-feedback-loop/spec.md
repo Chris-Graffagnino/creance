@@ -135,3 +135,40 @@ discovered by the next adapter port.
 - AC3: Triage flags GUARD-SILENT when telemetry shows zero guard *evaluation*
   records (US1.AC3) over a window in which gate runs occurred (heuristic,
   reported as a warning not an error).
+
+### US6 — Issue intake
+As a project owner whose entire UI is the issue tracker, I want plain-language
+issues I file to be detected and formalized into the backlog as reviewable PRs,
+so that owner-requested work enters task selection instead of being walked past
+indefinitely, and I ratify the harness's scoping by merging.
+
+**Acceptance Criteria**
+- AC1: The triage snapshot includes an "Unmapped tracker work" section — open
+  issues whose title carries no task ID (format per `.claude/PROJECT.md`) and
+  which no live tasks-file line references — one line per issue (number,
+  title, age), with an explicit empty state when none exist; when non-empty
+  the section ends with a pointer to run the intake [workflow]. Triage itself
+  remains read-only: it detects, it never converts.
+- AC2: A runtime-neutral intake workflow doc classifies each unmapped issue
+  into exactly one of five buckets — spec work, repo-maintenance, bug against
+  the base branch, duplicate, underspecified — and screens every conversion
+  against the constitution before drafting: a request that conflicts with a
+  principle is surfaced on the issue, never silently converted.
+  Underspecified issues get a decision-ready ask (exact choices enumerated,
+  recommendation attached) and are skipped — owner intent is never guessed
+  into acceptance criteria.
+- AC3: Conversions land only as PRs through the standard branch → gate flow:
+  intake never edits a live tasks file or spec on the base branch, the
+  conversion PR never closes the source issue (the owner ratifies the
+  formalization by merging; the issue stays open for the work itself), and
+  drafted task IDs are append-only — the next free ID, never renumbering.
+- AC4: Each converted issue is retitled to the `<type>: [T###] <description>`
+  convention and carries a marked harness comment (per the [comment marker]
+  provenance rules) stating the assigned task ID and the drafted acceptance
+  criteria.
+- AC5: A skill binding exposes the intake workflow on the active adapter; no
+  new binding-contract role is created — intake composes existing roles.
+- AC6: A conformance probe for the intake workflow (a synthetic unmapped
+  fixture issue; verify classification and drafting occur with no edits
+  outside the intake branch) is added to the neutral probe checklist,
+  instantiated for the active adapter, and passes on it with results recorded.

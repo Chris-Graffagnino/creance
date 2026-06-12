@@ -141,6 +141,9 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   the explicit-context rule), runtime-neutral; every adapter instantiates them concretely
   before being trusted.
 - `triage.md` — the read-only daily state snapshot.
+- `intake.md` — converts owner-filed tracker issues into the backlog via PR (triage
+  detects unmapped issues; intake classifies, constitution-screens, drafts, and lands
+  the formalization for the owner to ratify by merging).
 - `constitution-check.md` — the pre-PR compliance gate.
 - `reviewers/constitution-auditor.md` — adversarial values/constitution [reviewer] spec.
 - `reviewers/contract-auditor.md` — adversarial architecture/contract [reviewer] spec.
