@@ -108,6 +108,27 @@ check "AC4 reconcile: changes no §7 gate semantics" "$WF_FLAT" \
 check "AC4 reconcile: review standard cross-links pr-review.md" \
   "$(flat "$DIR/workflow/README.md")" "which is the \`pr-review.md\` ritual"
 
+# ── PR-diff scoping (review fix for PR #54 / codex finding) — the lens passes must
+#    grade the PR's own diff, not the reviewer's branch. Root stated neutrally in
+#    pr-review.md; the binding makes it concrete with a checkout step. ─────────────
+check "scoping (neutral): every lens grades this PR's diff, not the reviewer's branch" "$WF_FLAT" \
+  "Every lens grades *this PR's* diff, not the reviewer's branch"
+check "scoping (binding): check out the PR head before the lens passes" "$SK_FLAT" \
+  "Check out the PR head before the lens passes"
+check "scoping (binding): concrete checkout mechanism" "$SK_FLAT" \
+  "gh pr checkout <n>"
+check "scoping (binding): names the non-main-base caveat" "$SK_FLAT" \
+  "not based on \`main\`"
+
+# ── Allowlist + MCP guidance (review fix for PR #54 / codex finding) — the gh api
+#    reads are read-scoped (write-incapable) and owner-applied; MCP needs none. ────
+check "allowlist (binding): read-scoped gh api form" "$SK_FLAT" \
+  "gh api --method GET"
+check "allowlist (binding): owner adds the entry; harness cannot self-grant" "$SK_FLAT" \
+  "The harness cannot add these itself"
+check "allowlist (binding): GitHub MCP server is the no-allowlist alternative" "$SK_FLAT" \
+  "GitHub MCP server"
+
 # ── Write posture — additive only; never merge/close/push (Out of scope) ────────
 check "posture: never merges" "$WF_FLAT" \
   "never merges"

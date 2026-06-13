@@ -42,7 +42,12 @@ and not a replacement.
   dispatches the existing `reviewers/` **[reviewer]** spec read-only against the PR diff —
   same spec, separate context from the PR's maker, no file-mutation capability — rather than
   paraphrasing that spec's hunt rules here. Duplicating a reviewer's rules into this doc
-  would create a second copy to drift; point at the one spec instead.
+  would create a second copy to drift; point at the one spec instead. **Every lens grades
+  *this PR's* diff, not the reviewer's branch.** Any review lens — a **[reviewer]** spec or a
+  **[code-review pass]** — must be pointed at the PR's own change (its head against its base);
+  a lens mechanism that reads a local working tree must first make that tree the PR's head
+  (check it out) or be handed the PR's patch, or it silently grades the wrong change (the
+  reviewer's current branch, or an empty diff) while the review adjudicates the PR's comments.
 - **Findings are grounded in current source, never asserted.** Every finding this workflow
   emits or endorses cites a current `file:line` the reviewer has actually read — not the
   diff snapshot alone, not recall. The grounding gate (§4) is a hard bound, not a courtesy.
