@@ -281,14 +281,18 @@ degradation path).
 1. Self-review `git diff main..HEAD` — a quick sanity pass to catch the obvious before
    spending reviewer runs. It carries no verification authority on its own.
 2. Dispatch **separate [reviewer]s** (their own context, adversarial posture, no edit
-   tools), in parallel; they cannot edit, only report:
+   tools), in parallel; they cannot edit, only report. **Membership, tier, and dispatch
+   condition come from the reviewer roster** (`gate-loop.md` → "The reviewer roster") — the
+   single source of truth; the bullets below add only the per-reviewer prose the roster
+   can't carry (what each returns, and the acceptance reviewer's task-id):
    - The **acceptance [reviewer]** (`workflow/reviewers/spec-auditor.md`) — **always**, and
      pass it the task ID. It returns PASS/FAIL against the `US#` acceptance criteria
      (implementation AND encoding tests, criterion by criterion).
    - The **constitution [reviewer]** (`workflow/reviewers/constitution-auditor.md`) —
      **always**. It returns PASS/JUSTIFY/FAIL against the constitution + invariant checklist.
-   - The **contract [reviewer]** (`workflow/reviewers/contract-auditor.md`) — when the change
-     touches a provider interface, monetization, or the data model.
+   - The **contract [reviewer]** (`workflow/reviewers/contract-auditor.md`) — only on the
+     roster's `dispatch-contract` condition: when the change touches a provider interface,
+     monetization, or the data model.
 3. Run a **[code-review pass]** (use a **[security-review pass]** if the change touches
    privacy, location, or in-app purchases).
 4. Any reviewer **FAIL** is blocking: fix it and **re-dispatch that reviewer** until it

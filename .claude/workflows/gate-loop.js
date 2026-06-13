@@ -84,6 +84,14 @@ const reviewerPrompt =
   `(git diff main..HEAD) per your spec. Set 'verdict' to your overall verdict and put ` +
   `your full verdict report, verbatim, in 'report'.`;
 
+// DERIVED FROM the reviewer roster in workflow/gate-loop.md → "The reviewer roster" — the
+// single source of truth for gate membership, tier, and dispatch-condition. This array is
+// the adapter-side encoding of that table: spec-auditor (cheap/always) + constitution-
+// auditor (strong/always) as the unconditional set, contract-auditor (cheap) pushed only
+// under the `dispatch-contract` condition. Do NOT edit membership/tier/condition here in
+// isolation — change the roster, then mirror it here. reviewer-roster.test.sh (CI `verify`)
+// FAILs if this site drifts from the roster.
+//
 // `tier` is the bracketed tier name the reviewer is dispatched at — it is what the
 // telemetry record carries (telemetry.md: tier names, never model IDs; the model args
 // are never copied into the payload).
