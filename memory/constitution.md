@@ -11,11 +11,14 @@ checklist", and the constitution auditor
 
 ### 1. The engine stays runtime-neutral
 The workflow layer (`.claude/workflow/**`) names capabilities as bracketed **[roles]**
-only — never a concrete tool, CLI flag, vendor, or model ID. Runtime-specific mechanisms
-live exclusively in `.claude/adapters/` and skill bindings, and project facts live
-exclusively in `.claude/PROJECT.md`. A Claude-Code-specific (or any runtime-specific)
-instruction inside `workflow/**`, or a project fact baked into an engine file, never
-ships.
+only — never a concrete tool, CLI flag, vendor, or model ID. The one exception is `git`:
+as the harness's assumed universal VCS substrate it may be named directly in neutral docs
+(e.g. `git rev-parse --show-toplevel` to denote the repo root) and is not a violation.
+The banned, *runtime-specific* mechanisms — `gh` and other vendor CLIs, model IDs, and
+runtime-only tokens — live exclusively in `.claude/adapters/` and skill bindings, and
+project facts live exclusively in `.claude/PROJECT.md`. A Claude-Code-specific (or any
+runtime-specific) instruction inside `workflow/**`, or a project fact baked into an
+engine file, never ships.
 
 ### 2. No silently dead guards
 Enforcement machinery must be proven live, not assumed live. Any change to guard
