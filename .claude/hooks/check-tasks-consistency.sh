@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tasks-file consistency backstop (issue #21).
+# Tasks-file consistency backstop (issues #21, #69).
 #
 # The engine's PROJECT.md-absent fallback resolves the backlog via the
 # specs/*/tasks.md glob and picks the lowest-numbered unchecked task. Two
@@ -8,7 +8,10 @@
 #   1. A template/skeleton dir containing a glob-selectable spec.md or tasks.md
 #      (the skeleton's placeholder T101 becomes the lowest unchecked task).
 #   2. The same task ID defined in more than one live tasks file.
-# This check makes both impossible to reintroduce silently. Bash + grep only.
+#   3. A task left unchecked after a commit carrying its ID has landed —
+#      "done-but-unchecked" drift that mis-steers next-task selection (#69).
+# This check makes all three impossible to reintroduce silently. Bash + git +
+# grep only (commit subjects carry the task ID, so no GitHub API is needed).
 set -u
 
 fail=0
@@ -30,6 +33,27 @@ if [ -n "$dupes" ]; then
     grep -lE "^- \[[ xX]\] $id\b" specs/*/tasks.md | sed 's/^/    /' >&2
   done
   fail=1
+fi
+
+# 3. No task may stay unchecked once a commit carrying its task ID has landed.
+#    Commit subjects follow `<type>: [<task-id>] <desc>` (PROJECT.md task &
+#    branch conventions), so a commit reachable from HEAD whose subject carries
+#    `[T<nnn>]` means T<nnn> has committed/merged work — a still-`[ ]` box is
+#    "done-but-unchecked" drift that mis-steers next-task selection (it picks
+#    the lowest-numbered unchecked task). Triage §2 surfaces this advisorily;
+#    this is the deterministic backstop (DESIGN-NOTES §12).
+committed_ids=$(git log --format='%s' 2>/dev/null \
+  | grep -oE '\[T[0-9]+\]' | tr -d '[]' | sort -u)
+if [ -n "$committed_ids" ]; then
+  for id in $(grep -hoE '^- \[ \] T[0-9]+' specs/*/tasks.md 2>/dev/null \
+    | grep -oE 'T[0-9]+' | sort -u); do
+    # whole-line match, so a [T10] commit never trips an unchecked T101
+    if printf '%s\n' "$committed_ids" | grep -qxF "$id"; then
+      hit=$(git log --format='%h %s' 2>/dev/null | grep -F "[$id]" | head -1)
+      echo "FAIL: $id is unchecked but has committed work ($hit) — tick its box in the tasks file" >&2
+      fail=1
+    fi
+  done
 fi
 
 if [ "$fail" -ne 0 ]; then
