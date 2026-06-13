@@ -300,9 +300,10 @@ degradation path).
 5. **Keep the verdicts.** Save each dispatched reviewer's final verdict report — the
    item-by-item table from its last (PASS or JUSTIFY) run — verbatim. §8 attaches them to
    the PR; the gate's outcome must not live only in this conversation. A reviewer that
-   **FAILed then passed** after a fix contributes only its latest (PASS) report here; its
-   intermediate FAIL report is retained verbatim in the gate-run record's `fail_reports`
-   (`telemetry.md`), which is the source §8's risk-ranked digest cites for near-misses.
+   **FAILed then cleared** (to PASS *or* JUSTIFY) after a fix contributes only its latest
+   report here; its intermediate FAIL report is retained verbatim in the gate-run record's
+   `fail_reports` (`telemetry.md`), which is the source §8's risk-ranked digest cites for
+   near-misses.
 
 ## 8. Open the PR — then STOP
 - Commit your work on the branch FIRST (the §7 reviewers review `git diff main..HEAD`, empty
@@ -316,11 +317,14 @@ degradation path).
   and the gate-run record (`telemetry.md`) — **never** from maker self-assessment: every
   digest line **links to or quotes the verdict text it came from**, and a claim with no
   verdict source does not belong in the digest. In risk order it carries:
-  - **Near-misses** — anything a reviewer **FAILed then passed** after a fix this run. The
-    per-reviewer comment carries only the latest (PASS) verdict, so each near-miss instead
-    quotes or links the verbatim FAIL report text retained in the gate-run record's
-    `fail_reports` (`telemetry.md`; the telemetry record is US1's; §7.5). State the empty
-    case explicitly (e.g. "none — the gate passed first try") rather than omitting it.
+  - **Near-misses** — anything a reviewer **FAILed then cleared** after a fix this run,
+    whether it ended **PASS or JUSTIFY** (a FAIL→JUSTIFY reviewer is a near-miss *and* a
+    JUSTIFY item, listed under both — the FAIL report is the near-miss evidence, the final
+    JUSTIFY is the documented deviation). The per-reviewer comment carries only the latest
+    (PASS/JUSTIFY) verdict, so each near-miss instead quotes or links the verbatim FAIL
+    report text retained in the gate-run record's `fail_reports` (`telemetry.md`; the
+    telemetry record is US1's; §7.5). State the empty case explicitly (e.g. "none — the
+    gate passed first try") rather than omitting it.
   - **JUSTIFY items** — every reviewer verdict of JUSTIFY **quoted verbatim**, with the
     documented deviation (a JUSTIFY clears the gate only with its deviation recorded here).
   - **Invariants the diff touched** — the profile's invariant-checklist items the change
@@ -331,6 +335,10 @@ degradation path).
   The digest **leads and links down to** the verbatim per-reviewer verdict comments
   ("Attach the gate's evidence" below), which remain on the PR **unmodified** — the digest
   summarizes and points; it never replaces, edits, or restates a verdict in place of it.
+  A live-verdict comment link only resolves once that comment exists, so the digest's
+  links to live verdicts are filled in by the body-update step below — composing the body
+  before the comments are posted would leave them dangling. (A near-miss instead
+  quotes/links the `fail_reports` text, which exists before the PR, so it needs no update.)
 - **Pass the body via a file, never inline.** Inline bodies with embedded quotes/parens
   are unreliable across environments, and the temp `.md` must reach the CLI as UTF-8 —
   both concrete forms come from the **[environment block]**. The body must contain
@@ -369,6 +377,17 @@ degradation path).
   for each body (same file-based rules as the PR body). The verdicts must be readable on the PR
   itself, not only in the session transcript: that is what lets the post-PR review shrink to
   "read the verdicts, spot-check, merge".
+- **Then update the PR body so the digest's live-verdict links resolve.** A comment URL
+  exists only after the comment is posted, and a comment needs the PR — so the order is
+  unavoidable: open the PR → post the per-reviewer verdict comments above → **update the
+  body** to point each digest link at a live verdict (a JUSTIFY item, the verdict that
+  graded a touched invariant, the verdict a focus area traces to) at its just-posted
+  comment URL. The update edits **only the digest's link targets** in the body; the posted
+  verdict comments stay byte-for-byte **unmodified** (AC3). Near-miss entries already
+  quote/link the `fail_reports` text and are unaffected. (If the runtime cannot edit a body
+  after creation, degrade loudly: state in the digest that the live-verdict links point to
+  the per-reviewer comments **below on this PR** rather than to per-comment URLs, and say
+  why — never leave a dangling link.)
 - Capture the create command's output and print it; then verify the PR's state and checks
   (including the merge-gate status).
 - Report the PR link and review/check status. Before reporting, audit each claim against a
