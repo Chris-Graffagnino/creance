@@ -228,8 +228,12 @@ state; record results alongside the adapter's spec).
   FAILed-then-cleared reviewer **quotes or links the verbatim `fail_reports` text** from
   the gate-run record rather than a maker paraphrase, and every other digest claim
   likewise points to a verdict source (US4.AC2); (c) the per-reviewer verdict comments
-  exist on the PR — one per dispatched reviewer, PASS included — **byte-identical** to the
-  saved verdicts, and the digest links to them without restating or editing them
+  exist on the PR — one per dispatched reviewer, PASS included — each carrying the saved
+  verdict report **verbatim** as its body, followed by the mandatory **[comment marker]**
+  as its final line (so the match is verbatim **modulo the required marker footer**, not
+  raw byte-equality — §8 mandates that footer on every engine-posted comment, so a probe
+  demanding byte-identity would false-fail on it or pressure an implementation to drop a
+  required marker); the digest links to them without restating or editing them
   (US4.AC3); (d) the digest's live-verdict links resolve to the posted comment URLs (no
   dangling link), or, on the documented body-cannot-be-edited degradation, the digest
   states that explicitly. A digest line composed from maker self-assessment with no
