@@ -200,3 +200,4 @@ load-bearing path (**P3**).
 | Passing paths in prompt text *and* env | The explicit-context rule — prompt text is the carrier, env is a redundant hint (§3). |
 | The Codex CLI stub | The falsification test that proves the layer split is real (§1). |
 | The reviewer roster's three sites + its drift test | One source of truth + two derived mirrors + an independent drift oracle; collapsing it back into hand-synced lists re-opens the silent-drift hole the roster closed (§12). |
+| `fetch-depth: 0` on the CI checkout | Without it the #69 checkbox-drift gate (`check-tasks-consistency.sh` rule 3) is silently dead in CI: `actions/checkout` fetches one commit — on a PR the merge commit — so `git log` sees no `[T###]` and the gate passes vacuously (§4 silent-death class). `check-tasks-consistency.test.sh`'s CI-wiring assertion FAILs if it is dropped. |

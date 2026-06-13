@@ -54,7 +54,7 @@
 
 ## Phase 6 — PR review
 
-- [ ] T601 [strong] Verified PR-review workflow doc (`pr-review.md`) + Claude
+- [x] T601 [strong] Verified PR-review workflow doc (`pr-review.md`) + Claude
       skill binding: ingest the PR diff **and every inline comment** (bot/Codex
       included), ground each finding to current `file:line`, post one
       severity-ranked review; reuse "The review standard" + the `reviewers/`
@@ -64,7 +64,7 @@
 
 ## Phase 7 — Reviewer roster
 
-- [ ] T602 [strong] Collapse the three-place §7 reviewer-set duplication
+- [x] T602 [strong] Collapse the three-place §7 reviewer-set duplication
       (`next-task.md` §7 step 2, `gate-loop.md` "The loop", `gate-loop.js`
       `reviewers` array) into one declarative roster table in `gate-loop.md`,
       repoint `next-task.md` §7 at it, comment the `gate-loop.js` array as
@@ -75,7 +75,7 @@
       authority, tier floors, parallel fan-out unchanged) (#62; repo-maintenance
       — done-when on issue) — strong: edits the runtime-neutral workflow
       boundary and adds a P2 wiring assertion (constitution P1/P2/P3)
-- [ ] T603 [cheap] DESIGN-NOTES rationale entry for the reviewer roster + drift
+- [x] T603 [cheap] DESIGN-NOTES rationale entry for the reviewer roster + drift
       backstop — a row in the "Things that look like cruft but are not" index —
       so a future maintainer does not collapse it back into three hand-synced
       sites; blocked by T602 (#62; repo-maintenance — done-when on issue)

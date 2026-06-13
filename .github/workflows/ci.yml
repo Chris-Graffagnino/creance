@@ -21,7 +21,16 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is load-bearing — check-tasks-consistency.sh rule 3 (#69,
+      # the done-but-unchecked drift gate) walks `git log` for task-bearing commit
+      # subjects. actions/checkout fetches ONE commit by default; on a pull_request
+      # that commit is the merge commit ("Merge pull request ..."), so rule 3 would
+      # see no [T###] and pass vacuously — the gate silently dead in CI (the
+      # DESIGN-NOTES §"the guard was silently dead" class). The drift test's
+      # CI-wiring assertion FAILs if this is dropped.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Guard hook regression tests (bash + git only, <1s).
       - name: Guard hook tests
@@ -29,9 +38,18 @@ jobs:
 
       # Tasks-file resolution stays unambiguous (issue #21): the template skeleton
       # must never match the engine's specs/*/{spec,tasks}.md fallback globs, and no
-      # task ID may appear in more than one live tasks file.
+      # task ID may appear in more than one live tasks file. Rule 3 (#69) also FAILs
+      # on "done-but-unchecked" drift: a task left `- [ ]` after a commit carrying
+      # its [T###] landed (it would mis-steer next-task selection).
       - name: Tasks-file consistency
         run: bash .claude/hooks/check-tasks-consistency.sh
+
+      # Checkbox-drift regression tests (#69): rule 3 reads git log subjects, so
+      # these throwaway-repo fixtures prove it fires on drift AND does not
+      # false-fire on genuinely-unstarted tasks — the P2 "machinery proves it is
+      # live" discipline, same as guard.test.sh.
+      - name: Tasks-file consistency tests
+        run: bash .claude/hooks/check-tasks-consistency.test.sh
 
       # US6 intake/triage encoding tests (T501): the triage "Unmapped tracker
       # work" section + snapshot output shape (incl. the explicit empty state)
