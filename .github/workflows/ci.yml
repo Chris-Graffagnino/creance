@@ -21,7 +21,16 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is load-bearing — check-tasks-consistency.sh rule 3 (#69,
+      # the done-but-unchecked drift gate) walks `git log` for task-bearing commit
+      # subjects. actions/checkout fetches ONE commit by default; on a pull_request
+      # that commit is the merge commit ("Merge pull request ..."), so rule 3 would
+      # see no [T###] and pass vacuously — the gate silently dead in CI (the
+      # DESIGN-NOTES §"the guard was silently dead" class). The drift test's
+      # CI-wiring assertion FAILs if this is dropped.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # Guard hook regression tests (bash + git only, <1s).
       - name: Guard hook tests

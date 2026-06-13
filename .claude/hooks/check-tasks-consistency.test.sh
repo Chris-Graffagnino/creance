@@ -81,5 +81,21 @@ git -C "$F" commit -q --allow-empty -m "feat: [T801] one"
 git -C "$F" commit -q --allow-empty -m "feat: [T802] two"
 run_check 1 "$F" "F multi-file: drift in a second live tasks file FAILs"
 
+# CI wiring (the silent-death backstop, #70): rule 3 walks `git log`, but
+# actions/checkout fetches a single commit by default — on a pull_request that
+# is the merge commit (subject "Merge pull request ...", no [T###]), so
+# committed_ids is empty and rule 3 passes vacuously: the gate silently dead in
+# CI (the DESIGN-NOTES §"the guard was silently dead" class). Assert ci.yml's
+# checkout sets fetch-depth: 0 so a future edit cannot re-introduce the silent
+# death undetected — same posture as guard.test.sh's PreToolUse-matcher assertion.
+CI="$(cd "$(dirname "$0")" && pwd)/../../.github/workflows/ci.yml"
+if grep -qE '(^|[[:space:]])uses:[[:space:]]*actions/checkout' "$CI" \
+   && grep -qE '(^|[[:space:]])fetch-depth:[[:space:]]*0([[:space:]]|$)' "$CI"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL %-58s ci.yml checkout must set fetch-depth: 0 (rule 3 needs full history)\n' "wiring: CI fetches full history for rule 3" >&2
+fi
+
 printf 'check-tasks-consistency.test.sh: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
