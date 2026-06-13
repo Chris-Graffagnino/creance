@@ -30,6 +30,11 @@ procedure is safe to run unattended because it cannot change the repo.
      the `origin` slug once **per the profile's Identity section** and target that slug
      explicitly on every call.
    - List open issues and open PRs (with review decision + check status + last-updated).
+   - **For each open issue, read its body** for the discovered-work provenance line
+     (`Discovered while working #N`, the `next-task.md` §5.5 convention) and the
+     file/line evidence it cites — the "Discovered-work clusters" derivation (§2)
+     groups discovered-work issues by the subsystem/path that evidence points at, so
+     without the bodies a run cannot form the clusters.
    - **For each open issue and PR, fetch its comment thread and cross-referenced
      timeline events** — comment bodies, authors, and timestamps, plus the harness
      commit/PR events cross-referenced on the thread. The "Unacknowledged owner comments"
@@ -107,6 +112,20 @@ procedure is safe to run unattended because it cannot change the repo.
   silently omitted and a missing file is never an error. Records that fail to parse are
   skipped and counted in the section's "skipped malformed lines" note, never repaired
   in place.
+- **Discovered-work clusters (from the open issues' bodies).** The open issues
+  filed as discovered work — those whose body carries a `Discovered while working #N`
+  provenance line (the `next-task.md` §5.5 convention) — grouped by the
+  **subsystem/path** their file/line evidence points at: the path prefix the issue's
+  evidence cites (when an issue cites several, group it under the area its title or
+  first finding centers on). Report each group as `<path/subsystem>: #<n> #<n> …`.
+  **Flag any group of 3+ open discovered-work issues as a possible missing spec** — a
+  recurring cluster in one area is the signal that the area needs its own spec/contract
+  rather than repeated one-off fixes. This derivation is **read-only over the tracker**:
+  triage names the cluster and stays read-only; specifying or converting it is the
+  human's call via the next-task / intake [workflow]s. When no open issue carries the
+  discovered-work provenance line, the section still renders with the explicit empty
+  state in the §4 template — it is never silently omitted, and an absence of
+  discovered-work issues is never an error.
 - **Heartbeat gap (from the run log's last line).** A nonzero exit, or a timestamp older than
   one cadence interval (daily → > ~1 day before now), means the heartbeat had been down and
   this run is the recovery — say so explicitly under "Heartbeat health" so the gap is visible
@@ -170,6 +189,10 @@ shape:
 - <"no data yet — telemetry stream absent/empty at <path>" replaces the three lines above
   when §2's gate-trends derivation found no gate-run records>
 - <"skipped malformed lines: <n>" — present only when nonzero, whether or not data was found>
+
+## Discovered-work clusters
+- <path/subsystem>: #<n> #<n> …   <append " — 3+, possible missing spec" when the group has 3 or more>
+- <"none — no open issue carries a discovered-work provenance line" when §2 found none>
 
 ## Heartbeat health
 - cli: ok | not found   ·  reads completed: <n>/<n>   ·  notes: <…>
