@@ -98,12 +98,19 @@ check "AC5 binding: the guard (rule 5) enforces the floor" "$SK_FLAT" \
 check "AC5 binding: same guarded path the gate uses" "$SK_FLAT" \
   "the same guarded path"
 
-# ── AC1 fidelity (binding mechanism) — auditors grade the HISTORICAL diff, not main..HEAD ──
+# ── AC1 fidelity (binding mechanism) — auditors grade the HISTORICAL TREE, not the live checkout ──
 # "exactly as the gate would have" (AC1) is only true if the auditors see the
-# introducing change against its parent, not the live base branch. The binding
-# makes that concrete with an explicit range, overriding the auditors' default.
-check "binding: reconstruct-the-historical-diff note present" "$SK_FLAT" \
-  "Reconstruct the historical diff before dispatching the auditors."
+# introducing change against its parent AND read surrounding files from the tree
+# as it was then — not the live base branch. The auditor specs all read
+# neighbouring files (constitution/contract/spec), so a diff range alone is not
+# enough: the binding materializes the historical tree (worktree) and forbids
+# live-tree reads. (Codex P2 finding on PR #73.)
+check "binding: materializes the historical tree via worktree, not just the diff" "$SK_FLAT" \
+  "git worktree add --detach"
+check "binding: the reconstruction row/note is tree-scoped" "$SK_FLAT" \
+  "historical-tree reconstruction"
+check "binding: forbids live-tree reads (read context only within the worktree)" "$SK_FLAT" \
+  "never the live repo root"
 check "binding: explicit historical range (parent..introducing-commit)" "$SK_FLAT" \
   "<parent>..<introducing-commit>"
 check "binding: names the wrong default it overrides" "$SK_FLAT" \
