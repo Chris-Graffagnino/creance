@@ -69,6 +69,22 @@ jobs:
       - name: PR-review encoding tests
         run: bash .claude/hooks/pr-review-docs.test.sh
 
+      # T302 retrospective skill-binding encoding tests (#72, US3.AC5): the
+      # binding (.claude/skills/retrospective/SKILL.md) exposes the retrospective
+      # workflow, dispatches the existing auditor roles READ-ONLY + report-only
+      # (no fix loop), composes existing roles only (no new binding-contract row),
+      # and dispatches the constitution auditor at-or-above the strong-tier floor
+      # with the guard (rule 5) enforcing it — so the binding itself, not just the
+      # neutral doc, is reviewed against the floor. The binding is the
+      # implementation surface; this is the P3 determinism backstop for it (same
+      # rationale as the pr-review/intake encoding tests). Adapter-side (the binding
+      # may name mechanisms), so a CI change, not a workflow/** change — no
+      # constitution P1 concern. The neutral doc's AC1–AC4 + neutrality grep are
+      # T301's surface, covered by telemetry-docs.test.sh; the live conformance
+      # probe is T303.
+      - name: Retrospective encoding tests
+        run: bash .claude/hooks/retrospective-docs.test.sh
+
       # T104 telemetry encoding tests (#52): the gate-run record's introducing-
       # commit ref (US1.AC5) — the field + its observe-only framing in telemetry.md,
       # the build/append split in gate-loop.md, the dispatcher's git-rev-parse
