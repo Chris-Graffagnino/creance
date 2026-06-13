@@ -125,10 +125,15 @@ names **tiers, never models** — the loop never sees past its dispatch paramete
 model values are never copied into the record.
 
 The split is deliberate: the loop **builds**, the **dispatcher appends** — stamping the
-envelope (`timestamp`, `repo`), resolving the stream location from the profile
-(`telemetry.md` → "Storage convention", parent directory created if missing), and
-appending one JSONL line **after the gate's outcome is already returned**. Ordering is
-the enforcement of `telemetry.md`'s law: a failed append happens downstream of the
+envelope (`timestamp`, `repo`) and the introducing-`commit` ref (the head of the audited
+diff; `telemetry.md` → "The `gate-run` record"), all of which need a clock or filesystem
+the loop's runtime lacks. The dispatcher reads the `commit` **after the run returns**, not
+before invoking the loop: the fix step commits onto the task branch, so the head at append
+time is the head of the diff the gate's final round actually audited. It resolves the
+stream location from the profile (`telemetry.md` → "Storage convention", parent directory
+created if missing), and appends one JSONL line **after the gate's outcome is already
+returned**. Ordering is the enforcement of `telemetry.md`'s law: a failed append happens
+downstream of the
 outcome, so it structurally cannot block, fail, or alter the gate — the dispatcher
 treats a write failure as silent-to-the-gate (note it, proceed exactly as if it had
 succeeded). One record per completed gate invocation, whatever the outcome.

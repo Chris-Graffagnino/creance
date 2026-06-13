@@ -13,6 +13,10 @@
       telemetry write failures never affect gate outcome (US1)
 - [x] T103 [strong] Guard block-logging plus a per-gate-run evaluation record
       (liveness signal) + regression tests incl. the silent-failure case (US1)
+- [x] T104 [strong] Carry the introducing-change ref (audited head commit) on
+      the `gate-run` record — dispatcher-stamped, observe-only — so the
+      retrospective's Fact B attribution is deterministic; doc encoding test +
+      P-NT probe extension (US1)
 
 ## Phase 2 — Surfacing & review throughput
 
@@ -66,6 +70,7 @@
 | US1.AC2 | T102 |
 | US1.AC3 | T103 |
 | US1.AC4 | T103 |
+| US1.AC5 | T104 |
 | US2.AC1 | T201 |
 | US2.AC2 | T202 |
 | US2.AC3 | T201 |

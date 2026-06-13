@@ -51,6 +51,16 @@ jobs:
       - name: PR-review encoding tests
         run: bash .claude/hooks/pr-review-docs.test.sh
 
+      # T104 telemetry encoding tests (#52): the gate-run record's introducing-
+      # commit ref (US1.AC5) — the field + its observe-only framing in telemetry.md,
+      # the build/append split in gate-loop.md, the dispatcher's git-rev-parse
+      # capture in the next-task binding, and the retrospective's deterministic
+      # Fact B preference (with the stale "out of scope" disclaimer gone). Also
+      # asserts no runtime-specific mechanism (GitHub CLI, model IDs) leaks into
+      # the neutral docs — `git` is the harness's universal substrate, not banned.
+      - name: Telemetry encoding tests
+        run: bash .claude/hooks/telemetry-docs.test.sh
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──
