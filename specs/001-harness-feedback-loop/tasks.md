@@ -48,6 +48,16 @@
       conformance probe run on the live adapter (US6) — strong: defines how
       owner requests become scope, constitution-screen semantics included
 
+## Phase 6 — PR review
+
+- [ ] T601 [strong] Verified PR-review workflow doc (`pr-review.md`) + Claude
+      skill binding: ingest the PR diff **and every inline comment** (bot/Codex
+      included), ground each finding to current `file:line`, post one
+      severity-ranked review; reuse "The review standard" + the `reviewers/`
+      specs and change no §7 gate semantics; encoding tests wired into CI
+      (#53; new capability scoped in-PR per owner direction — done-when on issue)
+      — strong: touches the runtime-neutral workflow boundary (constitution P1)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |

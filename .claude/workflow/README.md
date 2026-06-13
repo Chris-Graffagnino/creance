@@ -98,6 +98,14 @@ contract + constitution alignment, and any intentional follow-up scope. (The rev
 specs under `reviewers/` are this standard's per-dimension instantiations; their
 verdict-table output shapes are what "evidence-based" looks like in practice.)
 
+This standard governs **both** review moments: the **pre-PR** §7 gate (`next-task.md` §7,
+maker-side, before the PR exists) and the end-to-end review of an **already-open** PR —
+including its inline reviewer comments — which is the `pr-review.md` ritual. `pr-review.md`
+**applies** this priority order and evidence rule rather than restating them, and adds only
+what an open PR needs over the pre-PR gate: enumerating every inline comment (bot/automated
+included) and grounding each finding to current source before any "no findings" conclusion.
+It changes no §7 gate semantics.
+
 ## How an adapter degrades gracefully
 If a runtime lacks a role, the methodology still runs, more weakly:
 - **No [reviewer] isolation** → run the reviewer spec as a second pass in the same context
@@ -148,6 +156,11 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   read-only against the historical diff that introduced it, classifies the escape
   (would-have-caught / inconsistent-catch / hunt-rule-gap / invariant-gap), and proposes the
   resulting tightening (hunt rule / invariant row) via PR — never editing a rule directly.
+- `pr-review.md` — end-to-end review of an **open** PR: ingests the diff **and every inline
+  comment** (bot/automated included), grounds each finding to current `file:line`, and posts
+  one severity-ranked review. Applies "The review standard" above and reuses the `reviewers/`
+  specs rather than restating them; changes no §7 gate semantics (a complement to the pre-PR
+  gate, run after the PR opens — the gate runs before it exists and never sees inline comments).
 - `constitution-check.md` — the pre-PR compliance gate.
 - `reviewers/constitution-auditor.md` — adversarial values/constitution [reviewer] spec.
 - `reviewers/contract-auditor.md` — adversarial architecture/contract [reviewer] spec.
