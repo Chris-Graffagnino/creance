@@ -190,8 +190,14 @@ moment of discovery:
 - **Concrete, actionable, out of scope?** Search the tracker for an existing issue first (no
   duplicates), and if none exists **file one now** — title per the issue convention, body
   self-contained (file/line evidence, enough context for a cold start) plus a "Discovered
-  while working #N" line. Filing at discovery time beats reconstructing from memory at PR
-  time.
+  while working #N" line. When the bug's origin is traceable with bounded effort
+  (`git log -S`/`-G`, `git blame`, linked PRs), add a one-line **provenance** note —
+  `introduced by` / `made visible by` / `carried forward by` `<commit/PR>` — with an
+  explicit confidence label: `clear`, `likely`, or `unknown`. **Say `unknown` rather than
+  guessing**, consistent with §6.5's anti-fabrication posture (never report an unverified
+  claim as established). Provenance is best-effort and **never a filing blocker** — an
+  untraceable bug is filed with `provenance: unknown`, not held back. Filing at discovery
+  time beats reconstructing from memory at PR time.
 - **Vague hunch or trivial nit?** Note it in the PR body under "Out of scope, observed";
   don't spam the tracker.
 - **Constitution or security finding already on the base branch?** Never optional: file it
@@ -305,7 +311,11 @@ degradation path).
   `Closes #<issue-number>`, a
   **"Discovered work"** line listing the issues filed under §5.5 (or "none"), a
   **"Mocked dependencies"** line whenever §5's blocked-dependency rule fired (which seam,
-  and the issue comment recording it), and a
+  the issue comment recording it, and — for each mocked seam — the `US#` acceptance criteria
+  whose verification currently runs **against the mock rather than the real dependency**,
+  listed as **live-unverified**; mock-verified is reported as mock-verified, never as done —
+  the same degrade-loudly posture §6.5 applies to absent visual evidence, so the criterion
+  neither blocks the pipeline nor passes silently), and a
   **"Run economics"** line — the tier, model, and effort that actually ran this task, plus
   any round-up/degradation applied (over time this is the evidence for re-tuning tier
   tags). Its **"verified automatically"**
