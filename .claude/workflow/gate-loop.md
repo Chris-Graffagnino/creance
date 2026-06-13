@@ -42,11 +42,38 @@ The dispatcher passes every value the run must honor in the invocation itself:
 A missing required input is a hard error before any dispatch — never guessed, never
 inherited from ambient state.
 
+## The reviewer roster (single source of truth)
+
+The gate's reviewer set — **membership, tier, and dispatch-condition** — is declared once,
+here. Every consumer derives from this one table: the loop below iterates it, `next-task.md`
+§7 step 2 points at it for membership/tier/condition, and the **[orchestrated run]** adapter
+script builds its dispatch list from it (its array carries a "derived from this roster"
+note). A CI-wired drift backstop FAILs when any of those sites disagrees with this table, so
+a reviewer cannot silently fall out of the gate (the "silently dead machinery" failure class
+this gate exists to prevent). Adding or removing a reviewer is an edit to this row set, not a
+hand-sync across three places.
+
+| Reviewer spec | Tier | Dispatch condition |
+|---|---|---|
+| `reviewers/spec-auditor.md` (acceptance) | cheap | `always` |
+| `reviewers/constitution-auditor.md` | strong | `always` |
+| `reviewers/contract-auditor.md` | cheap | `dispatch-contract` |
+
+- **Tier** is a capability **[tier]**, resolved to a concrete model by the adapter's table at
+  dispatch time — this table never names a model. The constitution reviewer's `strong` is its
+  **[strong tier]** floor and never downgrades.
+- **Dispatch condition** is exactly one of two **deterministic** values: `always`, or
+  `dispatch-contract` (true when the diff touches a provider interface, monetization, or the
+  data model — §7's contract-reviewer rule). No model-judgment condition (e.g. "touches
+  behavioral code") may be added: that would put model judgment on the load-bearing path.
+
 ## The loop
 
 ```text
-reviewers ← [ acceptance(cheap-model, task-id), constitution(strong-model) ]
-if dispatch-contract:  reviewers ← reviewers + [ contract(cheap-model) ]
+reviewers ← every roster row whose dispatch-condition holds for this run
+            (an `always` row unconditionally; a `dispatch-contract` row iff dispatch-contract
+            is true), each dispatched on its tier's resolved model — the acceptance row also
+            receives task-id
 
 verdicts ← empty map            # reviewer → its LATEST verdict, verbatim
 pending  ← reviewers

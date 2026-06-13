@@ -61,6 +61,17 @@ jobs:
       - name: Telemetry encoding tests
         run: bash .claude/hooks/telemetry-docs.test.sh
 
+      # T602 reviewer-roster drift backstop (#64, parent epic #62): the §7
+      # reviewer set is declared once in gate-loop.md's roster table; this test
+      # FAILs if the three sites drift from it (gate-loop.md roster, the
+      # gate-loop.js array, next-task.md §7 prose), each roster reviewer's spec
+      # exists, and each reviewer's agent file excludes edit tools. Same rationale
+      # as the other *-docs tests: the runtime-neutral roster is the implementation
+      # surface, and a roster with no live drift check is the very "silently dead
+      # machinery" failure class (P2) this epic exists to prevent.
+      - name: Reviewer-roster drift tests
+        run: bash .claude/hooks/reviewer-roster.test.sh
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──
