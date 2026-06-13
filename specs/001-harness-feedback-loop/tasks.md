@@ -62,6 +62,24 @@
       (#53; new capability scoped in-PR per owner direction — done-when on issue)
       — strong: touches the runtime-neutral workflow boundary (constitution P1)
 
+## Phase 7 — Reviewer roster
+
+- [ ] T602 [strong] Collapse the three-place §7 reviewer-set duplication
+      (`next-task.md` §7 step 2, `gate-loop.md` "The loop", `gate-loop.js`
+      `reviewers` array) into one declarative roster table in `gate-loop.md`,
+      repoint `next-task.md` §7 at it, comment the `gate-loop.js` array as
+      derived; plus a CI-wired bash drift backstop (`reviewer-roster.test.sh`
+      in `verify`) asserting the three sites agree, each reviewer spec exists,
+      and each reviewer's agent file excludes edit tools — the test ships in the
+      same PR. Representation-only: no gate-semantics change (round limits, veto
+      authority, tier floors, parallel fan-out unchanged) (#62; repo-maintenance
+      — done-when on issue) — strong: edits the runtime-neutral workflow
+      boundary and adds a P2 wiring assertion (constitution P1/P2/P3)
+- [ ] T603 [cheap] DESIGN-NOTES rationale entry for the reviewer roster + drift
+      backstop — a row in the "Things that look like cruft but are not" index —
+      so a future maintainer does not collapse it back into three hand-synced
+      sites; blocked by T602 (#62; repo-maintenance — done-when on issue)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
