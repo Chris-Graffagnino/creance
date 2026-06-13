@@ -218,7 +218,13 @@ state; record results alongside the adapter's spec).
   FAIL, the fix-and-re-dispatch to a passing verdict, then §8 PR-body composition and the
   per-reviewer verdict comments.
 - **Expect:** (a) the PR body **leads** with the risk-ranked digest, ahead of "verified
-  automatically" and "your call" (US4.AC1); (b) the digest's near-miss entry for the
+  automatically" and "your call", and the digest carries the AC1 structure given this
+  fixture: the near-miss entry for the planted violation, the **touched-invariant** line
+  naming the invariant the plant violates (the fixture plants an invariant-checklist
+  violation precisely so this element is non-empty), and at least one **focus area
+  carrying a `file:line` reference**; the JUSTIFY section — which a FAIL→cleared fixture
+  does not exercise — **states its empty case explicitly** rather than being omitted
+  (US4.AC1); (b) the digest's near-miss entry for the
   FAILed-then-cleared reviewer **quotes or links the verbatim `fail_reports` text** from
   the gate-run record rather than a maker paraphrase, and every other digest claim
   likewise points to a verdict source (US4.AC2); (c) the per-reviewer verdict comments
