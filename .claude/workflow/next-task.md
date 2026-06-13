@@ -299,12 +299,38 @@ degradation path).
    instead of grinding.
 5. **Keep the verdicts.** Save each dispatched reviewer's final verdict report — the
    item-by-item table from its last (PASS or JUSTIFY) run — verbatim. §8 attaches them to
-   the PR; the gate's outcome must not live only in this conversation.
+   the PR; the gate's outcome must not live only in this conversation. A reviewer that
+   **FAILed then passed** after a fix contributes only its latest (PASS) report here; its
+   intermediate FAIL report is retained verbatim in the gate-run record's `fail_reports`
+   (`telemetry.md`), which is the source §8's risk-ranked digest cites for near-misses.
 
 ## 8. Open the PR — then STOP
 - Commit your work on the branch FIRST (the §7 reviewers review `git diff main..HEAD`, empty
   until you commit). Stage specific files; never `git add .`.
 - Open the PR against the base branch, titled `<type>: [<task-id>] <description>`.
+- **Lead the body with a risk-ranked digest of what the §7 gate found** — the human
+  reviewer's entry point, placed **first**, ahead of "verified automatically" and "your
+  call", so scarce review time targets the riskiest parts of the diff instead of
+  re-deriving them from raw verdicts. The digest is composed **only** from the §7 gate's
+  outputs — the **[reviewer]** verdicts posted on the PR (the per-reviewer comments below)
+  and the gate-run record (`telemetry.md`) — **never** from maker self-assessment: every
+  digest line **links to or quotes the verdict text it came from**, and a claim with no
+  verdict source does not belong in the digest. In risk order it carries:
+  - **Near-misses** — anything a reviewer **FAILed then passed** after a fix this run. The
+    per-reviewer comment carries only the latest (PASS) verdict, so each near-miss instead
+    quotes or links the verbatim FAIL report text retained in the gate-run record's
+    `fail_reports` (`telemetry.md`; the telemetry record is US1's; §7.5). State the empty
+    case explicitly (e.g. "none — the gate passed first try") rather than omitting it.
+  - **JUSTIFY items** — every reviewer verdict of JUSTIFY **quoted verbatim**, with the
+    documented deviation (a JUSTIFY clears the gate only with its deviation recorded here).
+  - **Invariants the diff touched** — the profile's invariant-checklist items the change
+    intersects, each pointing to the verdict that graded it.
+  - **1–3 recommended human focus areas** — the riskiest spots for a human to read, each
+    with a `file:line` reference and each tracing to one of the sources above (a near-miss,
+    a JUSTIFY, or a touched invariant) — never a maker opinion no verdict backs.
+  The digest **leads and links down to** the verbatim per-reviewer verdict comments
+  ("Attach the gate's evidence" below), which remain on the PR **unmodified** — the digest
+  summarizes and points; it never replaces, edits, or restates a verdict in place of it.
 - **Pass the body via a file, never inline.** Inline bodies with embedded quotes/parens
   are unreliable across environments, and the temp `.md` must reach the CLI as UTF-8 —
   both concrete forms come from the **[environment block]**. The body must contain
