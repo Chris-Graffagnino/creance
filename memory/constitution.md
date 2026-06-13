@@ -2,7 +2,7 @@
 
 The non-negotiable principles for the Creance repo itself (the harness template
 developing itself). If any feature, convenience, or stakeholder request violates one of
-these, the default answer is **no**. These break ties when a decision is unclear. Each
+these, the default answer is **no**. These principles break ties when a decision is unclear. Each
 principle is mirrored as a checkable rule in `.claude/PROJECT.md` → "Invariant
 checklist", and the constitution auditor
 (`.claude/workflow/reviewers/constitution-auditor.md`) enforces this file as law.
