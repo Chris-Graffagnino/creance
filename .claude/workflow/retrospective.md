@@ -90,21 +90,39 @@ Two facts decide the bucket:
 
 - **Fact A — do the auditors FAIL the historical diff under *today's* rules?** (the §3
   result).
-- **Fact B — did a gate actually run on this change and pass?** Read it from the `gate-run`
-  record for the introducing change's task ID (`telemetry.md`); "no record / the relevant
-  auditor absent from the dispatched set / no gate configured for that change" all count as
-  *no gate*.
+- **Fact B — did a gate actually run *on this change* and pass?** Read the `gate-run` records
+  for the introducing change's task ID (`telemetry.md`). A task ID can carry **several**
+  records — a diff gated, then amended and merged without a fresh gate; a re-gate; an
+  accidentally reused ID — and a record holds **no commit/PR reference**, so one that merely
+  shares the task ID does not prove the gate ran on *this* diff. Fact B is true only for a
+  record **attributable to the introducing change**: tied to it by timing (the record's
+  `timestamp` bracketing the change's commit/merge) and, where the telemetry stream carries
+  one, a commit/PR reference. Anything else — no record, the catching auditor absent from the
+  dispatched round, or a same-task pass that cannot be tied to this diff — leaves Fact B
+  **unproven**, which the table reads as ¬B (the safe-fallback note below).
 
 | | Auditors **FAIL** now (A) | Auditors **PASS** now (¬A) |
 |---|---|---|
 | **Gate ran + passed then** (B) | **INCONSISTENT-CATCH** | **HUNT-RULE-GAP** or **INVARIANT-GAP** |
 | **No gate / misconfigured** (¬B) | **WOULD-HAVE-CAUGHT** | **HUNT-RULE-GAP** or **INVARIANT-GAP** |
 
-- **WOULD-HAVE-CAUGHT** — the auditors FAIL the historical diff, and the gate was *skipped or
-  misconfigured* for that change (no `gate-run` record, or the catching auditor was not in
-  the dispatched set). The rule already works; the escape is a **process gap** — the gate did
-  not run where it should have.
-- **INCONSISTENT-CATCH** — the auditors FAIL it now, but a gate *ran and passed* then. Either
+**Safe fallback — an unprovable Fact B biases toward WOULD-HAVE-CAUGHT, never
+INCONSISTENT-CATCH.** The two error directions are not symmetric: assuming a gate covered a
+change it never gated hides a real **process gap** (the missing-fix outcome), while assuming
+no gate when one did run only triggers an extra check the record then settles. So when no
+`gate-run` record is attributable to the introducing change, classify a now-failing diff as
+WOULD-HAVE-CAUGHT and mark it *by fallback*, so the proposal is confirmed against the record
+rather than inheriting a silent INCONSISTENT-CATCH. (A commit/PR reference on the `gate-run`
+record would make this attribution deterministic instead of timing-correlated — a
+telemetry-schema improvement outside this workflow's scope.)
+
+- **WOULD-HAVE-CAUGHT** — the auditors FAIL the historical diff, and **no `gate-run` record is
+  attributable to that change** — none exists, the catching auditor was absent from the
+  dispatched round, or the only same-task records cannot be tied to this diff (the Fact-B
+  fallback). The rule already works; the escape is a **process gap** — the gate did not run
+  where it should have.
+- **INCONSISTENT-CATCH** — the auditors FAIL it now, but a gate **attributable to this
+  change** *ran and passed* then. Either
   the rules were **tightened since** (the escape is already closed — the same diff would fail
   today) or the auditor was **nondeterministic** (a reliability defect: the same rules, a
   different verdict).
