@@ -144,6 +144,10 @@ If a runtime lacks a role, the methodology still runs, more weakly:
 - `intake.md` — converts owner-filed tracker issues into the backlog via PR (triage
   detects unmapped issues; intake classifies, constitution-screens, drafts, and lands
   the formalization for the owner to ratify by merging).
+- `retrospective.md` — back-tests an escaped defect against the auditors: dispatches them
+  read-only against the historical diff that introduced it, classifies the escape
+  (would-have-caught / inconsistent-catch / hunt-rule-gap / invariant-gap), and proposes the
+  resulting tightening (hunt rule / invariant row) via PR — never editing a rule directly.
 - `constitution-check.md` — the pre-PR compliance gate.
 - `reviewers/constitution-auditor.md` — adversarial values/constitution [reviewer] spec.
 - `reviewers/contract-auditor.md` — adversarial architecture/contract [reviewer] spec.
