@@ -93,6 +93,12 @@ check "retrospective: ref attribution is deterministic" "$RET_FLAT" \
   "making attribution deterministic"
 check "retrospective: squash-merged PR resolves to its head-ref commits" "$RET_FLAT" \
   "squash-merged PR resolves to the commits on its head ref"
+# Per-record fallback (Codex PR #58 finding): the timing fallback for a legacy record
+# must be judged per record, not gated on whether ANY record for the task ID carries a
+# `commit` — else a newer re-gate of a different diff suppresses an older legacy gate of
+# the introducing one, misclassifying INCONSISTENT-CATCH as WOULD-HAVE-CAUGHT.
+check "retrospective: timing fallback is per-record, not gated on the whole task ID" "$RET_FLAT" \
+  "never suppressed by another record"
 # The pre-#52 disclaimer ("...outside this workflow's scope") described the ABSENCE of
 # this field. Now that it ships, that text must be gone — otherwise the doc contradicts
 # the schema it now relies on.

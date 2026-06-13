@@ -97,14 +97,17 @@ Two facts decide the bucket:
   diff. **Prefer the record's `commit` ref (`telemetry.md` → "The `gate-run` record"): it
   pins each record to the exact diff its gate audited, making attribution deterministic.**
   Resolve the introducing change to its commit(s) — a single commit is itself; a
-  squash-merged PR resolves to the commits on its head ref — and Fact B is true for a
-  `gate-run` record whose `commit` is among them with `outcome: pass`. Only when no record for
-  the task ID carries a `commit` — a legacy line written before the field existed (the stream
-  is append-only) — fall back to **timing correlation**: the record's `timestamp` bracketing
-  the change's commit/merge. Anything else — no record, the catching auditor absent from the
-  dispatched round, or a same-task pass that matches neither by `commit` nor (for a legacy
-  line) by timing — leaves Fact B **unproven**, which the table reads as ¬B (the safe-fallback
-  note below).
+  squash-merged PR resolves to the commits on its head ref. Then judge **each** `gate-run`
+  record for the task ID by the evidence it carries: a record **with** a `commit` is
+  attributable iff that `commit` is among them (deterministic); a **legacy** record **without**
+  a `commit` — written before the field existed (the stream is append-only) — is attributable
+  iff its `timestamp` brackets the change's commit/merge. This timing fallback is judged **per
+  record** and is **never suppressed by another record** that happens to carry a `commit`: a
+  newer re-gate of a *different* diff must not hide an older legacy gate of *this* one. Fact B
+  is true when an attributable record has `outcome: pass`. Anything else — no record, the
+  catching auditor absent from the dispatched round, or only records that match neither by
+  `commit` nor (for a legacy line) by timing — leaves Fact B **unproven**, which the table
+  reads as ¬B (the safe-fallback note below).
 
 | | Auditors **FAIL** now (A) | Auditors **PASS** now (¬A) |
 |---|---|---|
@@ -119,7 +122,8 @@ no gate when one did run only triggers an extra check the record then settles. S
 WOULD-HAVE-CAUGHT and mark it *by fallback*, so the proposal is confirmed against the record
 rather than inheriting a silent INCONSISTENT-CATCH. (The `gate-run` record's `commit` ref now
 makes this attribution deterministic whenever it is present; the timing-correlation fallback
-applies only to legacy records written before that field existed.)
+applies **per legacy record** — those written before that field existed — never gated on the
+whole task ID.)
 
 - **WOULD-HAVE-CAUGHT** — the auditors FAIL the historical diff, and **no `gate-run` record is
   attributable to that change** — none exists, the catching auditor was absent from the
