@@ -207,6 +207,38 @@ state; record results alongside the adapter's spec).
   task ID and drafted acceptance criteria; (d) no closing keyword for the fixture issue
   appears in any PR the run opens, no issue is closed, and no merge is performed.
 
+### P-NT — next-task PR digest (`next-task.md` §8)
+- **Setup:** a fixture task branch off the base branch whose committed diff plants one
+  mechanically-fixable violation a reviewer spec catches deterministically — enough to
+  drive a single **FAIL → fix → cleared** round through the §7 gate, so the gate-run
+  record retains a `fail_reports` entry (US1.AC1) the digest can cite. The whole probe
+  runs against a throwaway issue + branch + PR and leaves no live thread: close the
+  issue, close the PR, and delete the branch afterwards.
+- **Action:** run the procedure end to end against the fixture — the §7 gate to its first
+  FAIL, the fix-and-re-dispatch to a passing verdict, then §8 PR-body composition and the
+  per-reviewer verdict comments.
+- **Expect:** (a) the PR body **leads** with the risk-ranked digest, ahead of "verified
+  automatically" and "your call", and the digest carries the AC1 structure given this
+  fixture: the near-miss entry for the planted violation, the **touched-invariant** line
+  naming the invariant the plant violates (the fixture plants an invariant-checklist
+  violation precisely so this element is non-empty), and at least one **focus area
+  carrying a `file:line` reference**; the JUSTIFY section — which a FAIL→cleared fixture
+  does not exercise — **states its empty case explicitly** rather than being omitted
+  (US4.AC1); (b) the digest's near-miss entry for the
+  FAILed-then-cleared reviewer **quotes or links the verbatim `fail_reports` text** from
+  the gate-run record rather than a maker paraphrase, and every other digest claim
+  likewise points to a verdict source (US4.AC2); (c) the per-reviewer verdict comments
+  exist on the PR — one per dispatched reviewer, PASS included — each carrying the saved
+  verdict report **verbatim** as its body, followed by the mandatory **[comment marker]**
+  as its final line (so the match is verbatim **modulo the required marker footer**, not
+  raw byte-equality — §8 mandates that footer on every engine-posted comment, so a probe
+  demanding byte-identity would false-fail on it or pressure an implementation to drop a
+  required marker); the digest links to them without restating or editing them
+  (US4.AC3); (d) the digest's live-verdict links resolve to the posted comment URLs (no
+  dangling link), or, on the documented body-cannot-be-edited degradation, the digest
+  states that explicitly. A digest line composed from maker self-assessment with no
+  verdict source fails the probe.
+
 ## Coverage map
 
 | Contract row | Probe |
@@ -225,5 +257,6 @@ state; record results alongside the adapter's spec).
 | [environment block] | P-EB |
 | [comment marker] (+ the §2.5 channel rules) | P-CM |
 | intake procedure (`intake.md`) | P-IN |
+| next-task PR digest (`next-task.md` §8) | P-NT |
 | model table property | P-MT |
 | explicit-context rule | P-EC |
