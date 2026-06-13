@@ -63,7 +63,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 
 ## Invariant checklist (the auditors enforce these exactly)
 - A `workflow/**` file naming a concrete runtime mechanism (tool, CLI flag, model ID)
-  instead of a bracketed role — FAIL.
+  instead of a bracketed role — FAIL. **Exempt:** `git`, the assumed universal VCS
+  substrate, may be named directly (e.g. `git rev-parse --show-toplevel` for the repo
+  root); the ban binds runtime-specific mechanisms — `gh` and other vendor CLIs, model
+  IDs, and Claude-Code-only tokens (`--model`, `--json`, `PreToolUse`, `settings.json`) —
+  the set the encoding-test mech scans enforce (`pr-review-docs.test.sh`,
+  `telemetry-docs.test.sh`).
 - Guard behavior changed without a matching `guard.test.sh` case, or settings.json
   matcher drift the wiring assertion would miss — FAIL (the "silently dead guard" class,
   DESIGN-NOTES §"the guard was silently dead").

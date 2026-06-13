@@ -54,7 +54,9 @@ check "AC1 neutral: no new binding-contract row" "$WF_FLAT" \
 # Neutrality is also enforced negatively: no concrete runtime mechanism (a CLI
 # name, tool name, or model ID) may appear in the neutral doc. The `.claude/`
 # path prefix is the allowed profile pointer every neutral doc uses, so strip it
-# before scanning (matches how contract-auditor reads the boundary).
+# before scanning (matches how contract-auditor reads the boundary). `git` is
+# deliberately absent from the banned set below — it is the harness's assumed VCS
+# substrate, exempt per constitution P1 / PROJECT.md "Invariant checklist".
 mech="$(printf '%s' "$WF_FLAT" | sed 's#\.claude/#PROFILEPTR/#g' \
   | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' || true)"
 if [ -z "$mech" ]; then
