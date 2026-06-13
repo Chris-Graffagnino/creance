@@ -58,10 +58,20 @@ appended by the dispatcher after the gate loop returns. Fields beyond the envelo
 | `fix_rounds_used` | how many fix-and-re-dispatch rounds ran (`gate-loop.md`) |
 | `outcome` | `pass`, `fail`, or `non-convergence` — the gate's overall return |
 | `fail_reports` | for every FAIL verdict in `rounds`: the reviewer's verdict report text **verbatim**, keyed by auditor and round (a NO-RESULT dispatch has no report — record the literal string `NO-RESULT` for it) — this is what the risk-ranked PR digest later cites for near-misses |
+| `commit` | full SHA of the **head commit of the diff the gate audited** (the task-branch head versus the base branch). Stamped by the dispatcher at append time, like the envelope — the loop's runtime has no filesystem to read it. It pins the record to the *exact introducing diff*, so the retrospective's Fact B attribution is **deterministic** rather than timing-correlated (`retrospective.md` §4). |
+
+The `commit` ref is descriptive metadata under the law above: it is read **only** by the
+human-reviewed retrospective's Fact B attribution (`retrospective.md` §4) — never by any
+gate, [reviewer] dispatch, tier resolution, or guard — so recording it grants the
+measurement channel no control authority. Because the §7 gate runs **before** the PR is
+opened, the record carries the audited *commit*, not a PR number; an incident keyed to a
+squash-merged PR is matched by resolving that PR to its commits (`retrospective.md` §4) and
+comparing against this field.
 
 Tier names, not model IDs: a record naming a concrete model would leak adapter facts into
-a runtime-neutral artifact and break the one-line-model-swap property. The adapter's model
-table remains the only place a tier resolves to a model.
+a runtime-neutral artifact and break the one-line-model-swap property — and a commit SHA is
+a reference, not a model ID, so the discipline is unaffected. The adapter's model table
+remains the only place a tier resolves to a model.
 
 ## The `block` and `evaluation` records ([guard])
 

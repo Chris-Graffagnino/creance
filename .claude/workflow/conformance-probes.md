@@ -237,7 +237,11 @@ state; record results alongside the adapter's spec).
   (US4.AC3); (d) the digest's live-verdict links resolve to the posted comment URLs (no
   dangling link), or, on the documented body-cannot-be-edited degradation, the digest
   states that explicitly. A digest line composed from maker self-assessment with no
-  verdict source fails the probe.
+  verdict source fails the probe. (e) the `gate-run` record the run appends to the
+  telemetry stream carries a **`commit`** field equal to the fixture branch's head commit
+  **after the fix round** — the head of the diff the final gate dispatch audited —
+  confirming the dispatcher stamps the introducing-change ref so the retrospective's Fact B
+  attribution is deterministic (US1.AC5).
 
 ## Coverage map
 

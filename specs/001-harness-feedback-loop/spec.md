@@ -53,6 +53,14 @@ inspect rather than anecdotes.
   change guard exit behavior.
 - AC4: Guard regression tests cover both logging paths (block records and
   evaluation records), including the failure-stays-silent case.
+- AC5: The `gate-run` record carries a reference to the introducing change —
+  the head commit of the diff the gate audited — stamped by the dispatcher at
+  append time (the loop's runtime has no clock or filesystem), so the
+  retrospective's Fact B attribution (US3) can be tied to the exact diff a gate
+  graded rather than inferred from timing. The reference is observe-only: read
+  only by the human-reviewed retrospective, never by any gate, tier resolution,
+  or guard — it changes no gate semantics and no tier floor (a reference is not
+  a model ID, so the tier-name discipline is unaffected).
 
 ### US2 — Triage trend surfacing
 As a harness operator, I want the morning triage snapshot to surface telemetry

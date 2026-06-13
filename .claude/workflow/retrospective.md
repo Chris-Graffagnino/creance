@@ -93,13 +93,18 @@ Two facts decide the bucket:
 - **Fact B — did a gate actually run *on this change* and pass?** Read the `gate-run` records
   for the introducing change's task ID (`telemetry.md`). A task ID can carry **several**
   records — a diff gated, then amended and merged without a fresh gate; a re-gate; an
-  accidentally reused ID — and a record holds **no commit/PR reference**, so one that merely
-  shares the task ID does not prove the gate ran on *this* diff. Fact B is true only for a
-  record **attributable to the introducing change**: tied to it by timing (the record's
-  `timestamp` bracketing the change's commit/merge) and, where the telemetry stream carries
-  one, a commit/PR reference. Anything else — no record, the catching auditor absent from the
-  dispatched round, or a same-task pass that cannot be tied to this diff — leaves Fact B
-  **unproven**, which the table reads as ¬B (the safe-fallback note below).
+  accidentally reused ID — so sharing the task ID alone never proves the gate ran on *this*
+  diff. **Prefer the record's `commit` ref (`telemetry.md` → "The `gate-run` record"): it
+  pins each record to the exact diff its gate audited, making attribution deterministic.**
+  Resolve the introducing change to its commit(s) — a single commit is itself; a
+  squash-merged PR resolves to the commits on its head ref — and Fact B is true for a
+  `gate-run` record whose `commit` is among them with `outcome: pass`. Only when no record for
+  the task ID carries a `commit` — a legacy line written before the field existed (the stream
+  is append-only) — fall back to **timing correlation**: the record's `timestamp` bracketing
+  the change's commit/merge. Anything else — no record, the catching auditor absent from the
+  dispatched round, or a same-task pass that matches neither by `commit` nor (for a legacy
+  line) by timing — leaves Fact B **unproven**, which the table reads as ¬B (the safe-fallback
+  note below).
 
 | | Auditors **FAIL** now (A) | Auditors **PASS** now (¬A) |
 |---|---|---|
@@ -112,9 +117,9 @@ change it never gated hides a real **process gap** (the missing-fix outcome), wh
 no gate when one did run only triggers an extra check the record then settles. So when no
 `gate-run` record is attributable to the introducing change, classify a now-failing diff as
 WOULD-HAVE-CAUGHT and mark it *by fallback*, so the proposal is confirmed against the record
-rather than inheriting a silent INCONSISTENT-CATCH. (A commit/PR reference on the `gate-run`
-record would make this attribution deterministic instead of timing-correlated — a
-telemetry-schema improvement outside this workflow's scope.)
+rather than inheriting a silent INCONSISTENT-CATCH. (The `gate-run` record's `commit` ref now
+makes this attribution deterministic whenever it is present; the timing-correlation fallback
+applies only to legacy records written before that field existed.)
 
 - **WOULD-HAVE-CAUGHT** — the auditors FAIL the historical diff, and **no `gate-run` record is
   attributable to that change** — none exists, the catching auditor was absent from the

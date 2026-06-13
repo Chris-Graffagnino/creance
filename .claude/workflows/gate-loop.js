@@ -8,10 +8,11 @@
 // reviewers audit `git diff main..HEAD`.
 //
 // Every return path carries `telemetry`: the gate-run record payload defined by
-// workflow/telemetry.md, minus the timestamp/repo envelope (this runtime has no clock
-// or filesystem). The DISPATCHER appends it to the telemetry stream after the run
-// returns — the gate's outcome is already in hand by then, so a failed write can
-// never block, fail, or alter the gate (telemetry observes; it never decides).
+// workflow/telemetry.md, minus the timestamp/repo envelope and the introducing-commit
+// ref (this runtime has no clock or filesystem). The DISPATCHER appends it to the
+// telemetry stream after the run returns — stamping timestamp/repo and `commit` (the
+// audited HEAD) then — so a failed write can never block, fail, or alter the gate
+// (telemetry observes; it never decides).
 //
 // Models are NEVER named here: .claude/MODELS.md is the adapter's only model-naming
 // file. The invoker resolves the tier rows and passes them in `args`:
@@ -104,8 +105,9 @@ let fixRoundsUsed = 0;
 const roundsHistory = []; // one entry per dispatch round: [{ auditor, tier, verdict }]
 const failReports = {}; // "<auditor>:round-<n>" → verbatim FAIL report, or "NO-RESULT"
 
-// The record minus the envelope fields the script cannot produce (timestamp needs a
-// clock, repo needs the filesystem) — the dispatcher stamps those at append time.
+// The record minus the fields the script cannot produce (timestamp needs a clock; repo
+// and `commit` — the audited HEAD — need the filesystem) — the dispatcher stamps those
+// at append time, reading `commit` after the run so fix-round commits are included.
 const telemetry = (outcome) => ({
   record: 'gate-run',
   task_id: input.taskId,
