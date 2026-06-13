@@ -18,7 +18,7 @@
 
 - [x] T201 [cheap] Triage "Gate trends" section with explicit no-data state (US2)
 - [x] T202 [cheap] Triage "Discovered-work clusters" section (US2)
-- [ ] T203 [strong] Risk-ranked PR digest leading the next-task PR body;
+- [x] T203 [strong] Risk-ranked PR digest leading the next-task PR body;
       verbatim per-reviewer verdict comments retained unmodified (US4)
 - [x] T204 [cheap] Triage "Unacknowledged owner comments" section: unmarked
       owner-login comments newer than the last harness-marked activity, read-only,
