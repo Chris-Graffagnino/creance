@@ -90,6 +90,33 @@ jobs:
       - name: Reviewer-roster drift tests
         run: bash .claude/hooks/reviewer-roster.test.sh
 
+      # T102 gate-loop encoding test (#65) — and any sibling .claude/workflows/
+      # *.test.js. Until #65 these JS tests ran only by hand: verify had no node
+      # step, so the gate-loop orchestration (one telemetry payload per gate run on
+      # every return path, the fail-closed verdicts) could regress while CI stayed
+      # green — the "silently dead machinery" class (P2; DESIGN-NOTES §"the guard
+      # was silently dead"). The glob fails closed: zero matches is an error, so the
+      # step can never silently run nothing. This is adapter-side wiring
+      # (.claude/workflows/ is the Claude Code [orchestrated run] binding), so it is
+      # a CI change, not a workflow/** change — no constitution P1 concern.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Workflow encoding tests (JS)
+        run: |
+          shopt -s nullglob
+          tests=(.claude/workflows/*.test.js)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "no .claude/workflows/*.test.js found — JS test wiring is dead" >&2
+            exit 1
+          fi
+          for t in "${tests[@]}"; do
+            echo "→ node $t"
+            node "$t"
+          done
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──
