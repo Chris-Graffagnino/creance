@@ -156,6 +156,36 @@ and bloated resident context degrades model accuracy on every turn. The `AGENTS.
 example of the intended pattern: the per-turn rule stays resident, the full procedure
 lives one fetch away.
 
+## 12. The reviewer roster is one table with derived mirrors, not three hand-synced lists
+
+The §7 gate's reviewer set — *membership, tier, and dispatch-condition* — is declared once,
+as the roster table in `workflow/gate-loop.md`. Two other sites restate it: the §7 prose
+procedure in `next-task.md` (the degradation path used when no [orchestrated run] exists)
+and the `reviewers` array in `workflows/gate-loop.js` (the executable adapter). Those two
+are **derived mirrors**, not independent copies — each says so in place — and a CI-wired
+bash test (`hooks/reviewer-roster.test.sh`, in the `verify` job) FAILs the moment any site
+disagrees with a hardcoded canonical set.
+
+It reads like triplicated cruft: three places saying the same thing, plus a test whose only
+job is to assert they still match. Leave it. The three forms exist for three different
+readers — the runtime-neutral methodology (the roster *is* the source of truth), the
+human-readable §7 procedure, and running code — and none can be dropped without losing a
+consumer. Before the roster existed they were hand-synced with **nothing checking
+agreement**, so a reviewer quietly dropped from one site, or a tier/condition that drifted,
+sailed through CI. That is exactly the "silently dead machinery" failure this codebase has
+already lived through once (the dead guard matcher, §4) and that the constitution names as a
+first-class hazard (**P2**). The drift test converts "a reviewer fell out of the gate" from
+a model-noticing risk into a deterministic check, and — like `guard.test.sh` — it ships in
+the same PR as the thing it guards.
+
+So the redundancy is load-bearing: **one source of truth + derived mirrors + an independent
+drift oracle.** Collapsing it back into three hand-edited lists, or deleting the test as "it
+only checks the obvious," re-opens the silent-drift hole the roster was built to close. Two
+constraints keep the roster itself honest: it names only spec-paths, tiers, and conditions —
+never a model (**P1**); and its dispatch-conditions are restricted to two deterministic
+values (`always`, `dispatch-contract`), so no model judgment ever lands on the gate's
+load-bearing path (**P3**).
+
 ---
 
 ## Things that look like cruft but are not — quick index
@@ -169,3 +199,4 @@ lives one fetch away.
 | The launcher's run-log-after-exit ordering | The dead-man switch only works if the last line is always a *completed* attempt (§8). |
 | Passing paths in prompt text *and* env | The explicit-context rule — prompt text is the carrier, env is a redundant hint (§3). |
 | The Codex CLI stub | The falsification test that proves the layer split is real (§1). |
+| The reviewer roster's three sites + its drift test | One source of truth + two derived mirrors + an independent drift oracle; collapsing it back into hand-synced lists re-opens the silent-drift hole the roster closed (§12). |
