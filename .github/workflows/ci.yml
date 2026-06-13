@@ -41,6 +41,16 @@ jobs:
       - name: Intake/triage encoding tests
         run: bash .claude/hooks/intake-docs.test.sh
 
+      # T601 PR-review encoding tests (#53): the pr-review workflow doc's
+      # grounding gate (no "no findings" without adjudicating every inline
+      # comment and grounding each finding to current source), its role-neutrality
+      # posture, the reconciliation-not-duplication with the review standard + §7
+      # gate, and the skill binding's inline-comment fetch + additive-write
+      # posture. Same rationale as the intake/triage encoding tests: the
+      # runtime-neutral workflow doc is the implementation surface.
+      - name: PR-review encoding tests
+        run: bash .claude/hooks/pr-review-docs.test.sh
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──
