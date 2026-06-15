@@ -80,6 +80,40 @@
       so a future maintainer does not collapse it back into three hand-synced
       sites; blocked by T602 (#62; repo-maintenance — done-when on issue)
 
+## Phase 8 — Gate hardening (LFD-delta epics)
+
+> Three out-of-plan epics surfaced by a loss-function-development comparative
+> analysis (github.com/elvisun/loss-function-development), intaked from #74/#75/#76.
+> Each is engine-maintenance to the review/governance machinery; rubric is the
+> done-when criteria carried on its issue (the acceptance reviewer grades against
+> those exactly as a `US#`). May be split further at implementation time if a
+> done-when exceeds one PR's reasonable scope.
+
+- [ ] T604 [strong] Evasion-register: add `reviewers/evasion-register.md`, a
+      cumulative, exemplar-based catalog of observed gate evasions
+      (`observed evasion → fence`, each with a `file:line` exemplar) that the
+      auditors consult at dispatch and the retrospective appends to **via PR**
+      (never silently) on HUNT-RULE-GAP / INVARIANT-GAP outcomes; seed it from
+      the evasions already implicit in the auditor specs; note the deterministic
+      lint each mechanizable exhibit should graduate into (#74; repo-maintenance
+      — done-when on issue) — strong: edits the P4-protected reviewer specs and
+      the retrospective workflow boundary (constitution P1/P3/P4)
+- [ ] T605 [strong] Auditor-liveness: promote the one-time `P-RV` reviewer
+      conformance probe into a standing planted-violation regression corpus
+      (≥1 expected-FAIL and ≥1 expected-PASS fixture per auditor), re-run on
+      reviewer-spec change and on a schedule, seeded from retrospective
+      incidents; **observe-only** — the liveness signal never feeds gate
+      outcomes, tier assignment, or gate semantics (#75; repo-maintenance —
+      done-when on issue) — strong: verification machinery guarding the guards,
+      with a P5 observe-only boundary (constitution P2/P3/P5)
+- [ ] T606 [strong] Criteria-gameability: add a gameability screen to
+      `intake.md` §4 (for each drafted criterion, name the cheapest way to
+      satisfy it without doing the real work; if that path exists the criterion
+      is one-sided or trivially satisfiable — tighten it before drafting) and
+      mirror it in the acceptance reviewer's intake-conversion check, with an
+      encoding test (#76; repo-maintenance — done-when on issue) — strong:
+      edits the runtime-neutral intake workflow boundary (constitution P1/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
