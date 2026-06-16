@@ -156,5 +156,21 @@ check "P-RT (c): write posture holds — protected rule files byte-identical" "$
 check "P-RT (e): telemetry read, not written — no gate-run record appended" "$PROBES_FLAT" \
   "**telemetry was read, not written** — the run appends **no \`gate-run\` record**"
 
+# The ADAPTER half of AC6 lives in claude-code-probes.md, not the neutral checklist:
+# "added" includes the P-RT instantiation row, and "passes on the live adapter, with
+# results recorded" is the dated PASS result row. Guarding only the neutral spec (above)
+# leaves CI green if that row is deleted or its recorded PASS is flipped — the
+# live-adapter half unguarded (PR #84 review finding). Assert both here.
+ADAPTER="$DIR/adapters/claude-code-probes.md"
+if [ ! -f "$ADAPTER" ]; then
+  echo "FAIL: required file missing: $ADAPTER" >&2
+  exit 1
+fi
+ADAPTER_FLAT="$(flat "$ADAPTER")"
+check "P-RT: instantiated in the adapter probe table" "$ADAPTER_FLAT" \
+  "| P-RT |"
+check "P-RT: live run recorded PASS in the adapter results table" "$ADAPTER_FLAT" \
+  "P-RT (2026-06-16, claude-opus-4-8 constitution / claude-sonnet-4-6 acceptance, macOS) | PASS"
+
 echo "retrospective docs encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
