@@ -89,12 +89,15 @@ check "adapter: wiring hash is matcher-only, never the whole settings file" "$AD
 check "adapter: results table has a Fingerprint column" "$ADP_FLAT" \
   "| Probe | Result | Fingerprint | Observed |"
 # EVERY non-placeholder row in the "## Probe results" table must carry a well-formed
-# guard=<sha7> wiring=<sha7> fingerprint — not merely one row somewhere in the file.
-# US5.AC1 and the Recording convention require the fingerprint alongside EACH run, and
-# T402's PROBES-STALE reads the LATEST row, so a future result appended without one must
-# FAIL here. Scope to the Probe results section (the Probe instantiation table carries no
-# fingerprints by design); skip the header, the separator, and the `_(append …)_`
-# template row. (Codex P2 on PR #86: a single-match check passed an unfingerprinted row.)
+# guard=<sha7> wiring=<sha7> fingerprint in its dedicated Fingerprint column — not merely
+# somewhere in the row, and not merely one row in the file. US5.AC1 and the Recording
+# convention require the fingerprint alongside EACH run, and T402's PROBES-STALE reads the
+# LATEST row's Fingerprint cell, so a future result appended without one must FAIL here.
+# Scope to the Probe results section (the Probe instantiation table carries no fingerprints
+# by design); skip the header, the separator, and the `_(append …)_` template row.
+# (Codex P2 on PR #86: a single file-wide match passed an unfingerprinted row; owner-relayed
+# Codex P2: a whole-row grep passes an empty cell when the Observed narrative holds
+# fingerprint-shaped text — so validate the Fingerprint CELL specifically, not the row.)
 results_section="$(awk '
   /^## / { insec = ($0 ~ /^## Probe results/) ? 1 : 0 }
   insec { print }
@@ -107,9 +110,16 @@ while IFS= read -r row; do
   printf '%s' "$row" | grep -qE '^\|[ |:-]*\|$' && continue   # separator
   printf '%s' "$row" | grep -qF '_(append' && continue        # template/placeholder row
   res_rows=$((res_rows + 1))
-  printf '%s' "$row" | grep -qE 'guard=[0-9a-f]{7} wiring=[0-9a-f]{7}' && continue
+  # Validate the FINGERPRINT CELL specifically — the 3rd column, i.e. field 4 when the row
+  # is split on '|' (field 1 is the empty span before the leading pipe; the Probe/Result
+  # cells before it never contain a pipe). Grepping the whole row would let an empty
+  # Fingerprint cell pass whenever the Observed narrative holds a fingerprint-shaped string,
+  # and T402 parses THIS column for staleness. Anchored so the cell holds the fingerprint
+  # and nothing else. (Field 4 is unaffected by any pipe in the later Observed cell.)
+  fp_cell="$(printf '%s\n' "$row" | awk -F'|' '{ print $4 }')"
+  printf '%s' "$fp_cell" | grep -qE '^ *guard=[0-9a-f]{7} wiring=[0-9a-f]{7} *$' && continue
   res_bad=$((res_bad + 1))
-  printf 'FAIL adapter: probe-result row missing a well-formed fingerprint:\n     %s…\n' \
+  printf 'FAIL adapter: Fingerprint cell is not a well-formed guard=<sha7> wiring=<sha7>:\n     %s…\n' \
     "$(printf '%s' "$row" | cut -c1-72)" >&2
 done <<RESULTS_EOF
 $results_section
