@@ -154,7 +154,7 @@ check "P-RT (b): classification into exactly one bucket" "$PROBES_FLAT" \
 check "P-RT (c): write posture holds — protected rule files byte-identical" "$PROBES_FLAT" \
   "the reviewer specs, the invariant checklist, and the guard are **byte-identical** after the run"
 check "P-RT (e): telemetry read, not written — no gate-run record appended" "$PROBES_FLAT" \
-  "**telemetry was read, not written** — the run appends"
+  "**telemetry was read, not written** — the run appends **no \`gate-run\` record**"
 
 echo "retrospective docs encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
