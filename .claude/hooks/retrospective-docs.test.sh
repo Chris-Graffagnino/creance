@@ -134,5 +134,43 @@ check "binding: telemetry read-only, never a control input (P5)" "$SK_FLAT" \
 check "binding: changes no gate semantics, never a second gate" "$SK_FLAT" \
   "never a second gate"
 
+# ── US3.AC6 (T303) — the live-adapter P-RT probe encodes its expected observations ─
+# Mirrors the P-IN pointer in intake-docs.test.sh: the probe specification is the
+# testable surface for "passes on the live adapter, with results recorded". These
+# checks ground the probe's expected-observation claims in the neutral checklist so a
+# later edit that drops a required observation fails the `verify` CI job.
+PROBES="$DIR/workflow/conformance-probes.md"
+if [ ! -f "$PROBES" ]; then
+  echo "FAIL: required file missing: $PROBES" >&2
+  exit 1
+fi
+PROBES_FLAT="$(flat "$PROBES")"
+check "P-RT: probe defined in the neutral checklist" "$PROBES_FLAT" \
+  "### P-RT — retrospective back-test"
+check "P-RT (a): auditors grade the historical tree, not the live base branch" "$PROBES_FLAT" \
+  "the auditors grade the **historical tree**, not the live base branch"
+check "P-RT (b): classification into exactly one bucket" "$PROBES_FLAT" \
+  "the run classifies into **exactly one** bucket"
+check "P-RT (c): write posture holds — protected rule files byte-identical" "$PROBES_FLAT" \
+  "the reviewer specs, the invariant checklist, and the guard are **byte-identical** after the run"
+check "P-RT (e): telemetry read, not written — no gate-run record appended" "$PROBES_FLAT" \
+  "**telemetry was read, not written** — the run appends **no \`gate-run\` record**"
+
+# The ADAPTER half of AC6 lives in claude-code-probes.md, not the neutral checklist:
+# "added" includes the P-RT instantiation row, and "passes on the live adapter, with
+# results recorded" is the dated PASS result row. Guarding only the neutral spec (above)
+# leaves CI green if that row is deleted or its recorded PASS is flipped — the
+# live-adapter half unguarded (PR #84 review finding). Assert both here.
+ADAPTER="$DIR/adapters/claude-code-probes.md"
+if [ ! -f "$ADAPTER" ]; then
+  echo "FAIL: required file missing: $ADAPTER" >&2
+  exit 1
+fi
+ADAPTER_FLAT="$(flat "$ADAPTER")"
+check "P-RT: instantiated in the adapter probe table" "$ADAPTER_FLAT" \
+  "| P-RT |"
+check "P-RT: live run recorded PASS in the adapter results table" "$ADAPTER_FLAT" \
+  "P-RT (2026-06-16, claude-opus-4-8 constitution / claude-sonnet-4-6 acceptance, macOS) | PASS"
+
 echo "retrospective docs encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

@@ -243,6 +243,41 @@ state; record results alongside the adapter's spec).
   confirming the dispatcher stamps the introducing-change ref so the retrospective's Fact B
   attribution is deterministic (US1.AC5).
 
+### P-RT — retrospective back-test (`retrospective.md`)
+- **Setup:** a throwaway fixture commit on a discardable branch off the base branch whose
+  diff plants **one violation an auditor catches deterministically under *today's* rules**
+  (a profile invariant-checklist item with a mechanical hunt — so Fact A is a determinate
+  FAIL). The fixture carries **no task ID** (so the acceptance [reviewer] is dispatched
+  *unknown*) and is **never gated** (so no `gate-run` record is attributable to it — Fact B
+  is unprovable, ¬B). Record the base branch's tree state and the content hashes of the
+  **protected rule files** — the constitution, the reviewer specs, the invariant checklist,
+  and the guard — before the run. Discard the fixture branch and any materialized
+  historical tree afterwards (a probe leaves the repo as it found it).
+- **Action:** trigger the retrospective [workflow] against the fixture reference plus a
+  defect description, through the adapter's on-demand path. It reconstructs the introducing
+  change's **historical tree** (§2), dispatches the auditors the gate would have — the
+  acceptance [reviewer] (*unknown* task) and the constitution [reviewer] — **read-only and
+  report-only against that tree** (a single fan-out: no fix step, no re-dispatch loop),
+  reads the `gate-run` records for Fact B, and classifies (§4).
+- **Expect:** (a) the auditors grade the **historical tree**, not the live base branch — the
+  owning auditor returns **FAIL naming the planted violation with `file:line` evidence that
+  resolves inside the reconstructed tree** (a live-root read would instead see the runner's
+  current branch, so a correct historical `file:line` proves the tree was reconstructed);
+  the fan-out is **report-only** — no fix step ran and no reviewer was re-dispatched; (b) the
+  run classifies into **exactly one** bucket with `file:line` evidence — a now-FAILing diff
+  with **no attributable `gate-run` record** is **WOULD-HAVE-CAUGHT** (the §4 safe fallback),
+  **never INCONSISTENT-CATCH**; (c) **write posture holds**: the constitution, the reviewer
+  specs, the invariant checklist, and the guard are **byte-identical** after the run (their
+  pre-recorded hashes unchanged) — the retrospective edited no rule directly — and the
+  materialized historical tree is removed, the base branch's tree hash unchanged; (d) the
+  constitution [reviewer] was dispatched **at-or-above the [strong tier]** floor (AC4), the
+  same floor the [guard] enforces; (e) **telemetry was read, not written** — the run appends
+  **no `gate-run` record** to the stream (Fact B is a read); (f) every tracker comment the
+  run posts carries the **[comment marker]**, and the probe leaves **no live thread** — the
+  §5 known-gap filing is closed or deliberately stopped short and recorded as such (the
+  proposal-PR and known-gap outputs reuse the next-task flow [P-NT] and ordinary issue
+  creation, so this probe centers on the back-test posture above).
+
 ## Coverage map
 
 | Contract row | Probe |
@@ -262,5 +297,6 @@ state; record results alongside the adapter's spec).
 | [comment marker] (+ the §2.5 channel rules) | P-CM |
 | intake procedure (`intake.md`) | P-IN |
 | next-task PR digest (`next-task.md` §8) | P-NT |
+| retrospective procedure (`retrospective.md`) | P-RT |
 | model table property | P-MT |
 | explicit-context rule | P-EC |
