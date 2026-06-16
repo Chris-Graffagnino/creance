@@ -114,6 +114,43 @@
       encoding test (#76; repo-maintenance — done-when on issue) — strong:
       edits the runtime-neutral intake workflow boundary (constitution P1/P3)
 
+## Phase 9 — Edit-time & execution guardrails (agent-framework-analysis deltas)
+
+> Three deltas surfaced by a comparative analysis of four coding-agent frameworks
+> (vercel-labs/coding-agent-template, OpenHands/software-agent-sdk,
+> SWE-agent/SWE-agent, SuperClaude_Framework), intaked from #79/#80/#81. Each
+> hardens the harness's deterministic-governance surface at the moment work is
+> created — edit, selection, execution; rubric is the done-when criteria carried on
+> its issue (the acceptance reviewer grades against those exactly as a `US#`). T609
+> is an epic and may be split further at implementation time if a done-when exceeds
+> one PR's reasonable scope.
+
+- [ ] T607 [strong] Edit-time lint/typecheck-and-reject guard: a post-edit
+      verification that runs the project's syntax/type check on touched files and
+      rejects a change that introduces a *new* failure (fix-forward feedback),
+      failing open when no checker is configured; ships in the same diff with a
+      `guard.test.sh` case + a matcher-wiring assertion and a new invariant-checklist
+      row (#79; repo-maintenance — done-when on issue) — strong: changes guard
+      behavior and adds a P2 wiring assertion plus a P3 determinism backstop
+      (constitution P1/P2/P3)
+- [ ] T608 [strong] Live-state reconciliation before task selection: a
+      deterministic precondition in `next-task.md` selection that reconciles the
+      chosen task's checkbox against live tracker/branch state and refuses stale
+      work, reusing (not duplicating) `check-tasks-consistency.sh` and failing open
+      when tracker state is unavailable; a test encodes the merged-but-unchecked
+      case (#80; bug — done-when on issue) — strong: replaces a prose cross-check
+      with a deterministic selection precondition (constitution P1/P3)
+- [ ] T609 [strong] Ephemeral worktree isolation for autonomous mode (epic):
+      autonomous work runs in an ephemeral worktree with the §7 gate in place and
+      nothing reaches `main` unless the gate passes; autonomous mode is OFF by
+      default, engaged only by an explicit in-session request or a config-file
+      opt-in (absence = review mode), enforced deterministically; a falsification
+      test proves an un-gated change cannot reach `main`; review mode provably
+      unchanged (#81; repo-maintenance — done-when on issue) — strong: spans the
+      runtime-neutral workflow boundary, adds a P2 falsification test, and keeps
+      promotion gated (constitution P1/P2/P3/P4); may split into the (a)–(d)
+      sub-tasks named on the issue
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
