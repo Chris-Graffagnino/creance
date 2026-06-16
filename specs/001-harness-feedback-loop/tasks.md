@@ -35,7 +35,7 @@
 - [x] T302 [cheap] Claude Code skill binding for the retrospective;
       dispatches the constitution auditor at-or-above the strong-tier
       floor (US3)
-- [ ] T303 [cheap] Conformance probe for the retrospective workflow; run on
+- [x] T303 [cheap] Conformance probe for the retrospective workflow; run on
       the live adapter and record results (US3)
 
 ## Phase 4 — Machinery freshness
