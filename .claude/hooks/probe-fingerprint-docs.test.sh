@@ -45,16 +45,6 @@ check() { # check <name> <haystack> <needle (grep -F fixed string)>
   fi
 }
 
-checkre() { # checkre <name> <file> <extended-regex> — at least one match required
-  local name="$1" file="$2" re="$3"
-  if grep -Eq -- "$re" "$file"; then
-    pass=$((pass + 1))
-  else
-    fail=$((fail + 1))
-    printf 'FAIL %s\n     no line matched: %s\n' "$name" "$re" >&2
-  fi
-}
-
 for f in "$NEU" "$ADP"; do
   if [ ! -f "$f" ]; then
     echo "FAIL: required file missing: $f" >&2
@@ -98,9 +88,38 @@ check "adapter: wiring hash is matcher-only, never the whole settings file" "$AD
 # The results table carries the fingerprint alongside each run (US5.AC1, literally).
 check "adapter: results table has a Fingerprint column" "$ADP_FLAT" \
   "| Probe | Result | Fingerprint | Observed |"
-# At least one recorded probe row carries a well-formed guard=<sha7> wiring=<sha7> value.
-checkre "adapter: a recorded row carries a well-formed fingerprint" "$ADP" \
-  'guard=[0-9a-f]{7} wiring=[0-9a-f]{7}'
+# EVERY non-placeholder row in the "## Probe results" table must carry a well-formed
+# guard=<sha7> wiring=<sha7> fingerprint — not merely one row somewhere in the file.
+# US5.AC1 and the Recording convention require the fingerprint alongside EACH run, and
+# T402's PROBES-STALE reads the LATEST row, so a future result appended without one must
+# FAIL here. Scope to the Probe results section (the Probe instantiation table carries no
+# fingerprints by design); skip the header, the separator, and the `_(append …)_`
+# template row. (Codex P2 on PR #86: a single-match check passed an unfingerprinted row.)
+results_section="$(awk '
+  /^## / { insec = ($0 ~ /^## Probe results/) ? 1 : 0 }
+  insec { print }
+' "$ADP")"
+res_rows=0
+res_bad=0
+while IFS= read -r row; do
+  [ "${row#|}" != "$row" ] || continue                        # table rows only (start with |)
+  printf '%s' "$row" | grep -qE '^\| *Probe +\|' && continue  # header
+  printf '%s' "$row" | grep -qE '^\|[ |:-]*\|$' && continue   # separator
+  printf '%s' "$row" | grep -qF '_(append' && continue        # template/placeholder row
+  res_rows=$((res_rows + 1))
+  printf '%s' "$row" | grep -qE 'guard=[0-9a-f]{7} wiring=[0-9a-f]{7}' && continue
+  res_bad=$((res_bad + 1))
+  printf 'FAIL adapter: probe-result row missing a well-formed fingerprint:\n     %s…\n' \
+    "$(printf '%s' "$row" | cut -c1-72)" >&2
+done <<RESULTS_EOF
+$results_section
+RESULTS_EOF
+if [ "$res_rows" -ge 1 ] && [ "$res_bad" -eq 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  [ "$res_rows" -ge 1 ] || printf 'FAIL adapter: no non-placeholder probe-result rows found to check\n' >&2
+fi
 # Scope boundary is stated in the doc itself: T401 records, T402 compares (no scope creep).
 check "adapter: ties recording to US5.AC1 and defers currency to T402" "$ADP_FLAT" \
   "US5.AC2 / T402"
