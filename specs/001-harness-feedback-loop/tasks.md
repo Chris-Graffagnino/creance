@@ -127,19 +127,24 @@
 
 - [ ] T607 [strong] Edit-time lint/typecheck-and-reject guard: a post-edit
       verification that runs the project's syntax/type check on touched files and
-      rejects a change that introduces a *new* failure (fix-forward feedback),
-      failing open when no checker is configured; ships in the same diff with a
-      `guard.test.sh` case + a matcher-wiring assertion and a new invariant-checklist
-      row (#79; repo-maintenance — done-when on issue) — strong: changes guard
-      behavior and adds a P2 wiring assertion plus a P3 determinism backstop
-      (constitution P1/P2/P3)
+      rejects a change that adds a *new* diagnostic (fix-forward feedback), allowing
+      an edit that leaves diagnostics no worse than before; failing open when no
+      checker is configured. Ships in the same diff with a **delta-based**
+      `guard.test.sh` case (a pre-existing failure + a no-new-diagnostic edit that
+      must still be allowed), a matcher-wiring assertion that **enumerates the
+      handled edit tools and fails if any is unrouted**, and a new
+      invariant-checklist row (#79; repo-maintenance — done-when on issue) —
+      strong: changes guard behavior and adds a P2 wiring assertion plus a P3
+      determinism backstop (constitution P1/P2/P3)
 - [ ] T608 [strong] Live-state reconciliation before task selection: a
       deterministic precondition in `next-task.md` selection that reconciles the
       chosen task's checkbox against live tracker/branch state and refuses stale
       work, reusing (not duplicating) `check-tasks-consistency.sh` and failing open
-      when tracker state is unavailable; a test encodes the merged-but-unchecked
-      case (#80; bug — done-when on issue) — strong: replaces a prose cross-check
-      with a deterministic selection precondition (constitution P1/P3)
+      when tracker state is unavailable; a **paired** test (one open task selected
+      + one drifted task refused in the same harness) encodes both the
+      merged-but-unchecked refusal and the no-false-positive path (#80; bug —
+      done-when on issue) — strong: replaces a prose cross-check with a
+      deterministic selection precondition (constitution P1/P3)
 - [ ] T609 [strong] Ephemeral worktree isolation for autonomous mode (epic):
       autonomous work runs in an ephemeral worktree with the §7 gate in place and
       nothing reaches `main` unless the gate passes; autonomous mode is OFF by
