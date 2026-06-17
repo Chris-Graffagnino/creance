@@ -109,7 +109,10 @@ It changes no §7 gate semantics.
 ## How an adapter degrades gracefully
 If a runtime lacks a role, the methodology still runs, more weakly:
 - **No [reviewer] isolation** → run the reviewer spec as a second pass in the same context
-  (you lose maker≠checker independence; note it).
+  (you lose maker≠checker independence; note it). This also carries a **context cost**: the
+  reviewer specs then load into the dispatching run's own context instead of a separate one,
+  so the heaviest review artifacts tax every step of the main run — weigh that against the
+  run's context budget when deciding how much review to inline.
 - **No [guard]** → the base-branch / bulk-staging rules become advisory prose the agent must
   self-enforce (weaker; lean harder on review).
 - **A tagged tier is unavailable** → round up to the nearest tier above. Only when nothing
