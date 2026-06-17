@@ -88,12 +88,17 @@ The corpus re-runs on **both** triggers:
 - **On every reviewer-spec change** — detected **deterministically** (constitution **P3**:
   prefer a deterministic check to a remembered intention). A **reviewer-spec fingerprint** —
   a content hash over the auditor specs (`reviewers/*` — the specs the auditors load and the
-  evasion register they consult) — is recorded with each corpus run. When the **current**
-  fingerprint differs from the **last recorded run's**, the corpus is **stale**: a reviewer
-  spec changed since it was last confirmed live, so a re-run is due. This mismatch is a
+  evasion register they consult) — is recorded with each corpus run. The baseline is the last
+  run that exercised the **whole corpus**: when the **current** fingerprint differs from the
+  **last recorded full-corpus run's**, the corpus is **stale** — a reviewer spec changed since
+  every auditor was last confirmed live, so a re-run is due. This mismatch is a
   **definite flag, not a heuristic** — the same machinery the guard-fingerprint
-  staleness check (`triage.md` → PROBES-STALE) uses, pointed at the reviewer specs. The
-  concrete hash recipe and the record location are the adapter's to supply.
+  staleness check (`triage.md` → PROBES-STALE) uses, pointed at the reviewer specs. A
+  **partial run** that exercises only a subset of fixtures (e.g. re-checking a single auditor)
+  is reported but **does not refresh the baseline or clear staleness** — a subset run has not
+  re-confirmed every auditor, so letting it stand in for a full re-confirmation would falsely
+  report the corpus current. The concrete hash recipe, the record location, and how a partial
+  run is distinguished from a full one are the adapter's to supply.
 - **On a schedule — at least weekly.** A reviewer spec can pass review yet drift in
   behaviour as the model behind it changes; only a time-based re-run catches that. The
   **minimum cadence is weekly** — named so "on a schedule" cannot be satisfied by a one-off

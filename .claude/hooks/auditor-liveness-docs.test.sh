@@ -159,6 +159,24 @@ check "DW2 (triage adapter): reuses the single-source recipe, never re-derives i
 check "DW2 (triage adapter): reads the Corpus-run results baseline" "$TRIAGE_ADP_FLAT" \
   "Corpus-run results"
 
+# ── Post-open review (PR #100 — Codex P2 + owner §2.5 steering): scoped runs must not ─
+# refresh the CORPUS-STALE baseline. The binding allows a `/auditor-liveness <fixture-id>`
+# diagnostic that exercises ONE fixture; letting its row stand as the freshness baseline
+# would report the auditors "current" though only one was re-run. Fix: a Scope column
+# (full / partial:<fixture-id>); only `full` rows are baselines.
+check "scoped-fix (neutral): a partial run does not refresh the baseline / clear staleness" "$NEU_FLAT" \
+  "does not refresh the baseline or clear staleness"
+check "scoped-fix (neutral): the baseline is the last full-corpus run" "$NEU_FLAT" \
+  "last recorded full-corpus run"
+check "scoped-fix (adapter): the results table carries a Scope column" "$SKILL_FLAT" \
+  "| Date | Scope |"
+check "scoped-fix (adapter): partial rows are labelled partial:<fixture-id>" "$SKILL_FLAT" \
+  "partial:<fixture-id>"
+check "scoped-fix (adapter): a scoped run never serves as the CORPUS-STALE baseline" "$SKILL_FLAT" \
+  "never serves as the CORPUS-STALE baseline"
+check "scoped-fix (triage adapter): baseline skips partial rows (full-scope only)" "$TRIAGE_ADP_FLAT" \
+  "never serves as the freshness baseline"
+
 # ── DW3 — observe-only channel; never feeds gate outcomes / tier / semantics (P5) ────
 P5="a model-tier assignment, or any gate semantic"
 check "DW3 (neutral): observe-only — never feeds gate/tier/semantics" "$NEU_FLAT" "$P5"

@@ -12,13 +12,13 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/auditor-l
 
 | Neutral role | Claude Code mechanism |
 |---|---|
-| **[workflow]** (this one) | this skill; a run takes no required argument — it runs the whole corpus. An optional fixture-id (e.g. `AL-CON-FAIL-01`) in the invocation text scopes the run to one fixture (the explicit-context rule) |
+| **[workflow]** (this one) | this skill; a run takes no required argument — it runs the whole corpus and records a **`full`** results row. An optional fixture-id (e.g. `AL-CON-FAIL-01`) in the invocation text scopes the run to one fixture (the explicit-context rule) — a diagnostic that records a **`partial:<fixture-id>`** row which **never serves as the CORPUS-STALE baseline** (a subset run has not re-confirmed every auditor — `workflow/auditor-liveness.md` → "Re-run policy") |
 | **[reviewer]** (the corpus run — read-only, **report-only**) | the `spec-auditor` / `constitution-auditor` / `contract-auditor` subagents (`.claude/agents/`) dispatched via the Agent tool against each **materialized fixture plant** — own context, **no edit tools**. A **single report-only fan-out per fixture: no fix step, no re-dispatch loop** (unlike the §7 gate's converge-to-PASS loop — the corpus *measures* an auditor, it does not repair a diff). Models per `.claude/MODELS.md` (the constitution reviewer **at-or-above the strong-tier row, never below** — see floor) |
 | **[strong tier]** (the floor on the constitution dispatch) | resolved per `.claude/MODELS.md`; passed as the Agent tool's `model` parameter on **every** constitution-auditor dispatch, never inherited from the session |
 | **[guard]** (enforces the floor) | the PreToolUse hook (`.claude/hooks/guard.sh`, **rule 5**) deterministically blocks any `constitution-auditor` dispatch whose `model` is absent or below the strong-tier row — **the same guarded path the §7 gate and the retrospective use**, so the floor is enforced here, not merely asserted |
 | **fixture materialization** (the run, step 1) | for each fixture, `git worktree add --detach <tmp> <base>` then plant the fixture's scenario in `<tmp>` (the same planting the `P-RV` / `P-EV` probes use, in the throwaway-worktree path the retrospective uses to grade a tree as-it-was); dispatch the fixture's auditor **pointed at `<tmp>`**, instruct it to grade `git diff <base>..HEAD` and read surrounding context **only within `<tmp>`**; `git worktree remove <tmp>` after. Read-only — a detached worktree + a planted commit on it mutate no tracked branch, and the run leaves the repo as it found it |
 | **verdict comparison** (the run, step 3) | compare the auditor's returned verdict to the fixture's **Expected** cell in `auditor-liveness-corpus.md` (and, for a FAIL fixture, that the **evidence anchor** was named): match ⇒ `PASS`, mismatch ⇒ `MISMATCH`. No tool acts on the result — it is recorded and surfaced only |
-| **observe-only results channel** | the **"Corpus-run results"** table in this file (below) — one appended dated row per run: date, driver model, reviewer-spec fingerprint, and each fixture's `PASS`/`MISMATCH`. Append-only; **never** read by any gate, tier resolver, or gate-semantic. The triage **CORPUS-STALE** check reads the most recent row's fingerprint + date as its baseline |
+| **observe-only results channel** | the **"Corpus-run results"** table in this file (below) — one appended dated row per run: date, **run scope** (`full` or `partial:<fixture-id>`), driver model, reviewer-spec fingerprint, and each fixture's `PASS`/`MISMATCH`. Append-only; **never** read by any gate, tier resolver, or gate-semantic. The triage **CORPUS-STALE** check reads the most recent **`full`-scope** row's fingerprint + date as its baseline (a `partial` row is an audit-trail diagnostic, never a freshness baseline) |
 | **[headless run]** + the **≥ weekly schedule** | `claude -p "/auditor-liveness"` on the same scheduler substrate the read-only triage heartbeat uses (the launcher contract, `workflow/triage.md` §6). The named **minimum cadence is weekly**; the on-reviewer-spec-change trigger is the deterministic CORPUS-STALE flag the daily heartbeat surfaces |
 | **[bulk-read offload]** | the `Explore` subagent (spawn on the [cheap tier] per `.claude/MODELS.md`) for a large materialized fixture |
 | **[comment marker]** | the footer line defined in `.claude/skills/next-task/SKILL.md` → "The [comment marker] concrete form" — on any `gh issue comment` / `gh pr comment` body a run posts (e.g. when proposing a new fixture via PR) |
@@ -45,7 +45,9 @@ Recorded in each results row's **Reviewer-spec fingerprint** cell as `specs=<sha
 files are **listed explicitly, never globbed** — so adding the corpus manifest or another
 non-spec file under `reviewers/` does not perturb the fingerprint, and a real auditor-spec
 edit always does. Triage recomputes this same recipe (it reuses it, never re-derives it) and
-flags **CORPUS-STALE** when the current value differs from the most recent row below.
+flags **CORPUS-STALE** when the current value differs from the most recent **`full`-scope** row
+below — it skips `partial:<fixture-id>` rows, since a scoped diagnostic has not re-confirmed
+every auditor and so never refreshes the baseline.
 
 ## Observe-only — the hard boundary (constitution P5)
 
@@ -69,6 +71,11 @@ standing and broadened to a known-bad/known-good pair per auditor. The neutral
 
 ## Corpus-run results (observe-only — append one dated row per run)
 
-| Date | Driver model | Reviewer-spec fingerprint | Per-fixture outcome |
-|---|---|---|---|
-| _(append one row per `/auditor-liveness` run — date, the driver model/version, the `specs=<sha7>` fingerprint, and each fixture's PASS/MISMATCH — before reading CORPUS-STALE against it)_ | | | |
+Each `/auditor-liveness` run appends one row. **Scope** is `full` (the whole corpus) or
+`partial:<fixture-id>` (a scoped diagnostic). **Only `full` rows are CORPUS-STALE baselines** —
+a `partial` row records the diagnostic for the audit trail but never refreshes the freshness
+baseline, because a subset run has not re-confirmed every auditor.
+
+| Date | Scope | Driver model | Reviewer-spec fingerprint | Per-fixture outcome |
+|---|---|---|---|---|
+| _(append one row per `/auditor-liveness` run — date, scope (`full` / `partial:<fixture-id>`), the driver model/version, the `specs=<sha7>` fingerprint, and each fixture's PASS/MISMATCH — only `full` rows seed CORPUS-STALE)_ | | | | |

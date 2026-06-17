@@ -47,10 +47,12 @@ analog of the two PROBES-STALE facts:
   `git hash-object` over the three `*-auditor.md` specs + the evasion register, rendered
   `specs=<sha7>`). Reuse that recipe — never re-derive it here — so what the fingerprint
   covers stays a one-place edit. It is a content hash: recomputing is **read-only**.
-- **The recorded baseline** is the most recent non-placeholder row of that same file's
-  **"## Corpus-run results"** table: its **Reviewer-spec fingerprint** cell is the value to
-  compare against, and its date is the age source. No non-placeholder row ⇒ the neutral "no
-  corpus run recorded yet" state.
+- **The recorded baseline** is the most recent non-placeholder **`full`-scope** row of that
+  same file's **"## Corpus-run results"** table — skip `partial:<fixture-id>` rows, since a
+  scoped single-fixture diagnostic has not re-confirmed every auditor and so never serves as
+  the freshness baseline (`workflow/auditor-liveness.md` → "Re-run policy"). Its
+  **Reviewer-spec fingerprint** cell is the value to compare against, and its date is the age
+  source. No non-placeholder `full` row ⇒ the neutral "no corpus run recorded yet" state.
 
 Equal ⇒ auditors confirmed-live as of that run; different ⇒ **CORPUS-STALE** (report the last
 run's age either way). All three checks mutate nothing, honoring the read-only-on-the-repo
