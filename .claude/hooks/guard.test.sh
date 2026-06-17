@@ -135,21 +135,32 @@ unset GUARD_MODELS_FILE
 # block only needs the strong row to parse, so it survives model renames there.
 check 2 "$FEAT" "r5 block: default table path resolves (no model)" "$(agentnm Agent constitution-auditor)"
 
-# --- rule 6: self-colliding in-place sed edits (delimiter collides with a URL) ---
-# The dangerous form blanks PR bodies silently: `sed -e "s#__T__#$URL#g"` where the
-# URL carries a `#issuecomment` anchor (or the `/` of any URL) collides with the
-# delimiter, sed errors, the redirect leaves an empty file, and the body-edit consumer
-# blanks the body with exit 0 (issue #95). Branch-independent, so run on the feature
-# repo. NOTE: these dangerous strings live ONLY inside this file's payloads, fed to the
-# hook on stdin — never type them as a live shell command, or the guard vetoes it.
-check 2 "$FEAT" "r6 block: sed s# delimiter substituting a URL (PR-body form)" "$(bashp 'sed -e \"s#__SPEC_URL__#https://github.com/o/r/pull/88#issuecomment-1#g\" body.md')"
-check 2 "$FEAT" "r6 block: sed -i s/ delimiter substituting a URL" "$(bashp 'sed -i '\''s/__T__/https://x/'\'' body.md')"
-check 2 "$FEAT" "r6 block: dangerous sed inside a gh-body command substitution" "$(bashp 'gh pr edit 5 --body-file <(sed -e \"s#__T__#https://x#g\" tmpl.md)')"
-check 2 "$FEAT" "r6 block: sed s# delimiter + URL via PowerShell" "$(pwshp 'sed -e \"s#a#https://x#\" f')"
-check 0 "$FEAT" "r6 allow: sed s@ delimiter (safe) with a URL" "$(bashp 'sed -e \"s@__SPEC_URL__@https://github.com/o/r/pull/88#issuecomment-1@g\" body.md')"
-check 0 "$FEAT" "r6 allow: sed s| delimiter (safe) with a URL" "$(bashp 'sed -e \"s|__T__|https://x|g\" f')"
-check 0 "$FEAT" "r6 allow: sed s# delimiter, non-URL text" "$(bashp 'sed -e \"s#foo#bar#g\" f')"
-check 0 "$FEAT" "r6 allow: sed -i s/ delimiter, non-URL text" "$(bashp 'sed -i '\''s/foo/bar/g'\'' f')"
+# --- rule 6: self-colliding in-place sed edits (delimiter occurs in the URL) ---
+# The dangerous form blanks PR bodies silently: `sed -e "s#__T__#$URL#g"` where the URL
+# carries a `#issuecomment` anchor (the 4th `#`) — or any `s/…/https://…/` whose URL
+# slashes collide with the `/` delimiter — so sed errors, the redirect leaves an empty
+# file, and the body-edit consumer blanks the body with exit 0 (issue #95). The rule is
+# DELIMITER-SPECIFIC (PR #98 review): a URL the delimiter does not occur in is NOT
+# blocked. Branch-independent, so run on the feature repo. NOTE: these dangerous strings
+# live ONLY inside this file's payloads, fed to the hook on stdin — never type them as a
+# live shell command, or the guard vetoes it.
+# Block: the delimiter actually collides with the URL.
+check 2 "$FEAT" "r6 block: s# delimiter, URL with a # fragment (PR-body form)" "$(bashp 'sed -e \"s#__SPEC_URL__#https://github.com/o/r/pull/88#issuecomment-1#g\" body.md')"
+check 2 "$FEAT" "r6 block: s/ delimiter, URL with // slashes" "$(bashp 'sed -i '\''s/__T__/https://x/'\'' body.md')"
+check 2 "$FEAT" "r6 block: dangerous (fragment) sed inside a gh-body command substitution" "$(bashp 'gh pr edit 5 --body-file <(sed -e \"s#__T__#https://x#frag#g\" tmpl.md)')"
+check 2 "$FEAT" "r6 block: s# fragment URL via PowerShell" "$(pwshp 'sed -e \"s#a#https://x#frag#\" f')"
+# Block: addressed substitutions (s not preceded by quote/space) — Finding B (PR #98).
+check 2 "$FEAT" "r6 block: line-addressed 1s# with a # fragment URL" "$(bashp 'sed -e \"1s#__T__#https://x#frag#\" tmpl > body.md')"
+check 2 "$FEAT" "r6 block: pattern-addressed /re/s# with a # fragment URL" "$(bashp 'sed -e \"/foo/s#a#https://x#frag#g\" f')"
+check 2 "$FEAT" "r6 block: line-addressed 2s/ with a // URL" "$(bashp 'sed -i \"2s/__T__/https://x/\" f')"
+# Allow: safe delimiters, non-URL text, and — Finding A (PR #98) — a URL the delimiter
+# does NOT occur in (a no-fragment URL under s#; a `/`-free word under s/).
+check 0 "$FEAT" "r6 allow: s@ delimiter (safe) with a URL" "$(bashp 'sed -e \"s@__SPEC_URL__@https://github.com/o/r/pull/88#issuecomment-1@g\" body.md')"
+check 0 "$FEAT" "r6 allow: s| delimiter (safe) with a URL" "$(bashp 'sed -e \"s|__T__|https://x|g\" f')"
+check 0 "$FEAT" "r6 allow: s# delimiter, no-fragment URL (delimiter absent from content)" "$(bashp 'sed -e \"s#__T__#https://example.com/path#g\" body.md')"
+check 0 "$FEAT" "r6 allow: s/ delimiter, no-slash replacement (bare word http)" "$(bashp 'sed -e \"s/x/http/\" f')"
+check 0 "$FEAT" "r6 allow: s# delimiter, non-URL text" "$(bashp 'sed -e \"s#foo#bar#g\" f')"
+check 0 "$FEAT" "r6 allow: s/ delimiter, non-URL text" "$(bashp 'sed -i '\''s/foo/bar/g'\'' f')"
 check 0 "$FEAT" "r6 allow: URL upstream of sed in a pipe" "$(bashp 'curl https://github.com/o/r | sed -e \"s/a/b/\"')"
 check 0 "$FEAT" "r6 allow: URL in a separate command after the sed" "$(bashp 'sed -i '\''s/a/b/'\'' f ; echo https://x')"
 check 0 "$FEAT" "r6 allow: s/-suffixed path + URL but no sed" "$(bashp 'ls tools/ && curl https://x')"
@@ -178,7 +189,7 @@ tcount 1 '"timestamp":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z"' "tele: block reco
 
 # Rule 6 takes the same block path — its record names the sed-collision rule + Bash tool.
 : > "$TELE"
-check 2 "$FEAT" "tele: rule-6 block still exits 2" "$(bashp 'sed -e \"s#a#https://x#g\" f')"
+check 2 "$FEAT" "tele: rule-6 block still exits 2" "$(bashp 'sed -e \"s#a#https://x#frag#g\" f')"
 tcount 1 '"record":"block".*"rule":"sed-url-delimiter-collision".*"tool":"Bash"' "tele: rule-6 block record carries rule + tool"
 
 # Evaluation path: every constitution-auditor dispatch logs liveness, allowed or blocked.

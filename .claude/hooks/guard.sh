@@ -13,11 +13,13 @@
 #   5. Any Agent dispatch of `constitution-auditor` whose `model` parameter is
 #      absent or names a below-strong tier — the strong floor (issue #94). Tier
 #      names are resolved from .claude/MODELS.md at runtime, never hardcoded.
-#   6. Any in-place `sed` `s` substitution that uses `#` or `/` as its delimiter
-#      while a URL (`http`) appears in the same shell command — the URL's `/` (or
-#      a `#issuecomment` anchor) collides with the delimiter and can silently
-#      corrupt or blank the output (the PR-body-blank class, issue #95). Safe
-#      delimiters (`@`, `|`) and seds without a URL are left alone.
+#   6. An in-place `sed` `s` substitution whose `#`/`/` delimiter ALSO occurs in
+#      the URL it substitutes — an unescaped `https?://` under `s/`, or a `#`
+#      fragment (a 4th `#`) under `s#` — which silently corrupts/blanks the output
+#      (the PR-body-blank class, issue #95). Delimiter-specific, so a URL the
+#      delimiter does not occur in (e.g. `s#a#https://h/p#g`), safe delimiters
+#      (`@`, `|`), and seds without a URL are all left alone; addressed forms
+#      (`1s#…`, `/re/s#…`) are caught.
 # Allows everything else (exit 0). Fails open: any uncertainty -> allow.
 # Telemetry (workflow/telemetry.md): every block appends a `block` record and
 # every constitution-auditor dispatch evaluation appends an `evaluation`
@@ -162,19 +164,27 @@ case "$tool" in
     if printf '%s' "$payload" | grep -qE 'git[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
       block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
     fi
-    # Rule 6: a self-colliding in-place sed substitution. `sed 's#…#…#'` / `s/…/…/`
-    # whose operand carries a URL silently corrupts output — the URL's `/` (or a
-    # `#issuecomment` anchor) is read as the delimiter, ends the expression early, the
-    # `>` redirect leaves an empty file, and the consumer (e.g. `gh pr edit --body-file`)
-    # blanks the body with exit 0 (the documented PR-body-blank class, issue #95).
-    # Match a `sed` invocation whose `s#`/`s/` opener — anchored to a preceding
-    # quote/space so paths like `tools/` never trip it — is followed by `http` within
-    # the SAME shell command. The `[^;&|]` spans confine the match to one command, so
-    # `curl http… | sed 's/a/b/'` (URL upstream) and `sed 's/a/b/' ; echo http…` (URL
-    # downstream) both stay allowed. Safe delimiters (`@`, `|`) never match `s[#/]`; a
-    # sed without a URL never matches `http`. Uncertainty -> allow (fail open).
-    if printf '%s' "$payload" | grep -qE "(^|[^[:alnum:]_])sed[^;&|]*['\"[:space:]]s[#/][^;&|]*http"; then
-      block sed-url-delimiter-collision "This in-place sed substitution uses '#' or '/' as its delimiter while the text contains a URL — the URL's '/' (or a '#issuecomment' anchor) is read as the delimiter, ends the expression early, and can silently corrupt or blank the output (the PR-body-blank class). Use a delimiter absent from URLs, e.g. 's@…@…@' or 's|…|…|', and compose PR/issue bodies via a file, then verify the result is non-empty."
+    # Rule 6: a self-colliding in-place sed substitution — the delimiter char also
+    # occurs in the URL operand, so the URL ends the expression early and silently
+    # corrupts/blanks output (the documented PR-body-blank class, issue #95): sed
+    # errors, the `>` redirect leaves an empty file, and the consumer (e.g. `gh pr
+    # edit --body-file`) blanks the body with exit 0. Per-delimiter, so a URL the
+    # delimiter does NOT occur in is NOT over-blocked (PR #98 review, Codex/owner):
+    #   • `/` delimiter — only an UNescaped scheme `https?://` collides (its `//` are
+    #     bare delimiters). `s/__T__/https://x/` blocks; `s/x/http/` (no `://`) and an
+    #     escaped `s/__T__/https:\/\/x\//` (the `:\` breaks the literal `://`) do not.
+    #   • `#` delimiter — collides ONLY when the URL carries a `#` fragment, i.e. the
+    #     `s#` expression has a 4th `#` beyond the well-formed three (`s#pat#rep#flags`).
+    #     `s#a#https://h/p#g` (exactly three `#`, no fragment) is safe → allowed; the
+    #     `#`-run segments exclude quotes so a second `-e` cannot inflate the count.
+    # The opener's lead char is any NON-LETTER (`[^[:alpha:]_]`), so addressed forms
+    # (`1s#…`, `$s#…`, `/re/s#…`) are caught while word-internal `s#`/`s/` (`tools/`,
+    # `users/`) are not. `[^;&|]` spans confine each match to one command (a URL
+    # upstream of a pipe, or in a separate command, stays allowed). Fail open.
+    sed_pre='(^|[^[:alnum:]_])sed[^;&|]*[^[:alpha:]_]'
+    if printf '%s' "$payload" | grep -qE "${sed_pre}s/[^/'\" ]*/https?://" \
+       || printf '%s' "$payload" | grep -qE "${sed_pre}s#[^#'\"]*#[^#'\"]*http[^#'\"]*#[^#'\"]*#"; then
+      block sed-url-delimiter-collision "This in-place sed substitution's delimiter ('#' or '/') also occurs in the URL it substitutes — the URL's unescaped '/' (or a '#…' fragment) is read as the delimiter, ends the expression early, and can silently corrupt or blank the output (the PR-body-blank class). Use a delimiter absent from the URL, e.g. 's@…@…@' or 's|…|…|', and compose PR/issue bodies via a file, then verify the result is non-empty."
     fi
     ;;
   Agent|Task)
