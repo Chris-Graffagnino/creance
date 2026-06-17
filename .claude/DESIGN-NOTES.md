@@ -150,8 +150,11 @@ use**, and every piece of guidance must live at the cheapest tier that serves it
 
 The failure mode this prevents is invisible: the template invites filling `AGENTS.md`
 placeholders, and an adopter who pastes a full procedure manual or style guide into it
-taxes every session of every task — no probe, guard, or CI check catches the regression,
-and bloated resident context degrades model accuracy on every turn. The `AGENTS.md`
+taxes every session of every task. A deterministic CI check
+(`hooks/agents-residency-check.sh`, in the `verify` job) now backstops the *blunt* form of
+this — it FAILs if `AGENTS.md` grows past a line ceiling — but the *subtler* form (inlining
+a procedure that still fits under the ceiling) stays a judgment call, and bloated resident
+context degrades model accuracy on every turn. The `AGENTS.md`
 "Discovered Work" section (a summary plus a pointer to `next-task.md` §5.5) is the worked
 example of the intended pattern: the per-turn rule stays resident, the full procedure
 lives one fetch away.
