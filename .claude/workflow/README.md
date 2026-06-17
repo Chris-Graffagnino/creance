@@ -10,7 +10,7 @@ and how to write a new one are documented in `.claude/README.md`.
 .claude/
   workflow/                 ← THIS layer: runtime-neutral methodology (portable)
     next-task.md  triage.md  constitution-check.md
-    reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md
+    reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md  reviewers/evasion-register.md
   PROJECT.md                ← project facts (also runtime-neutral)
   <adapter files>           ← the active runtime's binding (see .claude/README.md)
 ```
@@ -166,5 +166,8 @@ If a runtime lacks a role, the methodology still runs, more weakly:
 - `reviewers/contract-auditor.md` — adversarial architecture/contract [reviewer] spec.
 - `reviewers/spec-auditor.md` — adversarial acceptance-criteria [reviewer] spec (does the
   diff do what the task asked, with tests that encode each criterion).
+- `reviewers/evasion-register.md` — the cumulative cheat museum: observed gate evasions →
+  the fence that closed each, with `file:line` exemplars. Every [reviewer] consults it at
+  dispatch and cites the matching exhibit; the retrospective appends new exhibits via PR.
 
 All of them read project facts from `.claude/PROJECT.md` and the constitution it names.

@@ -19,10 +19,10 @@ one classification and one proposal out.
 
 ## Write posture (the hard bounds)
 
-- **It never edits a rule directly.** Reviewer specs, the invariant checklist, the guards,
-  and the constitution are exactly the files the constitution's **no-silent-self-modification**
-  principle protects: a feedback loop may *propose* a tightening, only a reviewed merge may
-  *apply* it. Every rule/invariant change this workflow yields travels issue → branch → §7
+- **It never edits a rule directly.** Reviewer specs (the evasion register included), the
+  invariant checklist, the guards, and the constitution are exactly the files the
+  constitution's **no-silent-self-modification** principle protects: a feedback loop may
+  *propose* a tightening, only a reviewed merge may *apply* it. Every rule/invariant change this workflow yields travels issue → branch → §7
   gate → PR (§5), and the owner merges to apply. A run that writes any of those files
   outside that PR flow has violated the principle (the profile's invariant: *reviewer specs,
   invariants, guards, or the constitution modified by automation outside a human-reviewed
@@ -155,11 +155,18 @@ Exactly one durable output per incident, by bucket:
 
 - **HUNT-RULE-GAP → a proposed reviewer-spec tightening.** Draft the narrowest edit to the
   owning auditor's spec (`reviewers/…`) that would make it FAIL this defect class, with the
-  §4 file:line evidence as the rationale.
+  §4 file:line evidence as the rationale. **In the same proposed PR, append a new exhibit to
+  the evasion register** (`reviewers/evasion-register.md`) capturing this escape in
+  `observed evasion → fence` form with the §4 `file:line` as its exemplar — so the worked
+  exhibit, not only the abstracted hunt rule, is preserved for the next reviewer (the
+  register's reason to exist).
 - **INVARIANT-GAP → a proposed invariant-checklist row.** Draft a new row for the profile's
   invariant checklist (and its enforcement-mapping entry — a deterministic backstop where one
   is possible, per the constitution's **determinism-over-judgment** principle;
-  auditor-judgment-only where it is not), naming the defect class.
+  auditor-judgment-only where it is not), naming the defect class. **The same proposed PR
+  appends the matching exhibit to the evasion register** (`reviewers/evasion-register.md`),
+  recording in its mechanization-status entry whether the new row is a deterministic backstop
+  or judgment-only — mirroring the register's lint-graduation tracking (**P3**).
 - **WOULD-HAVE-CAUGHT → a documented known-gap (plus the process fix).** The rule already
   catches it; record the gap — *the gate did not run here* — durably, and where a concrete
   wiring/configuration fix exists (e.g. a dispatch condition that should have included the
@@ -169,8 +176,9 @@ Exactly one durable output per incident, by bucket:
   flakiness as a reliability known-gap to track. Neither yields a rule tightening here.
 
 **The propose-via-PR rule (AC3) — never edits rules directly.** A HUNT-RULE-GAP or
-INVARIANT-GAP edit changes the *protected* files (reviewer specs / the invariant checklist),
-so it travels the **standard issue → branch → §7 gate → PR flow** exactly as task work
+INVARIANT-GAP edit changes the *protected* files (reviewer specs — **the evasion register
+included** — / the invariant checklist), so it travels the **standard issue → branch → §7
+gate → PR flow** exactly as task work
 (`next-task.md` §3–§8): file an issue carrying the classification and file:line evidence as
 rationale, draft the edit on a branch, run the full §7 gate on it (the constitution
 [reviewer] scrutinizes the rule change at its strong floor), and open the PR. **The owner

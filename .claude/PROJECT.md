@@ -58,7 +58,13 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   only; runtime-specific mechanisms live in `.claude/adapters/` and skill bindings. A
   Claude-Code-specific instruction inside `workflow/**` is a FAIL.
 - Project facts live in this file; engine files (`workflow/**`, skills, agents) carry no
-  project facts of their own.
+  project facts of their own. **One documented exception:**
+  `workflow/reviewers/evasion-register.md` is a cumulative escape *log* — its real-escape
+  exhibits cite this repo's own commits/paths by design (the catalogue's value is *this*
+  project's worked escapes; the universal pattern exhibits carry no project facts). Those
+  instance facts are confined to that file, labeled as such, and **reset to spec-derived
+  seeds at extraction** (`EXTRACTION.md` → the register's GENERICIZE rule), so they never
+  reach an adopter intact.
 - **Banned vendors / sources:** none.
 
 ## Invariant checklist (the auditors enforce these exactly)
@@ -80,9 +86,10 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - A change that lets telemetry or evaluation records influence gate outcomes, model-tier
   assignment, or gate semantics (round limits, veto authority, tier floors) — FAIL
   (constitution P5; spec 001 non-goals).
-- Reviewer specs, invariants, guards, or `memory/constitution.md` modified by automation
-  outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a gate run —
-  FAIL (constitution P4; spec 001 non-goals).
+- Reviewer specs (the auditor specs **and the evasion register**,
+  `.claude/workflow/reviewers/`), invariants, guards, or `memory/constitution.md` modified
+  by automation outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a
+  gate run — FAIL (constitution P4; spec 001 non-goals).
 
 ### Invariant → enforcement mapping
 

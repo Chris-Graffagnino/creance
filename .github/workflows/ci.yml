@@ -131,6 +131,18 @@ jobs:
       - name: Reviewer-roster drift tests
         run: bash .claude/hooks/reviewer-roster.test.sh
 
+      # T604 evasion-register encoding tests (#74): the register
+      # (.claude/workflow/reviewers/evasion-register.md) is the cumulative cheat
+      # museum the auditors consult at dispatch and the retrospective appends to via
+      # PR. The runtime-neutral register + the auditor pointers + the retrospective
+      # append-step + the P-EV probe ARE the implementation surface; this is the P3
+      # determinism backstop (same rationale as the other *-docs tests), and it runs
+      # the runtime-neutrality scan over the register itself. The live P-EV
+      # demonstration (an auditor citing a seeded exhibit) is the probe run, recorded
+      # in the adapter results table — not this test.
+      - name: Evasion-register encoding tests
+        run: bash .claude/hooks/evasion-register-docs.test.sh
+
       # T102 gate-loop encoding test (#65) — and any sibling .claude/workflows/
       # *.test.js. Until #65 these JS tests ran only by hand: verify had no node
       # step, so the gate-loop orchestration (one telemetry payload per gate run on
