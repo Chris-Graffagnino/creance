@@ -58,21 +58,28 @@ D="$TMP/d-missing"; mkdir -p "$D"
 run_check 1 "$D" "D missing: absent AGENTS.md FAILs (no silent pass)"
 
 # CI wiring (the silent-death backstop): the check and its test are only live if
-# `verify` actually runs them. Assert ci.yml invokes both, so unwiring either
-# (which would make the residency guard silently dead) fails here — same posture
-# as check-tasks-consistency.test.sh's fetch-depth assertion.
+# the REQUIRED `verify` job actually RUNS them. A bare filename grep over the whole
+# file is too loose (Codex review, #92): a commented, disabled, or moved-to-another-
+# job copy would still satisfy it while `verify` no longer runs the gate. So scope
+# to the `verify` job's body (the required check, PROJECT.md) and require an ACTIVE
+# `run: bash <script>` step.
 CI="$(cd "$(dirname "$0")" && pwd)/../../.github/workflows/ci.yml"
-if grep -qE 'agents-residency-check\.sh' "$CI"; then
+# Lines belonging to the `verify:` job: from its 2-space-indented key to the next
+# 2-space-indented job key (or EOF). No awk interval syntax (portable to BSD awk).
+verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
+# 0 iff an active (uncommented) `run: bash <path>` step invokes $1 within verify.
+runs_in_verify() { verify_steps | grep -qE "^[[:space:]]*run:[[:space:]]+bash[[:space:]]+$1([[:space:]]|\$)"; }
+if runs_in_verify '\.claude/hooks/agents-residency-check\.sh'; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL %-58s ci.yml verify must run agents-residency-check.sh\n' "wiring: CI runs the residency check" >&2
+  printf 'FAIL %-58s verify must RUN agents-residency-check.sh (active run: step)\n' "wiring: residency check is an active verify step" >&2
 fi
-if grep -qE 'agents-residency-check\.test\.sh' "$CI"; then
+if runs_in_verify '\.claude/hooks/agents-residency-check\.test\.sh'; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL %-58s ci.yml verify must run agents-residency-check.test.sh\n' "wiring: CI runs the residency test" >&2
+  printf 'FAIL %-58s verify must RUN agents-residency-check.test.sh (active run: step)\n' "wiring: residency test is an active verify step" >&2
 fi
 
 printf 'agents-residency-check.test.sh: %d passed, %d failed\n' "$pass" "$fail"
