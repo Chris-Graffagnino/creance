@@ -58,21 +58,29 @@ run_check 0 "$C" "C under: a tight next-task.md passes"
 D="$TMP/d-missing"; mkdir -p "$D"
 run_check 1 "$D" "D missing: absent next-task.md FAILs (no silent pass)"
 
-# CI wiring: the check + test are only live if `verify` runs them. Assert ci.yml
-# invokes both, so unwiring either (making the budget gate silently dead) fails
-# here — same posture as check-tasks-consistency.test.sh's fetch-depth assertion.
+# CI wiring (the silent-death backstop): the check and its test are only live if
+# the REQUIRED `verify` job actually RUNS them. A bare filename grep over the whole
+# file is too loose (tightened to match the sibling residency test after Codex's P2
+# on #92): a commented, disabled, or moved-to-another-job copy would still satisfy
+# it while `verify` no longer runs the gate. So scope to the `verify` job's body
+# (the required check, PROJECT.md) and require an ACTIVE `run: bash <script>` step.
 CI="$(cd "$(dirname "$0")" && pwd)/../../.github/workflows/ci.yml"
-if grep -qE 'next-task-budget-check\.sh' "$CI"; then
+# Lines belonging to the `verify:` job: from its 2-space-indented key to the next
+# 2-space-indented job key (or EOF). No awk interval syntax (portable to BSD awk).
+verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
+# 0 iff an active (uncommented) `run: bash <path>` step invokes $1 within verify.
+runs_in_verify() { verify_steps | grep -qE "^[[:space:]]*run:[[:space:]]+bash[[:space:]]+$1([[:space:]]|\$)"; }
+if runs_in_verify '\.claude/hooks/next-task-budget-check\.sh'; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL %-58s ci.yml verify must run next-task-budget-check.sh\n' "wiring: CI runs the budget check" >&2
+  printf 'FAIL %-58s verify must RUN next-task-budget-check.sh (active run: step)\n' "wiring: budget check is an active verify step" >&2
 fi
-if grep -qE 'next-task-budget-check\.test\.sh' "$CI"; then
+if runs_in_verify '\.claude/hooks/next-task-budget-check\.test\.sh'; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL %-58s ci.yml verify must run next-task-budget-check.test.sh\n' "wiring: CI runs the budget test" >&2
+  printf 'FAIL %-58s verify must RUN next-task-budget-check.test.sh (active run: step)\n' "wiring: budget test is an active verify step" >&2
 fi
 
 printf 'next-task-budget-check.test.sh: %d passed, %d failed\n' "$pass" "$fail"
