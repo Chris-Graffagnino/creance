@@ -35,7 +35,10 @@ run_check() {
 mkfixture() {
   local d="$1" n="$2"
   mkdir -p "$d/$(dirname "$REL")"
-  yes '- step' | head -n "$n" > "$d/$REL"
+  # content is irrelevant (we count lines); the leading '#' matters — GNU `yes`
+  # parses a dash-leading arg as options ("yes: invalid option"), so the fixture
+  # string must never start with '-'. (Caught by CI; macOS `yes` tolerates it.)
+  yes '# step' | head -n "$n" > "$d/$REL"
 }
 
 # A: at the budget exactly -> pass (the boundary is inclusive).
