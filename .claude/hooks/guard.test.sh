@@ -153,11 +153,15 @@ check 2 "$FEAT" "r6 block: s# fragment URL via PowerShell" "$(pwshp 'sed -e \"s#
 check 2 "$FEAT" "r6 block: line-addressed 1s# with a # fragment URL" "$(bashp 'sed -e \"1s#__T__#https://x#frag#\" tmpl > body.md')"
 check 2 "$FEAT" "r6 block: pattern-addressed /re/s# with a # fragment URL" "$(bashp 'sed -e \"/foo/s#a#https://x#frag#g\" f')"
 check 2 "$FEAT" "r6 block: line-addressed 2s/ with a // URL" "$(bashp 'sed -i \"2s/__T__/https://x/\" f')"
+# Block: compound (;-separated) script where ONE sub genuinely collides — the count
+# must still fire within the colliding expression (PR #98 review, commit 2).
+check 2 "$FEAT" "r6 block: compound script, first s# sub has a # fragment" "$(bashp 'sed -e \"s#__T__#https://x#frag#g; s#foo#bar#g\" f')"
 # Allow: safe delimiters, non-URL text, and — Finding A (PR #98) — a URL the delimiter
 # does NOT occur in (a no-fragment URL under s#; a `/`-free word under s/).
 check 0 "$FEAT" "r6 allow: s@ delimiter (safe) with a URL" "$(bashp 'sed -e \"s@__SPEC_URL__@https://github.com/o/r/pull/88#issuecomment-1@g\" body.md')"
 check 0 "$FEAT" "r6 allow: s| delimiter (safe) with a URL" "$(bashp 'sed -e \"s|__T__|https://x|g\" f')"
 check 0 "$FEAT" "r6 allow: s# delimiter, no-fragment URL (delimiter absent from content)" "$(bashp 'sed -e \"s#__T__#https://example.com/path#g\" body.md')"
+check 0 "$FEAT" "r6 allow: compound s# script, both subs no-fragment (PR #98 commit 2)" "$(bashp 'sed -e \"s#__T__#https://example.com/path#g; s#foo#bar#g\" body.md')"
 check 0 "$FEAT" "r6 allow: s/ delimiter, no-slash replacement (bare word http)" "$(bashp 'sed -e \"s/x/http/\" f')"
 check 0 "$FEAT" "r6 allow: s# delimiter, non-URL text" "$(bashp 'sed -e \"s#foo#bar#g\" f')"
 check 0 "$FEAT" "r6 allow: s/ delimiter, non-URL text" "$(bashp 'sed -i '\''s/foo/bar/g'\'' f')"

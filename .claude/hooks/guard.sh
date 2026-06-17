@@ -176,14 +176,15 @@ case "$tool" in
     #   • `#` delimiter — collides ONLY when the URL carries a `#` fragment, i.e. the
     #     `s#` expression has a 4th `#` beyond the well-formed three (`s#pat#rep#flags`).
     #     `s#a#https://h/p#g` (exactly three `#`, no fragment) is safe → allowed; the
-    #     `#`-run segments exclude quotes so a second `-e` cannot inflate the count.
+    #     `#`-run segments exclude quotes AND `;` so a later expression (`…; s#…`, or a
+    #     second `-e`) cannot lend its `#` as the bogus 4th (PR #98 review, commit 2).
     # The opener's lead char is any NON-LETTER (`[^[:alpha:]_]`), so addressed forms
     # (`1s#…`, `$s#…`, `/re/s#…`) are caught while word-internal `s#`/`s/` (`tools/`,
     # `users/`) are not. `[^;&|]` spans confine each match to one command (a URL
     # upstream of a pipe, or in a separate command, stays allowed). Fail open.
     sed_pre='(^|[^[:alnum:]_])sed[^;&|]*[^[:alpha:]_]'
     if printf '%s' "$payload" | grep -qE "${sed_pre}s/[^/'\" ]*/https?://" \
-       || printf '%s' "$payload" | grep -qE "${sed_pre}s#[^#'\"]*#[^#'\"]*http[^#'\"]*#[^#'\"]*#"; then
+       || printf '%s' "$payload" | grep -qE "${sed_pre}s#[^#'\";]*#[^#'\";]*http[^#'\";]*#[^#'\";]*#"; then
       block sed-url-delimiter-collision "This in-place sed substitution's delimiter ('#' or '/') also occurs in the URL it substitutes — the URL's unescaped '/' (or a '#…' fragment) is read as the delimiter, ends the expression early, and can silently corrupt or blank the output (the PR-body-blank class). Use a delimiter absent from the URL, e.g. 's@…@…@' or 's|…|…|', and compose PR/issue bodies via a file, then verify the result is non-empty."
     fi
     ;;
