@@ -118,6 +118,14 @@ check "#96 fetch: an empty filtered set is suspicious (login mismatch != clean P
   "empty filtered set as suspicious"
 check "#96 fetch: no-findings needs the unfiltered count to be zero / all adjudicated" "$SK_FLAT" \
   "unfiltered comment count"
+# Post-open review (PR #99 — Codex `[bot]` inline + owner relay): every source the
+# no-findings count names must actually be fetched. The binding counted `timeline` but
+# the PR-reads row's `gh pr view --json` list omitted `comments`, so a run could tally
+# timeline as complete without ever fetching it — the same silent-clean defect.
+check "#96 fetch: timeline/issue-level comments are fetched too (the third count source)" "$SK_FLAT" \
+  "url,comments"
+check "#96 fetch: every counted source must actually be fetched (no tallying an unfetched source)" "$SK_FLAT" \
+  "Fetch every source you count"
 
 # ── AC4 — reconciliation with the review standard + §7 gate, no duplication ──────
 check "AC4 reconcile: applies the review standard's priority order" "$WF_FLAT" \
