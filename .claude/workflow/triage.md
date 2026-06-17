@@ -72,7 +72,14 @@ procedure is safe to run unattended because it cannot change the repo.
      the same machinery recomputes to the same fingerprint; it covers the `[guard]`'s decision
      logic **and** the wiring that routes events to it). Recomputing a content hash **reads**
      the machinery — it never edits it, so this honors the read-only-on-the-repo constraint.
-   Where the records live, and the concrete recipe for recomputing the fingerprint, are the
+   - The **auditor-liveness corpus** records its runs with a **reviewer-spec fingerprint** per
+     run (`workflow/auditor-liveness.md` → "Re-run policy"). Read the **most recent corpus
+     run's** recorded fingerprint and its date, and recompute the **current reviewer-spec
+     fingerprint** from the live checkout — the baseline and comparison for the CORPUS-STALE
+     check (§2). Recomputing the hash **reads** the specs, never edits them. No corpus run
+     recorded at all is not a read failure; it feeds that check's explicit "no corpus run
+     recorded yet" state (§2).
+   Where the records live, and the concrete recipes for recomputing both fingerprints, are the
    adapter's to supply — this step names neither.
 
 ## 2. Derive the findings
@@ -140,9 +147,10 @@ procedure is safe to run unattended because it cannot change the repo.
   discovered-work provenance line, the section still renders with the explicit empty
   state in the §4 template — it is never silently omitted, and an absence of
   discovered-work issues is never an error.
-- **Verification-machinery freshness (US5).** Two read-only checks that surface a silently
-  dead `[guard]` in days rather than at the next adapter port (the "silently dead machinery"
-  failure class — `DESIGN-NOTES.md` §4):
+- **Verification-machinery freshness (US5 + auditor liveness).** Three read-only checks that
+  surface silently dead verification machinery — a dead `[guard]`, or an auditor gone blind —
+  in days rather than at the next adapter port (the "silently dead machinery" failure class —
+  `DESIGN-NOTES.md` §4):
   - **PROBES-STALE (fingerprint currency).** Compare the **current** `[guard]`-machinery
     fingerprint (recomputed in §1.7) against the fingerprint recorded with the **most recent
     probe run** (§1.7). When they **differ**, flag **PROBES-STALE** — the recorded probe
@@ -164,10 +172,21 @@ procedure is safe to run unattended because it cannot change the repo.
     demonstrably live. When **no gate runs occurred in the window** the absence of `evaluation`
     records implies nothing — render the explicit "no gate activity in window" state, never a
     GUARD-SILENT warning (a quiet window is not a dead guard).
-  Both checks **observe and report only**: they mutate nothing, and acting on a flag
-  (re-running the probes, repairing the wiring) is the human's call via the next-task
-  `[workflow]`. Per the telemetry law (`workflow/telemetry.md` — telemetry observes, never
-  decides), neither check feeds any gate, tier, or guard decision.
+  - **CORPUS-STALE (auditor-liveness corpus currency).** The auditor analog of PROBES-STALE,
+    pointed at the judgment reviewers instead of the `[guard]`. Compare the **current**
+    reviewer-spec fingerprint (recomputed in §1.7) against the fingerprint recorded with the
+    **most recent auditor-liveness corpus run** (§1.7). When they **differ**, flag
+    **CORPUS-STALE** — a reviewer spec changed since the corpus last confirmed the auditors
+    live, so the planted-violation corpus (`workflow/auditor-liveness.md`) is due for a re-run
+    — and report the **age of the last corpus run**. When they match, report the auditors as
+    confirmed-live as of that run's date (with its age). When **no corpus run is recorded
+    yet** there is no baseline: render the explicit "no corpus run recorded yet" state (§4),
+    never an error. Like PROBES-STALE this is a **definite flag, not a heuristic** — a
+    fingerprint mismatch is deterministic.
+  All three checks **observe and report only**: they mutate nothing, and acting on a flag
+  (re-running the probes or the corpus, repairing the wiring) is the human's call via the
+  next-task / auditor-liveness `[workflow]`s. Per the telemetry law (`workflow/telemetry.md` —
+  telemetry observes, never decides), none feeds any gate, tier, guard, or auditor decision.
 - **Heartbeat gap (from the run log's last line).** A nonzero exit, or a timestamp older than
   one cadence interval (daily → > ~1 day before now), means the heartbeat had been down and
   this run is the recovery — say so explicitly under "Heartbeat health" so the gap is visible
@@ -239,6 +258,7 @@ shape:
 ## Verification-machinery freshness
 - PROBES-STALE: <one of: "current — guard machinery matches the last probe run (<YYYY-MM-DD>, age <n>d)"  |  "STALE — current fingerprint differs from the last probe run (<YYYY-MM-DD>, age <n>d); re-run the probes"  |  "no probe run recorded yet — no baseline to compare against">
 - GUARD-SILENT: <one of: "live — <n> gate-run record(s) and <n> guard evaluation record(s) in window"  |  "warning: GUARD-SILENT — <n> gate-run record(s) but zero guard evaluation records in window (heuristic; the guard may be silently dead — verify the wiring)"  |  "no gate activity in window — nothing to infer">
+- CORPUS-STALE: <one of: "current — reviewer specs match the last auditor-liveness corpus run (<YYYY-MM-DD>, age <n>d)"  |  "STALE — reviewer specs changed since the last corpus run (<YYYY-MM-DD>, age <n>d); re-run the auditor-liveness corpus"  |  "no corpus run recorded yet — no baseline to compare against">
 
 ## Heartbeat health
 - cli: ok | not found   ·  reads completed: <n>/<n>   ·  notes: <…>

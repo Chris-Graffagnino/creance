@@ -38,4 +38,20 @@ Equal ⇒ machinery current; different ⇒ **PROBES-STALE** (report the last run
 The **GUARD-SILENT** check needs no extra adapter fact — it reads the telemetry stream
 (profile → "Paths" → Telemetry, the source `triage.md` §1.6 already reads) and tells `gate-run`
 from `[guard]` `evaluation` records by the neutral `record` field (`workflow/telemetry.md`).
-Both checks mutate nothing, honoring the read-only-on-the-repo contract above.
+
+`triage.md`'s **CORPUS-STALE** check (auditor-liveness corpus currency) needs the auditor
+analog of the two PROBES-STALE facts:
+
+- **Recompute the current reviewer-spec fingerprint** using the recipe defined **once** in
+  **`.claude/skills/auditor-liveness/SKILL.md` → "The reviewer-spec fingerprint"** (the
+  `git hash-object` over the three `*-auditor.md` specs + the evasion register, rendered
+  `specs=<sha7>`). Reuse that recipe — never re-derive it here — so what the fingerprint
+  covers stays a one-place edit. It is a content hash: recomputing is **read-only**.
+- **The recorded baseline** is the most recent non-placeholder row of that same file's
+  **"## Corpus-run results"** table: its **Reviewer-spec fingerprint** cell is the value to
+  compare against, and its date is the age source. No non-placeholder row ⇒ the neutral "no
+  corpus run recorded yet" state.
+
+Equal ⇒ auditors confirmed-live as of that run; different ⇒ **CORPUS-STALE** (report the last
+run's age either way). All three checks mutate nothing, honoring the read-only-on-the-repo
+contract above.
