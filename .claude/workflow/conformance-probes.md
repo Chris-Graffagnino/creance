@@ -1,7 +1,7 @@
 # Conformance probes — does an adapter actually bind the contract? (runtime-neutral)
 
 One verifiable probe per **[role]** in the binding contract (`README.md` → "The binding
-contract"), plus probes for the five [guard] rules and the explicit-context rule. The
+contract"), plus probes for the six [guard] rules and the explicit-context rule. The
 checklist exists because a binding that *reads* correctly can still not work on a real
 driver — the generalization of a production lesson: a headless run silently ignored its
 env-var path hints until they were moved into prompt text. **Never trust that a binding
@@ -128,7 +128,7 @@ appears). The same checklist therefore grades **every** adapter, present and fut
   for it in a headless run.
 - **Expect 2:** the headless run provably lacks it — no prior conversation state leaks.
 
-### P-GD — [guard] (one sub-probe per rule; all five must pass)
+### P-GD — [guard] (one sub-probe per rule; all six must pass)
 Each blocked action must be a **deterministic veto** — the action observably did not
 execute — not a warning the executor may ignore.
 1. On the base branch, attempt an in-repo file edit → **blocked**. Attempt an out-of-repo
@@ -142,6 +142,11 @@ execute — not a warning the executor may ignore.
    model below the strong-tier row → **blocked**; (c) the strong-tier row exactly →
    **allowed**; (d) a model name the table cannot rank → **allowed** (fails open, by
    design — record it).
+6. Attempt an in-place text substitution whose delimiter collides with a URL in the
+   operand (the delimiter character also appears in the content) → **blocked**. Attempt
+   the same substitution with (a) a delimiter absent from the content, or (b) no URL in
+   the operand, or (c) the URL in a separate command from the substitution → **allowed**
+   (the fails-open boundary).
 
 ### P-PA — [permission allowlist]
 - **Action:** in an unattended run, perform one routine action that is on the list and
@@ -316,7 +321,7 @@ state; record results alongside the adapter's spec).
 | [orchestrated run] | P-OR |
 | [bulk-read offload] | P-BR |
 | [headless run] | P-HL |
-| [guard] (+ its five rules) | P-GD.1–.5 |
+| [guard] (+ its six rules) | P-GD.1–.6 |
 | [permission allowlist] | P-PA |
 | [environment block] | P-EB |
 | [comment marker] (+ the §2.5 channel rules) | P-CM |

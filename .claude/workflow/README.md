@@ -59,6 +59,12 @@ The deterministic gate blocks, before execution:
    row of the adapter's model table**. The tier→model resolution is read from the model
    table at enforcement time, never hardcoded in the gate (the one-line-model-swap
    property); a model name the table cannot rank, or an unreadable table, falls open.
+6. An **in-place text substitution whose delimiter also appears in the literal content
+   being substituted in** — e.g. a URL whose `/` or `#` collides with the chosen
+   delimiter — which silently corrupts or blanks the output instead of failing loudly.
+   A delimiter absent from the content avoids it; this veto is the deterministic backstop
+   for when one is chosen anyway. Scoped to a single command, and fails open on anything
+   ambiguous (the recurring instance: a body-edit substitution blanking a live PR body).
 It **fails open**: any uncertainty → allow. These rules are normative; each adapter
 supplies its own implementation (the active adapter's is named in `.claude/README.md`).
 
