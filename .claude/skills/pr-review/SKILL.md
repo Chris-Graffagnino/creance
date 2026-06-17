@@ -18,7 +18,7 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/pr-review
 | **[comment marker]** | the footer line defined in `.claude/skills/next-task/SKILL.md` → "The [comment marker] concrete form" (the single copy) — appended to the review comment this workflow posts |
 | **[environment block]** | `.claude/skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy — multi-line bodies via a UTF-8 temp file + `--body-file`, `gh` PATH fallback) |
 | **[headless run]** | `claude -p "/pr-review <pr>"` |
-| PR reads | `gh pr view <n> --json title,body,state,baseRefName,headRefName,url` and `gh pr diff <n>`, **plus the line-anchored inline findings `gh pr view` omits**: `gh api --method GET --paginate repos/{owner}/{repo}/pulls/<n>/comments` (inline review comments) and `.../pulls/<n>/reviews` (review summaries — where some bots/Codex post) — the bot/automated inline findings the timeline view misses. **`--method GET` keeps these reads write-incapable**, so their allowlist entry can't auto-approve a write. Where the **GitHub MCP server** (`mcp__github__*`) is connected, its PR review-comment / diff tools are a drop-in alternative for these reads — MCP tools are permission-gated on their own, needing no shell allowlist |
+| PR reads | `gh pr view <n> --json title,body,state,baseRefName,headRefName,url,comments` (the `comments` field returns the **timeline / issue-level** comments — the §2.5 owner-steering channel and any PR-level findings) and `gh pr diff <n>`, **plus the line-anchored inline findings `gh pr view` omits**: `gh api --method GET --paginate repos/{owner}/{repo}/pulls/<n>/comments` (inline review comments) and `.../pulls/<n>/reviews` (review summaries — where some bots/Codex post) — the bot/automated inline findings the timeline view misses. **`--method GET` keeps these reads write-incapable**, so their allowlist entry can't auto-approve a write. Where the **GitHub MCP server** (`mcp__github__*`) is connected, its PR review-comment / diff tools are a drop-in alternative for these reads — MCP tools are permission-gated on their own, needing no shell allowlist |
 | PR writes (additive only) | `gh pr comment <n> --body-file <tempfile>` for the structured review — **never** `gh pr merge`, never `gh pr close`, never a push to the PR branch. (The deliverable is one consolidated review comment; an optional inline reply needs a write grant beyond the read-only `gh api --method GET` entry — or the GitHub MCP server) |
 
 **Check out the PR head before the lens passes.** The `[code-review pass]` (`/code-review`) and
@@ -45,6 +45,21 @@ entry cannot auto-approve a GitHub write). The harness cannot add these itself �
 allow rules is barred — so the **owner adds them directly**, or connects the **GitHub MCP server**
 (whose PR tools need no shell allowlist); until then an interactive run simply prompts on the first
 `gh api`.
+
+**Enumerate first, filter second — a bot-login mismatch must never read as "no findings".**
+§2's "enumerate every inline comment" and the §4 grounding gate are only satisfiable if the fetch
+lists **all** comments first and identifies their authors **second**: never pre-filter the
+`pulls/<n>/comments` / `pulls/<n>/reviews` reads by an exact author login. Match automated reviewers
+by their `[bot]` login suffix, not an exact string — the Codex reviewer posts as
+`chatgpt-codex-connector[bot]`, so a filter for `chatgpt-codex-connector` returns **zero** and a
+naive "no comments → no findings" silently skips a real finding (this bit a review of PR #92/#94).
+So treat an empty filtered set as suspicious: "no findings" is reachable only when the
+unfiltered comment count is zero across **all three fetched sources** — timeline/issue-level
+comments (`gh pr view ... --json ...,comments`), inline review comments (`pulls/<n>/comments`),
+and review summaries (`pulls/<n>/reviews`) — or when every comment in that set has been
+adjudicated per `pr-review.md` §3. **Fetch every source you count**: tallying `timeline` without
+actually fetching it (`--json ...,comments`) is the same silent-clean defect. A login-string
+mismatch — or an unfetched source — can then never masquerade as a clean PR.
 
 Write posture per the workflow doc (`pr-review.md` → "Write posture"): the only write is the
 review comment (plus inline replies where supported), each carrying the marker; merge / close /
