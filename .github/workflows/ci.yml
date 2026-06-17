@@ -51,6 +51,19 @@ jobs:
       - name: Tasks-file consistency tests
         run: bash .claude/hooks/check-tasks-consistency.test.sh
 
+      # AGENTS.md residency (#91): AGENTS.md is imported into every session
+      # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
+      # size is a per-turn token tax on every task (DESIGN-NOTES §11). This check
+      # FAILs if it grows past a line ceiling — the deterministic backstop
+      # constitution P3 wants for a principle that was prose-only (#9). The
+      # .test.sh proves the check fires AND is wired (the P2 "machinery proves it
+      # is live" discipline, same as guard.test.sh).
+      - name: AGENTS.md residency check
+        run: bash .claude/hooks/agents-residency-check.sh
+
+      - name: AGENTS.md residency tests
+        run: bash .claude/hooks/agents-residency-check.test.sh
+
       # US6 intake/triage encoding tests (T501): the triage "Unmapped tracker
       # work" section + snapshot output shape (incl. the explicit empty state)
       # and intake's write-posture / retitle / marked-comment invariants. The

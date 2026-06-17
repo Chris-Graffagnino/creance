@@ -83,6 +83,10 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   live tasks files — FAIL (issue #21 class; CI backstop in `ci.yml`).
 - Engine text that depends on the model "noticing" something a deterministic check could
   enforce — JUSTIFY or add the backstop.
+- `AGENTS.md` (the only always-resident engine file — `CLAUDE.md` imports it into every
+  session; DESIGN-NOTES §11) grown past its line ceiling — FAIL (deterministic backstop:
+  `agents-residency-check.sh` in CI `verify`). The auditor still owns the subtler form: a
+  procedure inlined *under* the ceiling that a `workflow/**` pointer could carry (P3).
 - A change that lets telemetry or evaluation records influence gate outcomes, model-tier
   assignment, or gate semantics (round limits, veto authority, tier floors) — FAIL
   (constitution P5; spec 001 non-goals).
@@ -100,6 +104,7 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 | No selectable template artifacts / duplicate task IDs | spec-auditor: tasks-file resolution per this profile | CI `verify` repo-consistency step (fails on `specs/000-template/{spec,tasks}.md` or duplicate `T<nnn>` across live tasks files) |
 | Telemetry observes, never decides (P5) | constitution-auditor: hunt gate/tier logic reading telemetry or evaluation records | none yet — judgment-only |
 | No silent self-modification (P4) | constitution-auditor: hunt automation that writes reviewer specs, guards, invariants, or the constitution outside a PR | none yet — judgment-only |
+| `AGENTS.md` residency (the L1 always-resident file stays lean; DESIGN-NOTES §11, P3) | constitution-auditor: a procedure inlined into `AGENTS.md` that a `workflow/**` pointer could carry | `agents-residency-check.sh` line ceiling in CI `verify` |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.
