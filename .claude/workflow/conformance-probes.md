@@ -30,7 +30,15 @@ appears). The same checklist therefore grades **every** adapter, present and fut
   branch, never real user content. A probe run must leave the repo as it found it.
 - **Recording:** keep results as a dated table — probe ID, adapter, observed result,
   PASS/FAIL/DEGRADED — alongside the adapter's spec, so "this binding was probed" is a
-  checkable claim, not a memory.
+  checkable claim, not a memory. Record alongside each run a **content-hash fingerprint
+  of the [guard]** — covering *both* its decision logic and the wiring that routes events
+  to it — so a later freshness check can tell when recorded results predate a change to
+  the guard machinery they were meant to exercise. The wiring is in scope deliberately: it
+  has gone silently dead before while the logic stayed correct, and a fingerprint that
+  omitted it would not notice. The concrete hash (which artifacts, which command) is the
+  adapter's to define; it must be **reproducible** — the same machinery recomputes to the
+  same fingerprint — and scoped to the wiring that actually routes events, so unrelated
+  configuration edits do not perturb it.
 
 ## The probes
 

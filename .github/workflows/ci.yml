@@ -95,6 +95,19 @@ jobs:
       - name: Telemetry encoding tests
         run: bash .claude/hooks/telemetry-docs.test.sh
 
+      # T401 probe-fingerprint encoding tests (#85, US5.AC1): the conformance-probe
+      # recording convention requires a content-hash fingerprint of the guard machinery
+      # (guard script + hook wiring) recorded alongside probe results, so a later
+      # freshness check (triage PROBES-STALE, T402) can tell when recorded results predate
+      # a change to the guard the probes were meant to exercise. The wiring is hashed
+      # because the matcher has been silently dead while guard.sh stayed correct (the
+      # DESIGN-NOTES §"the guard was silently dead" class). The runtime-neutral doc + its
+      # adapter instantiation are the implementation surface; this is the P3 determinism
+      # backstop (same rationale as the other *-docs tests). The currency comparison is
+      # T402's scope, and the live recompute is the probe run itself — not this test.
+      - name: Probe-fingerprint encoding tests
+        run: bash .claude/hooks/probe-fingerprint-docs.test.sh
+
       # T602 reviewer-roster drift backstop (#64, parent epic #62): the §7
       # reviewer set is declared once in gate-loop.md's roster table; this test
       # FAILs if the three sites drift from it (gate-loop.md roster, the
