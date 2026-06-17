@@ -72,7 +72,7 @@ trigger frontmatter. The binding is therefore **two mechanisms with one rule**:
 
 ## The [guard] binding (layered, one gap, compensating control)
 
-Codex provides two enforcement layers; the five guard rules split across them:
+Codex provides two enforcement layers; the six guard rules split across them:
 
 1. **OS sandbox + approval policy** — `read-only` makes reviewer non-mutation a kernel
    property, not a promise. In some respects **stronger** than the active adapter's
@@ -89,6 +89,7 @@ Codex provides two enforcement layers; the five guard rules split across them:
 | 3 — commit/push on base branch | PreToolUse hook — direct port |
 | 4 — push refspec targeting base | PreToolUse hook — direct port |
 | 5 — constitution reviewer below strong | PreToolUse hook: reviewer dispatch *is itself a shell command* (`codex exec ...`) here, so the hook can read the `-m`/effort flags and veto, resolving rank against this file's model table at enforcement time |
+| 6 — self-colliding in-place substitution (delimiter collides with a URL) | PreToolUse hook on shell commands — direct port; the content-aware check reads the full command and vetoes a substitution whose delimiter the operand URL also contains |
 | 1 — file edit on base branch | **GAP:** Codex hooks fire for shell tool calls but **not** for `apply_patch` file edits (documented limitation, mid-2026) — an in-repo edit on `main` is not vetoed at edit time. **Compensating control:** the edit cannot *land* — rules 2 and 3 block staging-all and committing on the base branch, so the failure mode (a change reaching `main` without a branch) stays blocked; the working-tree edit itself is recoverable noise. Shell-mediated edits (`Set-Content`, `sed -i`, redirects) DO pass through the hook and are vetoed. **Documented degradation: rule 1 is enforced at commit time, not edit time.** |
 
 ## [reviewer] and [orchestrated run] details
@@ -157,6 +158,7 @@ concrete action + where the observation appears.
 | P-GD.1 | On `main`, ask for an in-repo file edit; also a shell-mediated edit | apply_patch edit NOT vetoed (the documented gap); shell edit vetoed; compensating rules 2/3 hold |
 | P-GD.2–.4 | `git add .` / commit on main / push `HEAD:main` through the hook | Each vetoed deterministically (command did not execute) |
 | P-GD.5 | Reviewer dispatch with no `-m`; with a below-strong resolution; at-strong; with an unrankable name | Blocked / blocked / allowed / allowed-fails-open (recorded) |
+| P-GD.6 | A self-colliding in-place substitution through the hook (the `#`/`/` delimiter present in the operand URL) vs. a safe-delimiter / no-URL / separate-command variant | Dangerous form vetoed deterministically; the safe variants allowed (fails-open boundary) |
 | P-PA | Unattended run: an in-sandbox routine action; an out-of-boundary action; a wrapper-shaped variant | Proceeds silently / does not proceed silently / does not match |
 | P-EB | Grep this adapter's files for two environment tokens (e.g. `CODEX_HOME`, the UTF-8 rule) | Exactly one file matches: this spec's Environment block |
 | P-MT | Grep the adapter for this table's model vocabulary | Exactly one file matches: this spec |
