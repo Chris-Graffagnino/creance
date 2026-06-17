@@ -60,6 +60,14 @@ Run `git diff main..HEAD` and review the resulting change, including its tests. 
 surrounding code for any file the diff touches. If the diff is empty, say so and stop.
 
 ## How to hunt
+**Consult the evasion register first.** Before hunting, read
+`reviewers/evasion-register.md` — the cumulative catalog of observed gate evasions and the
+fence that closed each — and treat its exhibits as a dispatch-time *"have you checked this
+known pattern?"* checklist (its test-gaming exhibits **EV-01–EV-05** are this reviewer's
+dimension). When a finding matches an exhibit, **cite the `EV-NN` id as the evidence
+anchor** alongside the `file:line`. The register is one shared list across all auditors; it
+is not restated here.
+
 For **each owned acceptance criterion** of the mapped `US#` (per the scoping rule, plus
 anything the task line itself demands), hunt for the gap:
 - **Implementation:** find the concrete code in the diff that satisfies the criterion. A

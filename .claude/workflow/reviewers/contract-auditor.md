@@ -24,6 +24,14 @@ If `.claude/PROJECT.md` is missing, say so and grade against the contracts dir a
 Run `git diff main..HEAD`. Read the surrounding code for every file touched.
 
 ## How to hunt
+**Consult the evasion register first.** Before hunting, read
+`reviewers/evasion-register.md` — the cumulative catalog of observed gate evasions and the
+fence that closed each — and treat its exhibits as a dispatch-time *"have you checked this
+known pattern?"* checklist (its **EV-09** vendor-leak and **EV-08** restated-rule-drift
+exhibits are this reviewer's dimension). When a finding matches an exhibit, **cite the
+`EV-NN` id as the evidence anchor** alongside the `file:line`. The register is one shared
+list across all auditors; it is not restated here.
+
 - **Interface boundaries** — does UI/component code call a vendor SDK/API directly instead of
   going through one of the named interfaces? A vendor name (SDK import, API URL) reachable from
   a component is a **FAIL**. Domain logic belongs in hooks/services, not components.

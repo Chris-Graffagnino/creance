@@ -26,6 +26,14 @@ file the diff touches — a violation often lives in the unchanged neighbour the
 If the diff is empty, say so and stop.
 
 ## How to hunt
+**Consult the evasion register first.** Before hunting, read
+`reviewers/evasion-register.md` — the cumulative catalog of observed gate evasions and the
+fence that closed each — and treat its exhibits as a dispatch-time *"have you checked this
+known pattern?"* checklist (its **EV-06** silently-dead-guard and **EV-07**
+measurement-gains-control exhibits are this reviewer's dimension). When a finding matches an
+exhibit, **cite the `EV-NN` id as the evidence anchor** alongside the `file:line`. The
+register is one shared list across all auditors; it is not restated here.
+
 For **each item in the invariant checklist**, look for its concrete failure mode in the diff
 and touched files, not the abstract principle:
 - Translate the invariant into a search. For a "must never decrement/reset" rule, search the

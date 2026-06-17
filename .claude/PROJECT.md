@@ -80,9 +80,10 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - A change that lets telemetry or evaluation records influence gate outcomes, model-tier
   assignment, or gate semantics (round limits, veto authority, tier floors) — FAIL
   (constitution P5; spec 001 non-goals).
-- Reviewer specs, invariants, guards, or `memory/constitution.md` modified by automation
-  outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a gate run —
-  FAIL (constitution P4; spec 001 non-goals).
+- Reviewer specs (the auditor specs **and the evasion register**,
+  `.claude/workflow/reviewers/`), invariants, guards, or `memory/constitution.md` modified
+  by automation outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a
+  gate run — FAIL (constitution P4; spec 001 non-goals).
 
 ### Invariant → enforcement mapping
 
