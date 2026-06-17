@@ -223,10 +223,15 @@ check "T606 DW2: acceptance reviewer carries a named intake-conversion mode" "$S
   "## Intake-conversion mode"
 check "T606 DW2: the named step screens drafted criteria for gameability" "$SPEC_AUDITOR_FLAT" \
   "Not trivially gameable"
-check "T606 DW2: checkable-but-gameable is a FAIL, not a pass" "$SPEC_AUDITOR_FLAT" \
+check "T606 DW2: a checkable-but-gameable drafted criterion is a FAIL" "$SPEC_AUDITOR_FLAT" \
   "checkable but gameable is a"
 check "T606 DW2: §5.1 wires the gameability screen into the acceptance check" "$INTAKE_FLAT" \
   "pass the §4 gameability screen"
+# Post-open review fix (#101, Codex/owner P2): intake mode must say the design
+# screen REPLACES the impl/encoding-test hunt + hard-FAIL rule for the drafted
+# (future-work) criteria, else a valid intake PR is wrongly FAILed for missing tests.
+check "T606 DW2: intake mode replaces impl/test hunt for drafted (future) criteria" "$SPEC_AUDITOR_FLAT" \
+  "replaces the implementation/encoding-test hunt and the hard-FAIL rule"
 
 # DW3 — a short note ties the screen to the spec-auditor: it left-shifts a fence the
 # reviewer otherwise applies only post-implementation.
