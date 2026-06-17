@@ -89,7 +89,7 @@
 > those exactly as a `US#`). May be split further at implementation time if a
 > done-when exceeds one PR's reasonable scope.
 
-- [ ] T604 [strong] Evasion-register: add `reviewers/evasion-register.md`, a
+- [x] T604 [strong] Evasion-register: add `reviewers/evasion-register.md`, a
       cumulative, exemplar-based catalog of observed gate evasions
       (`observed evasion → fence`, each with a `file:line` exemplar) that the
       auditors consult at dispatch and the retrospective appends to **via PR**
