@@ -98,7 +98,7 @@
       lint each mechanizable exhibit should graduate into (#74; repo-maintenance
       — done-when on issue) — strong: edits the P4-protected reviewer specs and
       the retrospective workflow boundary (constitution P1/P3/P4)
-- [ ] T605 [strong] Auditor-liveness: promote the one-time `P-RV` reviewer
+- [x] T605 [strong] Auditor-liveness: promote the one-time `P-RV` reviewer
       conformance probe into a standing planted-violation regression corpus
       (≥1 expected-FAIL and ≥1 expected-PASS fixture per auditor), re-run on
       reviewer-spec change and on a schedule, seeded from retrospective

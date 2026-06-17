@@ -9,8 +9,8 @@ and how to write a new one are documented in `.claude/README.md`.
 ```
 .claude/
   workflow/                 ← THIS layer: runtime-neutral methodology (portable)
-    next-task.md  triage.md  constitution-check.md
-    reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md  reviewers/evasion-register.md
+    next-task.md  triage.md  constitution-check.md  auditor-liveness.md
+    reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md  reviewers/evasion-register.md  reviewers/auditor-liveness-corpus.md
   PROJECT.md                ← project facts (also runtime-neutral)
   <adapter files>           ← the active runtime's binding (see .claude/README.md)
 ```
@@ -165,6 +165,11 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   read-only against the historical diff that introduced it, classifies the escape
   (would-have-caught / inconsistent-catch / hunt-rule-gap / invariant-gap), and proposes the
   resulting tightening (hunt rule / invariant row) via PR — never editing a rule directly.
+- `auditor-liveness.md` — the standing planted-violation corpus that keeps the judgment
+  [reviewer]s proven live: promotes the one-time `P-RV` probe into a known-bad/known-good
+  fixture pair per auditor, re-run on every reviewer-spec change + ≥ weekly, **report-only**
+  and **observe-only** (the model-driven analog of the [guard]'s `guard.test.sh`; never a
+  gate — P5). Fixtures in `reviewers/auditor-liveness-corpus.md`.
 - `pr-review.md` — end-to-end review of an **open** PR: ingests the diff **and every inline
   comment** (bot/automated included), grounds each finding to current `file:line`, and posts
   one severity-ranked review. Applies "The review standard" above and reuses the `reviewers/`
@@ -178,5 +183,8 @@ If a runtime lacks a role, the methodology still runs, more weakly:
 - `reviewers/evasion-register.md` — the cumulative cheat museum: observed gate evasions →
   the fence that closed each, with `file:line` exemplars. Every [reviewer] consults it at
   dispatch and cites the matching exhibit; the retrospective appends new exhibits via PR.
+- `reviewers/auditor-liveness-corpus.md` — the auditor-liveness fixture manifest: ≥1
+  expected-FAIL and ≥1 expected-PASS planted-violation fixture per auditor (seeded from the
+  evasion register), the known-bad/known-good corpus `auditor-liveness.md` runs.
 
 All of them read project facts from `.claude/PROJECT.md` and the constitution it names.
