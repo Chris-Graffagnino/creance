@@ -46,6 +46,18 @@ allow rules is barred — so the **owner adds them directly**, or connects the *
 (whose PR tools need no shell allowlist); until then an interactive run simply prompts on the first
 `gh api`.
 
+**Enumerate first, filter second — a bot-login mismatch must never read as "no findings".**
+§2's "enumerate every inline comment" and the §4 grounding gate are only satisfiable if the fetch
+lists **all** comments first and identifies their authors **second**: never pre-filter the
+`pulls/<n>/comments` / `pulls/<n>/reviews` reads by an exact author login. Match automated reviewers
+by their `[bot]` login suffix, not an exact string — the Codex reviewer posts as
+`chatgpt-codex-connector[bot]`, so a filter for `chatgpt-codex-connector` returns **zero** and a
+naive "no comments → no findings" silently skips a real finding (this bit a review of PR #92/#94).
+So treat an empty filtered set as suspicious: "no findings" is reachable only when the unfiltered
+comment count (timeline + `pulls/<n>/comments` + `pulls/<n>/reviews`) is zero, or when every comment
+in that unfiltered set has been adjudicated per `pr-review.md` §3 — a login-string mismatch can then
+never masquerade as a clean PR.
+
 Write posture per the workflow doc (`pr-review.md` → "Write posture"): the only write is the
 review comment (plus inline replies where supported), each carrying the marker; merge / close /
 push are out of scope; and this workflow changes **no** §7 pre-PR gate semantics — it is a
