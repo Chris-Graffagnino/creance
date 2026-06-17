@@ -143,6 +143,20 @@ jobs:
       - name: Evasion-register encoding tests
         run: bash .claude/hooks/evasion-register-docs.test.sh
 
+      # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
+      # methodology doc and the per-/next-task hub — new rules gravitate to it, so
+      # it is the harness's accretion sink and sets the per-workflow context floor
+      # (DESIGN-NOTES §11). This check FAILs if it grows past a line budget, forcing
+      # a conscious "split into a sub-doc, or raise the bound in a reviewed PR"
+      # decision instead of silent growth. A hard gate with headroom, not an exit-0
+      # warning (an always-green warning is the P2 silently-dead anti-pattern). The
+      # .test.sh proves it fires AND is wired (P2 "machinery proves it is live").
+      - name: next-task.md budget check
+        run: bash .claude/hooks/next-task-budget-check.sh
+
+      - name: next-task.md budget tests
+        run: bash .claude/hooks/next-task-budget-check.test.sh
+
       # T102 gate-loop encoding test (#65) — and any sibling .claude/workflows/
       # *.test.js. Until #65 these JS tests ran only by hand: verify had no node
       # step, so the gate-loop orchestration (one telemetry payload per gate run on
