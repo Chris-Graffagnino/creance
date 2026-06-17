@@ -106,7 +106,7 @@
       outcomes, tier assignment, or gate semantics (#75; repo-maintenance —
       done-when on issue) — strong: verification machinery guarding the guards,
       with a P5 observe-only boundary (constitution P2/P3/P5)
-- [ ] T606 [strong] Criteria-gameability: add a gameability screen to
+- [x] T606 [strong] Criteria-gameability: add a gameability screen to
       `intake.md` §4 (for each drafted criterion, name the cheapest way to
       satisfy it without doing the real work; if that path exists the criterion
       is one-sided or trivially satisfiable — tighten it before drafting) and

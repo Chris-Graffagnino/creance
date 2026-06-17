@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Encoding tests for US6.AC1 / US6.AC2 / US6.AC3 / US6.AC4 / US6.AC5 (T501) and
 # US7.AC1 / US7.AC2 / US7.AC3 / US7.AC4 (T204 — triage "Unacknowledged owner
-# comments").
+# comments"), plus T606 (#76; repo-maintenance — done-when on issue): the §4
+# gameability screen, its mirror as a named step in the acceptance reviewer's
+# intake-conversion mode (so a prose-only addition does not satisfy the gate),
+# and the spec-auditor left-shift note.
 #
 # The triage and intake procedures are runtime-neutral prose executed by the
 # engine — `.claude/workflow/triage.md` and `.claude/workflow/intake.md` ARE the
@@ -197,6 +200,42 @@ if printf '%s' "$TRIAGE_FLAT" | grep -qF -- "engine-authored, not owner steering
 else
   pass=$((pass + 1))
 fi
+
+# ── T606 — gameability screen at intake (#76; repo-maintenance — done-when) ────
+SPEC_AUDITOR="$DIR/workflow/reviewers/spec-auditor.md"
+SPEC_AUDITOR_FLAT="$(flat "$SPEC_AUDITOR")"
+
+# DW1 — intake.md §4 carries the gameability screen with a concrete worked example
+# (the `if x: return y` shape AND the recall-without-precision shape).
+check "T606 DW1: §4 gameability-screen heading" "$INTAKE_FLAT" \
+  "Screen each drafted criterion for gameability"
+check "T606 DW1: the screen names the cheapest satisfy-without-the-work path" "$INTAKE_FLAT" \
+  "cheapest way to satisfy the criterion without doing the real work"
+check "T606 DW1: worked example — trivially satisfiable (if x: return y)" "$INTAKE_FLAT" \
+  "if x: return y"
+check "T606 DW1: worked example — one-sided (recall without precision)" "$INTAKE_FLAT" \
+  "One-sided (recall without precision)"
+
+# DW2 — the gate verifies drafted criteria via a NAMED artifact: an explicit step in
+# the acceptance reviewer's intake-mode checklist, not prose alone. Assert the named
+# section in spec-auditor.md AND that intake §5.1 wires the screen into the gate.
+check "T606 DW2: acceptance reviewer carries a named intake-conversion mode" "$SPEC_AUDITOR_FLAT" \
+  "## Intake-conversion mode"
+check "T606 DW2: the named step screens drafted criteria for gameability" "$SPEC_AUDITOR_FLAT" \
+  "Not trivially gameable"
+check "T606 DW2: checkable-but-gameable is a FAIL, not a pass" "$SPEC_AUDITOR_FLAT" \
+  "checkable but gameable is a"
+check "T606 DW2: §5.1 wires the gameability screen into the acceptance check" "$INTAKE_FLAT" \
+  "pass the §4 gameability screen"
+
+# DW3 — a short note ties the screen to the spec-auditor: it left-shifts a fence the
+# reviewer otherwise applies only post-implementation.
+check "T606 DW3: left-shift note present" "$INTAKE_FLAT" \
+  "left-shifts"
+check "T606 DW3: note references the spec-auditor reviewer spec" "$INTAKE_FLAT" \
+  "\`reviewers/spec-auditor.md\` → \"The"
+check "T606 DW3: note frames the reviewer as the post-implementation backstop" "$INTAKE_FLAT" \
+  "post-implementation"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
