@@ -24,6 +24,7 @@ PROBES="$DIR/workflow/conformance-probes.md"
 READMEWF="$DIR/workflow/README.md"
 PROJECT="$DIR/PROJECT.md"
 ADAPTER="$DIR/adapters/claude-code-probes.md"
+EXTRACT="$DIR/EXTRACTION.md"
 
 pass=0
 fail=0
@@ -41,7 +42,7 @@ check() { # check <name> <haystack> <needle (grep -F fixed string)>
   fi
 }
 
-for f in "$REG" "$SPEC" "$CON" "$CONTRACT" "$RET" "$PROBES" "$READMEWF" "$PROJECT" "$ADAPTER"; do
+for f in "$REG" "$SPEC" "$CON" "$CONTRACT" "$RET" "$PROBES" "$READMEWF" "$PROJECT" "$ADAPTER" "$EXTRACT"; do
   if [ ! -f "$f" ]; then
     echo "FAIL: required file missing: $f" >&2
     exit 1
@@ -57,6 +58,7 @@ PROBES_FLAT="$(flat "$PROBES")"
 README_FLAT="$(flat "$READMEWF")"
 PROJECT_FLAT="$(flat "$PROJECT")"
 ADAPTER_FLAT="$(flat "$ADAPTER")"
+EXTRACT_FLAT="$(flat "$EXTRACT")"
 
 # ── DW1 — the register exists, in observed-evasion → fence form, seeded ───────────
 check "DW1: register is in observed-evasion → fence form" "$REG_FLAT" \
@@ -141,6 +143,22 @@ check "README: Files list names the register" "$README_FLAT" \
 # ── P4 — PROJECT.md invariant names the register as protected ────────────────────
 check "P4: PROJECT.md invariant names the evasion register as protected" "$PROJECT_FLAT" \
   "the auditor specs **and the evasion register**"
+
+# ── Extraction hygiene (template/instance split) — the register carries this repo's
+#    real-escape exemplars (project facts) in an otherwise-portable engine file, so the
+#    template/instance split must be handled, not silent: (a) PROJECT.md documents the
+#    register as the one engine-file exception, (b) EXTRACTION.md carries its GENERICIZE
+#    disposition so an adopter doesn't inherit dangling Creance SHAs/paths, (c) the register
+#    self-documents the reset. Guarding these means "a new engine file added with instance
+#    facts but no extraction rule" fails CI instead of silently shipping to adopters.
+check "extraction: PROJECT.md documents the register as the one engine-file exception" "$PROJECT_FLAT" \
+  "One documented exception:"
+check "extraction: EXTRACTION.md carries a disposition for the register (GENERICIZE)" "$EXTRACT_FLAT" \
+  "\`workflow/reviewers/evasion-register.md\` | GENERICIZE"
+check "extraction: EXTRACTION.md carries a disposition for the register's test" "$EXTRACT_FLAT" \
+  "\`hooks/evasion-register-docs.test.sh\` | GENERICIZE"
+check "extraction: register self-documents the reset-to-seeds on extraction" "$REG_FLAT" \
+  "on extraction they reset to seeds"
 
 # ── Runtime-neutral boundary (constitution P1) — the register lives in workflow/** ─
 # so it must name capabilities as [roles] and file:line only. Strip the allowed

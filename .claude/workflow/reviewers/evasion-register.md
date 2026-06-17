@@ -46,6 +46,14 @@ names is law.
   graduated and which remain judgment-only — mirroring `.claude/PROJECT.md`'s
   invariant → enforcement table (**P3**). An exhibit that becomes fully mechanized stays in
   the register as provenance, with its lint named.
+- **The real-escape exhibits are *this* project's; on extraction they reset to seeds.** This
+  register is a hybrid: the universal **pattern** exhibits are portable engine content, but a
+  real-escape exhibit's exemplar (its commit / `file:line`) is *this* project's instance log.
+  When the harness is extracted into a fresh project, the real-escape exhibits reset to the
+  *spec-derived seed* form (the universal patterns ship as-is) and the new project's
+  retrospective grows its own — the seed is a starting scaffold, not portable history
+  (`.claude/EXTRACTION.md` → the register's GENERICIZE rule; the one documented engine-file
+  exception in `.claude/PROJECT.md` → "Architecture boundaries").
 
 ## Exhibit format
 

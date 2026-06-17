@@ -49,10 +49,19 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-26 tracked files. Categories: **KEEP** (generic, copy verbatim) · **GENERICIZE** (reused
+47 tracked files. Categories: **KEEP** (generic, copy verbatim) · **GENERICIZE** (reused
 but carries a project/toolchain assumption to strip) · **RESET** (replace contents with a
 fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship the
 `.template` form only).
+
+> **The table below itemizes the load-bearing dispositions, not yet all 47 files.** Surfaces
+> added since the original cut — the `intake`/`pr-review`/`retrospective`/`telemetry`
+> workflow docs + their skill bindings, the `hooks/*-docs.test.sh` encoding backstops +
+> `check-tasks-consistency.{sh,test.sh}` + `gate-loop.test.js` — are not yet each listed; the
+> category rules still apply (a neutral `workflow/**` doc or skill binding → **KEEP**; a
+> `hooks/*-docs.test.sh` → **KEEP**, unless it asserts instance-specific content → then
+> **GENERICIZE** it in lockstep with that content, as with the evasion-register pair below).
+> Full per-file refresh + a deterministic completeness backstop tracked in **#90**.
 
 | File | Category | Action |
 |---|---|---|
@@ -82,6 +91,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `PROJECT.md` | TEMPLATE | Pure bird-journal facts. **Do not ship it.** Ship `PROJECT.template.md` as the only profile (it already exists and is complete). |
 | `PROJECT.template.md` | TEMPLATE | The fill-in-the-blanks profile. **This is the profile the template repo ships.** Keep. |
 | `adapters/claude-code-probes.md` | RESET | Carries this repo's **dated probe *results*** (the 2026-06-11 run that caught two live failures) — and the *instantiation table* (top half) is not clean either: its rows name this environment's concretes (the `BirdJournal-TriageHeartbeat` scheduler task, `triage-heartbeat.ps1`, Windows Task Scheduler steps). Reset **both halves**: drop the dated results (or move them into DESIGN-NOTES as the worked example) and genericize the instantiation rows' environment concretes to placeholders (`<scheduler-task>`, `<launcher-script>`) so a fresh project's probe run validates *its* launcher setup, not bird-journal's. End state: "instantiated, NOT yet executed — run before trusting". |
+| `workflow/reviewers/evasion-register.md` | GENERICIZE | The cumulative cheat-museum. Its **universal pattern exhibits** (the spec-derived ones — test-gaming, green-suite, vendor-leak, measurement-gains-control) are engine-level and ship verbatim. Its **real-escape exhibits** (EV-03/06/08) hardcode *this repo's* commit SHAs (`5bb6186`…) and instance test-file paths (`probe-fingerprint-docs.test.sh:119`, `reviewer-roster.test.sh`) — project facts (the one documented engine-file exception, `PROJECT.md` → "Architecture boundaries"). On extraction, **reset the real-escape exhibits to the "spec-derived seed (no escape logged yet)" form** (or move them into DESIGN-NOTES as the worked example, like `claude-code-probes.md`); keep the universal patterns + the mechanization-status scaffold. A fresh project's retrospective grows its own exemplars per incident. |
+| `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register — **KEEP** its structural / neutrality / DW2–DW4 / extraction-hygiene checks. It also asserts the **instance** real-escape exemplar strings (the DW1 "real escape with `file:line`" check). Drop **only those** instance-coupled assertions in lockstep when the register's real-escape exhibits are reset above, so the extracted test matches the genericized register. |
 
 **Gitignored — never travel** (machine-local; confirm your template `.gitignore` keeps them
 out): `settings.local.json` (per-machine permission overrides, e.g. the Windows full-path
@@ -138,8 +149,11 @@ must be described in the template's docs or they'll be silently dropped:
    `AGENTS.md`/`CLAUDE.md`.
 2. **Copy the KEEP files** (§2) verbatim into the new `.claude/`.
 3. **Ship the TEMPLATE profile:** copy `PROJECT.template.md`; do **not** copy `PROJECT.md`.
-4. **GENERICIZE** `README.md`, `settings.json`, `MODELS.md` per §2 (strip project name,
-   placeholder the toolchain allowlist, keep the model-table shape).
+4. **GENERICIZE** `README.md`, `settings.json`, `MODELS.md`, and the evasion-register pair
+   (`workflow/reviewers/evasion-register.md` + `hooks/evasion-register-docs.test.sh`) per §2
+   (strip project name, placeholder the toolchain allowlist, keep the model-table shape;
+   reset the register's real-escape exhibits to spec-derived seeds and drop the matching
+   DW1 test assertions).
 5. **RESET** `adapters/claude-code-probes.md` to an un-run instantiation.
 6. **Add the root skeletons** (§3a): `constitution.template.md`, `specs/000-template/*`,
    `AGENTS.md` template, `CLAUDE.md`.
