@@ -60,6 +60,20 @@ procedure is safe to run unattended because it cannot change the repo.
    per `workflow/telemetry.md`) — **read-only, like every other source here**: never write
    to, truncate, or rewrite the stream. An absent or empty file is not a read failure —
    it feeds the "Gate trends" section's explicit no-data state (§2).
+7. The **probe-run records and the current machinery** (for the "Verification-machinery
+   freshness" findings, §2) — both read-only:
+   - The conformance probes record their results as a **dated table with a `[guard]`-machinery
+     fingerprint per run** (`workflow/conformance-probes.md` → "Recording"). Read the **most
+     recent run's** recorded fingerprint and its date — the comparison baseline and the age
+     source for the PROBES-STALE check. No recorded run at all is not a read failure; it feeds
+     that check's explicit "no probe run recorded yet" state (§2).
+   - Recompute the **current `[guard]`-machinery fingerprint** from the live checkout, using
+     the same reproducible recipe the probe runs record (`conformance-probes.md` → "Recording":
+     the same machinery recomputes to the same fingerprint; it covers the `[guard]`'s decision
+     logic **and** the wiring that routes events to it). Recomputing a content hash **reads**
+     the machinery — it never edits it, so this honors the read-only-on-the-repo constraint.
+   Where the records live, and the concrete recipe for recomputing the fingerprint, are the
+   adapter's to supply — this step names neither.
 
 ## 2. Derive the findings
 - **Next unblocked task.** Lowest-numbered `[ ]` task whose dependencies are met and which is
@@ -126,6 +140,34 @@ procedure is safe to run unattended because it cannot change the repo.
   discovered-work provenance line, the section still renders with the explicit empty
   state in the §4 template — it is never silently omitted, and an absence of
   discovered-work issues is never an error.
+- **Verification-machinery freshness (US5).** Two read-only checks that surface a silently
+  dead `[guard]` in days rather than at the next adapter port (the "silently dead machinery"
+  failure class — `DESIGN-NOTES.md` §4):
+  - **PROBES-STALE (fingerprint currency).** Compare the **current** `[guard]`-machinery
+    fingerprint (recomputed in §1.7) against the fingerprint recorded with the **most recent
+    probe run** (§1.7). When they **differ**, flag **PROBES-STALE** — the recorded probe
+    results predate a change to the machinery they were meant to exercise, so the binding is no
+    longer known-good — and report the **age of the last probe run** (now − its recorded date)
+    so the staleness is quantified. When they match, report the machinery as current **with the
+    last probe run's age**, rather than omitting the line. When **no probe run is recorded
+    yet** there is no baseline: render the explicit "no probe run recorded yet" state (§4),
+    never an error and never a silent omission. This is a **definite flag, not a heuristic** —
+    a fingerprint mismatch is deterministic.
+  - **GUARD-SILENT (guard liveness).** Over the snapshot window (the "Gate trends" window
+    above), from the telemetry stream (§1.6): if the window holds **one or more `gate-run`
+    records but zero `[guard]` `evaluation` records** (`workflow/telemetry.md` — the
+    `evaluation` record fires on a guard path guaranteed to run during *every* gate run, so its
+    absence amid gate activity means the guard never fired), flag **GUARD-SILENT as a warning,
+    not an error**: it is a **heuristic**, not a proof — a swallowed telemetry write is silent
+    by design (`workflow/telemetry.md`), so a missing record is suggestive, not conclusive.
+    When gate runs occurred and `evaluation` records are present, report the guard as
+    demonstrably live. When **no gate runs occurred in the window** the absence of `evaluation`
+    records implies nothing — render the explicit "no gate activity in window" state, never a
+    GUARD-SILENT warning (a quiet window is not a dead guard).
+  Both checks **observe and report only**: they mutate nothing, and acting on a flag
+  (re-running the probes, repairing the wiring) is the human's call via the next-task
+  `[workflow]`. Per the telemetry law (`workflow/telemetry.md` — telemetry observes, never
+  decides), neither check feeds any gate, tier, or guard decision.
 - **Heartbeat gap (from the run log's last line).** A nonzero exit, or a timestamp older than
   one cadence interval (daily → > ~1 day before now), means the heartbeat had been down and
   this run is the recovery — say so explicitly under "Heartbeat health" so the gap is visible
@@ -193,6 +235,10 @@ shape:
 ## Discovered-work clusters
 - <path/subsystem>: #<n> #<n> …   <append " — 3+, possible missing spec" when the group has 3 or more>
 - <"none — no open issue carries a discovered-work provenance line" when §2 found none>
+
+## Verification-machinery freshness
+- PROBES-STALE: <one of: "current — guard machinery matches the last probe run (<YYYY-MM-DD>, age <n>d)"  |  "STALE — current fingerprint differs from the last probe run (<YYYY-MM-DD>, age <n>d); re-run the probes"  |  "no probe run recorded yet — no baseline to compare against">
+- GUARD-SILENT: <one of: "live — <n> gate-run record(s) and <n> guard evaluation record(s) in window"  |  "warning: GUARD-SILENT — <n> gate-run record(s) but zero guard evaluation records in window (heuristic; the guard may be silently dead — verify the wiring)"  |  "no gate activity in window — nothing to infer">
 
 ## Heartbeat health
 - cli: ok | not found   ·  reads completed: <n>/<n>   ·  notes: <…>

@@ -108,6 +108,18 @@ jobs:
       - name: Probe-fingerprint encoding tests
         run: bash .claude/hooks/probe-fingerprint-docs.test.sh
 
+      # T402 triage machinery-freshness encoding tests (#87, US5.AC2/AC3): triage
+      # *consumes* the fingerprint T401 records — flag PROBES-STALE when the current
+      # guard-machinery fingerprint differs from the last recorded probe run (+ report its
+      # age), and flag GUARD-SILENT (heuristically, a warning not an error) when gate runs
+      # occurred in the window but produced zero guard `evaluation` records. The
+      # runtime-neutral doc (triage.md) + its Claude-adapter instantiation (triage/SKILL.md)
+      # are the implementation surface; this is the P3 determinism backstop, same rationale
+      # as the other *-docs tests. The live recompute/compare is the probe run + the §7
+      # spec-auditor, not this test (the T401 recording side is probe-fingerprint-docs above).
+      - name: Triage machinery-freshness encoding tests
+        run: bash .claude/hooks/triage-freshness-docs.test.sh
+
       # T602 reviewer-roster drift backstop (#64, parent epic #62): the §7
       # reviewer set is declared once in gate-loop.md's roster table; this test
       # FAILs if the three sites drift from it (gate-loop.md roster, the

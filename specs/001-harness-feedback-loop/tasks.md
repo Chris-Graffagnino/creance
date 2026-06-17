@@ -42,7 +42,7 @@
 
 - [x] T401 [cheap] Probe-run fingerprint (guard script + hook wiring hash)
       recorded with probe results (US5)
-- [ ] T402 [strong] Triage PROBES-STALE and GUARD-SILENT checks (US5) —
+- [x] T402 [strong] Triage PROBES-STALE and GUARD-SILENT checks (US5) —
       strong: this machinery guards the guard (see DESIGN-NOTES §4)
 
 ## Phase 5 — Issue intake
