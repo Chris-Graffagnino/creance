@@ -129,12 +129,30 @@ check "DW4: P-EV tightened bar — not merely that a reviewer ran" "$PROBES_FLAT
 check "DW4: P-EV in the coverage map" "$PROBES_FLAT" \
   "| evasion register (\`reviewers/evasion-register.md\`) | P-EV |"
 # Adapter half — instantiation row + a recorded live PASS (mirrors P-RT/P-IN: the
-# neutral probe spec is half; the live-adapter run is the other half. Guarding only
-# the neutral spec leaves CI green if the adapter row is deleted or its PASS flipped).
+# neutral probe spec is half; the live-adapter run is the other half). The result
+# check is CELL-SCOPED per the PR #89 Codex/owner review: a bare `| P-EV (` row-prefix
+# needle is itself an EV-03 loose assertion — flipping the results row to FAIL/DEGRADED
+# or dropping the EV-06 citation would still pass CI, so it would NOT enforce the
+# done-when (a live probe demonstrated the auditor citing the exhibit). Assert the
+# P-EV *results* row's result cell is PASS AND that the row cites EV-06.
 check "DW4: P-EV instantiated in the adapter probe table" "$ADAPTER_FLAT" \
   "| P-EV |"
-check "DW4: P-EV live run recorded PASS in the adapter results table" "$ADAPTER_FLAT" \
-  "| P-EV ("
+# The results row begins `| P-EV (` (the dated run), distinct from the `| P-EV |`
+# instantiation row. awk field 3 is the result cell (the date cell carries no pipe).
+pev_row="$(grep -E '^\| P-EV \(' "$ADAPTER" | head -1)"
+pev_cell="$(printf '%s\n' "$pev_row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3 }')"
+if [ "$pev_cell" = "PASS" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL DW4: P-EV results-row result cell is not PASS (got: %s)\n' "${pev_cell:-<no \`| P-EV (…)\` row>}" >&2
+fi
+if printf '%s' "$pev_row" | grep -qF 'EV-06'; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL DW4: P-EV results row does not cite EV-06 as the evidence anchor\n' >&2
+fi
 
 # ── README — the Files index lists the register (a complete, navigable index) ────
 check "README: Files list names the register" "$README_FLAT" \
