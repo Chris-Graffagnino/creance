@@ -107,13 +107,40 @@ valve: owner steering cannot relax engine invariants).
     (e.g. `(#<issue>; repo-maintenance — done-when on issue)`). The gate's acceptance
     [reviewer] then grades against those criteria, exactly as it would a `US#`'s.
 
+### Screen each drafted criterion for gameability (not just checkability)
+
+Independently checkable is necessary but **not sufficient**: a criterion can be perfectly
+checkable and still trivially gameable. "Returns the correct value for input X" is
+checkable, yet `if x: return y` satisfies it without building the real capability.
+
+So before a criterion enters the draft — a bucket-1 `US#` acceptance criterion or a
+bucket-2/3 done-when criterion alike — run the **gameability screen**: name the **cheapest
+way to satisfy the criterion without doing the real work**. If such a path exists, the
+criterion is *one-sided* (it rewards one direction and never penalizes the other) or
+*trivially satisfiable* — tighten it to penalize **both** failure directions before
+drafting. Two shapes to reject, each with its tightening:
+- **Trivially satisfiable:** "returns the right answer for input X" → met by `if x: return y`.
+  Tighten to something the hard-coded shortcut fails — a property over a range of inputs, or
+  inputs the drafter does not enumerate up front.
+- **One-sided (recall without precision):** "flags every gamed criterion" → met by flagging
+  *everything*. Tighten to penalize the other direction too: "flags every gamed criterion
+  **and passes a non-gamed control**."
+
+This screen **left-shifts** a fence the acceptance [reviewer] otherwise applies only
+*post-implementation*: the spec-auditor's hard-FAIL red-team catches a diff that games a
+one-sided criterion only after the code is written (`reviewers/spec-auditor.md` → "The
+hard-FAIL rule"). Screening the criterion at draft time closes that gap one step earlier,
+so the post-implementation red-team becomes the backstop rather than the first line of
+defense.
+
 ## 5. Land as a PR, then cross-link
 
 1. Branch per the profile's branch convention; commit only the drafted artifacts
    (spec/tasks/profile-path edits). Run the **full** §7 pre-PR gate (`next-task.md` §7 —
    every reviewer that section dispatches, constitution [reviewer] included); the
    acceptance [reviewer] additionally checks the drafted criteria are independently
-   checkable.
+   checkable **and pass the §4 gameability screen** (not trivially gameable) — its
+   intake-conversion-mode step (`reviewers/spec-auditor.md`).
 2. Open the PR per `next-task.md` §8's body rules, minus the closing keyword (the
    source issue stays open). The body names the source issue, the bucket, the assigned
    task ID, and any constitution-screen notes. **Stop at the PR** — the owner ratifies

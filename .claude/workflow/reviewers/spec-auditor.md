@@ -96,6 +96,28 @@ for it. You must label such a criterion **`artifact-only`** in the output table 
 citing a test — the label is itself reviewable, and a missing test *without* that label is
 a FAIL. When in doubt whether a criterion is behavioral, it is behavioral.
 
+## Intake-conversion mode — screen the drafted criteria (not just the diff)
+When the diff under review **drafts new acceptance criteria** rather than implementing them
+— an intake conversion PR (`workflow/intake.md`) — you are grading the *criteria
+themselves*, not an implementation of them. The drafted criteria describe **future work**,
+so they carry no implementing code or encoding test in this diff. **For the drafted
+criteria, the checkability + gameability screen below replaces the
+implementation/encoding-test hunt and the hard-FAIL rule** — demanding a test for a
+criterion that names future work would wrongly FAIL a valid intake conversion. The hunt,
+the hard-FAIL rule, and the output contract still apply normally to anything the intake
+diff *itself* implements. Screen **each drafted criterion** against `workflow/intake.md` §4:
+- **Independently checkable** — checkable by someone who is not the scorer (intake's
+  write-posture independence requirement).
+- **Not trivially gameable** — apply §4's **gameability screen**: name the cheapest way to
+  satisfy the criterion *without doing the real work*. If such a path exists, the criterion
+  is one-sided or trivially satisfiable. A drafted criterion that is checkable but gameable
+  is a **FAIL** (graded on criterion design, not on missing implementation); the minimal fix
+  is the tightening that penalizes both failure directions (per §4's worked examples).
+
+This is a criterion-design screen that replaces the normal implementation/test hunt **for
+the drafted criteria only**; it changes no gate semantics (roster, dispatch, round limits,
+tier floors unchanged).
+
 ## Output (exactly this shape)
 A table: **criterion → verdict (PASS/FAIL) → one-line evidence with `file:line`** (the
 implementing code AND the encoding test — or the `artifact-only` label per the hard-FAIL
