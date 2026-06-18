@@ -218,6 +218,36 @@ productivity tax, and a fail-open activation check silently enables autonomy.
 
 ---
 
+## 14. The isolated workspace is a lifecycle, split from the gate that fills it
+
+T610 defined the `[isolated workspace]` model and the default-off `[autonomy activation]` check
+(§13); T611 binds the *mechanism* — `hooks/isolated-workspace.sh`, a pair of worktree primitives
+(`enter <branch>` → an ephemeral git worktree on a fresh branch, path printed on stdout; `exit
+<path>` → tear the workspace directory down) — and wires the activation read into the autonomous
+`next-task` path (§0.5/§4). Three decisions are load-bearing and easy to "simplify" wrongly:
+
+- **`enter` fails *loud* — the inverse of the guard.** If a workspace can't be created, `enter`
+  exits non-zero with **no path on stdout**, and the caller's contract is to **abort** the
+  autonomous run — never fall back to editing the main tree on the base branch. A fail-open
+  `enter` (or a caller that reads an empty path as "just work here") would run un-isolated
+  autonomous work, exactly what isolation prevents. Same fail-direction logic as `autonomy-mode.sh`
+  (§13): the parts that decide *whether* and *where* autonomy runs fail safe; only the guard
+  (which decides whether a single edit proceeds) fails open.
+- **`exit` removes the workspace *directory*, never the branch.** The committed work's fate —
+  promote on a §7 PASS, discard on a FAIL — is the **gate's** call (T612), not the lifecycle's.
+  So `exit` is a pure directory teardown; T612's discard path *is* `exit`, its promote path is
+  "push/PR first, then `exit`." A lifecycle that deleted the branch would be silently making the
+  gate's promote/discard decision.
+- **The lifecycle ships *without* the gate that consumes it (T611 vs T612).** T611 wires only
+  enter/exit + the activation read; the §7 gate reading the workspace diff and the promote/discard
+  path are T612, the falsification proof is T613. The intermediate state is *safe by
+  construction*: with no promotion code, an autonomous run executes in a worktree but still ends at
+  the review-mode PR, so nothing reaches the base branch outside the normal §7-gated human path.
+  The split keeps each PR reviewable (the Phase 8/9 epic-splitting precedent) without ever shipping
+  a half-built promotion path.
+
+---
+
 ## Things that look like cruft but are not — quick index
 
 | Looks droppable | Why it stays |
@@ -234,3 +264,4 @@ productivity tax, and a fail-open activation check silently enables autonomy.
 | The [edit guard]'s *delta* baseline, and `shell-lint.sh` running BOTH at edit time and over all hooks in CI | The delta (vs. the committed `HEAD` blob, not "any current failure") keeps a file with a pre-existing failure editable, so guard rule 7 taxes only *new* breakage and stays trusted (§4 fail-open ethos); collapsing it to "block on any current failure" re-creates the productivity tax that gets guards disabled, and its `guard.test.sh` delta case FAILs. The CI sweep is the *second* consumer of the same checker — it catches a non-portable hook the edit guard never saw (it predates the guard, or was edited on a runtime without the hook), the passes-locally-fails-CI class (#79/#97). |
 | `lib-tasks-drift.sh` as a separate file two scripts source | One drift definition, two consumers — the CI gate (`check-tasks-consistency.sh` rule 3, #69) and the runtime selection precondition (`reconcile-task-selection.sh`, #80/T608). Inlining it back into either forks the "done-but-unchecked" logic the gate and the selector must agree on — the same hand-synced-duplication hole the reviewer roster closed (§12). `reconcile-task-selection.test.sh` asserts both still source it, so a re-fork FAILs CI. |
 | `autonomy-mode.sh` failing *closed* while `guard.sh` fails *open* | Opposite fail directions are intentional, not a bug to reconcile: the guard decides "may this edit proceed" (fail open keeps work moving, the wall is elsewhere); the activation check decides "is the human-out-of-the-loop path on" (fail open would silently enable autonomy). Harmonizing them to one direction re-opens one of the two holes (§13). |
+| `isolated-workspace.sh exit` leaving the branch behind (and `enter` failing loud, not falling back) | `exit` removes the workspace *directory* only; promoting vs discarding the committed work is the §7 gate's call (T612), not the lifecycle's — an `exit` that deleted the branch would silently make that decision. And `enter` must fail loud with no path so the caller aborts rather than running un-isolated on the base branch (§14). |

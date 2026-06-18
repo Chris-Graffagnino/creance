@@ -78,6 +78,23 @@ model table (round up when a tier is unavailable, never down).
   interrupted task is recoverable (commit + PR + the resume protocol), so never start work
   you can't checkpoint before the limit hits.
 
+## 0.5 Run mode — review (default) or isolated autonomous
+Decide the run's mode once, at the start, from the **[autonomy activation]** check — never from
+model memory. It is deterministic and **fails closed to review** (the inverse of the [guard]).
+- **Review mode (default).** Run exactly as written below: edit in the main working tree on the
+  task branch (§4), open the PR, and **stop** for a human merge.
+- **Isolated autonomous mode** — engaged only by an explicit in-session authorization or the
+  profile opt-in. The task runs inside an **[isolated workspace]**: **enter** it in place of the
+  plain branch (§4) and **tear it down** at the end; work happens there, never in the main tree.
+  If entry fails, **abort the run** — never fall back to editing the main tree on the base branch
+  (a silent fallback would run un-isolated autonomous work, the one thing isolation prevents).
+
+Until the gate reads the workspace and the promote/discard path is wired, entering isolation
+changes only *where* work happens: an isolated run still ends at the review-mode PR, so nothing
+reaches the base branch outside the normal §7-gated human path. Promotion is always the §7
+gate's PASS, never a direct write from the workspace (`workflow/README.md` → "[isolated
+workspace]").
+
 ## 1. Select the task
 - If the user named a task ID, use it. Otherwise read the profile's **tasks file** and pick
   the **lowest-numbered unchecked task whose dependencies are met** (task-ID format per the
@@ -159,6 +176,9 @@ the owner can steer between sessions. These rules own all thread reading and ref
 - From an up-to-date base branch: `git switch -c <type>/<task-id>-<short-description>`.
 - Never commit to the base branch. Never `git add .` — stage specific files only. (The
   **[guard]** enforces both deterministically where available.)
+- **Isolated autonomous mode (§0.5):** instead of switching the main tree, **enter** the
+  **[isolated workspace]** for this branch and run every later step inside it, exiting it at the
+  end of the run. Review mode uses the plain `git switch -c` above.
 
 ## 4.5 Plan artifact ([strong tier] and above — a checkpoint, not a gate)
 Before the first file edit on a **[strong tier]** or **[frontier tier]** task (tagged, or

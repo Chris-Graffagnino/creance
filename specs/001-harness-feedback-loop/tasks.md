@@ -161,9 +161,9 @@
       isolation moves the wall to the workspace + §7 gate. Ships no worktree/promotion
       machinery (#106; epic #81 part a; repo-maintenance — done-when on issue) — strong:
       defines a runtime-neutral role and resolves a constitution question (P1/P3/P4)
-- [ ] T611 [strong] (T609b) Adapter: worktree enter/exit lifecycle + wire the activation
-      read into the autonomous `next-task` path only (epic #81 part b; create issue on
-      demand; repo-maintenance — done-when on issue) — strong: adapter execution path under
+- [x] T611 [strong] (T609b) Adapter: worktree enter/exit lifecycle + wire the activation
+      read into the autonomous `next-task` path only (#108; epic #81 part b;
+      repo-maintenance — done-when on issue) — strong: adapter execution path under
       autonomy
 - [ ] T612 [strong] (T609c) Gate-in-place: the §7 loop + auditors read the diff from the
       isolated workspace; the discard path on FAIL (epic #81 part c; create issue on demand;
