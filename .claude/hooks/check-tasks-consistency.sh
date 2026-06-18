@@ -14,6 +14,12 @@
 # grep only (commit subjects carry the task ID, so no GitHub API is needed).
 set -u
 
+# Rule 3's drift detection is shared with the runtime selection precondition
+# (reconcile-task-selection.sh, #80/T608) via lib-tasks-drift.sh — one definition, two
+# consumers (DESIGN-NOTES §12), so the CI gate and the selector can never disagree.
+# shellcheck source=lib-tasks-drift.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib-tasks-drift.sh"
+
 fail=0
 
 # 1. Template dirs must only ship *.template.md spec/tasks skeletons.
@@ -41,15 +47,14 @@ fi
 #    `[T<nnn>]` means T<nnn> has committed/merged work — a still-`[ ]` box is
 #    "done-but-unchecked" drift that mis-steers next-task selection (it picks
 #    the lowest-numbered unchecked task). Triage §2 surfaces this advisorily;
-#    this is the deterministic backstop (DESIGN-NOTES §12).
-committed_ids=$(git log --format='%s' 2>/dev/null \
-  | grep -oE '\[T[0-9]+\]' | tr -d '[]' | sort -u)
+#    this is the deterministic backstop (DESIGN-NOTES §12). The detection is
+#    shared via lib-tasks-drift.sh (see the source line above).
+committed_ids=$(tasks_drift_committed_ids)
 if [ -n "$committed_ids" ]; then
-  for id in $(grep -hoE '^- \[ \] T[0-9]+' specs/*/tasks.md 2>/dev/null \
-    | grep -oE 'T[0-9]+' | sort -u); do
+  for id in $(tasks_drift_unchecked_ids); do
     # whole-line match, so a [T10] commit never trips an unchecked T101
     if printf '%s\n' "$committed_ids" | grep -qxF "$id"; then
-      hit=$(git log --format='%h %s' 2>/dev/null | grep -F "[$id]" | head -1)
+      hit=$(tasks_drift_hit "$id")
       echo "FAIL: $id is unchecked but has committed work ($hit) — tick its box in the tasks file" >&2
       fail=1
     fi

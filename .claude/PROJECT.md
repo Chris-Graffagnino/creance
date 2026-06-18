@@ -112,6 +112,13 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   [edit guard] (`guard.sh` rule 7), which rejects an edit that adds a *new* diagnostic to a
   checked file measured against its committed baseline (#79) — guard-behavior change, so it
   ships with `guard.test.sh` cases (P2) and fails open when no checker is configured.
+- `next-task.md` selection that trusts a tasks-file checkbox without the deterministic
+  **[live-state reconciliation]** precondition — a candidate whose box is unchecked but whose
+  work has merged/landed must be refused, not started (the recurring stale-pick class,
+  #21/#80) — FAIL. The runtime selector (`reconcile-task-selection.sh`) **shares**
+  `lib-tasks-drift.sh` with CI's `check-tasks-consistency.sh` (one drift definition, two
+  consumers; a forked second copy is itself a FAIL, P2) and **fails open** when live state is
+  unavailable.
 
 ### Invariant → enforcement mapping
 
@@ -124,6 +131,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 | No silent self-modification (P4) | constitution-auditor: hunt automation that writes reviewer specs, guards, invariants, or the constitution outside a PR | none yet — judgment-only |
 | `AGENTS.md` residency (the L1 always-resident file stays lean; DESIGN-NOTES §11, P3) | constitution-auditor: a procedure inlined into `AGENTS.md` that a `workflow/**` pointer could carry | `agents-residency-check.sh` line ceiling in CI `verify` |
 | Hook scripts (`.claude/hooks/*.sh`) stay BSD/GNU-portable; an edit adds no new diagnostic to a checked file ([edit guard], #79/#97) | constitution-auditor: a `guard.sh` behavior change (incl. rule 7) without a matching `guard.test.sh` case | `shell-lint.sh` + `shell-lint.test.sh` over `.claude/hooks/*.sh` in CI `verify`; `guard.test.sh` rule-7 delta cases |
+| Selection reconciles live state before starting (no merged-but-unchecked pick; P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation, or a forked second copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused; asserts both consumers source `lib-tasks-drift.sh`) in CI `verify` |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.

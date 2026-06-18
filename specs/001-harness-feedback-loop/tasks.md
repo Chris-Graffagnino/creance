@@ -136,7 +136,7 @@
       invariant-checklist row (#79; repo-maintenance — done-when on issue) —
       strong: changes guard behavior and adds a P2 wiring assertion plus a P3
       determinism backstop (constitution P1/P2/P3)
-- [ ] T608 [strong] Live-state reconciliation before task selection: a
+- [x] T608 [strong] Live-state reconciliation before task selection: a
       deterministic precondition in `next-task.md` selection that reconciles the
       chosen task's checkbox against live tracker/branch state and refuses stale
       work, reusing (not duplicating) `check-tasks-consistency.sh` and failing open
