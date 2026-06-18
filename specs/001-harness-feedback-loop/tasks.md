@@ -145,16 +145,33 @@
       merged-but-unchecked refusal and the no-false-positive path (#80; bug —
       done-when on issue) — strong: replaces a prose cross-check with a
       deterministic selection precondition (constitution P1/P3)
-- [ ] T609 [strong] Ephemeral worktree isolation for autonomous mode (epic):
-      autonomous work runs in an ephemeral worktree with the §7 gate in place and
-      nothing reaches `main` unless the gate passes; autonomous mode is OFF by
-      default, engaged only by an explicit in-session request or a config-file
-      opt-in (absence = review mode), enforced deterministically; a falsification
-      test proves an un-gated change cannot reach `main`; review mode provably
-      unchanged (#81; repo-maintenance — done-when on issue) — strong: spans the
-      runtime-neutral workflow boundary, adds a P2 falsification test, and keeps
-      promotion gated (constitution P1/P2/P3/P4); may split into the (a)–(d)
-      sub-tasks named on the issue
+> **T609 (epic, #81) — decomposed at implementation time** into the four sub-tasks below
+> (T610–T613). The letter-suffix form `T609a` is deliberately **not** used: `[T609a]` fails
+> the shared drift lib's `[T<nnn>]` match (`lib-tasks-drift.sh` / `check-tasks-consistency.sh`),
+> so each sub-task carries its own 3-digit ID with an independently checkable box (one box →
+> one PR → one rule-3 check). The epic umbrella **#81 stays open** until all four land; T609
+> itself is intentionally a note here, not a checkbox.
+
+- [x] T610 [strong] (T609a) Isolation model + activation gating: define the runtime-neutral
+      `[isolated workspace]` role + the autonomous-mode activation model (off by default;
+      engaged only by an explicit in-session authorization or a profile config opt-in;
+      absence = review mode; promotion to `main` only via the §7 gate), enforced by a
+      deterministic activation check that **fails closed to review**; resolve the
+      constitutional question — the `[guard]` keeps its fail-**open** posture because
+      isolation moves the wall to the workspace + §7 gate. Ships no worktree/promotion
+      machinery (#106; epic #81 part a; repo-maintenance — done-when on issue) — strong:
+      defines a runtime-neutral role and resolves a constitution question (P1/P3/P4)
+- [ ] T611 [strong] (T609b) Adapter: worktree enter/exit lifecycle + wire the activation
+      read into the autonomous `next-task` path only (epic #81 part b; create issue on
+      demand; repo-maintenance — done-when on issue) — strong: adapter execution path under
+      autonomy
+- [ ] T612 [strong] (T609c) Gate-in-place: the §7 loop + auditors read the diff from the
+      isolated workspace; the discard path on FAIL (epic #81 part c; create issue on demand;
+      repo-maintenance — done-when on issue) — strong: gate-semantics boundary (P4)
+- [ ] T613 [strong] (T609d) Falsification proof: an automated test that an un-gated change
+      cannot reach `main`, wired into `verify`, + a conformance probe that the isolation
+      tier actually fires live (epic #81 part d; create issue on demand; repo-maintenance —
+      done-when on issue) — strong: P2 falsification machinery guarding the wall
 
 ## Criterion ownership (multi-task user stories)
 

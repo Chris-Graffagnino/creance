@@ -83,6 +83,21 @@ jobs:
       - name: Selection-reconciliation tests
         run: bash .claude/hooks/reconcile-task-selection.test.sh
 
+      # [autonomy activation] (T610, epic #81): autonomy-mode.sh is the deterministic,
+      # default-OFF activation decision for the [isolated workspace] role
+      # (.claude/workflow/README.md). It is the deliberate INVERSE of guard.sh — it FAILS
+      # CLOSED to review on any uncertainty, because a fail-open activation check would
+      # silently switch autonomy on (constitution P3/P4; DESIGN-NOTES §13). The bare check
+      # here is a liveness smoke: from the repo root it reads the shipped PROJECT.md, which
+      # defaults to review. The .test.sh proves default-off + every fail-closed path AND that
+      # this wiring exists (the P2 "machinery proves it is live" discipline, same as the
+      # reconcile and residency checks above).
+      - name: Autonomy-activation check (default-off smoke)
+        run: bash .claude/hooks/autonomy-mode.sh
+
+      - name: Autonomy-activation tests
+        run: bash .claude/hooks/autonomy-mode.test.sh
+
       # AGENTS.md residency (#91): AGENTS.md is imported into every session
       # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
       # size is a per-turn token tax on every task (DESIGN-NOTES §11). This check

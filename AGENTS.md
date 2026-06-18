@@ -126,6 +126,12 @@ block conditions, and the evidence rule for approvals — lives in
 
 ## Autonomy and Merge Rules
 - Default mode is review mode: open PRs but do not merge.
+- **Isolated autonomous mode** (gated work reaching the base branch without a human merge) is
+  **off by default**: engaged only by an explicit in-session authorization or the profile's
+  `autonomy-opt-in` flag, decided by the deterministic **[autonomy activation]** check, which
+  fails *closed* to review (absence = review mode). The **[guard]** keeps failing *open* —
+  isolation moves the wall to the workspace + §7 gate. Model: `workflow/README.md` →
+  `[isolated workspace]`.
 - "Work autonomously" allows implementation, PR updates, and automated-review response,
   but not merging.
 - Merge only when the user explicitly authorizes autonomous merging in the session and
