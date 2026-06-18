@@ -84,6 +84,17 @@ model table (round up when a tier is unavailable, never down).
   profile).
 - **Skip blocked tasks and say why.** Treat every task in the profile's **"Blocked /
   owner-only tasks"** list as non-startable — surface it, don't begin it.
+- **Reconcile the candidate against live state before committing to it
+  ([live-state reconciliation]).** A tasks-file checkbox drifts from reality — a task can be
+  already merged or in-flight while its box still reads unchecked — so a *prose* "cross-check
+  git/PRs" habit is exactly the model-judgment dependency a deterministic check should
+  replace. Before selecting, a **deterministic precondition** — the runtime counterpart of
+  CI's tasks-consistency backstop, **sharing** its logic rather than forking a second copy —
+  reconciles the candidate's box against authoritative live `git`/tracker state. A candidate
+  whose live state shows landed/merged work for its ID is **not selectable**: refuse it and
+  surface the drift with its conflicting evidence (the commit/PR) instead of starting stale
+  work. The check **fails open** — when live state is unavailable it degrades to the prior
+  behavior with a surfaced warning, never a hard stall.
 - Confirm the selected task ID, its `path`, and its `US#` before editing anything.
 
 ## 2. Read the context (always, every task)

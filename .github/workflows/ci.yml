@@ -70,6 +70,19 @@ jobs:
       - name: Tasks-file consistency tests
         run: bash .claude/hooks/check-tasks-consistency.test.sh
 
+      # T608 selection reconciliation (#80): the RUNTIME counterpart of the tasks-consistency
+      # drift gate. /next-task selection now refuses a candidate whose box is unchecked but
+      # whose work has merged (done-but-unchecked drift), replacing the prose "cross-check
+      # git/PRs" habit with a deterministic precondition (constitution P3). It SHARES
+      # lib-tasks-drift.sh with check-tasks-consistency.sh rule 3 — one drift definition, two
+      # consumers (the T602 anti-duplication lesson) — and fails open when git state is
+      # unavailable. The .test.sh is a PAIRED harness: the same fixture SELECTS an open task
+      # AND REFUSES a drifted one, so "no false positives" can't be met by a precondition that
+      # never fires; it also asserts both consumers source the shared lib (done-when 4). The P2
+      # "machinery proves it is live" discipline, same as guard.test.sh / check-tasks-consistency.
+      - name: Selection-reconciliation tests
+        run: bash .claude/hooks/reconcile-task-selection.test.sh
+
       # AGENTS.md residency (#91): AGENTS.md is imported into every session
       # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
       # size is a per-turn token tax on every task (DESIGN-NOTES §11). This check
