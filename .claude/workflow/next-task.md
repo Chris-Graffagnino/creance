@@ -93,8 +93,11 @@ model table (round up when a tier is unavailable, never down).
   reconciles the candidate's box against authoritative live `git`/tracker state. A candidate
   whose live state shows landed/merged work for its ID is **not selectable**: refuse it and
   surface the drift with its conflicting evidence (the commit/PR) instead of starting stale
-  work. The check **fails open** — when live state is unavailable it degrades to the prior
-  behavior with a surfaced warning, never a hard stall.
+  work. This precondition currently reconciles against **landed/merged** evidence only;
+  refusing a candidate that is merely **in-flight** — an open PR/branch with no landed work yet
+  — is a known gap deferred to a tracked follow-up, not yet part of this check. The check
+  **fails open** — when live state is unavailable it degrades to the prior behavior with a
+  surfaced warning, never a hard stall.
 - Confirm the selected task ID, its `path`, and its `US#` before editing anything.
 
 ## 2. Read the context (always, every task)

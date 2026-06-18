@@ -11,8 +11,10 @@
 # Git-based (a merged task lands a `[T<nnn>]` commit on the base branch), so it needs no
 # network and is always available locally. It FAILS OPEN (warn + exit 0) when live state
 # can't be read — degrade to pre-T608 behavior with a surfaced warning, never a hard stall
-# (done-when 5). The adapter binding may additionally consult the issue/PR tracker for an
-# in-flight (unmerged) candidate; that read fails open the same way.
+# (done-when 5). This detects MERGED/LANDED work only (a `[T<nnn>]` commit subject). An
+# *in-flight* candidate — an open PR/branch with no merge commit yet — is OUT of scope here
+# and is not refused anywhere in /next-task §3 today; deterministic in-flight refusal (a
+# fail-open `gh` tracker read in the adapter) is tracked as #105.
 #
 # Run from the repo root:  bash .claude/hooks/reconcile-task-selection.sh <task-id>
 # Exit: 0 selectable (or fail-open) · 2 usage · 3 drift (candidate is stale — do not start).
