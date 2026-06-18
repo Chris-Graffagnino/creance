@@ -41,6 +41,7 @@ never a mechanism — so new roles are added by appending rows, without reshapin
 | **[headless run]** | One [workflow] name plus arguments | A fresh, non-interactive run of that workflow; its exit code propagates to the caller | No prior conversation state; anything the run must honor is passed **in the invocation text**, not only via environment hints (the explicit-context rule below) |
 | **[guard]** | Every imminent repo-mutating action, *before* it executes | Allow, or a deterministic VETO that blocks execution (not a warning) | **Deterministic** — no model judgment in the decision; **fails open** (uncertainty → allow); enforces exactly the guard rules below |
 | **[edit guard]** | A just-applied file edit and the file it touched | Allow, or a deterministic **fix-forward rejection** naming the new diagnostics so the next action repairs them | **Deterministic** and **delta-based**: reruns the project's configured **syntax/type check** for the touched file's type (the check commands are a profile fact, never named here) and rejects only when the edit raises the file's diagnostics **above its pre-edit baseline** — an edit leaving them no worse than before is allowed, so a pre-existing failure never blocks unrelated work. **Fails open** when no check is configured for the type, the path is unknown/out-of-repo, or the baseline is unavailable. Distinct from [guard] in timing: where a runtime cannot veto before the write, this is enforced **after** it as fix-forward feedback (the edit stands; the next action fixes it), never a silent revert |
+| **[isolated workspace]** *(optional)* | An autonomous task run, its **activation signals** (an explicit in-session authorization and/or a profile config opt-in), and the §7 gate outcome for that run | Either nothing reaches the base branch (review mode, or gate FAIL → the workspace is discarded), or — on a gate **PASS** under an *engaged* autonomous run — the change is promoted through the **normal §7-gated path** | **Optional** — an adapter without it runs review mode only (the default), losing nothing. **Off by default:** with neither activation signal the autonomous-promotion path is **deterministically unreachable** (review mode), decided by a check that **fails *closed* to review** on any uncertainty — never by model memory (P3). This is the deliberate **inverse** of the [guard]'s fail-*open* posture (a fail-open activation check would silently switch autonomy on). Work executes in an **ephemeral** workspace; on gate FAIL it is discarded and the base branch is untouched. Promotion is **only** ever the §7 gate's PASS — the isolation mechanism is **never itself a path that writes the base branch** (P4). The **model** (activation semantics, promote-on-PASS / discard-on-FAIL) is neutral here; the **workspace mechanism and the config-opt-in read live only in the adapter** (P1). The guard keeps failing open under autonomy — see "Isolation and the guard's fail-open posture" below for why that stays safe |
 | **[permission allowlist]** | A proposed routine action | Pre-approval, so unattended runs proceed without an interactive prompt | Matched mechanically against a maintained list; the list lives in the adapter, never in these docs |
 | **[environment block]** | A portable rule stated in a neutral doc (e.g. "pass multi-line text via a file, as UTF-8") | The concrete OS/shell/CLI form of that rule for the active environment | Exactly **ONE copy per adapter** — every OS/shell/CLI specific (encodings, install paths, quoting, invocation forms) lives there and nowhere else; neutral docs may point to this role but never inline its contents |
 | **[comment marker]** | An engine-authored comment body bound for a task's issue/PR thread | The same body carrying a deterministic self-identification marker | The marker's concrete form is defined **exactly once, adapter-side** (never in these docs), is **visible to a non-developer reader** of the thread, and is applied to **every** engine-posted comment. Its job is provenance under a **shared login**: the engine may post under the owner's own account, so author identity cannot separate harness bookkeeping from owner steering — the marker does (third parties cannot post as the owner login, so it need only separate harness-authored from human-authored). Recognition is **deterministic and position-anchored** per the adapter's definition — marker text merely quoted or embedded mid-body neither marks a comment nor demotes an owner comment. Reading rule: a **marked** comment is engine bookkeeping and **never** carries steering authority; the newest **unmarked** owner-login comment is authoritative owner steering, within the authority bounds in `next-task.md` §2.5 |
@@ -79,6 +80,34 @@ the only carrier. Rationale: an LLM executor honors prompt text far more reliabl
 environment hints (observed in production: a headless run ignored its env-var path hints
 until the launcher moved the paths into the prompt). The triage launcher contract
 (`triage.md` §6, rule 1) is the worked example of a conforming wrapper.
+
+### Isolation and the guard's fail-open posture (binding when [isolated workspace] is provided)
+The **[isolated workspace]** role introduces a path by which gated work can reach the base
+branch **without a human in the loop**, so it changes the threat model the [guard] was built
+against. That change is reconciled here — no principle is relaxed:
+
+- **Activation is off by default and fails *closed*.** Autonomous mode engages **only** on an
+  explicit in-session authorization **or** a profile config opt-in. With neither, the path is
+  review mode and **deterministically unreachable** — decided by a check that fails **closed to
+  review** on any uncertainty (unreadable config, ambiguous signal). This is the exact inverse
+  of the [guard]'s fail-*open* default, and the inversion is the point: a fail-open *activation*
+  check would silently switch autonomy on, the one thing the blast wall must never do (P3).
+- **The [guard] keeps failing *open* — isolation is what makes that safe under autonomy.** The
+  guard is **not** retuned for autonomous mode. Under review mode the human merge is the wall;
+  under an engaged autonomous run the wall is the **[isolated workspace] boundary + the §7
+  gate**: work happens in an ephemeral workspace and reaches the base branch **only** on a gate
+  PASS. A guard that fails open *inside* that workspace cannot leak to the base branch — the
+  workspace is discarded on FAIL and promotion is the gate's PASS, never a direct write (P4).
+  Moving the wall from the guard to the workspace+gate is precisely what lets the guard's
+  fail-open posture stand unchanged.
+- **Relation to "merge authorization is session-explicit only" (`next-task.md` §2.5).** That
+  rule bars the **comment channel** from authorizing a merge — a comment is unreviewed and
+  posted under a shared login. A **config opt-in is different in kind:** it is a committed
+  setting that lands only through a human-reviewed PR, so the human ratification the merge rule
+  requires happens **at opt-in time**, once, rather than per run. Adding the config-opt-in path
+  is the one deliberate **extension** of the autonomy default this role introduces; because it
+  shifts a governance default, an adapter wiring it surfaces the opt-in for **owner
+  ratification**, never as an engine decision.
 
 ## The review standard (binding on every review pass)
 

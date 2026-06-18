@@ -53,6 +53,24 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Coverage policy:** none (the repo is mostly prose + bash; `guard.test.sh` must cover
   every guard behavior change).
 
+## Autonomy (isolated autonomous mode — the [isolated workspace] activation fact)
+The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated workspace]` role +
+"Isolation and the guard's fail-open posture". This section is the **project opt-in fact** the
+`[autonomy activation]` check (`.claude/hooks/autonomy-mode.sh`) reads.
+- **Opt-in:** `autonomy-opt-in: disabled` — the default. This project runs in **review mode**
+  (open PRs, a human merges). To opt in to isolated autonomous execution with §7-gated
+  promotion, change that one line's value to `enabled`. That is the **only** line that may
+  carry the opt-in token, inside its backtick code span: the check treats a
+  duplicate/ambiguous declaration, a non-`enabled` value, a commented-out line or a prose
+  mention of the token, or an unreadable profile as **review** — it fails closed (the
+  inverse of the fail-open `[guard]`). Engaging autonomy per-session instead — an explicit in-session
+  authorization — needs no file edit.
+- **Opting in is a governance change**, ratified by the human-reviewed PR that lands the flag
+  (reconciled with "merge authorization is session-explicit only" in the neutral model).
+- **As of T610 (epic #81 part a) nothing consumes this decision yet** — the worktree lifecycle
+  (T611) and gate-in-place (T612) are not built, so setting it on today only changes the
+  check's printed word; it is a no-op on the base branch until those land.
+
 ## Edit-time checks (the [edit guard] map — `guard.sh` rule 7 reads this)
 The [edit guard] (adapter: the `PostToolUse` hook `guard.sh`, rule 7) runs the matching
 checker on a touched file and rejects an edit that adds a *new* diagnostic — measured as a
@@ -119,6 +137,15 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   `lib-tasks-drift.sh` with CI's `check-tasks-consistency.sh` (one drift definition, two
   consumers; a forked second copy is itself a FAIL, P2) and **fails open** when live state is
   unavailable.
+- Autonomous mode (the `[isolated workspace]` path by which §7-gated work can reach the base
+  branch without human review) reachable **without** the deterministic **[autonomy activation]**
+  check, or that check failing **open** (any uncertainty resolving to autonomous instead of
+  review) — FAIL. Activation is **off by default**, engaged only by an explicit in-session
+  authorization or the profile `autonomy-opt-in` flag; the check (`autonomy-mode.sh`) **fails
+  closed to review** — the deliberate inverse of the fail-open `[guard]`, whose own posture is
+  unchanged because isolation moves the wall to the workspace + §7 gate (P3/P4). A promotion
+  path that lets the isolation mechanism write the base branch directly, bypassing the §7
+  gate — FAIL (P4).
 
 ### Invariant → enforcement mapping
 
@@ -132,6 +159,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 | `AGENTS.md` residency (the L1 always-resident file stays lean; DESIGN-NOTES §11, P3) | constitution-auditor: a procedure inlined into `AGENTS.md` that a `workflow/**` pointer could carry | `agents-residency-check.sh` line ceiling in CI `verify` |
 | Hook scripts (`.claude/hooks/*.sh`) stay BSD/GNU-portable; an edit adds no new diagnostic to a checked file ([edit guard], #79/#97) | constitution-auditor: a `guard.sh` behavior change (incl. rule 7) without a matching `guard.test.sh` case | `shell-lint.sh` + `shell-lint.test.sh` over `.claude/hooks/*.sh` in CI `verify`; `guard.test.sh` rule-7 delta cases |
 | Selection reconciles live state before starting (no merged-but-unchecked pick; P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation, or a forked second copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused; asserts both consumers source `lib-tasks-drift.sh`) in CI `verify` |
+| Autonomous mode off by default + activation fails closed to review; promotion stays §7-gated (P3/P4; `[isolated workspace]`) | constitution-auditor: an activation path reachable without the deterministic `[autonomy activation]` check, the check failing open, or isolation writing the base branch directly | `autonomy-mode.test.sh` (default-off + fail-closed cases; asserts ci.yml runs the check+test and the neutral role + profile flag exist) in CI `verify` |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.

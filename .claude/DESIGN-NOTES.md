@@ -191,6 +191,33 @@ load-bearing path (**P3**).
 
 ---
 
+## 13. Two governance checks, opposite fail directions — the [guard] fails open, [autonomy activation] fails closed
+
+`guard.sh` fails **open**: on any uncertainty it allows the action. That is correct for review
+mode, where a human merge is the wall — a guard that blocked on doubt would tax every edit until
+someone disabled it (§4). The `[isolated workspace]` role (T610, epic #81) adds a *second*
+deterministic governance check, `autonomy-mode.sh`, and it fails the **opposite** way — **closed
+to review** on any uncertainty (unreadable profile, ambiguous/duplicate opt-in, a non-`enabled`
+value).
+
+The inversion is deliberate, not an inconsistency. The two checks guard different directions of
+the same wall:
+- The **guard** decides *may this edit/commit proceed*. Failing open keeps work moving; the wall
+  to the base branch is elsewhere (a human merge, or — under autonomy — the §7 gate).
+- The **activation check** decides *is the human-out-of-the-loop path even on*. Failing open here
+  would silently switch autonomy **on**, the one thing a blast wall must never do. So it defaults
+  off and fails closed: absent a clear, explicit signal = review mode.
+
+This is why isolation does **not** require retuning the guard's fail-open posture under autonomy
+(the design question the epic carried for intake). The guard can keep failing open *inside* an
+ephemeral workspace because nothing there reaches the base branch except a §7 gate PASS —
+promotion is the gate's, never a direct write (P4). The wall moved from the guard to the
+workspace + gate; the guard's posture is unchanged. A future maintainer "harmonizing" the two
+checks to one fail direction would break exactly this: a fail-closed guard re-creates the
+productivity tax, and a fail-open activation check silently enables autonomy.
+
+---
+
 ## Things that look like cruft but are not — quick index
 
 | Looks droppable | Why it stays |
@@ -206,3 +233,4 @@ load-bearing path (**P3**).
 | `fetch-depth: 0` on the CI checkout | Without it the #69 checkbox-drift gate (`check-tasks-consistency.sh` rule 3) is silently dead in CI: `actions/checkout` fetches one commit — on a PR the merge commit — so `git log` sees no `[T###]` and the gate passes vacuously (§4 silent-death class). `check-tasks-consistency.test.sh`'s CI-wiring assertion FAILs if it is dropped. |
 | The [edit guard]'s *delta* baseline, and `shell-lint.sh` running BOTH at edit time and over all hooks in CI | The delta (vs. the committed `HEAD` blob, not "any current failure") keeps a file with a pre-existing failure editable, so guard rule 7 taxes only *new* breakage and stays trusted (§4 fail-open ethos); collapsing it to "block on any current failure" re-creates the productivity tax that gets guards disabled, and its `guard.test.sh` delta case FAILs. The CI sweep is the *second* consumer of the same checker — it catches a non-portable hook the edit guard never saw (it predates the guard, or was edited on a runtime without the hook), the passes-locally-fails-CI class (#79/#97). |
 | `lib-tasks-drift.sh` as a separate file two scripts source | One drift definition, two consumers — the CI gate (`check-tasks-consistency.sh` rule 3, #69) and the runtime selection precondition (`reconcile-task-selection.sh`, #80/T608). Inlining it back into either forks the "done-but-unchecked" logic the gate and the selector must agree on — the same hand-synced-duplication hole the reviewer roster closed (§12). `reconcile-task-selection.test.sh` asserts both still source it, so a re-fork FAILs CI. |
+| `autonomy-mode.sh` failing *closed* while `guard.sh` fails *open* | Opposite fail directions are intentional, not a bug to reconcile: the guard decides "may this edit proceed" (fail open keeps work moving, the wall is elsewhere); the activation check decides "is the human-out-of-the-loop path on" (fail open would silently enable autonomy). Harmonizing them to one direction re-opens one of the two holes (§13). |
