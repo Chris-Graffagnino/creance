@@ -169,6 +169,61 @@ check 0 "$FEAT" "r6 allow: URL upstream of sed in a pipe" "$(bashp 'curl https:/
 check 0 "$FEAT" "r6 allow: URL in a separate command after the sed" "$(bashp 'sed -i '\''s/a/b/'\'' f ; echo https://x')"
 check 0 "$FEAT" "r6 allow: s/-suffixed path + URL but no sed" "$(bashp 'ls tools/ && curl https://x')"
 
+# --- rule 7: the [edit guard] (PostToolUse) — delta-based lint reject (#79) ---
+# A committed .sh baseline carrying ONE pre-existing portability failure; each
+# "edit" rewrites the working-tree file before its payload. The checker is the
+# real shell-lint.sh, resolved from guard.sh's own repo root via the profile's
+# relative path (GUARD_PROJECT_FILE points the map at a fixture). The denylisted
+# construct is assembled at runtime ($D) so this test file stays lint-clean.
+EDIT_PROF="$TMP/profile-edit.md"
+cat > "$EDIT_PROF" <<'EOF'
+## Edit-time checks
+- `*.sh` → `.claude/hooks/shell-lint.sh`
+
+## Next
+EOF
+D="-"   # leading dash, kept out of literals so this file lints clean
+ELR="$TMP/edit-repo"
+git init -q -b feature/edit "$ELR"
+ELR_ROOT="$(git -C "$ELR" rev-parse --show-toplevel)"
+EDITED="$ELR_ROOT/sample.sh"
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; } > "$EDITED"
+git -C "$ELR" add sample.sh
+git -C "$ELR" -c user.email=t@t.test -c user.name=t commit -qm baseline
+postedit() { printf '{"hook_event_name":"PostToolUse","tool_name":"%s","tool_input":{"file_path":"%s"}}' "$1" "$2"; }
+
+export GUARD_PROJECT_FILE="$EDIT_PROF"
+# THE delta case (done-when #1): the file already fails; an edit adding NO new
+# diagnostic is ALLOWED. A guard that blocked on any current failure fails here.
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf '# touched, no new issue\n'; } > "$EDITED"
+check 0 "$ELR" "r7 allow: pre-existing failure, edit adds no new diagnostic" "$(postedit Edit "$EDITED")"
+# an edit that ADDS a diagnostic is rejected (fix-forward, exit 2).
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf "yes '%s b' | head -n1\n" "$D"; } > "$EDITED"
+check 2 "$ELR" "r7 block: edit adds a new diagnostic" "$(postedit Edit "$EDITED")"
+# an edit that REMOVES the pre-existing failure is allowed (improvement, delta<0).
+{ printf '#!/usr/bin/env bash\n'; printf "yes '# a' | head -n1\n"; } > "$EDITED"
+check 0 "$ELR" "r7 allow: edit fixes the pre-existing failure" "$(postedit Edit "$EDITED")"
+# a brand-new (untracked) file: baseline is empty (0), so any diagnostic is new.
+NEWF="$ELR_ROOT/fresh.sh"
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s c' | head -n1\n" "$D"; } > "$NEWF"
+check 2 "$ELR" "r7 block: new untracked file introduces a diagnostic" "$(postedit Write "$NEWF")"
+# fail-open: a file type with no checker row in the map.
+printf 'plain text\n' > "$ELR_ROOT/notes.md"
+check 0 "$ELR" "r7 allow: unmapped file type fails open" "$(postedit Edit "$ELR_ROOT/notes.md")"
+# fail-open: a PostToolUse edit carrying no file_path.
+check 0 "$ELR" "r7 allow: PostToolUse edit with no file_path fails open" '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{}}'
+# fail-open: an out-of-repo .sh (would be flagged if linted) — the in_repo gate.
+OUT_SH="$(dirname "$ELR_ROOT")/outside.sh"
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s z' | head -n1\n" "$D"; } > "$OUT_SH"
+check 0 "$ELR" "r7 allow: out-of-repo .sh edit fails open" "$(postedit Edit "$OUT_SH")"
+# a non-edit tool at PostToolUse is ignored.
+check 0 "$ELR" "r7 allow: non-edit tool at PostToolUse ignored" "$(postedit Bash "$EDITED")"
+# event gating: the SAME diagnostic-adding content at PreToolUse (no
+# hook_event_name) must NOT fire rule 7 — the edit has not happened yet.
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf "yes '%s b' | head -n1\n" "$D"; } > "$EDITED"
+check 0 "$ELR" "r7 allow: edit-time lint does not fire at PreToolUse" "$(edit Edit "$EDITED")"
+unset GUARD_PROJECT_FILE
+
 # --- telemetry: block + evaluation records (workflow/telemetry.md, US1.AC3/AC4) ---
 # tcount <want> <pattern> <name> — assert how many telemetry lines match.
 tcount() {
@@ -279,20 +334,33 @@ check 2 "$FEAT" "tele: block with both seam and override set" "$(bashp 'git add 
 tcount 1 '"record":"block"' "tele: env seam outranks the profile override"
 unset GUARD_PROJECT_FILE
 
-# --- hook wiring: the PreToolUse matcher must route every tool guard.sh handles ---
+# --- hook wiring: each phase's matcher must route every tool guard.sh handles ---
 # Conformance-probe finding (issue #110, P-GD.5): rule 5 was dead on the live
-# driver because settings.json's matcher omitted Agent|Task — guard.sh never saw
-# the dispatch, while these payload tests stayed green. The wiring is part of the
-# binding, so it gets its own assertion.
+# driver because settings.json's PreToolUse matcher omitted Agent|Task — guard.sh
+# never saw the dispatch, while these payload tests stayed green. The wiring is
+# part of the binding, so it gets its own assertion. Rule 7 (the [edit guard],
+# issue #79 done-when #3) enumerates its edit tools the same way: an edit tool
+# absent from the PostToolUse matcher would leave rule 7 silently dead. Both
+# matchers are extracted by event so the assertion is order-independent.
 SETTINGS="$(cd "$(dirname "$0")" && pwd)/../settings.json"
-matcher="$(grep -oE '"matcher"[[:space:]]*:[[:space:]]*"[^"]*"' "$SETTINGS" | head -1 \
-  | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/')"
+event_matcher() { # event_matcher <EventKey> -> that block's first matcher string
+  sed -n "/\"$1\"/,/]/p" "$SETTINGS" \
+    | grep -oE '"matcher"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 \
+    | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/'
+}
+routes() { printf '|%s|' "$1" | grep -qF "|$2|"; } # routes <matcher> <tool>
+pre_matcher="$(event_matcher PreToolUse)"
 for t in Edit Write MultiEdit NotebookEdit Bash PowerShell Agent Task; do
-  if printf '|%s|' "$matcher" | grep -qF "|$t|"; then
-    pass=$((pass + 1))
-  else
+  if routes "$pre_matcher" "$t"; then pass=$((pass + 1)); else
     fail=$((fail + 1))
-    printf 'FAIL %-55s matcher must include it\n' "wiring: PreToolUse matcher routes $t" >&2
+    printf 'FAIL %-55s PreToolUse matcher must include it\n' "wiring: PreToolUse routes $t" >&2
+  fi
+done
+post_matcher="$(event_matcher PostToolUse)"
+for t in Edit Write MultiEdit NotebookEdit; do
+  if routes "$post_matcher" "$t"; then pass=$((pass + 1)); else
+    fail=$((fail + 1))
+    printf 'FAIL %-55s PostToolUse matcher must route it (else rule 7 is dead)\n' "wiring: PostToolUse routes $t" >&2
   fi
 done
 
