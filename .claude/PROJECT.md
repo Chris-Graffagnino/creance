@@ -60,9 +60,10 @@ The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated wor
 - **Opt-in:** `autonomy-opt-in: disabled` — the default. This project runs in **review mode**
   (open PRs, a human merges). To opt in to isolated autonomous execution with §7-gated
   promotion, change that one line's value to `enabled`. That is the **only** line that may
-  carry the opt-in token: the check treats a duplicate/ambiguous declaration, a non-`enabled`
-  value, or an unreadable profile as **review** — it fails closed (the inverse of the
-  fail-open `[guard]`). Engaging autonomy per-session instead — an explicit in-session
+  carry the opt-in token, inside its backtick code span: the check treats a
+  duplicate/ambiguous declaration, a non-`enabled` value, a commented-out line or a prose
+  mention of the token, or an unreadable profile as **review** — it fails closed (the
+  inverse of the fail-open `[guard]`). Engaging autonomy per-session instead — an explicit in-session
   authorization — needs no file edit.
 - **Opting in is a governance change**, ratified by the human-reviewed PR that lands the flag
   (reconciled with "merge authorization is session-explicit only" in the neutral model).

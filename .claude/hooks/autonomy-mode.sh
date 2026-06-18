@@ -25,6 +25,7 @@ set -u
 
 PROFILE=".claude/PROJECT.md"
 OPT_IN_KEY="autonomy-opt-in"
+BT='`'   # literal backtick — a genuine declaration is a code span, never bare prose
 session_authorized=0
 
 usage() {
@@ -41,13 +42,28 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-# Config opt-in: engaged ONLY when the profile carries EXACTLY ONE declaration whose
-# value is `enabled`. Zero matches, a non-`enabled` value (e.g. the default `disabled`),
-# an unreadable/absent profile, or multiple/conflicting declarations all fall through to
-# NOT-opted-in — the fail-closed posture.
+# Config opt-in: engaged ONLY when the profile carries EXACTLY ONE genuine declaration
+# whose value is `enabled`. A genuine declaration is the documented canonical shape —
+# the key inside a backtick code span, `autonomy-opt-in: <value>`, on a line that is NOT
+# commented out (PROJECT.md → "Autonomy": "the only line that may carry the opt-in token").
+# Zero matches, a non-`enabled` value (the default `disabled`), an unreadable/absent
+# profile, or multiple/conflicting declarations all fall through to NOT-opted-in.
+#
+# Two anchors keep a malformed/ambiguous profile from flipping OPEN — the one thing this
+# fail-closed boundary must never do (Codex review + constitution audit, PR #107):
+#   * comment lines are dropped first (markdown/shell `#…`, HTML `<!-- … -->`), so a
+#     commented-out declaration — the operator's natural "turn it off" gesture — reads OFF;
+#   * the code-span backticks reject a token that is not a declaration: a longer identifier
+#     whose suffix is the key (`xautonomy-opt-in: enabled`), a prose mention
+#     (`(see autonomy-opt-in: enabled)`), or a heading — none sit inside a `key: value`
+#     code span, so none can be lifted out.
+# The `= enabled` test then bounds the value and the `count == 1` test bounds cardinality
+# (a prose code-span example alongside the real line makes count ≥ 2 → fail closed).
 opt_in=0
 if [ -f "$PROFILE" ] && [ -r "$PROFILE" ]; then
-  values=$(grep -oE "${OPT_IN_KEY}:[[:space:]]*[A-Za-z]+" "$PROFILE" 2>/dev/null \
+  values=$(grep -vE '^[[:space:]]*#|<!--' "$PROFILE" 2>/dev/null \
+    | grep -oE "${BT}${OPT_IN_KEY}:[[:space:]]*[A-Za-z]+${BT}" \
+    | grep -oE ':[[:space:]]*[A-Za-z]+' \
     | grep -oE '[A-Za-z]+$')
   count=$(printf '%s\n' "$values" | grep -c .)
   if [ "$count" = "1" ] && [ "$values" = "enabled" ]; then

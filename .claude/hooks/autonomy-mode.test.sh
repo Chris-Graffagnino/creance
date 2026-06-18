@@ -7,9 +7,12 @@
 #   * default-off:    no opt-in + no authorization -> review (done-when (a).1);
 #   * the two engage signals (config opt-in, in-session authorization);
 #   * fail-closed:     unreadable/absent profile, non-`enabled` value, ambiguous
-#                      duplicate declaration -> review (never autonomous);
+#                      duplicate declaration, and any token that only LOOKS like the
+#                      declaration (longer-identifier suffix, commented-out line,
+#                      heading, prose mention) -> review (never autonomous);
 #   * usage guards;
-#   * wiring:          ci.yml runs both the check and this test; the neutral model
+#   * wiring:          the `verify` job ACTIVELY runs both the check and this test (an
+#                      active `run:` step, not a mention in a comment); the neutral model
 #                      ([isolated workspace] in workflow/README.md) and the profile
 #                      opt-in key the check reads both exist (mechanism <-> model
 #                      drift backstop).
@@ -47,12 +50,24 @@ rc() {
   if [ "$got" = "$want" ]; then ok; else bad "$label: got rc=$got want $want"; fi
 }
 
-# Fixtures.
+# Fixtures. A genuine declaration is the canonical code-span shape (PROJECT.md → Autonomy:
+# the key inside backticks, on its own bullet line); dup/garbled use that shape so they
+# still exercise the cardinality and value guards rather than the code-span anchor.
 printf 'foo\nbar\n'                                            > "$TMP/none.md"
 printf '%s\n' '- **mode** `autonomy-opt-in: disabled` (default)' > "$TMP/disabled.md"
 printf '%s\n' '- **mode** `autonomy-opt-in: enabled`'           > "$TMP/enabled.md"
-printf 'autonomy-opt-in: enabled\nautonomy-opt-in: enabled\n'  > "$TMP/dup.md"
-printf '%s\n' 'autonomy-opt-in: maybe'                         > "$TMP/garbled.md"
+printf '%s\n' '- `autonomy-opt-in: enabled`' '- `autonomy-opt-in: enabled`' > "$TMP/dup.md"
+printf '%s\n' '- `autonomy-opt-in: maybe`'                     > "$TMP/garbled.md"
+# "Looks like a declaration but is not one" (Codex review + constitution audit, PR #107).
+# Each must resolve to review: a longer identifier whose suffix is the key (bare and in a
+# code span), a commented-out declaration (HTML + heading forms — the operator's natural
+# "turn it off" gesture), and prose mentions (key name in a code span; the token in prose).
+printf '%s\n' 'xautonomy-opt-in: enabled'                      > "$TMP/superstring.md"
+printf '%s\n' '- `xautonomy-opt-in: enabled`'                  > "$TMP/superstring-span.md"
+printf '%s\n' '<!-- `autonomy-opt-in: enabled` -->'            > "$TMP/commented-html.md"
+printf '%s\n' '# `autonomy-opt-in: enabled`'                   > "$TMP/commented-hash.md"
+printf '%s\n' '(see `autonomy-opt-in` — set it to enabled)'    > "$TMP/prose-keyname.md"
+printf '%s\n' 'docs say autonomy-opt-in: enabled turns it on'  > "$TMP/prose-mention.md"
 
 # Default-off — the load-bearing done-when (a).1 case: with neither signal, review.
 decision "default-off (no key)"        review      --profile "$TMP/none.md"
@@ -67,6 +82,16 @@ decision "either signal (auth + disabled profile)" autonomous --session-authoriz
 decision "fail-closed: absent profile" review      --profile "$TMP/does-not-exist.md"
 decision "fail-closed: ambiguous dup"  review      --profile "$TMP/dup.md"
 decision "fail-closed: garbled value"  review      --profile "$TMP/garbled.md"
+# A token that merely LOOKS like the declaration must never flip OPEN (Codex review +
+# constitution audit, PR #107). The unanchored grep lifted the key straight out of
+# `xautonomy-opt-in: enabled`; a left-only anchor still honored a commented-out line — the
+# canonical code-span + comment-strip rejects both, plus prose, in either direction.
+decision "fail-closed: superstring key"       review --profile "$TMP/superstring.md"
+decision "fail-closed: superstring in span"   review --profile "$TMP/superstring-span.md"
+decision "fail-closed: commented-out (html)"  review --profile "$TMP/commented-html.md"
+decision "fail-closed: commented-out (hash)"  review --profile "$TMP/commented-hash.md"
+decision "fail-closed: prose key name"        review --profile "$TMP/prose-keyname.md"
+decision "fail-closed: prose mention"         review --profile "$TMP/prose-mention.md"
 
 # A non-fail-open spot check: an unreadable profile must NEVER read as autonomous.
 got=$(bash "$SCRIPT" --profile "$TMP/does-not-exist.md" 2>/dev/null)
@@ -77,9 +102,20 @@ rc "unknown flag -> exit 2"        2 --bogus
 rc "--profile w/o value -> exit 2" 2 --profile
 rc "valid call -> exit 0"          0 --profile "$TMP/none.md"
 
-# Wiring (P2): the check + this test must be run by CI, or the machinery is silently dead.
-if grep -qE 'autonomy-mode\.sh' "$CI"; then ok; else bad "ci.yml does not run autonomy-mode.sh"; fi
-if grep -qE 'autonomy-mode\.test\.sh' "$CI"; then ok; else bad "ci.yml does not run autonomy-mode.test.sh"; fi
+# Wiring (P2): the check + this test must be RUN by the required `verify` job, or the
+# machinery is silently dead. A bare filename grep over the whole file is too loose
+# (Codex review, PR #107; same class as the residency/budget wiring fix, #92): a
+# commented-out, disabled, or moved-to-another-job copy of the step would still satisfy
+# it — and the explanatory comment block above these steps names both filenames — while
+# `verify` no longer runs the gate. So scope to the `verify` job's body and require an
+# ACTIVE `run: bash <script>` step, exactly as the residency/budget tests do.
+# Lines belonging to the `verify:` job: from its 2-space-indented key to the next
+# 2-space-indented job key (or EOF). No awk interval syntax (portable to BSD awk).
+verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
+# 0 iff an active (uncommented) `run: bash <path>` step invokes $1 within verify.
+runs_in_verify() { verify_steps | grep -qE "^[[:space:]]*run:[[:space:]]+bash[[:space:]]+$1([[:space:]]|\$)"; }
+if runs_in_verify '\.claude/hooks/autonomy-mode\.sh'; then ok; else bad "verify must RUN autonomy-mode.sh (active run: step)"; fi
+if runs_in_verify '\.claude/hooks/autonomy-mode\.test\.sh'; then ok; else bad "verify must RUN autonomy-mode.test.sh (active run: step)"; fi
 
 # Mechanism <-> model drift backstop: the neutral role the check binds, and the
 # profile opt-in key it reads, must both exist (else the check is decoupled from its model).
