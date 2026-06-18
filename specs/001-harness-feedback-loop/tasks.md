@@ -125,7 +125,7 @@
 > is an epic and may be split further at implementation time if a done-when exceeds
 > one PR's reasonable scope.
 
-- [ ] T607 [strong] Edit-time lint/typecheck-and-reject guard: a post-edit
+- [x] T607 [strong] Edit-time lint/typecheck-and-reject guard: a post-edit
       verification that runs the project's syntax/type check on touched files and
       rejects a change that adds a *new* diagnostic (fix-forward feedback), allowing
       an edit that leaves diagnostics no worse than before; failing open when no

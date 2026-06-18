@@ -42,6 +42,7 @@ changing a mapping, update both.
 | **[bulk-read offload]** | The `Explore` subagent (spawn on the cheap tier) |
 | **[headless run]** | `claude -p "/<workflow> <args>"` |
 | **[guard]** | A PreToolUse hook → `hooks/guard.sh` (exit 2 blocks; reads the hook's JSON payload on stdin; implements the guard rules normatively listed in `workflow/README.md`) |
+| **[edit guard]** | A **PostToolUse** hook → the same `hooks/guard.sh` (rule 7), wired in `settings.json` for `Edit\|Write\|MultiEdit\|NotebookEdit`. On an edit to a file whose type maps to a checker in `PROJECT.md` → "Edit-time checks", it reruns that checker and exits 2 with the diagnostics when the edit adds one beyond the file's committed `HEAD` baseline (fix-forward — PostToolUse cannot revert). Shipped checker: `hooks/shell-lint.sh` (`bash -n` + a BSD/GNU portability denylist, also run standalone over `hooks/*.sh` in CI `verify`) |
 | **[permission allowlist]** | `settings.json` → `permissions.allow` (prefix-matched) |
 | **[environment block]** | `skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy; other bindings reference it, never copy it) |
 | **[comment marker]** | Every engine-posted `gh issue comment` / `gh pr comment` body ends with the marker footer line defined in `skills/next-task/SKILL.md` → "The [comment marker] concrete form" (the single copy, alongside the [environment block]) |

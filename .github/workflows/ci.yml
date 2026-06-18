@@ -32,9 +32,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Guard hook regression tests (bash + git only, <1s).
+      # Guard hook regression tests (bash + git only, <1s). Now also covers the
+      # [edit guard] (guard.sh rule 7, PostToolUse): the delta-based reject (a
+      # pre-existing failure stays editable, a new diagnostic is rejected) and the
+      # PostToolUse matcher-wiring assertion enumerating the edit tools (#79).
       - name: Guard hook tests
         run: bash .claude/hooks/guard.test.sh
+
+      # Shell-portability lint (#97) + the [edit guard]'s checker (#79, T607).
+      # shell-lint.sh is BOTH the checker guard.sh rule 7 runs on a touched *.sh
+      # file AND a standing gate over the repo's own hooks: the yes-dash-arg /
+      # awk-interval denylist catches BSD-vs-GNU divergences that pass on macOS
+      # (dev) and fail on GNU (CI) or vice-versa — the passes-locally-fails-CI
+      # class (PR #94, fixed in 981e04c). The .test.sh proves the denylist FIRES
+      # on planted patterns and does NOT false-fire on the portable forms (the P2
+      # "machinery proves it is live" discipline, same as guard.test.sh). This is
+      # adapter-side wiring (hooks/ is the Claude Code binding), not a workflow/**
+      # change — no constitution P1 concern.
+      - name: Shell-portability lint (hooks)
+        run: bash .claude/hooks/shell-lint.sh .claude/hooks/*.sh
+
+      - name: Shell-portability lint tests
+        run: bash .claude/hooks/shell-lint.test.sh
 
       # Tasks-file resolution stays unambiguous (issue #21): the template skeleton
       # must never match the engine's specs/*/{spec,tasks}.md fallback globs, and no

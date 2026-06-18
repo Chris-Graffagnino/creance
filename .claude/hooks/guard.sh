@@ -3,8 +3,8 @@
 # enforces are specified in .claude/workflow/README.md → "The [guard] rules"; another
 # runtime supplies its own implementation of those same rules.
 # Enforces AGENTS.md workflow rules deterministically.
-# Pure Git-Bash: needs only cat/grep/sed/git (no node, jq, or pwsh).
-# Blocks (exit 2, message on stderr):
+# Pure Git-Bash: needs only cat/grep/sed/git/mktemp (no node, jq, awk, or pwsh).
+# PreToolUse — blocks (exit 2, message on stderr) before the action runs:
 #   1. Any file edit (Edit/Write/MultiEdit/NotebookEdit) while on branch `main`.
 #   2. `git add .` / `git add -A` / `git add --all` (stage specific files instead).
 #   3. `git commit` / `git push` while on branch `main`.
@@ -20,6 +20,16 @@
 #      delimiter does not occur in (e.g. `s#a#https://h/p#g`), safe delimiters
 #      (`@`, `|`), and seds without a URL are all left alone; addressed forms
 #      (`1s#…`, `/re/s#…`) are caught.
+# PostToolUse — fix-forward feedback (exit 2) AFTER the write, since PreToolUse
+# cannot see an edit's result and PostToolUse cannot revert (issue #79):
+#   7. An edit to a checked file that ADDS a diagnostic from the project's
+#      configured per-type checker — measured as a DELTA against the file's
+#      committed (HEAD) baseline, so an edit leaving diagnostics no worse than
+#      before is allowed. No checker configured for the type, an unknown/out-of-
+#      repo path, or an unavailable baseline all fail open. The file-type ->
+#      checker map is a project fact (.claude/PROJECT.md -> "Edit-time checks");
+#      the shipped checker is .claude/hooks/shell-lint.sh (bash -n + a BSD/GNU
+#      portability denylist, folding in issue #97).
 # Allows everything else (exit 0). Fails open: any uncertainty -> allow.
 # Telemetry (workflow/telemetry.md): every block appends a `block` record and
 # every constitution-auditor dispatch evaluation appends an `evaluation`
@@ -141,6 +151,70 @@ model_in() { # model_in <model> <names...> — containment, so full IDs match to
   done
   return 1
 }
+
+# Rule 7 helpers (the [edit guard], PostToolUse). All paths fail open.
+# norm_rel <abs-file> <repo-root> -> path relative to root ('' if outside root).
+# Backslashes (a Windows-serialized path) are folded; case is preserved (git
+# paths are case-sensitive), unlike norm() which lowercases for prefix matching.
+norm_rel() {
+  local fp root
+  fp="$(printf '%s' "$1" | tr '\\' '/')"
+  root="$(printf '%s' "$2" | tr '\\' '/')"
+  case "$fp" in "$root"/*) printf '%s' "${fp#"$root"/}" ;; *) : ;; esac
+}
+# edit_checker <file> -> the checker script mapped to <file>'s type in the
+# profile's "Edit-time checks" map ('' if none). Rows: `<glob>` -> `<checker>`.
+edit_checker() {
+  local base line glob chk
+  base="${1##*/}"
+  while IFS= read -r line; do
+    glob="$(printf '%s' "$line" | grep -oE '`[^`]+`' | head -1   | tr -d '`')"
+    chk="$(printf '%s' "$line"  | grep -oE '`[^`]+`' | sed -n 2p | tr -d '`')"
+    [ -n "$glob" ] && [ -n "$chk" ] || continue
+    case "$base" in $glob) printf '%s' "$chk"; return 0 ;; esac
+  done < <(sed -n '/^##[[:space:]]*Edit-time checks/,/^##[[:space:]]/p' "$profile_file" 2>/dev/null | grep -E '^[-*][[:space:]]')
+}
+# edit_baseline_diags <file> <checker> -> diagnostic count on <file>'s committed
+# (HEAD) blob. Prints nothing (caller fails open) when there is no repo or no
+# HEAD; prints 0 for an in-repo file not tracked at HEAD (its diagnostics are
+# all "new").
+edit_baseline_diags() {
+  local root rel tmp n
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 0
+  [ -n "$root" ] || return 0
+  git rev-parse --verify -q HEAD >/dev/null 2>&1 || return 0
+  rel="$(norm_rel "$1" "$root")"
+  [ -n "$rel" ] || { printf '0'; return 0; }
+  if git cat-file -e "HEAD:$rel" 2>/dev/null; then
+    tmp="$(mktemp -d 2>/dev/null)" || { printf '0'; return 0; }
+    git show "HEAD:$rel" > "$tmp/base" 2>/dev/null
+    n="$(bash "$2" "$tmp/base" 2>/dev/null | grep -cE '[^[:space:]]')"; [ -n "$n" ] || n=0
+    rm -rf "$tmp"
+    printf '%s' "$n"
+  else
+    printf '0'
+  fi
+}
+
+if [ "$(jstr hook_event_name)" = "PostToolUse" ]; then
+  case "$tool" in Edit|Write|MultiEdit|NotebookEdit) ;; *) exit 0 ;; esac
+  in_repo || exit 0
+  fp="$(jstr file_path)"; [ -n "$fp" ] || exit 0
+  checker_rel="$(edit_checker "$fp")"; [ -n "$checker_rel" ] || exit 0
+  adapter_root="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)" || exit 0
+  case "$checker_rel" in /*) checker="$checker_rel" ;; *) checker="$adapter_root/$checker_rel" ;; esac
+  [ -f "$checker" ] || exit 0
+  diags="$(bash "$checker" "$fp" 2>/dev/null)"
+  cur="$(printf '%s\n' "$diags" | grep -cE '[^[:space:]]')"; [ -n "$cur" ] || cur=0
+  base="$(edit_baseline_diags "$fp" "$checker")"
+  [ -n "$base" ] || exit 0
+  if [ "$cur" -gt "$base" ]; then
+    block edit-lint-regression "This edit adds $((cur - base)) new diagnostic(s) to a checked file (baseline $base, now $cur). The project's edit-time check reports:
+$diags
+Fix these forward. (An edit leaving diagnostics no worse than the committed baseline is allowed; the check fails open when none is configured.)"
+  fi
+  exit 0
+fi
 
 case "$tool" in
   Edit|Write|MultiEdit|NotebookEdit)

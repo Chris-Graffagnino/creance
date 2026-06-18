@@ -53,6 +53,18 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Coverage policy:** none (the repo is mostly prose + bash; `guard.test.sh` must cover
   every guard behavior change).
 
+## Edit-time checks (the [edit guard] map — `guard.sh` rule 7 reads this)
+The [edit guard] (adapter: the `PostToolUse` hook `guard.sh`, rule 7) runs the matching
+checker on a touched file and rejects an edit that adds a *new* diagnostic — measured as a
+**delta** against the file's committed `HEAD` baseline, so an edit that leaves diagnostics
+no worse than before is allowed. A file type with **no row** → no check → the guard fails
+open. Concrete check commands are project facts and live here, never in the engine. Each
+row's first two backticked tokens are the glob and its checker: `` `<glob>` → `<checker>` ``.
+- `*.sh` → `.claude/hooks/shell-lint.sh`
+  (`bash -n` syntax + a BSD/GNU portability denylist — a `yes` dash-leading arg, an `awk`
+  `{n}`/`{n,m}` interval — folding in #97; the standing CI lint runs the same checker over
+  every `.claude/hooks/*.sh`).
+
 ## Architecture boundaries (the only allowed seams)
 - Workflow layer (`.claude/workflow/**`) stays runtime-neutral: roles in **[brackets]**
   only; runtime-specific mechanisms live in `.claude/adapters/` and skill bindings. A
@@ -94,6 +106,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   `.claude/workflow/reviewers/`), invariants, guards, or `memory/constitution.md` modified
   by automation outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a
   gate run — FAIL (constitution P4; spec 001 non-goals).
+- A `.claude/hooks/*.sh` script carrying a known BSD-vs-GNU-divergent construct (a `yes`
+  dash-leading argument, an `awk` `{n}`/`{n,m}` regex interval) — FAIL (the
+  passes-locally-fails-CI class, #97). The same `shell-lint.sh` checker backs the
+  [edit guard] (`guard.sh` rule 7), which rejects an edit that adds a *new* diagnostic to a
+  checked file measured against its committed baseline (#79) — guard-behavior change, so it
+  ships with `guard.test.sh` cases (P2) and fails open when no checker is configured.
 
 ### Invariant → enforcement mapping
 
@@ -105,6 +123,7 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 | Telemetry observes, never decides (P5) | constitution-auditor: hunt gate/tier logic reading telemetry or evaluation records | none yet — judgment-only |
 | No silent self-modification (P4) | constitution-auditor: hunt automation that writes reviewer specs, guards, invariants, or the constitution outside a PR | none yet — judgment-only |
 | `AGENTS.md` residency (the L1 always-resident file stays lean; DESIGN-NOTES §11, P3) | constitution-auditor: a procedure inlined into `AGENTS.md` that a `workflow/**` pointer could carry | `agents-residency-check.sh` line ceiling in CI `verify` |
+| Hook scripts (`.claude/hooks/*.sh`) stay BSD/GNU-portable; an edit adds no new diagnostic to a checked file ([edit guard], #79/#97) | constitution-auditor: a `guard.sh` behavior change (incl. rule 7) without a matching `guard.test.sh` case | `shell-lint.sh` + `shell-lint.test.sh` over `.claude/hooks/*.sh` in CI `verify`; `guard.test.sh` rule-7 delta cases |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.
