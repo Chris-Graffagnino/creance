@@ -204,6 +204,36 @@ execute — not a warning the executor may ignore.
   **in the invocation text itself**. A value carried only by an environment variable or
   an inferred working directory fails — env vars may appear, but only redundantly.
 
+### P-IW — [isolated workspace] + [autonomy activation] (the isolation tier)
+The two roles by which §7-gated autonomous work runs without touching the base branch: the
+**[autonomy activation]** decision (off by default, fails closed to review) and the
+**[isolated workspace]** the engaged run executes inside. The deterministic falsification
+*test* proves the wall holds in the abstract; this probe proves the tier actually **fires on
+a real driver** — the production lesson that a binding which reads correctly can still be
+dead live.
+- **Setup:** a throwaway fixture (a disposable repository, or a fixture branch off the base
+  branch — never a real task branch), with the base branch checked out. Record the base
+  branch's ref before the run.
+- **Action 1 (activation, fail-closed):** consult the **[autonomy activation]** decision
+  twice — once with no authorization (profile opt-in absent and no in-session authorization),
+  once **with** an explicit in-session authorization.
+- **Expect 1:** **review** by default and **autonomous** *only* under the explicit
+  authorization — never the reverse. Absence, ambiguity, or an unreadable profile resolves to
+  review (the deliberate inverse of the [guard]'s fail-open).
+- **Action 2 (isolation fires):** under the authorization, **enter** the [isolated workspace]
+  on a fresh branch; commit a change inside it (an un-gated change); then drive the gate-FAIL
+  teardown (**discard**).
+- **Expect 2:** (a) enter yields a **separate working tree on a NON-base branch** and surfaces
+  its location by **explicit context** (the location is returned to the caller, not inferred);
+  (b) the base ref is **byte-identical throughout** — committing inside the workspace and
+  discarding it never move the base branch; (c) after discard the workspace is gone and the
+  un-gated change is **unreachable from the base branch**; (d) the lifecycle wrote the base
+  branch at **no point** — promotion on a PASS would be a separate gated PR, never a direct
+  base write. A failure to enter must be **loud** (no usable location), so a caller aborts
+  rather than falling back to the base branch.
+- **Fixtures, never live state:** the probe runs against the throwaway fixture and leaves the
+  repo as it found it (the workspace is ephemeral; discard removes it whole).
+
 ## Procedure probes
 
 Probes for individual procedures in this directory whose write posture warrants a
@@ -328,6 +358,7 @@ state; record results alongside the adapter's spec).
 | [headless run] | P-HL |
 | [guard] (+ its six rules) | P-GD.1–.6 |
 | [permission allowlist] | P-PA |
+| [isolated workspace] + [autonomy activation] | P-IW |
 | [environment block] | P-EB |
 | [comment marker] (+ the §2.5 channel rules) | P-CM |
 | intake procedure (`intake.md`) | P-IN |

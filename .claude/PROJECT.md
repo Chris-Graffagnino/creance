@@ -76,8 +76,15 @@ The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated wor
   autonomous run still terminates at a PR; nothing reaches the base branch without a human (or
   session-authorized) merge. Setting the opt-in on changes *where* autonomous work runs (an
   isolated worktree) and wires PASS→promote / FAIL→discard, but still not *whether* it auto-merges
-  — it does not. The falsification proof that an un-gated change cannot reach the base branch, plus
-  the live probe that isolation fires, is **T613** (still pending).
+  — it does not.
+- **T613 (epic #81 part d) closes the epic** with the falsification proof that an un-gated change
+  cannot reach the base branch — `hooks/isolation-falsification.test.sh`, wired into `verify`,
+  adversarially proves the un-gated commit is unreachable from base after `exit`, destroyed whole by
+  `discard`, that a forged `branch=main` marker cannot make `discard` delete the checked-out base,
+  and that the lifecycle source carries no base-writing door — plus the live **P-IW** conformance
+  probe that the isolation tier actually fires on a real driver (recorded in
+  `adapters/claude-code-probes.md`'s probe-results table). The epic umbrella #81 can close once all
+  four sub-tasks (T610–T613) land.
 
 ## Edit-time checks (the [edit guard] map — `guard.sh` rule 7 reads this)
 The [edit guard] (adapter: the `PostToolUse` hook `guard.sh`, rule 7) runs the matching
@@ -172,7 +179,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 | Hook scripts (`.claude/hooks/*.sh`) stay BSD/GNU-portable; an edit adds no new diagnostic to a checked file ([edit guard], #79/#97) | constitution-auditor: a `guard.sh` behavior change (incl. rule 7) without a matching `guard.test.sh` case | `shell-lint.sh` + `shell-lint.test.sh` over `.claude/hooks/*.sh` in CI `verify`; `guard.test.sh` rule-7 delta cases |
 | Selection reconciles live state before starting (no merged-but-unchecked pick; P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation, or a forked second copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused; asserts both consumers source `lib-tasks-drift.sh`) in CI `verify` |
 | Autonomous mode off by default + activation fails closed to review; promotion stays §7-gated (P3/P4; `[isolated workspace]`) | constitution-auditor: an activation path reachable without the deterministic `[autonomy activation]` check, the check failing open, or isolation writing the base branch directly | `autonomy-mode.test.sh` (default-off + fail-closed cases; asserts ci.yml runs the check+test and the neutral role + profile flag exist) in CI `verify` |
-| Isolation lifecycle never writes the base branch; the activation read is wired into the autonomous path; gate-in-place reads the workspace diff by explicit context and promote/discard never auto-merges or writes the base ref (P4; T611 lifecycle + T612 gate-in-place — the full falsification proof is T613) | constitution-auditor: a `discard`/`exit`/promote path that writes the base ref or auto-merges, a gate that reads an inferred CWD instead of the passed workspace path, or an `enter` that falls back to the base branch instead of failing loud | `isolated-workspace.test.sh` (discard removes the dir + deletes only the ephemeral branch + leaves the base ref untouched + refuses a non-owned worktree; enter→work→exit leaves base untouched; enter fails loud) + `gate-loop.test.js` (workspacePath retargets the reviewer/fixer prompt; absent → unchanged main-tree diff) in CI `verify` |
+| Isolation lifecycle never writes the base branch; the activation read is wired into the autonomous path; gate-in-place reads the workspace diff by explicit context and promote/discard never auto-merges or writes the base ref (P4; T611 lifecycle + T612 gate-in-place + T613 full falsification proof) | constitution-auditor: a `discard`/`exit`/promote path that writes the base ref or auto-merges, a gate that reads an inferred CWD instead of the passed workspace path, or an `enter` that falls back to the base branch instead of failing loud | `isolated-workspace.test.sh` (discard removes the dir + deletes only the ephemeral branch + leaves the base ref untouched + refuses a non-owned worktree; enter→work→exit leaves base untouched; enter fails loud) + `isolation-falsification.test.sh` (T613: the un-gated commit unreachable from base after exit, destroyed by discard, a forged `branch=main` marker cannot delete the checked-out base, no base-writing door in the script) + `gate-loop.test.js` (workspacePath retargets the reviewer/fixer prompt; absent → unchanged main-tree diff) in CI `verify`; live counterpart is the **P-IW** conformance probe |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.

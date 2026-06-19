@@ -168,7 +168,7 @@
 - [x] T612 [strong] (T609c) Gate-in-place: the §7 loop + auditors read the diff from the
       isolated workspace; the discard path on FAIL (#113; epic #81 part c;
       repo-maintenance — done-when on issue) — strong: gate-semantics boundary (P4)
-- [ ] T613 [strong] (T609d) Falsification proof: an automated test that an un-gated change
+- [x] T613 [strong] (T609d) Falsification proof: an automated test that an un-gated change
       cannot reach `main`, wired into `verify`, + a conformance probe that the isolation
       tier actually fires live (epic #81 part d; create issue on demand; repo-maintenance —
       done-when on issue) — strong: P2 falsification machinery guarding the wall

@@ -8,8 +8,8 @@
 #                   on stdout (explicit-context) — done-when 1;
 #   * exit:         removes that workspace directory; the worktree de-registers — done-when 1;
 #   * no main write: enter -> commit work in the workspace -> exit leaves the BASE ref
-#                   untouched (the no-un-gated-path-to-main slice; the full falsification
-#                   proof is T613) — done-when 3;
+#                   untouched (the no-un-gated-path-to-main slice; the full adversarial
+#                   falsification proof is isolation-falsification.test.sh, T613) — done-when 3;
 #   * boundary:     exit removes the DIRECTORY but leaves the branch — `exit` is the PROMOTE
 #                   path's teardown (the dispatcher pushed/PR'd first), so the branch must
 #                   survive; throwing it away on a FAIL is the separate `discard` verb;

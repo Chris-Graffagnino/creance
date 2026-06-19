@@ -95,8 +95,10 @@ path (§8); on a gate **FAIL** the **[isolated workspace]** is **discarded** and
 Promotion is always the §7 gate's PASS, **never a direct write from the workspace** to the base
 branch (`workflow/README.md` → "[isolated workspace]"); a FAIL leaves the base branch untouched.
 Crucially, **promotion is a PR, not a merge** — merging still requires session-explicit
-authorization (§8), so an engaged autonomous run still ends at a PR, not on the base branch. The
-falsification proof that an un-gated change cannot reach the base branch is its own follow-up.
+authorization (§8), so an engaged autonomous run still ends at a PR, not on the base branch. A
+deterministic falsification proof that an un-gated change cannot reach the base branch through the
+lifecycle — plus a live probe that the isolation tier fires on a real driver — now backs this
+property (the enforcing checks are named in the profile's invariant checklist).
 
 ## 1. Select the task
 - If the user named a task ID, use it. Otherwise read the profile's **tasks file** and pick
