@@ -221,10 +221,11 @@ productivity tax, and a fail-open activation check silently enables autonomy.
 ## 14. The isolated workspace is a lifecycle, split from the gate that fills it
 
 T610 defined the `[isolated workspace]` model and the default-off `[autonomy activation]` check
-(§13); T611 binds the *mechanism* — `hooks/isolated-workspace.sh`, a pair of worktree primitives
-(`enter <branch>` → an ephemeral git worktree on a fresh branch, path printed on stdout; `exit
-<path>` → tear the workspace directory down) — and wires the activation read into the autonomous
-`next-task` path (§0.5/§4). Three decisions are load-bearing and easy to "simplify" wrongly:
+(§13); T611 binds the *lifecycle mechanism* — `hooks/isolated-workspace.sh` — and wires the
+activation read into the autonomous `next-task` path (§0.5/§4); **T612 fills the lifecycle with
+the gate**: the §7 gate reads the workspace diff, a `discard` verb is added, and §8's terminal
+step follows the gate outcome (promote-on-PASS / discard-on-FAIL). Four decisions are
+load-bearing and easy to "simplify" wrongly:
 
 - **`enter` fails *loud* — the inverse of the guard.** If a workspace can't be created, `enter`
   exits non-zero with **no path on stdout**, and the caller's contract is to **abort** the
@@ -233,18 +234,39 @@ T610 defined the `[isolated workspace]` model and the default-off `[autonomy act
   autonomous work, exactly what isolation prevents. Same fail-direction logic as `autonomy-mode.sh`
   (§13): the parts that decide *whether* and *where* autonomy runs fail safe; only the guard
   (which decides whether a single edit proceeds) fails open.
-- **`exit` removes the workspace *directory*, never the branch.** The committed work's fate —
-  promote on a §7 PASS, discard on a FAIL — is the **gate's** call (T612), not the lifecycle's.
-  So `exit` is a pure directory teardown; T612's discard path *is* `exit`, its promote path is
-  "push/PR first, then `exit`." A lifecycle that deleted the branch would be silently making the
-  gate's promote/discard decision.
-- **The lifecycle ships *without* the gate that consumes it (T611 vs T612).** T611 wires only
-  enter/exit + the activation read; the §7 gate reading the workspace diff and the promote/discard
-  path are T612, the falsification proof is T613. The intermediate state is *safe by
-  construction*: with no promotion code, an autonomous run executes in a worktree but still ends at
-  the review-mode PR, so nothing reaches the base branch outside the normal §7-gated human path.
-  The split keeps each PR reviewable (the Phase 8/9 epic-splitting precedent) without ever shipping
-  a half-built promotion path.
+- **`exit` (promote) vs `discard` (FAIL) — two verbs, because the lifecycle EXECUTES the gate's
+  decision, it never MAKES it.** T611 shipped only `exit` (pure directory teardown, branch left
+  behind) and forward-referenced "T612's discard path *is* `exit`". T612 refines that: a dedicated
+  `discard <path>` verb removes the directory **and deletes the ephemeral branch**, while `exit`
+  stays the *promote* teardown (the dispatcher has pushed / opened the PR, so the branch must
+  survive). The split is deliberate: the dispatcher, driven by the §7 gate outcome, chooses
+  *which* verb runs — `exit` after a PASS, `discard` after a FAIL — so the verb call *is* the
+  gate's decision being carried out, not the lifecycle deciding on its own. Folding discard back
+  into "just `exit` and don't push" would leave a discarded run's branch ref dangling (blocking a
+  same-name retry) and make "discarded" mean "unpushed but still around"; a single deterministic,
+  ownership-guarded `discard` is cleaner and testable. That ownership guard is a **provenance
+  marker** `enter` writes beside each workspace (and exit/discard check before any teardown), *not*
+  the `creance-ws-*` name alone — the name is forgeable, so a registered worktree under a look-alike
+  dir `enter` did not create (a manual `git worktree add`, another run's workspace) is refused
+  before `discard` could force-delete its branch (Codex P2, PR #114). Neither verb ever touches the
+  base branch (P4): `discard` deletes only a non-base `creance-ws-*` branch (and `git branch -D`
+  refuses a branch checked out in the main tree, so it structurally cannot delete the base).
+- **Gate-in-place is wired by EXPLICIT CONTEXT, not an inferred CWD.** The §7 reviewers (and the
+  fixer) audit the workspace's committed diff because the workspace **path is passed to the gate**
+  (`workspacePath` → an explicit `git -C <path>` in the reviewer/fixer prompts), per the
+  explicit-context rule — *not* because the gate happens to run from the worktree. Relying on an
+  inherited CWD would be the silent-bypass trap: an [orchestrated run] dispatches reviewer
+  subagents that need not inherit the session's directory, so a CWD-only scheme could audit the
+  empty main tree and pass vacuously. Absent the path, the gate reads the main tree exactly as in
+  review mode (review mode provably unchanged).
+- **The epic ships in reviewable slices (T611 lifecycle → T612 gate-in-place → T613 proof).** T611
+  was safe-by-construction with no promotion code (an autonomous run ran in a worktree but still
+  ended at a review-mode PR). T612 wires the gate + promote/discard, but promotion is a **PR, not a
+  merge** — merge stays session-explicit (§8), so an engaged autonomous run still ends at a PR, not
+  on the base branch. The remaining guarantee — an automated falsification proof that an *un-gated*
+  change cannot reach the base branch, plus a live probe that isolation fires — is **T613**. The
+  split keeps each PR reviewable (the Phase 8/9 epic-splitting precedent) without ever shipping a
+  half-built promotion path.
 
 ---
 
@@ -264,4 +286,4 @@ T610 defined the `[isolated workspace]` model and the default-off `[autonomy act
 | The [edit guard]'s *delta* baseline, and `shell-lint.sh` running BOTH at edit time and over all hooks in CI | The delta (vs. the committed `HEAD` blob, not "any current failure") keeps a file with a pre-existing failure editable, so guard rule 7 taxes only *new* breakage and stays trusted (§4 fail-open ethos); collapsing it to "block on any current failure" re-creates the productivity tax that gets guards disabled, and its `guard.test.sh` delta case FAILs. The CI sweep is the *second* consumer of the same checker — it catches a non-portable hook the edit guard never saw (it predates the guard, or was edited on a runtime without the hook), the passes-locally-fails-CI class (#79/#97). |
 | `lib-tasks-drift.sh` as a separate file two scripts source | One drift definition, two consumers — the CI gate (`check-tasks-consistency.sh` rule 3, #69) and the runtime selection precondition (`reconcile-task-selection.sh`, #80/T608). Inlining it back into either forks the "done-but-unchecked" logic the gate and the selector must agree on — the same hand-synced-duplication hole the reviewer roster closed (§12). `reconcile-task-selection.test.sh` asserts both still source it, so a re-fork FAILs CI. |
 | `autonomy-mode.sh` failing *closed* while `guard.sh` fails *open* | Opposite fail directions are intentional, not a bug to reconcile: the guard decides "may this edit proceed" (fail open keeps work moving, the wall is elsewhere); the activation check decides "is the human-out-of-the-loop path on" (fail open would silently enable autonomy). Harmonizing them to one direction re-opens one of the two holes (§13). |
-| `isolated-workspace.sh exit` leaving the branch behind (and `enter` failing loud, not falling back) | `exit` removes the workspace *directory* only; promoting vs discarding the committed work is the §7 gate's call (T612), not the lifecycle's — an `exit` that deleted the branch would silently make that decision. And `enter` must fail loud with no path so the caller aborts rather than running un-isolated on the base branch (§14). |
+| `isolated-workspace.sh` having both `exit` (leaves the branch) and `discard` (deletes it), not one teardown verb | The verb call *is* the §7 gate's promote/discard decision being executed: `exit` after a PASS (branch survives — the dispatcher already pushed/PR'd), `discard` after a FAIL (branch deleted — work thrown away). Collapsing them re-introduces the lifecycle silently deciding the work's fate, leaves a discarded branch dangling, and loses the deterministic ownership-guarded discard test (§14). `enter` likewise fails loud with no path so the caller aborts rather than running un-isolated on the base branch. |

@@ -21,7 +21,10 @@ cycle, the non-convergence stop, and verbatim verdict retention. It does NOT own
   (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below).
 
 The loop runs against the task branch's **committed** diff versus the base branch — the
-reviewers see only commits, so commit before invoking it.
+reviewers see only commits, so commit before invoking it. Under an engaged isolated autonomous
+run (`next-task.md` §0.5), that committed diff is read from the **[isolated workspace]** named
+by the *workspace location* input below; the loop is location-agnostic — it audits whatever
+committed diff that input points at and never infers the location.
 
 ## Inputs (explicit, per the explicit-context rule)
 
@@ -38,6 +41,10 @@ The dispatcher passes every value the run must honor in the invocation itself:
   rounds").
 - **apply-fixes** — default true; false yields a single report-only fan-out (no fix step),
   for a dispatcher that wants to apply fixes itself between invocations.
+- **workspace location** — optional; under an engaged isolated autonomous run, the location of
+  the **[isolated workspace]** whose committed diff the reviewers (and the fix step) audit,
+  passed **explicitly** per the explicit-context rule. Absent → the main working tree (review
+  mode, unchanged). The loop never infers this from a working directory or env.
 
 A missing required input is a hard error before any dispatch — never guessed, never
 inherited from ambient state.
@@ -126,7 +133,9 @@ reviewers hold no edit capability). It receives the blocking verdict reports ver
 - applies the **minimal scoped change** addressing each blocking finding (§5 discipline —
   nothing speculative), with the relevant tests run;
 - **commits** the fix on the task branch, staging specific files — the re-dispatched
-  reviewers audit the committed diff, so an uncommitted fix is invisible to them;
+  reviewers audit the committed diff, so an uncommitted fix is invisible to them (under an
+  isolated run this commit lands inside the **[isolated workspace]** the reviewers read, so
+  the fix and its re-audit stay in the same place);
 - never touches the base branch;
 - when it judges a finding wrong or out of scope, it leaves the code unchanged for that
   finding and says why — it must not silently drop a finding, and it must not override

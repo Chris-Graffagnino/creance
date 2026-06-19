@@ -128,4 +128,107 @@ await test('failed telemetry write never alters the gate outcome', async () => {
   assert.equal(JSON.stringify(result), before, 'gate return value is byte-identical after write failure');
 });
 
+// --- 6. workspacePath set: reviewers audit the WORKSPACE diff via explicit git -C (T612) ---
+// Gate-in-place's gameability guard: it is not enough that `workspacePath` is accepted — the
+// reviewer prompt TEXT must actually point the auditors at that worktree's committed diff.
+await test('workspacePath: reviewer prompt targets the workspace diff via explicit git -C', async () => {
+  const seen = [];
+  const result = await runGateLoop(
+    { ...baseArgs, workspacePath: '/tmp/creance-ws-abc/wt' },
+    async (prompt, opts) => {
+      seen.push({ prompt, agentType: opts.agentType });
+      return { verdict: 'PASS', report: 'ok' };
+    },
+  );
+  assert.equal(result.gate, 'PASS');
+  const reviewerPrompts = seen.filter((s) => s.agentType); // reviewers carry agentType; the fixer does not
+  assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/);
+    assert.match(prompt, /ISOLATED WORKSPACE/);
+  }
+});
+
+// --- 7. workspacePath absent: review mode is byte-identical (main-tree diff, no git -C) ----
+await test('no workspacePath: reviewer prompt is the unchanged main-tree diff', async () => {
+  const seen = [];
+  await runGateLoop(baseArgs, async (prompt, opts) => {
+    seen.push({ prompt, agentType: opts.agentType });
+    return { verdict: 'PASS', report: 'ok' };
+  });
+  const reviewerPrompts = seen.filter((s) => s.agentType);
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /git diff main\.\.HEAD/);
+    assert.doesNotMatch(prompt, /git -C/);
+    assert.doesNotMatch(prompt, /ISOLATED WORKSPACE/);
+  }
+});
+
+// --- 8. workspacePath set: the FIXER is told to work inside the workspace too ---------------
+// The fixer commits the diff the reviewers re-audit, so it must operate in the same worktree —
+// wiring WORKSPACE into the reviewer prompt but not the fixer would silently fix the main tree.
+await test('workspacePath: the fixer is directed into the workspace', async () => {
+  const fixerPrompts = [];
+  let specCalls = 0;
+  await runGateLoop(
+    { ...baseArgs, workspacePath: '/tmp/creance-ws-xyz/wt', maxFixRounds: 1 },
+    async (_prompt, opts) => {
+      if (!opts.agentType) {
+        fixerPrompts.push(_prompt); // the fix-stage maker agent has no agentType
+        return { verdict: 'PASS', report: 'fixer ran' };
+      }
+      if (opts.agentType === 'spec-auditor') {
+        specCalls += 1;
+        return specCalls === 1
+          ? { verdict: 'FAIL', report: 'needs a fix' } // round 1 FAIL → triggers the fix stage
+          : { verdict: 'PASS', report: 'ok now' }; // round 2 PASS
+      }
+      return { verdict: 'PASS', report: 'ok' };
+    },
+  );
+  assert.equal(fixerPrompts.length, 1, 'exactly one fix round ran');
+  assert.match(fixerPrompts[0], /ISOLATED WORKSPACE at \/tmp\/creance-ws-xyz\/wt/);
+  assert.match(fixerPrompts[0], /git -C '\/tmp\/creance-ws-xyz\/wt' diff main\.\.HEAD/);
+});
+
+// --- 9. workspacePath with a space: the generated git -C command stays a single arg (T612) ----
+// A valid workspace temp path may contain spaces or shell metacharacters; embedded unquoted it
+// would split `git -C /tmp/with space/... diff` into a malformed command and the reviewers/fixer
+// could not audit the isolated diff (Codex P2, PR #114). The path must be shell-quoted in diffCmd —
+// in EVERY generated command: each reviewer prompt and the fixer prompt (a round-1 FAIL→fix→round-2
+// PASS exercises the fixer too).
+await test('workspacePath with a space: git -C path is shell-quoted into one argument', async () => {
+  const seen = [];
+  let specCalls = 0;
+  await runGateLoop(
+    { ...baseArgs, workspacePath: '/tmp/with space/creance-ws-abc/wt', maxFixRounds: 1 },
+    async (prompt, opts) => {
+      seen.push({ prompt, agentType: opts.agentType });
+      if (!opts.agentType) return { verdict: 'PASS', report: 'fixer ran' }; // fixer has no agentType
+      if (opts.agentType === 'spec-auditor') {
+        specCalls += 1;
+        return specCalls === 1
+          ? { verdict: 'FAIL', report: 'needs a fix' } // round-1 FAIL → triggers the fix stage
+          : { verdict: 'PASS', report: 'ok now' }; // round-2 PASS
+      }
+      return { verdict: 'PASS', report: 'ok' };
+    },
+  );
+  // The single-quoted form keeps the spaced path one argument in every generated command —
+  // reviewer prompts AND the fixer prompt (both read diffCmd).
+  const quoted = /git -C '\/tmp\/with space\/creance-ws-abc\/wt' diff main\.\.HEAD/;
+  assert.ok(
+    seen.some((s) => !s.agentType && quoted.test(s.prompt)),
+    'the fixer prompt carries the shell-quoted git -C command',
+  );
+  assert.ok(
+    seen.filter((s) => s.agentType && quoted.test(s.prompt)).length >= 2,
+    'both reviewers carry the shell-quoted git -C command',
+  );
+  for (const { prompt } of seen) {
+    // never the unquoted split form `git -C /tmp/with space/...`
+    assert.doesNotMatch(prompt, /git -C \/tmp\/with space/);
+  }
+});
+
 console.log(`\n${testsRun} tests passed`);

@@ -165,8 +165,8 @@
       read into the autonomous `next-task` path only (#108; epic #81 part b;
       repo-maintenance — done-when on issue) — strong: adapter execution path under
       autonomy
-- [ ] T612 [strong] (T609c) Gate-in-place: the §7 loop + auditors read the diff from the
-      isolated workspace; the discard path on FAIL (epic #81 part c; create issue on demand;
+- [x] T612 [strong] (T609c) Gate-in-place: the §7 loop + auditors read the diff from the
+      isolated workspace; the discard path on FAIL (#113; epic #81 part c;
       repo-maintenance — done-when on issue) — strong: gate-semantics boundary (P4)
 - [ ] T613 [strong] (T609d) Falsification proof: an automated test that an un-gated change
       cannot reach `main`, wired into `verify`, + a conformance probe that the isolation

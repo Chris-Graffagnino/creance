@@ -89,11 +89,14 @@ model memory. It is deterministic and **fails closed to review** (the inverse of
   If entry fails, **abort the run** — never fall back to editing the main tree on the base branch
   (a silent fallback would run un-isolated autonomous work, the one thing isolation prevents).
 
-Until the gate reads the workspace and the promote/discard path is wired, entering isolation
-changes only *where* work happens: an isolated run still ends at the review-mode PR, so nothing
-reaches the base branch outside the normal §7-gated human path. Promotion is always the §7
-gate's PASS, never a direct write from the workspace (`workflow/README.md` → "[isolated
-workspace]").
+The §7 gate now reads the workspace diff and the promote/discard path is wired (the gate-in-place
+step). On a gate **PASS** the work is **promoted** — opened as a PR through this same §7-gated
+path (§8); on a gate **FAIL** the **[isolated workspace]** is **discarded** and nothing is opened.
+Promotion is always the §7 gate's PASS, **never a direct write from the workspace** to the base
+branch (`workflow/README.md` → "[isolated workspace]"); a FAIL leaves the base branch untouched.
+Crucially, **promotion is a PR, not a merge** — merging still requires session-explicit
+authorization (§8), so an engaged autonomous run still ends at a PR, not on the base branch. The
+falsification proof that an un-gated change cannot reach the base branch is its own follow-up.
 
 ## 1. Select the task
 - If the user named a task ID, use it. Otherwise read the profile's **tasks file** and pick
@@ -177,8 +180,9 @@ the owner can steer between sessions. These rules own all thread reading and ref
 - Never commit to the base branch. Never `git add .` — stage specific files only. (The
   **[guard]** enforces both deterministically where available.)
 - **Isolated autonomous mode (§0.5):** instead of switching the main tree, **enter** the
-  **[isolated workspace]** for this branch and run every later step inside it, exiting it at the
-  end of the run. Review mode uses the plain `git switch -c` above.
+  **[isolated workspace]** for this branch and run every later step inside it. Its end-of-run
+  fate is driven by the §7 gate outcome, not a blanket teardown: **promote** it on a PASS,
+  **discard** it on a FAIL (§8). Review mode uses the plain `git switch -c` above.
 
 ## 4.5 Plan artifact ([strong tier] and above — a checkpoint, not a gate)
 Before the first file edit on a **[strong tier]** or **[frontier tier]** task (tagged, or
@@ -312,6 +316,14 @@ profile's invariant checklist. Reviewers grade against that rubric, not against 
 dispatch parameters that spec lists. Steps 1 and 3 stay with you either way. Without that
 role, the numbered prose below is the procedure, exactly as written (the documented
 degradation path).
+
+**Gate-in-place under an engaged isolated autonomous run (§0.5).** When the run is isolated,
+the diff the **[reviewer]**s grade — and the diff the fix step commits onto — is the
+**[isolated workspace]**'s committed diff against the base branch, *not* the main working
+tree's. The workspace location is supplied to the gate **explicitly** (the explicit-context
+rule: never inferred from a working directory or env), so the reviewers audit the isolated
+work even when they run from elsewhere. Review mode is unchanged: the gate reads the main
+working tree exactly as before.
 1. Self-review `git diff main..HEAD` — a quick sanity pass to catch the obvious before
    spending reviewer runs. It carries no verification authority on its own.
 2. Dispatch **separate [reviewer]s** (their own context, adversarial posture, no edit
@@ -344,6 +356,21 @@ degradation path).
    near-misses.
 
 ## 8. Open the PR — then STOP
+**Review mode (default)** runs the bullets below and stops at the PR for a human merge.
+**Under an engaged isolated autonomous run (§0.5), the terminal step is driven by the §7 gate
+outcome:**
+- **Gate PASS → promote.** The work is preserved and opened as a PR through the bullets below
+  (the *same* §7-gated path), then the **[isolated workspace]** is torn down. Promotion is a
+  **PR, not a merge** — do **not** merge unless the user authorized autonomous merging this
+  session (§2.5: merge authorization is session-explicit only).
+- **Gate FAIL → discard.** The **[isolated workspace]** is **discarded** — torn down together
+  with its branch — and **no PR is opened**. The base branch is untouched. (This is the one
+  place an autonomous run diverges from review mode, which would surface a FAIL in a PR body;
+  with no human in the loop there is no one to read it, so failed work is thrown away whole.)
+
+Promotion is **only ever** the §7 gate's PASS; the isolation mechanism never writes the base
+branch directly (P4). The numbered bullets below are the promote path (and all of review mode):
+
 - Commit your work on the branch FIRST (the §7 reviewers review `git diff main..HEAD`, empty
   until you commit). Stage specific files; never `git add .`.
 - Open the PR against the base branch, titled `<type>: [<task-id>] <description>`.
