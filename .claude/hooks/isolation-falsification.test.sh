@@ -62,6 +62,20 @@ new_repo() {
   git -C "$d" commit -q --allow-empty -m "chore: bootstrap"
 }
 
+# valid_ws <repo> <path> <branch> — true iff <path> is a REAL isolated worktree `enter` created:
+# non-empty, an existing directory, AND registered in <repo> on <branch>. Every DW runs this as a
+# SETUP GATE before its safety assertions. Rationale (Codex P2 + owner relay, PR #116): a falsification
+# proof that passes VACUOUSLY when its own setup fails is itself silently dead — the very failure
+# class this file exists to catch. If `enter` fails, $path is empty; the unguarded `git -C ""` work
+# commands then run against the CALLER's repo, the workspace is never isolated, yet base stays put and
+# a foreign SHA is a non-ancestor — so the assertions would "pass" without ever exercising isolation.
+# Gating on a real worktree turns any such setup failure into a LOUD test failure instead.
+valid_ws() { [ -n "$2" ] && [ -d "$2" ] && git -C "$1" worktree list 2>/dev/null | grep -q "\[$3\]"; }
+
+# The lifecycle under test must exist — a missing script makes every `bash "$SCRIPT"` a no-op and
+# the whole proof vacuous (the most basic silently-dead failure). Assert it up front.
+if [ -f "$SCRIPT" ]; then ok; else bad "lifecycle script under test not found: $SCRIPT"; fi
+
 # ─────────────────────────────────────────────────────────────────────────────────────────
 # DW1 — promote-teardown isolation. enter→commit an un-gated change→exit. The base ref must be
 # byte-identical throughout, and after exit the committed change must NOT be reachable from
@@ -71,20 +85,26 @@ new_repo() {
 R1="$TMP/r1"; new_repo "$R1"
 base1=$(git -C "$R1" rev-parse main)
 ws1=$( cd "$R1" && bash "$SCRIPT" enter ws-promote --base main 2>/dev/null )
-echo ungated > "$ws1/ungated-change"
-git -C "$ws1" add ungated-change
-git -C "$ws1" commit -q -m "un-gated change committed inside the isolated workspace"
-wscommit1=$(git -C "$ws1" rev-parse HEAD)
-# base must not move while we commit in the workspace.
-if [ "$(git -C "$R1" rev-parse main)" = "$base1" ]; then ok; else bad "DW1: base ref moved while committing in the workspace"; fi
-# the un-gated commit is real and distinct from base (sanity: the change exists to be contained).
-if [ "$wscommit1" != "$base1" ]; then ok; else bad "DW1: workspace commit equals base — nothing was actually committed to contain"; fi
-( cd "$R1" && bash "$SCRIPT" exit "$ws1" ) >/dev/null 2>&1
-# after exit: base byte-identical AND the un-gated commit is NOT an ancestor of base.
-if [ "$(git -C "$R1" rev-parse main)" = "$base1" ]; then ok; else bad "DW1: base ref moved across exit"; fi
-if git -C "$R1" merge-base --is-ancestor "$wscommit1" main 2>/dev/null; then
-  bad "DW1: the un-gated workspace commit reached base through exit (promotion must be a separate gated PR, not a lifecycle write)"
-else ok; fi
+if valid_ws "$R1" "$ws1" ws-promote; then
+  ok                                                  # setup gate: a real isolated worktree exists
+  echo ungated > "$ws1/ungated-change"
+  # the un-gated commit MUST actually happen, else there is nothing to contain (setup, not safety).
+  if git -C "$ws1" add ungated-change && git -C "$ws1" commit -q -m "un-gated change committed inside the isolated workspace"; then ok; else bad "DW1 setup: could not commit the un-gated change inside the workspace"; fi
+  wscommit1=$(git -C "$ws1" rev-parse HEAD)
+  if [ -n "$wscommit1" ] && [ "$wscommit1" != "$base1" ]; then ok; else bad "DW1 setup: no distinct un-gated commit to contain (got '$wscommit1')"; fi
+  # base must not move while we commit in the workspace.
+  if [ "$(git -C "$R1" rev-parse main)" = "$base1" ]; then ok; else bad "DW1: base ref moved while committing in the workspace"; fi
+  # the teardown under test MUST run: exit removes the workspace dir (else the post-exit checks are vacuous).
+  ( cd "$R1" && bash "$SCRIPT" exit "$ws1" ) >/dev/null 2>&1
+  if [ ! -d "$ws1" ]; then ok; else bad "DW1 setup: exit did not tear down the workspace directory"; fi
+  # after exit: base byte-identical AND the un-gated commit is NOT an ancestor of base.
+  if [ "$(git -C "$R1" rev-parse main)" = "$base1" ]; then ok; else bad "DW1: base ref moved across exit"; fi
+  if git -C "$R1" merge-base --is-ancestor "$wscommit1" main 2>/dev/null; then
+    bad "DW1: the un-gated workspace commit reached base through exit (promotion must be a separate gated PR, not a lifecycle write)"
+  else ok; fi
+else
+  bad "DW1 setup: enter did not create an isolated worktree on ws-promote (got '$ws1') — cannot run the proof"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────────
 # DW2 — discard destroys the work. enter→commit→discard (the §7 gate's FAIL decision). Base
@@ -94,17 +114,24 @@ else ok; fi
 R2="$TMP/r2"; new_repo "$R2"
 base2=$(git -C "$R2" rev-parse main)
 ws2=$( cd "$R2" && bash "$SCRIPT" enter ws-fail --base main 2>/dev/null )
-echo failme > "$ws2/will-be-discarded"
-git -C "$ws2" add will-be-discarded
-git -C "$ws2" commit -q -m "un-gated change the gate will FAIL"
-wscommit2=$(git -C "$ws2" rev-parse HEAD)
-( cd "$R2" && bash "$SCRIPT" discard "$ws2" ) >/dev/null 2>&1
-if [ "$(git -C "$R2" rev-parse main)" = "$base2" ]; then ok; else bad "DW2: base ref moved across discard"; fi
-if git -C "$R2" show-ref --verify --quiet refs/heads/ws-fail; then bad "DW2: ephemeral branch ws-fail survived discard"; else ok; fi
-# unreachable from every ref: the deleted branch was its only ref, so no ref reaches it now.
-if git -C "$R2" rev-list --all 2>/dev/null | grep -qF "$wscommit2"; then
-  bad "DW2: the discarded commit is still reachable from a ref (work was not thrown away)"
-else ok; fi
+if valid_ws "$R2" "$ws2" ws-fail; then
+  ok                                                  # setup gate: a real isolated worktree exists
+  echo failme > "$ws2/will-be-discarded"
+  if git -C "$ws2" add will-be-discarded && git -C "$ws2" commit -q -m "un-gated change the gate will FAIL"; then ok; else bad "DW2 setup: could not commit the un-gated change inside the workspace"; fi
+  wscommit2=$(git -C "$ws2" rev-parse HEAD)
+  if [ -n "$wscommit2" ] && [ "$wscommit2" != "$base2" ]; then ok; else bad "DW2 setup: no distinct un-gated commit to discard (got '$wscommit2')"; fi
+  # the teardown under test MUST succeed (rc 0), else "branch gone" passes vacuously (it was never created).
+  ( cd "$R2" && bash "$SCRIPT" discard "$ws2" ) >/dev/null 2>&1; drc2=$?
+  if [ "$drc2" = "0" ]; then ok; else bad "DW2 setup: discard did not succeed (rc=$drc2) — the teardown under test did not run"; fi
+  if [ "$(git -C "$R2" rev-parse main)" = "$base2" ]; then ok; else bad "DW2: base ref moved across discard"; fi
+  if git -C "$R2" show-ref --verify --quiet refs/heads/ws-fail; then bad "DW2: ephemeral branch ws-fail survived discard"; else ok; fi
+  # unreachable from every ref: the deleted branch was its only ref, so no ref reaches it now.
+  if git -C "$R2" rev-list --all 2>/dev/null | grep -qF "$wscommit2"; then
+    bad "DW2: the discarded commit is still reachable from a ref (work was not thrown away)"
+  else ok; fi
+else
+  bad "DW2 setup: enter did not create an isolated worktree on ws-fail (got '$ws2') — cannot run the proof"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────────
 # DW3 — forged-marker base safety. The marker is the ownership proof; forge one that PASSES
@@ -121,13 +148,26 @@ mkdir -p "$forged_parent"
 # A real registered worktree (on its OWN branch — git refuses a second checkout of main), so
 # discard's `git worktree remove` step succeeds and execution REACHES the branch-delete.
 git -C "$R3" worktree add -q -b decoy-branch "$forged_wt" >/dev/null 2>&1
-# Forge the provenance marker: ownership note + branch=main (the base, not decoy-branch).
-printf '%s\nbranch=%s\n' 'forged owner marker' 'main' > "$forged_parent/.creance-ws-owner"
-( cd "$R3" && bash "$SCRIPT" discard "$forged_wt" ) >/dev/null 2>&1; drc3=$?
-# discard must FAIL LOUD at the base-delete (git refuses to delete the checked-out base).
-if [ "$drc3" != "0" ]; then ok; else bad "DW3: discard returned 0 while told to delete the base branch — it must fail loud"; fi
-# THE safety property: base survives, byte-identical, despite the forged marker.
-if git -C "$R3" show-ref --verify --quiet refs/heads/main && [ "$(git -C "$R3" rev-parse main)" = "$base3" ]; then ok; else bad "DW3: a forged branch=main marker deleted/clobbered the base branch"; fi
+# SETUP GATE (Codex P2, PR #116): if `git worktree add` failed, the decoy is absent and discard
+# would fail EARLY at `git worktree remove` — drc3 non-zero for the WRONG reason, base trivially
+# intact, so DW3 would pass WITHOUT exercising the forged-marker branch-delete refusal. Require the
+# registered decoy before accepting any result.
+if git -C "$R3" worktree list 2>/dev/null | grep -q '\[decoy-branch\]' && [ -d "$forged_wt" ]; then
+  ok
+  # Forge the provenance marker: ownership note + branch=main (the base, not decoy-branch).
+  printf '%s\nbranch=%s\n' 'forged owner marker' 'main' > "$forged_parent/.creance-ws-owner"
+  ( cd "$R3" && bash "$SCRIPT" discard "$forged_wt" ) >/dev/null 2>&1; drc3=$?
+  # discard must FAIL LOUD at the base-delete (git refuses to delete the checked-out base).
+  if [ "$drc3" != "0" ]; then ok; else bad "DW3: discard returned 0 while told to delete the base branch — it must fail loud"; fi
+  # NON-VACUITY: discard removes the worktree dir BEFORE the branch-delete, so a REMOVED decoy proves
+  # execution reached `git branch -D main` and was refused THERE — not that discard bailed out earlier
+  # (which would make the loud-failure assertion above pass for the wrong reason). Codex P2, PR #116.
+  if [ ! -d "$forged_wt" ]; then ok; else bad "DW3: decoy worktree still present — discard failed BEFORE the branch-delete, so the refusal was not exercised"; fi
+  # THE safety property: base survives, byte-identical, despite the forged marker.
+  if git -C "$R3" show-ref --verify --quiet refs/heads/main && [ "$(git -C "$R3" rev-parse main)" = "$base3" ]; then ok; else bad "DW3: a forged branch=main marker deleted/clobbered the base branch"; fi
+else
+  bad "DW3 setup: decoy worktree not registered (got dir '$forged_wt') — the branch-delete-refusal path would be unexercised"
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────────
 # DW4 — negative space: the wall has no door. A source backstop behind the behavioral proofs:
