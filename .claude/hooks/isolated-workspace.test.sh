@@ -16,6 +16,9 @@
 #   * discard:      discard (the §7 gate's FAIL decision, T612) removes the workspace dir AND
 #                   deletes its ephemeral branch, leaving the BASE ref untouched — the
 #                   discard-on-FAIL path;
+#   * branch id:    discard deletes the branch enter RECORDED in the marker, not the worktree's
+#                   CURRENT HEAD — a post-enter `git switch` cannot misdirect the branch -D onto
+#                   an unrelated branch and orphan the ephemeral one (Codex P2, PR #114);
 #   * fail-safe:    enter outside a repo / on an existing branch FAILS LOUD with NO path on
 #                   stdout, so the caller aborts rather than reading a phantom workspace and
 #                   never falls back to the base branch — done-when 5;
@@ -120,6 +123,25 @@ if git -C "$RD" worktree list 2>/dev/null | grep -q '\[ws-d\]'; then bad "discar
 if git -C "$RD" show-ref --verify --quiet refs/heads/ws-d; then bad "discard: ephemeral branch ws-d survived (discard must delete it)"; else ok; fi
 # The BASE ref is byte-identical — discard never writes the base branch (P4).
 if [ "$(git -C "$RD" rev-parse main)" = "$dbase_before" ]; then ok; else bad "discard: base ref moved"; fi
+
+# ── Branch identity (T612 · Codex P2, PR #114): discard deletes the branch `enter` RECORDED in the
+# provenance marker, NEVER the worktree's CURRENT HEAD. If the workspace is switched to another
+# branch after enter (`git switch`), discard must still delete the enter-created ephemeral branch
+# and leave the switched-to, unrelated branch intact — resolving HEAD instead would force-delete
+# the unrelated branch and orphan the ephemeral one. Falsifies the pre-fix HEAD-resolving discard. ──
+RBS="$TMP/repo-branch-switch"; new_repo "$RBS"
+bsbase_before=$(git -C "$RBS" rev-parse main)
+wsbs=$( cd "$RBS" && bash "$SCRIPT" enter ws-orig --base main 2>/dev/null )
+git -C "$wsbs" branch other-branch                 # an unrelated branch the lifecycle did NOT create
+git -C "$wsbs" switch -q other-branch              # move the workspace HEAD off the ephemeral branch
+( cd "$RBS" && bash "$SCRIPT" discard "$wsbs" ) >/dev/null 2>&1; bsrc=$?
+if [ "$bsrc" = "0" ]; then ok; else bad "branch-switch discard: returned rc=$bsrc want 0"; fi
+# The enter-created ephemeral branch is GONE — discard deleted the recorded identity, not HEAD.
+if git -C "$RBS" show-ref --verify --quiet refs/heads/ws-orig; then bad "branch-switch: enter-created branch ws-orig survived (orphaned — discard followed HEAD, not the marker)"; else ok; fi
+# The switched-to, unrelated branch SURVIVES — discard never deletes a branch it did not create.
+if git -C "$RBS" show-ref --verify --quiet refs/heads/other-branch; then ok; else bad "branch-switch: discard force-deleted the unrelated switched-to branch other-branch"; fi
+# Base ref untouched throughout (P4).
+if [ "$(git -C "$RBS" rev-parse main)" = "$bsbase_before" ]; then ok; else bad "branch-switch: base ref moved"; fi
 
 # Ownership (T612): discard REFUSES a registered worktree this lifecycle did not create (its
 # parent is not creance-ws-*) — it must neither force-remove the dir NOR delete the branch of

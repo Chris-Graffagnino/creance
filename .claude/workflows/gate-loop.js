@@ -86,13 +86,21 @@ const VERDICT_SCHEMA = {
   },
 };
 
+// Single-quote a path for safe embedding in a generated shell command. A valid workspace temp
+// path may legitimately contain spaces or shell metacharacters; embedded unquoted it would split
+// into multiple args and malform the `git -C <path>` command the reviewers/fixer are told to run
+// (Codex P2, PR #114). POSIX single-quoting: wrap in '…', and close/escape/reopen each embedded
+// single quote ('\'') so the whole path stays one argument verbatim.
+const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+
 // Where the reviewers (and the fixer) read the committed diff. Default: the main working
 // tree (review mode). Under an engaged isolated autonomous run the invoker passes
 // `workspacePath`, and the diff is read from THAT worktree via an explicit `git -C <path>`
 // (gate-in-place, T612) — explicit context, never an inferred CWD. The `-C` form means the
 // reviewer subagents audit the workspace's diff even though they run from the session CWD.
+// The path is shell-quoted in the runnable command so a space/metacharacter cannot malform it.
 const WORKSPACE = input.workspacePath;
-const diffCmd = WORKSPACE ? `git -C ${WORKSPACE} diff main..HEAD` : `git diff main..HEAD`;
+const diffCmd = WORKSPACE ? `git -C ${shellQuote(WORKSPACE)} diff main..HEAD` : `git diff main..HEAD`;
 const diffTarget = WORKSPACE
   ? `the committed diff of the ISOLATED WORKSPACE at ${WORKSPACE} (run \`${diffCmd}\` — ` +
     `that worktree holds the autonomous run's branch; do NOT audit the main working tree)`
