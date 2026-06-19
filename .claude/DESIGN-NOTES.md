@@ -263,10 +263,15 @@ load-bearing and easy to "simplify" wrongly:
   was safe-by-construction with no promotion code (an autonomous run ran in a worktree but still
   ended at a review-mode PR). T612 wires the gate + promote/discard, but promotion is a **PR, not a
   merge** — merge stays session-explicit (§8), so an engaged autonomous run still ends at a PR, not
-  on the base branch. The remaining guarantee — an automated falsification proof that an *un-gated*
-  change cannot reach the base branch, plus a live probe that isolation fires — is **T613**. The
-  split keeps each PR reviewable (the Phase 8/9 epic-splitting precedent) without ever shipping a
-  half-built promotion path.
+  on the base branch. T613 closes the epic with the remaining guarantee: an automated falsification
+  proof that an *un-gated* change cannot reach the base branch (`isolation-falsification.test.sh`,
+  wired into `verify` — it states the security claim and adversarially tries to make it false: the
+  un-gated commit is unreachable from base after `exit`, destroyed whole by `discard`, a forged
+  `branch=main` marker cannot make `discard` delete the checked-out base, and the script source
+  carries no base-writing door), plus a live probe that the isolation tier fires on a real driver
+  (the **P-IW** conformance probe, recorded in the adapter's probe-results table). The split keeps
+  each PR reviewable (the Phase 8/9 epic-splitting precedent) without ever shipping a half-built
+  promotion path.
 
 ---
 

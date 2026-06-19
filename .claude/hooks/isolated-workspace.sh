@@ -28,8 +28,8 @@
 # enter/exit/discard only ever touch the EPHEMERAL workspace and its own fresh branch, NEVER
 # the base branch. So an un-gated change cannot reach the base branch THROUGH this mechanism
 # (constitution P4): promotion is the dispatcher's PR (a human / session-authorized merge),
-# and discard only ever deletes a non-base ephemeral branch. The full falsification proof of
-# that property, wired into `verify`, is T613.
+# and discard only ever deletes a non-base ephemeral branch. The full adversarial falsification
+# proof of that property is isolation-falsification.test.sh (T613), wired into `verify`.
 #
 # explicit-context rule (workflow/README.md): `enter` RETURNS the workspace path on stdout;
 # the caller passes it forward (to the work, and to `exit`) explicitly — the path is never

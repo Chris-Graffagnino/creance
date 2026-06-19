@@ -104,13 +104,27 @@ jobs:
       # [autonomy activation] read into it. The .test.sh proves the primitives behave (enter
       # creates an ephemeral worktree on a NON-base branch and prints its path; exit removes
       # it) AND the safety slice — enter->work->exit leaves the base ref untouched, so there
-      # is no un-gated path to main through the lifecycle (the FULL falsification proof is
-      # T613) — AND that this wiring is live (the P2 "machinery proves it is live" discipline,
-      # same as the autonomy-mode/guard tests). The lifecycle ships WITHOUT gate-in-place or
-      # promote/discard (T612). Adapter-side (hooks/ is the Claude Code binding), so a CI
-      # change, not a workflow/** change — no constitution P1 concern.
+      # is no un-gated path to main through the lifecycle (the FULL falsification proof is the
+      # next step, T613) — AND that this wiring is live (the P2 "machinery proves it is live"
+      # discipline, same as the autonomy-mode/guard tests). Gate-in-place + promote/discard
+      # landed in T612. Adapter-side (hooks/ is the Claude Code binding), so a CI change, not a
+      # workflow/** change — no constitution P1 concern.
       - name: Isolated-workspace lifecycle tests
         run: bash .claude/hooks/isolated-workspace.test.sh
+
+      # T613 isolation falsification proof (#115, epic #81 part d): the FULL adversarial proof
+      # the lifecycle test above defers — it states the security claim (an un-gated change
+      # cannot reach the base branch through the lifecycle) and TRIES to make it false, proving
+      # each attempt fails: enter->commit->exit leaves the un-gated commit unreachable from base
+      # (DW1); ->discard destroys it whole (DW2); a FORGED branch=main marker cannot make
+      # discard delete the checked-out base (DW3); the script source carries no base-writing
+      # door (DW4). Constitution P4 ("the isolation mechanism never writes the base branch
+      # directly"). Its live counterpart — the P-IW conformance probe that the tier FIRES on a
+      # real driver — is documented in workflow/conformance-probes.md + adapters/claude-code-
+      # probes.md (the deterministic test and the live probe are complementary). P2 "machinery
+      # proves it is live", same as the lifecycle/autonomy/guard tests; adapter-side CI change.
+      - name: Isolation falsification proof
+        run: bash .claude/hooks/isolation-falsification.test.sh
 
       # AGENTS.md residency (#91): AGENTS.md is imported into every session
       # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
