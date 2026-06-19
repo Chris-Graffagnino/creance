@@ -173,6 +173,32 @@
       tier actually fires live (epic #81 part d; create issue on demand; repo-maintenance —
       done-when on issue) — strong: P2 falsification machinery guarding the wall
 
+> **T614–T615 — `/insights` + PR-#104-review follow-ups to T608's selection reconciliation.**
+> Same selection surface as T608 (Phase 9), different provenance: the announce-and-confirm UX
+> half (#103, surfaced by the 2026-06-17 `/insights` analysis on #80) and the in-flight-refusal
+> half (#105, surfaced by the Codex review on PR #104). Both extend `[live-state reconciliation]`;
+> each carries its done-when rubric on its issue. Unblocked: T608 (PR #104) is merged.
+
+- [ ] T614 [strong] Announce-and-confirm the resolved next-task target: after the
+      deterministic `[live-state reconciliation]` resolves a candidate, announce the resolved
+      target before the first file edit, and pause for confirmation on an *implicit* selection
+      (no explicit task ID/issue named) whose lowest-unchecked box is contradicted by live
+      state — the UX complement to T608's refusal. Runtime-neutral `[role]` for the
+      announce/confirm surface in `workflow/**`; concrete prompt mechanism in the adapter
+      binding only; degrades to announce-only (no confirm-stall) when live state is
+      unavailable; paired test (explicit→no-pause, implicit-contradiction→pause,
+      implicit-consistent→no-false-pause) (#103; repo-maintenance — done-when on issue) —
+      strong: edits the runtime-neutral workflow boundary (constitution P1/P3)
+- [ ] T615 [strong] Deterministically refuse in-flight (open-PR/branch) next-task candidates:
+      after `[live-state reconciliation]` clears a candidate on the merged/landed axis,
+      additionally refuse a candidate whose mapped issue has an open, unmerged PR/branch,
+      surfacing the conflict — the in-flight half of the #80 stale-pick pair that T608
+      (merged-only) left out. Runtime-neutral tracker read as a `[role]` in `workflow/**`
+      (vendor CLI only in the adapter); paired test (in-flight refused + genuinely-open
+      selected, no false positive); fails open to merged-only + warning when the tracker is
+      unavailable (#105; repo-maintenance — done-when on issue) — strong: edits the
+      runtime-neutral selection boundary (constitution P1/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
