@@ -67,14 +67,17 @@ The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated wor
   authorization — needs no file edit.
 - **Opting in is a governance change**, ratified by the human-reviewed PR that lands the flag
   (reconciled with "merge authorization is session-explicit only" in the neutral model).
-- **As of T611 (epic #81 part b) the worktree lifecycle + the activation wiring exist** — an
-  autonomous run now reads the activation decision and, when engaged, executes inside an ephemeral
-  `[isolated workspace]` (`hooks/isolated-workspace.sh` enter/exit, wired in `next-task.md`
-  §0.5/§4). But **gate-in-place (T612) is still not built**, so the workspace is never promoted:
-  an autonomous run still terminates at the review-mode PR and nothing reaches the base branch
-  without a human merge. Setting the opt-in on today changes *where* autonomous work runs (an
-  isolated worktree), not *whether* it can land — that stays the human's until T612, and the
-  falsification proof that an un-gated change cannot reach the base branch is T613.
+- **As of T612 (epic #81 part c) the worktree lifecycle, the activation wiring, AND gate-in-place
+  all exist** — an autonomous run reads the activation decision and, when engaged, executes inside
+  an ephemeral `[isolated workspace]` (`hooks/isolated-workspace.sh` enter/exit/discard, wired in
+  `next-task.md` §0.5/§4); the §7 gate reads the **workspace** diff (the path passed explicitly to
+  the [orchestrated run]), and §8 **promotes on a PASS / discards on a FAIL**. But **promotion is a
+  PR, not a merge** — merge stays session-explicit (§8), so even with the opt-in on, an engaged
+  autonomous run still terminates at a PR; nothing reaches the base branch without a human (or
+  session-authorized) merge. Setting the opt-in on changes *where* autonomous work runs (an
+  isolated worktree) and wires PASS→promote / FAIL→discard, but still not *whether* it auto-merges
+  — it does not. The falsification proof that an un-gated change cannot reach the base branch, plus
+  the live probe that isolation fires, is **T613** (still pending).
 
 ## Edit-time checks (the [edit guard] map — `guard.sh` rule 7 reads this)
 The [edit guard] (adapter: the `PostToolUse` hook `guard.sh`, rule 7) runs the matching
@@ -150,7 +153,11 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   closed to review** — the deliberate inverse of the fail-open `[guard]`, whose own posture is
   unchanged because isolation moves the wall to the workspace + §7 gate (P3/P4). A promotion
   path that lets the isolation mechanism write the base branch directly, bypassing the §7
-  gate — FAIL (P4).
+  gate — FAIL (P4). The **gate-in-place** read of the workspace diff must be by **explicit
+  context** (the workspace location passed to the gate), never an inferred working directory — a
+  CWD-only scheme could audit the empty main tree and pass vacuously (T612). Promotion is a PR
+  through the §7-gated path, **never an auto-merge** (merge stays session-explicit); the discard
+  path deletes only the ephemeral `creance-ws-*` branch, never the base branch.
 
 ### Invariant → enforcement mapping
 
@@ -165,7 +172,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 | Hook scripts (`.claude/hooks/*.sh`) stay BSD/GNU-portable; an edit adds no new diagnostic to a checked file ([edit guard], #79/#97) | constitution-auditor: a `guard.sh` behavior change (incl. rule 7) without a matching `guard.test.sh` case | `shell-lint.sh` + `shell-lint.test.sh` over `.claude/hooks/*.sh` in CI `verify`; `guard.test.sh` rule-7 delta cases |
 | Selection reconciles live state before starting (no merged-but-unchecked pick; P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation, or a forked second copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused; asserts both consumers source `lib-tasks-drift.sh`) in CI `verify` |
 | Autonomous mode off by default + activation fails closed to review; promotion stays §7-gated (P3/P4; `[isolated workspace]`) | constitution-auditor: an activation path reachable without the deterministic `[autonomy activation]` check, the check failing open, or isolation writing the base branch directly | `autonomy-mode.test.sh` (default-off + fail-closed cases; asserts ci.yml runs the check+test and the neutral role + profile flag exist) in CI `verify` |
-| Isolation lifecycle never writes the base branch; the activation read is wired into the autonomous path (P4; the T611 slice — the full proof is T613) | constitution-auditor: an `exit` that discards the branch (making the gate's promote/discard call), an `enter` that falls back to the base branch instead of failing loud, or a lifecycle path that writes the base ref | `isolated-workspace.test.sh` (enter→work→exit leaves the base ref untouched; enter fails loud with no path; asserts ci.yml runs it and the neutral role + next-task wiring + adapter binding exist) in CI `verify` |
+| Isolation lifecycle never writes the base branch; the activation read is wired into the autonomous path; gate-in-place reads the workspace diff by explicit context and promote/discard never auto-merges or writes the base ref (P4; T611 lifecycle + T612 gate-in-place — the full falsification proof is T613) | constitution-auditor: a `discard`/`exit`/promote path that writes the base ref or auto-merges, a gate that reads an inferred CWD instead of the passed workspace path, or an `enter` that falls back to the base branch instead of failing loud | `isolated-workspace.test.sh` (discard removes the dir + deletes only the ephemeral branch + leaves the base ref untouched + refuses a non-owned worktree; enter→work→exit leaves base untouched; enter fails loud) + `gate-loop.test.js` (workspacePath retargets the reviewer/fixer prompt; absent → unchanged main-tree diff) in CI `verify` |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.

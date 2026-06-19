@@ -5,7 +5,11 @@
 // re-dispatch, the non-convergence stop, verbatim verdict retention. The maker's
 // self-review (§7.1), /code-review (§7.3), and posting the verdicts to the PR (§8)
 // stay with the invoker. Invoke it on a task branch with the work COMMITTED — the
-// reviewers audit `git diff main..HEAD`.
+// reviewers audit `git diff main..HEAD`. Under an engaged isolated autonomous run
+// (next-task §0.5/§4), pass `workspacePath` so the reviewers and the fixer audit the
+// committed diff of the [isolated workspace] at that path instead of the main working
+// tree (gate-in-place, T612) — the path is passed EXPLICITLY, never inferred from CWD
+// (the explicit-context rule). Omit it for review mode and the gate is byte-identical.
 //
 // Every return path carries `telemetry`: the gate-run record payload defined by
 // workflow/telemetry.md, minus the timestamp/repo envelope and the introducing-commit
@@ -23,6 +27,9 @@
 //                    interface, monetization, or the data model (§7's rule)
 //   maxFixRounds     (default 2) the §7 non-convergence bound
 //   fix              (default true) false → one report-only fan-out, no fix stage
+//   workspacePath    (optional) the [isolated workspace] path whose committed diff the
+//                    reviewers + fixer audit (gate-in-place under autonomous mode, T612);
+//                    absent → the main working tree (review mode, unchanged)
 
 export const meta = {
   name: 'gate-loop',
@@ -79,10 +86,21 @@ const VERDICT_SCHEMA = {
   },
 };
 
+// Where the reviewers (and the fixer) read the committed diff. Default: the main working
+// tree (review mode). Under an engaged isolated autonomous run the invoker passes
+// `workspacePath`, and the diff is read from THAT worktree via an explicit `git -C <path>`
+// (gate-in-place, T612) — explicit context, never an inferred CWD. The `-C` form means the
+// reviewer subagents audit the workspace's diff even though they run from the session CWD.
+const WORKSPACE = input.workspacePath;
+const diffCmd = WORKSPACE ? `git -C ${WORKSPACE} diff main..HEAD` : `git diff main..HEAD`;
+const diffTarget = WORKSPACE
+  ? `the committed diff of the ISOLATED WORKSPACE at ${WORKSPACE} (run \`${diffCmd}\` — ` +
+    `that worktree holds the autonomous run's branch; do NOT audit the main working tree)`
+  : `the current branch's committed diff (\`${diffCmd}\`)`;
+
 const reviewerPrompt =
-  `Task under review: ${input.taskId}. Audit the current branch's committed diff ` +
-  `(git diff main..HEAD) per your spec. Set 'verdict' to your overall verdict and put ` +
-  `your full verdict report, verbatim, in 'report'.`;
+  `Task under review: ${input.taskId}. Audit ${diffTarget} per your spec. Set 'verdict' ` +
+  `to your overall verdict and put your full verdict report, verbatim, in 'report'.`;
 
 // DERIVED FROM the reviewer roster in workflow/gate-loop.md → "The reviewer roster" — the
 // single source of truth for gate membership, tier, and dispatch-condition. This array is
@@ -204,15 +222,22 @@ while (true) {
       .join('\n\n');
     // No model override: the fixer inherits the session model — the task's tier by
     // construction (the per-stage tier map in workflow/next-task.md).
+    // The fixer works WHERE the diff is read: the [isolated workspace] worktree under
+    // autonomous mode (so its commits land on the task branch the reviewers re-audit), else
+    // the current task branch. Either way, never main.
+    const workLocation = WORKSPACE
+      ? `inside the ISOLATED WORKSPACE at ${WORKSPACE} (cd into it and work there — that ` +
+        `worktree holds the task branch, NOT main; never switch to or commit on main)`
+      : `on the current task branch (you are NOT on main; never switch to or commit on main)`;
     await agent(
       `You are the maker addressing blocking pre-PR gate findings for task ${input.taskId}, ` +
-        `on the current task branch (you are NOT on main; never switch to or commit on main).\n\n` +
+        `${workLocation}.\n\n` +
         `${briefs}\n\n` +
         `Apply the minimal scoped change that addresses each blocking finding — nothing ` +
         `speculative. Run the tests for whatever you change. Stage SPECIFIC files (never ` +
         `'git add .') and commit on this branch with message ` +
         `"fix: [${input.taskId}] address gate findings (round ${fixRoundsUsed + 1})". The ` +
-        `reviewers re-audit the COMMITTED diff (git diff main..HEAD), so an uncommitted fix ` +
+        `reviewers re-audit the COMMITTED diff (${diffCmd}), so an uncommitted fix ` +
         `is invisible to them. If you judge a finding wrong or out of scope, leave the code ` +
         `unchanged for that finding and say why in your final message — never override the ` +
         `reviewer yourself; the gate surfaces non-convergence instead.`,

@@ -10,14 +10,19 @@
 #   * no main write: enter -> commit work in the workspace -> exit leaves the BASE ref
 #                   untouched (the no-un-gated-path-to-main slice; the full falsification
 #                   proof is T613) — done-when 3;
-#   * boundary:     exit removes the DIRECTORY but leaves the branch (committed work's fate is
-#                   the gate's, T612 — exit must not silently discard it);
+#   * boundary:     exit removes the DIRECTORY but leaves the branch — `exit` is the PROMOTE
+#                   path's teardown (the dispatcher pushed/PR'd first), so the branch must
+#                   survive; throwing it away on a FAIL is the separate `discard` verb;
+#   * discard:      discard (the §7 gate's FAIL decision, T612) removes the workspace dir AND
+#                   deletes its ephemeral branch, leaving the BASE ref untouched — the
+#                   discard-on-FAIL path;
 #   * fail-safe:    enter outside a repo / on an existing branch FAILS LOUD with NO path on
 #                   stdout, so the caller aborts rather than reading a phantom workspace and
 #                   never falls back to the base branch — done-when 5;
-#   * ownership:    exit REFUSES a registered worktree that this lifecycle did not create (its
-#                   parent is not a creance-ws-* temp dir) and leaves it intact, so a stale or
-#                   foreign path can never force-remove unrelated local work (Codex P2, #111);
+#   * ownership:    exit AND discard REFUSE a registered worktree that this lifecycle did not
+#                   create (its parent is not a creance-ws-* temp dir) and leave it intact, so a
+#                   stale or foreign path can never force-remove — or delete the branch of —
+#                   unrelated local work (Codex P2, #111; discard extends the guard, T612);
 #   * usage guards;
 #   * wiring (P2):  the `verify` job ACTIVELY runs this test (an active `run:` step, not a
 #                   mention in a comment); and the mechanism<->model drift backstop — the
@@ -88,9 +93,40 @@ if [ ! -d "$ws" ]; then ok; else bad "exit: workspace directory still present"; 
 if git -C "$R" worktree list 2>/dev/null | grep -q '\[ws-1\]'; then bad "exit: worktree still registered"; else ok; fi
 # Base STILL untouched after exit (done-when 3).
 if [ "$(git -C "$R" rev-parse main)" = "$base_before" ]; then ok; else bad "no-write: base ref moved across exit"; fi
-# Boundary: exit removes the DIRECTORY but leaves the branch — promoting/discarding the
-# committed work is the gate's call (T612), so the lifecycle must not silently discard it.
-if git -C "$R" show-ref --verify --quiet refs/heads/ws-1; then ok; else bad "boundary: exit deleted the branch (that is T612's decision, not the lifecycle's)"; fi
+# Boundary: exit removes the DIRECTORY but leaves the branch — `exit` is the promote path's
+# teardown (the dispatcher pushed/PR'd first), so the branch must survive. Discarding it on a
+# FAIL is the separate `discard` verb, exercised next.
+if git -C "$R" show-ref --verify --quiet refs/heads/ws-1; then ok; else bad "boundary: exit deleted the branch (that is discard's job, not exit's)"; fi
+
+# ── discard (T612): the §7 gate's FAIL decision — tear the dir down AND delete the branch ──
+# enter -> commit work -> discard leaves the BASE ref untouched, the workspace dir gone, the
+# worktree de-registered, AND the ephemeral branch deleted (the whole change is thrown away).
+RD="$TMP/repo-discard"; new_repo "$RD"
+dbase_before=$(git -C "$RD" rev-parse main)
+wsd=$( cd "$RD" && bash "$SCRIPT" enter ws-d --base main 2>/dev/null )
+echo discardme > "$wsd/scratch"
+git -C "$wsd" add scratch
+git -C "$wsd" commit -q -m "work that the gate will FAIL"
+( cd "$RD" && bash "$SCRIPT" discard "$wsd" ) >/dev/null 2>&1; drc=$?
+if [ "$drc" = "0" ]; then ok; else bad "discard: returned rc=$drc want 0"; fi
+if [ ! -d "$wsd" ]; then ok; else bad "discard: workspace directory still present"; fi
+if git -C "$RD" worktree list 2>/dev/null | grep -q '\[ws-d\]'; then bad "discard: worktree still registered"; else ok; fi
+# The ephemeral branch is GONE — this is what distinguishes discard from exit.
+if git -C "$RD" show-ref --verify --quiet refs/heads/ws-d; then bad "discard: ephemeral branch ws-d survived (discard must delete it)"; else ok; fi
+# The BASE ref is byte-identical — discard never writes the base branch (P4).
+if [ "$(git -C "$RD" rev-parse main)" = "$dbase_before" ]; then ok; else bad "discard: base ref moved"; fi
+
+# Ownership (T612): discard REFUSES a registered worktree this lifecycle did not create (its
+# parent is not creance-ws-*) — it must neither force-remove the dir NOR delete the branch of
+# unrelated, possibly dirty, local work. Mirrors exit's ownership case for the new verb.
+RDO="$TMP/repo-discard-own"; new_repo "$RDO"
+dforeign="$TMP/discard-foreign-wt"                 # NOT under a creance-ws-* parent
+git -C "$RDO" worktree add -q -b discard-foreign "$dforeign" >/dev/null 2>&1
+echo dirty > "$dforeign/uncommitted"               # unrelated work that MUST survive
+out=$( cd "$RDO" && bash "$SCRIPT" discard "$dforeign" 2>/dev/null ); got=$?
+if [ "$got" = "1" ]; then ok; else bad "discard ownership: non-owned worktree must fail loud (got rc=$got)"; fi
+if [ -d "$dforeign" ]; then ok; else bad "discard ownership: force-removed a non-owned worktree directory"; fi
+if git -C "$RDO" show-ref --verify --quiet refs/heads/discard-foreign; then ok; else bad "discard ownership: deleted a non-owned worktree's branch (unrelated work lost)"; fi
 
 # ── Fail-safe: enter must FAIL LOUD with NO path on stdout (done-when 5) ──
 # (a) outside any git repository.
@@ -117,11 +153,13 @@ if [ -d "$foreign" ]; then ok; else bad "ownership: exit force-removed a non-own
 if git -C "$R3" worktree list 2>/dev/null | grep -q '\[foreign-branch\]'; then ok; else bad "ownership: exit de-registered a non-owned worktree"; fi
 
 # ── Usage guards (exit 2, before any git work) ──
-rc "no args -> usage"            2
-rc "enter w/o branch -> usage"   2 enter
-rc "enter --base w/o value"      2 enter b --base
-rc "exit w/o path -> usage"      2 exit
-rc "unknown subcommand -> usage" 2 frobnicate
+rc "no args -> usage"              2
+rc "enter w/o branch -> usage"     2 enter
+rc "enter --base w/o value"        2 enter b --base
+rc "exit w/o path -> usage"        2 exit
+rc "discard w/o path -> usage"     2 discard
+rc "discard extra arg -> usage"    2 discard p extra
+rc "unknown subcommand -> usage"   2 frobnicate
 
 # ── Wiring (P2): the required `verify` job must ACTIVELY run this test, else the lifecycle
 # is unproven-and-unwired. Bare-filename grep is too loose (a commented-out/moved copy would
