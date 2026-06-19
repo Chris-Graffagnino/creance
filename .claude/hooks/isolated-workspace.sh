@@ -16,9 +16,11 @@
 #   discard <path>                  remove the workspace DIRECTORY (force) AND delete its
 #                                   ephemeral branch — the DISCARD-on-FAIL path: the §7 gate
 #                                   FAILed, so the committed work is thrown away whole.
-# exit and discard both REFUSE a <path> that is not one of THIS lifecycle's own creance-ws-*
-# workspaces, so a stale/foreign path can never force-remove — or delete the branch of — an
-# unrelated (possibly dirty) worktree.
+# exit and discard both REFUSE a <path> unless its parent carries the provenance MARKER that
+# `enter` writes there — not merely a creance-ws-* name. A registered worktree under a look-alike
+# creance-ws-* directory that `enter` did NOT create (a manual `git worktree add`, a copied/stale
+# dir, another run's workspace) has no marker, so a stale/foreign/hand-made path can never
+# force-remove — or delete the branch of — an unrelated (possibly dirty) worktree.
 #
 # The promote-vs-discard DECISION is the §7 gate's, never the lifecycle's (T612): the
 # dispatcher calls `exit` after a PASS (having already pushed / opened the PR) and `discard`
@@ -61,17 +63,24 @@ usage() {
 fail() { echo "isolated-workspace: $*" >&2; exit 1; }
 
 # assert_owned <path> — the ONE ownership guard, shared by exit and discard (a single
-# definition, never two that could drift). `enter` only ever prints <tmp>/creance-ws-XXXXXX/wt,
-# so a path it produced always has a */creance-ws-* parent. Both teardown verbs run a forced
+# definition, never two that could drift). `enter` prints <tmp>/creance-ws-XXXXXX/wt AND writes a
+# provenance MARKER (.creance-ws-owner) into that parent. Both teardown verbs run a forced
 # `git worktree remove` (and discard additionally deletes the branch), which would destroy even
-# a DIRTY worktree's work, so a stale, corrupted, or hand-supplied path pointing at an unrelated
-# worktree must be refused BEFORE any destructive step. Called in the main shell (never in a
-# command substitution) so its `fail` exits the script, not just a subshell.
+# a DIRTY worktree's work, so a stale, corrupted, hand-made, or another run's path must be refused
+# BEFORE any destructive step. The */creance-ws-* name is only a cheap first filter (and a clear
+# message); the load-bearing check is the MARKER, because the name alone is forgeable — a manual
+# `git worktree add` under a creance-ws-* dir, or another lifecycle's look-alike worktree, would
+# otherwise pass and (via discard) have its branch force-deleted (Codex P2, PR #114). Called in the
+# main shell (never in a command substitution) so its `fail` exits the script, not just a subshell.
 assert_owned() {
-  case "$(dirname "$1")" in
+  local parent
+  parent=$(dirname "$1")
+  case "$parent" in
     */creance-ws-*) : ;;
     *) fail "refusing to tear down '$1' — not an isolated-workspace ephemeral worktree (its parent is not a */creance-ws-* temp dir)" ;;
   esac
+  [ -f "$parent/.creance-ws-owner" ] \
+    || fail "refusing to tear down '$1' — no isolated-workspace provenance marker in '$parent' (a creance-ws-* look-alike this lifecycle's enter did not create, or an already-torn-down workspace)"
 }
 
 [ "$#" -ge 1 ] || usage
@@ -101,6 +110,14 @@ case "$cmd" in
     # existing subdir of it (git worktree add refuses a path that already exists).
     parent=$(mktemp -d "${TMPDIR:-/tmp}/creance-ws-XXXXXX") || fail "could not allocate a workspace directory"
     dir="$parent/wt"
+    # Provenance marker, written in the PARENT (never inside $dir, so it never shows up in the
+    # workspace's own git status or the §7 gate's diff): proof THIS lifecycle's enter created this
+    # workspace. exit/discard refuse a path whose parent lacks it, so a registered worktree under a
+    # creance-ws-* look-alike enter did NOT create can never be torn down — or have its branch
+    # deleted (Codex P2, PR #114). Any failure path below reaps it via `rm -rf "$parent"`.
+    printf '%s\n' 'isolated-workspace ephemeral worktree parent — safe to remove via exit/discard' \
+      > "$parent/.creance-ws-owner" \
+      || { rm -rf "$parent" 2>/dev/null; fail "could not write the workspace provenance marker"; }
     if ! git worktree add --quiet -b "$branch" "$dir" "$base" >/dev/null 2>&1; then
       rm -rf "$parent" 2>/dev/null
       fail "git worktree add failed for branch '$branch' off '$base'"
@@ -125,9 +142,11 @@ case "$cmd" in
     if ! git worktree remove --force "$path" >/dev/null 2>&1; then
       fail "git worktree remove failed for '$path' (not a registered worktree?)"
     fi
-    # Best-effort cleanup of OUR ephemeral parent dir (ownership already proven above), then
-    # prune stale worktree metadata.
-    rmdir "$(dirname "$path")" 2>/dev/null || true
+    # Best-effort cleanup of OUR ephemeral parent dir (ownership already proven above): drop the
+    # provenance marker so the now-empty parent rmdir's cleanly, then prune worktree metadata.
+    parent=$(dirname "$path")
+    rm -f "$parent/.creance-ws-owner" 2>/dev/null || true
+    rmdir "$parent" 2>/dev/null || true
     git worktree prune >/dev/null 2>&1 || true
     ;;
   discard)
@@ -152,7 +171,9 @@ case "$cmd" in
     if ! git worktree remove --force "$path" >/dev/null 2>&1; then
       fail "git worktree remove failed for '$path' (not a registered worktree?)"
     fi
-    rmdir "$(dirname "$path")" 2>/dev/null || true
+    parent=$(dirname "$path")
+    rm -f "$parent/.creance-ws-owner" 2>/dev/null || true   # drop the marker so the parent rmdir's cleanly
+    rmdir "$parent" 2>/dev/null || true
     git worktree prune >/dev/null 2>&1 || true
     # -D (force): the ephemeral branch is unmerged by definition (the gate FAILed). git refuses
     # to delete a branch still checked out in a live worktree, so this can never touch the base

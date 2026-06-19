@@ -23,6 +23,11 @@
 #                   create (its parent is not a creance-ws-* temp dir) and leave it intact, so a
 #                   stale or foreign path can never force-remove — or delete the branch of —
 #                   unrelated local work (Codex P2, #111; discard extends the guard, T612);
+#   * provenance:   exit AND discard also refuse a registered worktree whose parent only LOOKS
+#                   like ours — it matches creance-ws-* but lacks the marker enter writes (a manual
+#                   `git worktree add`, a copied/stale dir, another run's workspace) — so the name
+#                   pattern alone is never mistaken for ownership before a forced remove / branch
+#                   delete (Codex P2, #114);
 #   * usage guards;
 #   * wiring (P2):  the `verify` job ACTIVELY runs this test (an active `run:` step, not a
 #                   mention in a comment); and the mechanism<->model drift backstop — the
@@ -127,6 +132,34 @@ out=$( cd "$RDO" && bash "$SCRIPT" discard "$dforeign" 2>/dev/null ); got=$?
 if [ "$got" = "1" ]; then ok; else bad "discard ownership: non-owned worktree must fail loud (got rc=$got)"; fi
 if [ -d "$dforeign" ]; then ok; else bad "discard ownership: force-removed a non-owned worktree directory"; fi
 if git -C "$RDO" show-ref --verify --quiet refs/heads/discard-foreign; then ok; else bad "discard ownership: deleted a non-owned worktree's branch (unrelated work lost)"; fi
+
+# ── Provenance, not just the name (T612 · Codex P2, PR #114): the foreign-parent ownership tests
+# above refuse paths whose parent FAILS the creance-ws-* pattern. These PASS the pattern but carry
+# NO provenance marker — a registered worktree under a look-alike creance-ws-* dir that this
+# lifecycle's enter did not create (a manual `git worktree add`, a copied/stale dir, another run's
+# workspace). The name alone is not ownership, so exit AND discard must REFUSE before any forced
+# remove or branch -D. Two INDEPENDENT look-alikes (one per verb) so each verb's falsification is
+# order-independent — in particular discard's must prove the branch is NOT force-deleted, the worst
+# consequence Codex named. Both falsify the pre-marker guard, which accepted them on the name alone. ──
+RP="$TMP/repo-prov"; new_repo "$RP"
+# (a) exit refuses its own markerless look-alike and leaves the directory intact.
+exit_la="$TMPDIR/creance-ws-LOOKALIKE-X/wt"        # matches */creance-ws-* but enter did NOT make it
+mkdir -p "$(dirname "$exit_la")"
+git -C "$RP" worktree add -q -b lookalike-exit "$exit_la" >/dev/null 2>&1
+echo dirty > "$exit_la/uncommitted"                # unrelated work that MUST survive the refusal
+( cd "$RP" && bash "$SCRIPT" exit "$exit_la" ) >/dev/null 2>&1; got=$?
+if [ "$got" = "1" ]; then ok; else bad "provenance: exit on a markerless creance-ws-* look-alike must fail loud (got rc=$got)"; fi
+if [ -d "$exit_la" ]; then ok; else bad "provenance: exit force-removed a markerless look-alike worktree"; fi
+# (b) discard refuses its OWN markerless look-alike — the dir AND its (unmerged) branch MUST
+# survive; the pre-marker guard would have removed the dir and then `git branch -D`'d the branch.
+disc_la="$TMPDIR/creance-ws-LOOKALIKE-Y/wt"
+mkdir -p "$(dirname "$disc_la")"
+git -C "$RP" worktree add -q -b lookalike-discard "$disc_la" >/dev/null 2>&1
+echo dirty > "$disc_la/uncommitted"
+( cd "$RP" && bash "$SCRIPT" discard "$disc_la" ) >/dev/null 2>&1; got=$?
+if [ "$got" = "1" ]; then ok; else bad "provenance: discard on a markerless look-alike must fail loud (got rc=$got)"; fi
+if [ -d "$disc_la" ]; then ok; else bad "provenance: discard force-removed a markerless look-alike worktree"; fi
+if git -C "$RP" show-ref --verify --quiet refs/heads/lookalike-discard; then ok; else bad "provenance: discard deleted a markerless look-alike's branch (unmerged work lost)"; fi
 
 # ── Fail-safe: enter must FAIL LOUD with NO path on stdout (done-when 5) ──
 # (a) outside any git repository.

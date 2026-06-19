@@ -244,9 +244,13 @@ load-bearing and easy to "simplify" wrongly:
   gate's decision being carried out, not the lifecycle deciding on its own. Folding discard back
   into "just `exit` and don't push" would leave a discarded run's branch ref dangling (blocking a
   same-name retry) and make "discarded" mean "unpushed but still around"; a single deterministic,
-  ownership-guarded `discard` is cleaner and testable. Neither verb ever touches the base branch
-  (P4): `discard` deletes only a non-base `creance-ws-*` branch (and `git branch -D` refuses a
-  branch checked out in the main tree, so it structurally cannot delete the base).
+  ownership-guarded `discard` is cleaner and testable. That ownership guard is a **provenance
+  marker** `enter` writes beside each workspace (and exit/discard check before any teardown), *not*
+  the `creance-ws-*` name alone — the name is forgeable, so a registered worktree under a look-alike
+  dir `enter` did not create (a manual `git worktree add`, another run's workspace) is refused
+  before `discard` could force-delete its branch (Codex P2, PR #114). Neither verb ever touches the
+  base branch (P4): `discard` deletes only a non-base `creance-ws-*` branch (and `git branch -D`
+  refuses a branch checked out in the main tree, so it structurally cannot delete the base).
 - **Gate-in-place is wired by EXPLICIT CONTEXT, not an inferred CWD.** The §7 reviewers (and the
   fixer) audit the workspace's committed diff because the workspace **path is passed to the gate**
   (`workspacePath` → an explicit `git -C <path>` in the reviewer/fixer prompts), per the
