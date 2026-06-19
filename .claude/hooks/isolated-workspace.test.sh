@@ -15,6 +15,9 @@
 #   * fail-safe:    enter outside a repo / on an existing branch FAILS LOUD with NO path on
 #                   stdout, so the caller aborts rather than reading a phantom workspace and
 #                   never falls back to the base branch — done-when 5;
+#   * ownership:    exit REFUSES a registered worktree that this lifecycle did not create (its
+#                   parent is not a creance-ws-* temp dir) and leaves it intact, so a stale or
+#                   foreign path can never force-remove unrelated local work (Codex P2, #111);
 #   * usage guards;
 #   * wiring (P2):  the `verify` job ACTIVELY runs this test (an active `run:` step, not a
 #                   mention in a comment); and the mechanism<->model drift backstop — the
@@ -100,6 +103,18 @@ out=$( cd "$R2" && bash "$SCRIPT" enter dup 2>/dev/null ); got=$?
 if [ "$got" = "1" ] && [ -z "$out" ]; then ok; else bad "fail-safe: enter onto existing branch leaked rc=$got path='$out'"; fi
 # (c) exit on a path that is not a registered worktree fails loud (not a silent success).
 rc "exit non-worktree -> fail loud" 1 exit "$TMP/never-a-worktree"
+# (d) exit on a REGISTERED worktree this lifecycle did NOT create (its parent is not a
+# creance-ws-* temp dir) must REFUSE before the forced remove — `git worktree remove --force`
+# would otherwise discard unrelated, possibly DIRTY, local work (Codex P2, PR #111). This is
+# the ownership case (c)'s unregistered path does not cover.
+R3="$TMP/repo3"; new_repo "$R3"
+foreign="$TMP/foreign-wt"                 # NOT under a creance-ws-* parent
+git -C "$R3" worktree add -q -b foreign-branch "$foreign" >/dev/null 2>&1
+echo dirty > "$foreign/uncommitted"       # unrelated, uncommitted work that MUST survive
+out=$( cd "$R3" && bash "$SCRIPT" exit "$foreign" 2>/dev/null ); got=$?
+if [ "$got" = "1" ]; then ok; else bad "ownership: exit on a non-owned registered worktree must fail loud (got rc=$got)"; fi
+if [ -d "$foreign" ]; then ok; else bad "ownership: exit force-removed a non-owned worktree directory (unrelated work lost)"; fi
+if git -C "$R3" worktree list 2>/dev/null | grep -q '\[foreign-branch\]'; then ok; else bad "ownership: exit de-registered a non-owned worktree"; fi
 
 # ── Usage guards (exit 2, before any git work) ──
 rc "no args -> usage"            2

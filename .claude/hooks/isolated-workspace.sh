@@ -10,7 +10,10 @@
 #
 #   enter <branch> [--base <ref>]   create an ephemeral worktree on a NEW branch off <base>
 #                                   (default HEAD) and PRINT its path on stdout;
-#   exit  <path>                    remove that workspace DIRECTORY (force) and prune.
+#   exit  <path>                    remove that workspace DIRECTORY (force) and prune; REFUSES
+#                                   a <path> that is not one of THIS lifecycle's own
+#                                   creance-ws-* workspaces, so a stale/foreign path can never
+#                                   force-remove an unrelated (possibly dirty) worktree.
 #
 # Two boundaries this script deliberately does NOT cross — they are T612 (gate-in-place):
 #   * it never PROMOTES. Nothing here writes the base branch: `enter` creates a fresh branch,
@@ -89,18 +92,26 @@ case "$cmd" in
     [ "$#" -eq 0 ] || usage
     git rev-parse --git-dir >/dev/null 2>&1 \
       || fail "not inside a git repository — cannot exit a workspace"
+    # OWNERSHIP GUARD — refuse to tear down anything that is not one of THIS lifecycle's own
+    # ephemeral workspaces. `enter` only ever prints <tmp>/creance-ws-XXXXXX/wt, so a path it
+    # produced always has a */creance-ws-* parent. `git worktree remove --force` discards even
+    # a DIRTY worktree, so a stale, corrupted, or hand-supplied path pointing at an unrelated
+    # worktree would otherwise delete real local work — validate ownership BEFORE the forced
+    # remove, not after.
+    parent=$(dirname "$path")
+    case "$parent" in
+      */creance-ws-*) : ;;
+      *) fail "refusing to exit '$path' — not an isolated-workspace ephemeral worktree (its parent is not a */creance-ws-* temp dir)" ;;
+    esac
     # Remove the workspace DIRECTORY only (force: it may carry uncommitted or committed work —
     # discarding the working tree is the point). The branch is intentionally left untouched:
     # promoting or deleting it is the gate's decision (T612), never the lifecycle's.
     if ! git worktree remove --force "$path" >/dev/null 2>&1; then
       fail "git worktree remove failed for '$path' (not a registered worktree?)"
     fi
-    # Best-effort cleanup of OUR ephemeral parent dir only (the case-guard keeps this from
-    # ever removing an arbitrary directory), then prune stale worktree metadata.
-    parent=$(dirname "$path")
-    case "$parent" in
-      */creance-ws-*) rmdir "$parent" 2>/dev/null || true ;;
-    esac
+    # Best-effort cleanup of OUR ephemeral parent dir (ownership already proven above), then
+    # prune stale worktree metadata.
+    rmdir "$parent" 2>/dev/null || true
     git worktree prune >/dev/null 2>&1 || true
     ;;
   *)
