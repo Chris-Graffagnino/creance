@@ -98,6 +98,20 @@ jobs:
       - name: Autonomy-activation tests
         run: bash .claude/hooks/autonomy-mode.test.sh
 
+      # T611 isolated-workspace lifecycle tests (#108, epic #81 part b):
+      # isolated-workspace.sh binds the [isolated workspace] role's worktree enter/exit
+      # lifecycle (.claude/workflow/README.md), and the next-task path wires T610's
+      # [autonomy activation] read into it. The .test.sh proves the primitives behave (enter
+      # creates an ephemeral worktree on a NON-base branch and prints its path; exit removes
+      # it) AND the safety slice — enter->work->exit leaves the base ref untouched, so there
+      # is no un-gated path to main through the lifecycle (the FULL falsification proof is
+      # T613) — AND that this wiring is live (the P2 "machinery proves it is live" discipline,
+      # same as the autonomy-mode/guard tests). The lifecycle ships WITHOUT gate-in-place or
+      # promote/discard (T612). Adapter-side (hooks/ is the Claude Code binding), so a CI
+      # change, not a workflow/** change — no constitution P1 concern.
+      - name: Isolated-workspace lifecycle tests
+        run: bash .claude/hooks/isolated-workspace.test.sh
+
       # AGENTS.md residency (#91): AGENTS.md is imported into every session
       # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
       # size is a per-turn token tax on every task (DESIGN-NOTES §11). This check
