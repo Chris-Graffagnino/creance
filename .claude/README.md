@@ -37,6 +37,7 @@ changing a mapping, update both.
 | **[reviewer]** | A subagent (`.claude/agents/<name>.md`, `tools:` excludes Edit/Write) dispatched via the Agent tool |
 | **[frontier tier] / [strong tier] / [cheap tier]** | Resolved per the model table in **`MODELS.md`** — the adapter's ONLY file naming models (`--model` headless; the Agent tool's `model` parameter per subagent dispatch — the agent files carry no model pin) |
 | **[code-review pass] / [security-review pass]** | `/code-review` / `/security-review` |
+| **[craft-review pass]** *(optional)* | The `engineering-craft` skill's review mode — `engineering-craft review` (equivalently `/engineering-craft review`), which acquires the branch/PR diff and reports the craft-layer findings. An **external** skill (see "Assumed runtime features"), not a built-in; absent it, the gate degrades per `workflow/README.md` → "How an adapter degrades gracefully" |
 | **[visual verification]** | The `/run` and `/verify` skills launch and drive the app; the preview tooling captures screenshots (its screen-recording where available, for animation work). Evidence files are committed on the task branch under `docs/visual-evidence/<task-id>/` and embedded in the PR body via commit-SHA-pinned raw URLs (the URL form lives in the [environment block]) — the CLI cannot upload images to GitHub directly. That path is **world-readable** (public repo, permanent git history), so the role's fixtures-only frame constraint is a privacy boundary here, not a style rule |
 | **[orchestrated run]** | The Workflow tool running the adapter script `.claude/workflows/gate-loop.js` (the binding of `workflow/gate-loop.md`). The invoker resolves the strong/cheap rows from `MODELS.md` and passes them in `args` — `{taskId, strongModel, cheapModel, dispatchContract, maxFixRounds?, fix?}`; the script names no models and hard-fails on missing args. It dispatches the auditor subagents (`agentType`) with a structured verdict schema and returns every verdict verbatim, plus `telemetry`: the gate-run record payload (`workflow/telemetry.md`) — after the run returns (any outcome), the invoker appends that record per the next-task binding's [orchestrated run] row (envelope stamped at append time; a failed append is silent-to-the-gate); the fix stage is a maker-role agent inheriting the session's (task-tier) model |
 | **[bulk-read offload]** | The `Explore` subagent (spawn on the cheap tier) |
@@ -55,6 +56,13 @@ and surface (CLI / desktop / web). This adapter assumes — last probed against 
 Code CLI current as of **2026-06-12**:
 
 - The `/code-review`, `/security-review`, `/run`, and `/verify` built-in skills.
+- The **`engineering-craft` skill** for the **[craft-review pass]** — unlike the built-ins
+  above, this is an **external skill that must be separately installed** on the running
+  machine/surface (e.g. under `~/.claude/skills/`); a fresh clone of this repo does not
+  carry it. Its absence is the expected degradation case (skip the craft layer + note it
+  in the PR, per `workflow/README.md` → "How an adapter degrades gracefully"), never a hard
+  failure. Vendoring it into the repo (so the dependency travels) is a possible future
+  hardening; today it is an assumed external feature like the built-ins.
 - The **Workflow** tool (for [orchestrated run]) and the **Explore** subagent (for
   [bulk-read offload]).
 - The Agent tool's **`model` parameter** (per-dispatch model selection — without it the

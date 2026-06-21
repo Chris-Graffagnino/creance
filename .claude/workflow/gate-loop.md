@@ -14,7 +14,8 @@ The loop owns §7 steps 2, 4 and 5: the parallel reviewer fan-out, the fix-and-r
 cycle, the non-convergence stop, and verbatim verdict retention. It does NOT own:
 
 - §7 step 1 (the maker's self-review) — run it before invoking the loop;
-- §7 step 3 (the **[code-review pass]** / **[security-review pass]**) — run it alongside;
+- §7 step 3 (the **[code-review pass]** / **[security-review pass]**, and the advisory
+  **[craft-review pass]** where the adapter provides one) — run them alongside;
 - §8 (attaching the verdicts to the PR) — the loop *returns* every verdict; posting them
   is the dispatcher's job, exactly as today;
 - appending the telemetry record — the loop *builds* the `gate-run` payload
