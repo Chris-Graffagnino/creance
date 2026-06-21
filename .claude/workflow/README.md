@@ -35,6 +35,7 @@ never a mechanism — so new roles are added by appending rows, without reshapin
 | **[frontier tier] / [strong tier] / [cheap tier]** | A tier selection per run or per dispatch | Execution of that run on a model **at or above** the selected tier | An **ordinal ladder** (frontier > strong > cheap): frontier = long-horizon work (multi-hour autonomous scope, plan-and-port-scale); strong = constitution-critical / ambiguous reasoning; cheap = mechanical. A tier is a **minimum capability requirement** — the adapter resolves it through its **model table** (one model + optional **effort** level per tier; the table is the adapter's only file naming models), rounding up when a tier is unavailable, never down. The constitution [reviewer] always runs at-or-above strong; a session already on a stronger model never downgrades a tagged task |
 | **[code-review pass]** | The current branch's diff against the base branch | The toolchain's general code-review findings | Independent of the maker's self-review; findings are triaged as blocking unless documented otherwise |
 | **[security-review pass]** | The current branch's diff against the base branch | Security-focused review findings | Same as [code-review pass], security lens; used when the change touches privacy, location, or payments |
+| **[craft-review pass]** *(optional)* | The current branch's diff against the base branch | Craft-layer findings — testing discipline, failure/error handling, extension & boundary design, resource control / backpressure, observability, API & backward-compat, implementation simplicity | Same isolation and maker-independence as [code-review pass], craft lens; **advisory** — findings are triaged as blocking unless documented, but graded against craft practice rather than the fixed acceptance/constitution/contract rubric (so its test-adequacy findings carry the standard's existing weight on dimension 6, while its clarity/simplicity findings stay advisory per dimensions 7–8). **Complements** [code-review pass] (which owns correctness/bug-hunting); never replaces it. Run alongside the [code-review pass] at the §7 gate. **Optional** — an adapter without it runs the gate exactly as before, losing only the craft layer |
 | **[visual verification]** | The task branch's running app, plus the user-visible surfaces the task touched | Machine-generated visual evidence of the running app — screenshots; video/animated capture for animation or transition work — attached to the task's PR | Required for any task touching user-visible UI. The evidence is produced by the runtime **actually rendering the app** — never described, mocked up, or recreated from the model's imagination (a model's *claim* that the UI looks right is worth nothing; an artifact is model-independent). **The frame carries fixtures only:** the evidence channel is typically public and permanent, so evidence frames may contain only synthetic/fixture data — never real or imported user content, credentials, or real locations; screens that can show user content must be seeded with fixtures first. **Degrades loudly, never silently:** when no evidence can be produced (tooling flake, headless run without a display/device), the PR must state **"tests only — no visual evidence produced"** and list the affected surfaces as **unverified** — the flake surfaces as unverified, it neither blocks the pipeline nor passes silently |
 | **[orchestrated run]** *(optional)* | The gate-loop spec (`gate-loop.md`) plus its dispatch parameters: task ID, the reviewer selection, the tier→model resolutions (resolved by the **dispatcher** through the adapter's model table — the loop names no models), and the fix-round cap | A machine-executed run of the §7 gate loop: the overall gate outcome (PASS / FAIL) plus **every** dispatched reviewer's latest verdict report, verbatim, returned to the dispatcher | **Optional** — an adapter without it degrades to `next-task.md` §7's prose procedure, exactly as written. When provided: the loop's control flow (parallel fan-out, latest-verdict retention, re-dispatch-only-failures, the two-fix-round non-convergence stop) is enforced **by code, never by executor discipline**; every dispatched reviewer still satisfies every [reviewer] constraint; the constitution reviewer's [strong tier] floor applies to its dispatch parameter; a reviewer that returns no verdict counts as failing, never as passed; the fix step is a maker-role executor, never a reviewer |
 | **[bulk-read offload]** | A reading/searching brief (what to find, where to look) | An answer/summary small enough to not bloat the requesting context | Executes in a **separate context**; read-only; returns conclusions, never full file dumps |
@@ -131,8 +132,11 @@ broken, tests are missing/weak, scope is too broad, or correctness cannot be det
 
 Approval comments must be evidence-based: name the issue/task reviewed, checks run,
 contract + constitution alignment, and any intentional follow-up scope. (The reviewer
-specs under `reviewers/` are this standard's per-dimension instantiations; their
-verdict-table output shapes are what "evidence-based" looks like in practice.)
+specs under `reviewers/` are this standard's per-dimension instantiations for dimensions
+1, 2, and 4; their verdict-table output shapes are what "evidence-based" looks like in
+practice. The optional **[craft-review pass]** is the standard's advisory instrument for
+dimensions 6–7 — test adequacy, maintainability and clarity — run alongside the
+[code-review pass] and graded against craft practice rather than the fixed rubric.)
 
 This standard governs **both** review moments: the **pre-PR** §7 gate (`next-task.md` §7,
 maker-side, before the PR exists) and the end-to-end review of an **already-open** PR —
@@ -164,6 +168,11 @@ If a runtime lacks a role, the methodology still runs, more weakly:
 - **No [security-review pass] mechanism** → same, with a security-lens brief scoped to the
   profile's privacy / location / payment invariants (the dimensions the [security-review
   pass] role guards). Note the degradation in the PR.
+- **No [craft-review pass] mechanism** → skip the craft layer; the gate runs exactly as
+  before (the role is optional and adds dimensions 6–7 on top — its absence loses no core
+  review). Note the skip in the PR. Do **not** fake it as a same-context self-pass: the
+  maker self-grading craft has no maker≠checker value, unlike the [reviewer] degradation
+  where a second pass at least applies a fixed rubric.
 - **No [visual verification] mechanism** → the role's own degradation clause applies to
   every UI-touching task: the PR carries the explicit "tests only — no visual evidence
   produced" statement and lists the affected surfaces as unverified. The statement is

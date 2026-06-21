@@ -91,6 +91,22 @@ appears). The same checklist therefore grades **every** adapter, present and fut
 - **Action:** run the adapter's security-review mechanism on the branch.
 - **Expect:** the planted smell appears in the findings, security-framed.
 
+### P-CRAFT — [craft-review pass] *(optional role)*
+- **Setup:** a fixture diff planting one unambiguous gap the craft lens owns — e.g. a
+  behavior change shipped with no covering test (a dimension-6 test-adequacy gap), or a
+  public signature changed with no back-compat note.
+- **Action:** run the adapter's craft-review mechanism on the branch, alongside the
+  [code-review pass].
+- **Expect:** the planted gap appears in the findings, framed against craft practice
+  (testing, failure handling, boundaries, resource control, observability, API &
+  back-compat, simplicity) rather than the fixed acceptance/constitution/contract rubric.
+  (The probe checks the channel works — findings come back and reference the diff — not the
+  reviewer's taste.) The findings are **advisory**: they surface in the PR body, never as a
+  PASS/FAIL gate.
+- **If the role is unbound:** the adapter's spec must state the degradation (skip the craft
+  layer + note the skip in the PR, per `README.md` → "How an adapter degrades gracefully")
+  explicitly — that statement is the expected observation. A silent skip fails the probe.
+
 ### P-VV — [visual verification]
 - **Setup:** a fixture screen rendering a freshly generated marker string (a random token
   produced at probe time and placed into fixture data — impossible to know without
@@ -352,6 +368,7 @@ state; record results alongside the adapter's spec).
 | tiers (ordinal ladder) | P-TIER |
 | [code-review pass] | P-CR |
 | [security-review pass] | P-SR |
+| [craft-review pass] *(optional)* | P-CRAFT |
 | [visual verification] | P-VV |
 | [orchestrated run] | P-OR |
 | [bulk-read offload] | P-BR |

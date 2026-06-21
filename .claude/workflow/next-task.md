@@ -342,7 +342,14 @@ working tree exactly as before.
      roster's `dispatch-contract` condition: when the change touches a provider interface,
      monetization, or the data model.
 3. Run a **[code-review pass]** (use a **[security-review pass]** if the change touches
-   privacy, location, or in-app purchases).
+   privacy, location, or in-app purchases). Where the adapter provides one, also run a
+   **[craft-review pass]** for the craft layer (the review standard's dimensions 6–7:
+   testing, failure handling, boundaries, resource control, observability, API/compat,
+   simplicity). It is **advisory**
+   and runs alongside the others — never a roster **[reviewer]**, so it does not gate by
+   PASS/FAIL; surface its findings in the PR body (§8), triaged as blocking unless
+   documented. Absent the mechanism, skip it and note the skip (review standard → "How an
+   adapter degrades gracefully").
 4. Any reviewer **FAIL** is blocking: fix it and **re-dispatch that reviewer** until it
    passes. Do not mark the gate passed by overriding a reviewer yourself — that collapses
    the maker/checker split. Treat other material findings as blocking unless documented as
