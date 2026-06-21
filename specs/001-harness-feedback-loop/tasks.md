@@ -215,8 +215,11 @@
 
 - [ ] T616 [strong] Omnigent adapter: bind every `[role]` in `workflow/README.md`'s
       binding contract to an Omnigent mechanism — orchestrator agent (`instructions:`
-      = the neutral methodology) + cross-vendor `[reviewer]` sub-agents handed only the
-      diff + contract + `[guard]`/`[edit guard]` as Omnigent `tool_call`/`tool_result`
+      = the neutral methodology) + cross-vendor `[reviewer]` sub-agents that receive the **full review-standard
+      inputs** (`workflow/README.md` → "The review standard": linked issue, task ID,
+      relevant specs/contracts, constitution, the diff, test plan/results) yet hold **no
+      file-mutation capability** (read-only — never write access to the worktree) +
+      `[guard]`/`[edit guard]` as Omnigent `tool_call`/`tool_result`
       policies (deterministic, fail-open) + `[autonomy activation]` fail-closed (promote
       via PR, never auto-merge) + a single tier→model table — as adapter material under
       `.claude/adapters/omnigent/`, consuming the neutral core **unchanged**. Ships with a
