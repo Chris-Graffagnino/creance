@@ -12,6 +12,9 @@
 # check can enforce must have that check). The live counterpart is the P-NT
 # conformance probe (conformance-probes.md), which checks the field on a real record.
 #
+# The runtime-neutrality scan below is also the standing deterministic backstop for
+# broad workflow-layer mechanism leaks, including workflow/next-task.md (#109).
+#
 # Run: bash .claude/hooks/telemetry-docs.test.sh
 set -u
 
@@ -19,6 +22,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TEL="$DIR/workflow/telemetry.md"
 GL="$DIR/workflow/gate-loop.md"
 RET="$DIR/workflow/retrospective.md"
+NT="$DIR/workflow/next-task.md"
 SK="$DIR/skills/next-task/SKILL.md"
 JS="$DIR/workflows/gate-loop.js"
 
@@ -48,7 +52,7 @@ absent() { # absent <name> <file> <needle> — fails if the needle is PRESENT
   fi
 }
 
-for f in "$TEL" "$GL" "$RET" "$SK" "$JS"; do
+for f in "$TEL" "$GL" "$RET" "$NT" "$SK" "$JS"; do
   if [ ! -f "$f" ]; then
     echo "FAIL: required file missing: $f" >&2
     exit 1
@@ -119,7 +123,7 @@ check "gate-loop.js: comment names commit among the dispatcher-stamped fields" "
 #    next-task.md); banning `git` here would encode a stricter-than-project invariant. This
 #    mirrors pr-review-docs.test.sh's mech scan: strip the allowed `.claude/` profile
 #    pointer first so it never false-matches `\bclaude\b`.
-for doc in "$TEL" "$GL" "$RET"; do
+for doc in "$TEL" "$GL" "$RET" "$NT"; do
   mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$doc" \
     | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
     | sort -u | tr '\n' ' ')"
