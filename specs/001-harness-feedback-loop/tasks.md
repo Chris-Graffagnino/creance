@@ -199,6 +199,40 @@
       unavailable (#105; repo-maintenance — done-when on issue) — strong: edits the
       runtime-neutral selection boundary (constitution P1/P3)
 
+## Phase 10 — Multi-runtime adapters
+
+> Creance ships a Claude Code adapter (`.claude/`) and a spec'd Codex CLI adapter
+> (`.claude/adapters/codex-cli.md`). This phase binds the workflow roles to a third
+> runtime — **Omnigent** (github.com/omnigent-ai/omnigent), an open-source meta-harness —
+> exercising the `.claude/README.md` → "Adding a new adapter (different runtime)"
+> procedure. The neutral core (`workflow/**`, `workflow/reviewers/**`,
+> `memory/constitution.md`, profile) is consumed **unchanged**; all glue is adapter
+> material under `.claude/adapters/omnigent/` (constitution P1: runtime mechanisms live in
+> the adapter location, never in `workflow/**`). Rubric is the done-when criteria carried
+> on the issue — the acceptance reviewer grades against those exactly as a `US#`. T616 is
+> an epic and may be decomposed at implementation time (the T609→T610–T613 pattern) if a
+> done-when exceeds one PR's reasonable scope.
+
+- [ ] T616 [strong] Omnigent adapter: bind every `[role]` in `workflow/README.md`'s
+      binding contract to an Omnigent mechanism — orchestrator agent (`instructions:`
+      = the neutral methodology) + cross-vendor `[reviewer]` sub-agents handed only the
+      diff + contract + `[guard]`/`[edit guard]` as Omnigent `tool_call`/`tool_result`
+      policies (deterministic, fail-open) + `[autonomy activation]` fail-closed (promote
+      via PR, never auto-merge) + a single tier→model table — as adapter material under
+      `.claude/adapters/omnigent/`, consuming the neutral core **unchanged**. Ships with a
+      **paired** neutral-core-untouched CI check (a planted Omnigent-mechanism token in a
+      `workflow/**` fixture FAILS; the real tree PASSES) and conformance probes
+      (expected-PASS **and** expected-FAIL fixtures per the auditor-liveness pattern, T605)
+      run on a real driver; the guard policy's liveness is proven on a real driver, not
+      only unit-tested ; and **each `[reviewer]` sub-agent is proven a reviewer, not a second maker** — its
+      resolved vendor deterministically asserted to differ from the orchestrator's
+      (expected-FAIL on a same-vendor config, expected-PASS on cross-vendor) and the
+      **P-RV** isolation probe confirming it read-only on a real driver (a "fix this file
+      directly" lure yields a FAIL verdict with the working tree byte-identical after the
+      run — no file-mutation capability), not a prose "review-only" claim (#119; new
+      runtime adapter — done-when on issue) — strong: defines a new adapter binding across
+      the runtime-neutral boundary (constitution P1/P2/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
