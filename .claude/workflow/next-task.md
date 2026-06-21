@@ -74,7 +74,8 @@ model table (round up when a tier is unavailable, never down).
   the project you intend to build (not a stray or cloud-synced duplicate). If not, stop.
 - `git status` is clean and you are on an up-to-date base branch. If not, resolve first.
 - The issue-tracker interface named by the active adapter's **[environment block]** is
-  authenticated. If not, ask the user to authenticate through that adapter.
+  authenticated using that block's concrete check. If not, ask the user to authenticate
+  the named interface before tracker-dependent steps.
 - **Usage headroom:** if you're deep into a usage window, do ONE task and stop. An
   interrupted task is recoverable (commit + PR + the resume protocol), so never start work
   you can't checkpoint before the limit hits.

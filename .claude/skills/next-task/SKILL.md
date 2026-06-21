@@ -61,6 +61,8 @@ the temp `.md` with a plain heredoc"; `gh` falls back to `/opt/homebrew/bin/gh` 
   the absolute install path (`C:\Program Files\GitHub CLI\gh.exe`). `gh repo set-default`
   is set to the fork locally, so a bare `gh` targets the right repo — no slug-derivation
   preamble needed in interactive sessions (re-run `set-default` after any re-clone/port).
+- Issue-tracker authentication precondition — run `gh auth status`; if it fails, ask the
+  user to authenticate with `gh auth login` before tracker-dependent steps.
 - **Allowlist-shaped commands (autonomy):** the [permission allowlist] matches command
   *prefixes*, so issue tool calls as single plain commands (`git …`, `gh …`, `npm …`,
   `npx …`). A leading variable assignment (`$x = …;`), a bespoke polling loop, or an

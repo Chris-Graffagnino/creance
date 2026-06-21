@@ -12,8 +12,8 @@
 # check can enforce must have that check). The live counterpart is the P-NT
 # conformance probe (conformance-probes.md), which checks the field on a real record.
 #
-# The runtime-neutrality scan below is also the standing deterministic backstop for
-# broad workflow-layer mechanism leaks, including workflow/next-task.md (#109).
+# The runtime-neutrality scan below is also the deterministic backstop for the core
+# neutral workflow docs it enumerates, including workflow/next-task.md (#109).
 #
 # Run: bash .claude/hooks/telemetry-docs.test.sh
 set -u
@@ -124,8 +124,8 @@ check "gate-loop.js: comment names commit among the dispatcher-stamped fields" "
 #    mirrors pr-review-docs.test.sh's mech scan: strip the allowed `.claude/` profile
 #    pointer first so it never false-matches `\bclaude\b`.
 for doc in "$TEL" "$GL" "$RET" "$NT"; do
-  mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$doc" \
-    | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
+  mech="$(flat "$doc" | sed 's#\.claude/#PROFILEPTR/#g' \
+    | grep -oiE '\bgh\b|GitHub[[:space:]]+CLI|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
     | sort -u | tr '\n' ' ')"
   if [ -z "$mech" ]; then
     pass=$((pass + 1))
