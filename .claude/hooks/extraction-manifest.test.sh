@@ -118,6 +118,24 @@ else
   sed 's/^/  /' "$TMP/extra" >&2
 fi
 
+# §4's ordered procedure must NAME every GENERICIZE file. The extractor copies only
+# KEEP files (step 2) and genericizes the files enumerated in step 4; a GENERICIZE
+# row absent from §4 is handled by neither step and silently dropped. Assert each §2
+# GENERICIZE path appears (backtick-quoted) in §4 (the lines between ## 4 and ## 5).
+awk '/^## 4[.] / { s = 1; next } /^## 5[.] / { s = 0 } s' "$EXTRACT" > "$TMP/section4"
+awk -F '\t' '$2 == "GENERICIZE" { print $1 }' "$TMP/manifest_rows" > "$TMP/generic_paths"
+missing_generic=""
+while IFS= read -r gpath; do
+  [ -n "$gpath" ] || continue
+  grep -qF "\`$gpath\`" "$TMP/section4" || missing_generic="$missing_generic $gpath"
+done < "$TMP/generic_paths"
+if [ -z "$missing_generic" ]; then
+  ok
+else
+  bad "EXTRACTION.md §4 procedure does not name these GENERICIZE files (dropped — handled by neither step 2 nor step 4):"
+  for gpath in $missing_generic; do printf '  %s\n' "$gpath" >&2; done
+fi
+
 if [ -f "$CI" ]; then
   ok
 else

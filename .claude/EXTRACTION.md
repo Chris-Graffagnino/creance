@@ -187,11 +187,16 @@ must be described in the template's docs or they'll be silently dropped:
    `AGENTS.md`/`CLAUDE.md`.
 2. **Copy the KEEP files** (§2) verbatim into the new `.claude/`.
 3. **Ship the TEMPLATE profile:** copy `PROJECT.template.md`; do **not** copy `PROJECT.md`.
-4. **GENERICIZE** `README.md`, `settings.json`, `MODELS.md`, and the evasion-register pair
-   (`workflow/reviewers/evasion-register.md` + `hooks/evasion-register-docs.test.sh`) per §2
+4. **GENERICIZE** `README.md`, `settings.json`, `MODELS.md`, the evasion-register pair
+   (`workflow/reviewers/evasion-register.md` + `hooks/evasion-register-docs.test.sh`), and the
+   isolated-workspace trio (`hooks/isolated-workspace.sh` + the coupled
+   `hooks/isolated-workspace.test.sh` and `hooks/isolation-falsification.test.sh`) per §2
    (strip project name, placeholder the toolchain allowlist, keep the model-table shape;
    reset the register's real-escape exhibits to spec-derived seeds and drop the matching
-   DW1 test assertions).
+   DW1 test assertions; rename the `creance-ws-` mktemp prefix + `.creance-ws-owner` marker to a
+   neutral prefix and move the `creance-ws-*` test fixtures in lockstep). §2's GENERICIZE rows
+   are the authoritative set for this step — `hooks/extraction-manifest.test.sh` fails CI if §4
+   omits one.
 5. **RESET** `adapters/claude-code-probes.md` to an un-run instantiation.
 6. **Add the root skeletons** (§3a): `constitution.template.md`, `specs/000-template/*`,
    `AGENTS.md` template, `CLAUDE.md`.
