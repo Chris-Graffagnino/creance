@@ -11,8 +11,12 @@
 # branch). The SAME fixtures must REFUSE T615 (exit 3) AND SELECT T616 (exit 0), so "no false
 # positive" cannot be met by a check that never fires (or that flags every candidate). Each
 # in-flight ARM is also exercised alone (PR-only, branch-only) since done-when 1 says
-# "PR/branch". Plus the fail-open paths (done-when 4: gh errors AND gh absent), usage guards,
-# and the CI-wiring assertion. Bash + a stub only, <1s; wired into the `verify` CI job.
+# "PR/branch". Plus whole-id anchoring; the targeted-query lock (the PR scan narrows server-side
+# with `--search "<id> in:title"` rather than a --limit-capped enumeration that could miss a
+# conflicting PR past the window — Codex P2, #129); the fail-open paths (done-when 4: gh errors
+# AND gh absent); usage guards; and the end-to-end wiring proof (the verify job ACTIVELY runs
+# this test, SKILL.md binds the script, and next-task.md routes the in-flight axis as a [role]).
+# Bash + a stub only, <1s; wired into the `verify` CI job.
 # Run: bash .claude/hooks/reconcile-inflight-selection.test.sh
 set -u
 
@@ -33,6 +37,7 @@ bad() { fail=$((fail + 1)); printf 'FAIL %s\n' "$1" >&2; }
 STUB="$TMP/gh"
 cat > "$STUB" <<'STUB_EOF'
 #!/usr/bin/env bash
+[ -n "${STUB_ARGV:-}" ] && printf '%s\n' "$*" >> "$STUB_ARGV"
 [ "${STUB_FAIL:-0}" = "1" ] && exit 1
 case "$1 $2" in
   "pr list")    [ -n "${STUB_PRS:-}" ]    && cat "$STUB_PRS" ;;
@@ -84,6 +89,17 @@ printf '105\tfeat: [T615] refuse in-flight candidates\n' > "$TMP/issues-615.tsv"
 STUB_PRS="$TMP/prs-substr.tsv" STUB_ISSUES="$TMP/issues-615.tsv" STUB_BRANCHES="$TMP/branches-substr.txt" \
   run_inflight 0 "anchoring: [T61] PR + /1054- branch do not trip T615" T615
 
+# ── Targeted PR query (Codex P2, #129): the pr-list call must narrow server-side with
+#    `--search "<id> in:title"`, not enumerate a --limit-capped list of unrelated open PRs — in
+#    a repo with more open PRs than the window, a conflicting [<id>] PR past it would be missed
+#    and the task wrongly marked selectable (duplicate in-flight work). The stub serves fixtures
+#    regardless of flags, so the QUERY SHAPE is asserted from recorded argv, locking the fix
+#    against a silent revert to a bare capped list.
+argv="$TMP/argv.log"
+STUB_ARGV="$argv" GH="$STUB" bash "$SCRIPT" T615 >/dev/null 2>&1
+if grep -Eq 'pr list .*--search T615 in:title' "$argv"; then ok
+else bad "Codex P2 #129: PR query not narrowed by --search \"T615 in:title\" (a capped --limit list can miss the conflicting PR)"; fi
+
 # ── Surfacing (done-when 1, "surfacing the conflict"): a refusal must PRINT the conflicting
 #    PR/branch, not merely exit 3. Re-uses the paired fixtures (exports restored after the
 #    anchoring prefix override) — PR arm prints the PR, branch-only arm prints the branch.
@@ -109,11 +125,25 @@ got=0; ( GH="$STUB" bash "$SCRIPT" >/dev/null 2>&1 ) || got=$?
 [ "$got" -eq 2 ] && ok || bad "usage: zero args exits 2 (got $got)"
 run_inflight 2 "usage: a non-task argument exits 2" not-a-task
 
-# ── CI wiring: ci.yml must run this test, else the precondition's machinery is unproven (the
-#    silently-dead-machinery class, P2 — same posture as reconcile-task-selection.test.sh).
+# ── Wiring (P2): the precondition must be proven LIVE end-to-end, else its machinery is the
+#    silently-dead-machinery class. Three links, mirroring isolated-workspace.test.sh:
+#    (a) the required `verify` job ACTIVELY runs this test — a bare-filename grep is too loose
+#        (a commented-out/moved copy satisfies it, the #92 / PR #107 lesson), so scope to the
+#        verify job body and require an active `run: bash <path>` step;
+#    (b) the adapter SKILL.md binds the concrete reconcile-inflight-selection.sh into /next-task
+#        (the in-flight axis actually runs "at selection", not just inside this test);
+#    (c) the neutral next-task.md routes the in-flight axis as a tracker [role] read — proving
+#        the path is wired while keeping the script name out of workflow/** (the P1 boundary).
 CI="$HOOKS/../../.github/workflows/ci.yml"
-if grep -qE 'reconcile-inflight-selection\.test\.sh' "$CI"; then ok
-else bad "wiring: ci.yml verify does not run reconcile-inflight-selection.test.sh"; fi
+BINDING="$HOOKS/../../.claude/skills/next-task/SKILL.md"
+NEUTRAL="$HOOKS/../../.claude/workflow/next-task.md"
+verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
+if verify_steps | grep -qE '^[[:space:]]*run:[[:space:]]+bash[[:space:]]+\.claude/hooks/reconcile-inflight-selection\.test\.sh([[:space:]]|$)'; then ok
+else bad "wiring (a): verify job does not ACTIVELY run reconcile-inflight-selection.test.sh"; fi
+if grep -qF 'reconcile-inflight-selection.sh' "$BINDING"; then ok
+else bad "wiring (b): SKILL.md does not bind reconcile-inflight-selection.sh into the /next-task path"; fi
+if grep -qF 'tracker [role]' "$NEUTRAL"; then ok
+else bad "wiring (c): next-task.md does not route the in-flight axis as a tracker [role] read"; fi
 
 printf 'reconcile-inflight-selection.test.sh: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

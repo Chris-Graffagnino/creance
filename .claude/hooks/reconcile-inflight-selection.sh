@@ -61,11 +61,14 @@ refuse() {
 command -v "$GH" >/dev/null 2>&1 || fail_open "gh not found"
 
 # Signal 1 — an OPEN PR whose title carries [<id>]. TSV: <number>\t<title>\t<url>. The
-# bracket-anchored grep is whole-id-safe ([T61] never matches an unchecked T615). A gh failure
-# (auth/network) drops to fail-open, never a stall. A PR hit is CONCLUSIVE: refuse at once,
-# before any further tracker read, so a later partial failure can never mask the refusal
-# (and a PR's head branch is already a branch, so signal 2 would add nothing here).
-prs="$( "$GH" pr list --state open --limit 200 --json number,title,url \
+# server-side `--search "<id> in:title"` narrows to PRs carrying the id token, so a repo with
+# more open PRs than any `--limit` window can't push the conflicting one out of view (Codex P2,
+# #129); the client-side bracket grep then makes the match EXACT (whole-id-safe: [T61] never
+# matches an unchecked T615) — the same prefilter+anchor idiom signal 2 uses for the issue
+# lookup. A gh failure (auth/network) drops to fail-open, never a stall. A PR hit is CONCLUSIVE:
+# refuse at once, before any further tracker read, so a later partial failure can never mask the
+# refusal (and a PR's head branch is already a branch, so signal 2 would add nothing here).
+prs="$( "$GH" pr list --state open --search "$id in:title" --limit 50 --json number,title,url \
           --jq '.[] | [.number, .title, .url] | @tsv' 2>/dev/null )" \
   || fail_open "gh pr list failed"
 pr_hit="$( printf '%s\n' "$prs" | grep -F "[$id]" | head -1 )"
