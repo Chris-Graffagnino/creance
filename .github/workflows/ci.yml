@@ -94,6 +94,20 @@ jobs:
       - name: Selection-reconciliation tests
         run: bash .claude/hooks/reconcile-task-selection.test.sh
 
+      # T614 selection announce-and-confirm (#103): the UX complement to the reconciliation
+      # precondition above. After reconciliation resolves a candidate, /next-task announces the
+      # resolved target and — only on an IMPLICIT pick contradicted by live state — PAUSES for
+      # confirmation, a deterministic decision (constitution P3: a check, not the model
+      # "noticing"). announce-task-selection.sh SHARES lib-tasks-drift.sh with the reconcile
+      # precondition and the CI drift gate — one drift definition, three consumers — and fails
+      # open to announce-only when git state is unreadable. The .test.sh is the same PAIRED
+      # harness discipline as reconcile's: ONE fixture proves implicit-contradicted -> confirm,
+      # implicit-consistent -> proceed (no false pause), and explicit -> proceed (never pauses),
+      # so the pause is provably mode-AND-contradiction-gated; it also asserts the share-not-
+      # duplicate sourcing and this wiring (P2 "machinery proves it is live").
+      - name: Selection announce-and-confirm tests
+        run: bash .claude/hooks/announce-task-selection.test.sh
+
       # [autonomy activation] (T610, epic #81): autonomy-mode.sh is the deterministic,
       # default-OFF activation decision for the [isolated workspace] role
       # (.claude/workflow/README.md). It is the deliberate INVERSE of guard.sh — it FAILS

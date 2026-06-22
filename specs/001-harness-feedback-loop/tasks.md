@@ -179,7 +179,7 @@
 > half (#105, surfaced by the Codex review on PR #104). Both extend `[live-state reconciliation]`;
 > each carries its done-when rubric on its issue. Unblocked: T608 (PR #104) is merged.
 
-- [ ] T614 [strong] Announce-and-confirm the resolved next-task target: after the
+- [x] T614 [strong] Announce-and-confirm the resolved next-task target: after the
       deterministic `[live-state reconciliation]` resolves a candidate, announce the resolved
       target before the first file edit, and pause for confirmation on an *implicit* selection
       (no explicit task ID/issue named) whose lowest-unchecked box is contradicted by live

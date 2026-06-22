@@ -148,9 +148,14 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   **[live-state reconciliation]** precondition — a candidate whose box is unchecked but whose
   work has merged/landed must be refused, not started (the recurring stale-pick class,
   #21/#80) — FAIL. The runtime selector (`reconcile-task-selection.sh`) **shares**
-  `lib-tasks-drift.sh` with CI's `check-tasks-consistency.sh` (one drift definition, two
-  consumers; a forked second copy is itself a FAIL, P2) and **fails open** when live state is
-  unavailable.
+  `lib-tasks-drift.sh` with CI's `check-tasks-consistency.sh` and the announce decision
+  (`announce-task-selection.sh`) — one drift definition, three consumers; a forked copy is
+  itself a FAIL, P2 — and **fails open** when live state is unavailable. Its UX complement,
+  **[selection announce-and-confirm]** (`announce-task-selection.sh`), must likewise decide the
+  confirm pause **deterministically** (implicit + contradicted → pause; explicit or
+  uncontradicted → no pause; live state unreadable → announce-only), never by model judgment,
+  and the pause must never *start* the contradicted candidate — a model-gated pause, a false
+  pause, or a pause that starts stale work is a FAIL (#103/T614).
 - Autonomous mode (the `[isolated workspace]` path by which §7-gated work can reach the base
   branch without human review) reachable **without** the deterministic **[autonomy activation]**
   check, or that check failing **open** (any uncertainty resolving to autonomous instead of
@@ -176,7 +181,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 | No silent self-modification (P4) | constitution-auditor: hunt automation that writes reviewer specs, guards, invariants, or the constitution outside a PR | none yet — judgment-only |
 | `AGENTS.md` residency (the L1 always-resident file stays lean; DESIGN-NOTES §11, P3) | constitution-auditor: a procedure inlined into `AGENTS.md` that a `workflow/**` pointer could carry | `agents-residency-check.sh` line ceiling in CI `verify` |
 | Hook scripts (`.claude/hooks/*.sh`) stay BSD/GNU-portable; an edit adds no new diagnostic to a checked file ([edit guard], #79/#97) | constitution-auditor: a `guard.sh` behavior change (incl. rule 7) without a matching `guard.test.sh` case | `shell-lint.sh` + `shell-lint.test.sh` over `.claude/hooks/*.sh` in CI `verify`; `guard.test.sh` rule-7 delta cases |
-| Selection reconciles live state before starting (no merged-but-unchecked pick; P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation, or a forked second copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused; asserts both consumers source `lib-tasks-drift.sh`) in CI `verify` |
+| Selection reconciles live state before starting (no merged-but-unchecked pick; P3), announces/confirms the resolved target deterministically (P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation, a model-gated (not deterministic) confirm pause, or a forked copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused) + `announce-task-selection.test.sh` (paired: implicit-contradicted → confirm, implicit-consistent + explicit → proceed, fail-open → announce-only); each asserts its consumer sources the shared `lib-tasks-drift.sh`, in CI `verify` |
 | Autonomous mode off by default + activation fails closed to review; promotion stays §7-gated (P3/P4; `[isolated workspace]`) | constitution-auditor: an activation path reachable without the deterministic `[autonomy activation]` check, the check failing open, or isolation writing the base branch directly | `autonomy-mode.test.sh` (default-off + fail-closed cases; asserts ci.yml runs the check+test and the neutral role + profile flag exist) in CI `verify` |
 | Isolation lifecycle never writes the base branch; the activation read is wired into the autonomous path; gate-in-place reads the workspace diff by explicit context and promote/discard never auto-merges or writes the base ref (P4; T611 lifecycle + T612 gate-in-place + T613 full falsification proof) | constitution-auditor: a `discard`/`exit`/promote path that writes the base ref or auto-merges, a gate that reads an inferred CWD instead of the passed workspace path, or an `enter` that falls back to the base branch instead of failing loud | `isolated-workspace.test.sh` (discard removes the dir + deletes only the ephemeral branch + leaves the base ref untouched + refuses a non-owned worktree; enter→work→exit leaves base untouched; enter fails loud) + `isolation-falsification.test.sh` (T613: the un-gated commit unreachable from base after exit, destroyed by discard, a forged `branch=main` marker cannot delete the checked-out base, no base-writing door in the script) + `gate-loop.test.js` (workspacePath retargets the reviewer/fixer prompt; absent → unchanged main-tree diff) in CI `verify`; live counterpart is the **P-IW** conformance probe |
 
