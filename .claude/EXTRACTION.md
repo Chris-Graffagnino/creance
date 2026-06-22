@@ -214,11 +214,12 @@ A binding that *reads* correctly can still be dead on a real driver — this har
 that the hard way (two live failures on the "production-trusted" adapter; DESIGN-NOTES
 §"probe before you trust"). So don't ship on inspection alone:
 
-1. **The split holds — grep tests.** Three files must quote the grep needles to do their
+1. **The split holds — grep tests.** Four files must quote the grep needles to do their
    jobs, so the commands exclude them by name: this manifest (it states the commands),
    `adapters/claude-code-probes.md` (its instantiation table names the tokens it greps
-   for), and `hooks/guard.test.sh` (sealed fixture table — the recorded P-MT caveat). The
-   original probe run excluded them implicitly; the commands below say so explicitly. They
+   for), `hooks/guard.test.sh` (sealed fixture table — the recorded P-MT caveat), and
+   `hooks/retrospective-docs.test.sh` (sealed P-RT telemetry fixture). The original
+   probe run excluded the needle-quoting files implicitly; the commands below make that explicit. They
    use `git grep` so only *tracked* files are scanned (a gitignored `settings.local.json`
    can't false-match), and `-w` instead of `\b` (a GNU extension — under BSD/macOS regex it
    silently returns zero hits, vacuously passing the no-hits check and failing the
@@ -227,7 +228,7 @@ that the hard way (two live failures on the "production-trusted" adapter; DESIGN
      layer names no models). Use the model-table vocabulary only — a bare `claude` would
      false-match every `.claude/` *path* reference, which is why probe P-MT greps model
      names, not vendor strings.
-   - `git grep -Eilw 'fable|opus|sonnet|haiku' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md' ':(exclude).claude/hooks/guard.test.sh'`
+   - `git grep -Eilw 'fable|opus|sonnet|haiku' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md' ':(exclude).claude/hooks/guard.test.sh' ':(exclude).claude/hooks/retrospective-docs.test.sh'`
      → exactly **one** file: `MODELS.md`. (Probe P-MT.)
    - `git grep -Fil -e 'Out-File' -e '-Encoding utf8' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md'`
      → exactly **one** file: `skills/next-task/SKILL.md` (the [environment block]).
