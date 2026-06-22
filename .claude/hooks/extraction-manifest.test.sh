@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Completeness backstop for .claude/EXTRACTION.md §2 (issue #90).
 #
-# The extraction cut-list is the handoff manifest for every tracked file under
+# The extraction cut-list is the handoff manifest for every source file under
 # .claude/. A missing disposition can drop a file during extraction or ship
 # instance-stained material into a template. This test compares the §2 table to
 # git's tracked inventory and fails on a stale count, a missing row, a duplicate
 # row, an untracked row, or a category outside the four extraction dispositions.
+# Rows whose action starts "Omit from extracted template;" are source-only
+# TEMPLATE inputs and may be absent after extraction.
 #
 # Run: bash .claude/hooks/extraction-manifest.test.sh
 set -u
@@ -33,34 +35,54 @@ fi
 git -C "$ROOT" ls-files .claude | sed 's#^\.claude/##' | sort > "$TMP/tracked"
 tracked_count="$(wc -l < "$TMP/tracked" | tr -d '[:space:]')"
 
-manifest_count="$(grep -E '^Current tracked inventory: [0-9][0-9]* files[.]$' "$EXTRACT" \
-  | head -1 | sed -E 's/[^0-9]*([0-9][0-9]*).*/\1/')"
-if [ "$manifest_count" = "$tracked_count" ]; then
-  ok
-else
-  bad "EXTRACTION.md §2 count is stale (manifest=${manifest_count:-missing}, tracked=$tracked_count)"
-fi
-
 awk '
+  BEGIN { FS = "|" }
+
+  function trim(s) {
+    sub(/^[ \t][ \t]*/, "", s)
+    sub(/[ \t][ \t]*$/, "", s)
+    return s
+  }
+
   /^## 2[.] / { section = 1; next }
   /^## 3[.] / { section = 0 }
   section && /^\| `[^`][^`]*` \|/ {
-    path = $0
-    sub(/^\| `/, "", path)
-    sub(/` \|.*/, "", path)
-    category = $0
-    sub(/^\| `[^`][^`]*` \|[ \t]*/, "", category)
-    sub(/[ \t]*\|.*/, "", category)
-    print path "\t" category
+    path = $2
+    sub(/^[ \t]*`/, "", path)
+    sub(/`[ \t]*$/, "", path)
+
+    category = trim($3)
+
+    action = $4
+    for (i = 5; i < NF; i++) {
+      action = action "|" $i
+    }
+    action = trim(action)
+
+    print path "\t" category "\t" action
   }
 ' "$EXTRACT" > "$TMP/manifest_rows"
 
 cut -f1 "$TMP/manifest_rows" | sort > "$TMP/manifest"
+awk -F '	' '$3 ~ /^Omit from extracted template;/ { print $1 }' "$TMP/manifest_rows" \
+  | sort > "$TMP/omit_only"
+
 row_count="$(wc -l < "$TMP/manifest_rows" | tr -d '[:space:]')"
-if [ "$row_count" = "$tracked_count" ]; then
+manifest_count="$(grep -E '^Manifest source inventory: [0-9][0-9]* rows[.]$' "$EXTRACT" \
+  | head -1 | sed -E 's/[^0-9]*([0-9][0-9]*).*/\1/')"
+if [ "$manifest_count" = "$row_count" ]; then
   ok
 else
-  bad "EXTRACTION.md §2 has $row_count table rows; tracked inventory has $tracked_count files"
+  bad "EXTRACTION.md §2 source count is stale (manifest=${manifest_count:-missing}, rows=$row_count)"
+fi
+
+comm -23 "$TMP/omit_only" "$TMP/tracked" > "$TMP/absent_omit_only"
+absent_omit_count="$(wc -l < "$TMP/absent_omit_only" | tr -d '[:space:]')"
+effective_row_count=$((row_count - absent_omit_count))
+if [ "$effective_row_count" = "$tracked_count" ]; then
+  ok
+else
+  bad "EXTRACTION.md §2 has $effective_row_count effective table rows; tracked inventory has $tracked_count files"
 fi
 
 invalid_categories="$(awk -F '	' '$2 !~ /^(KEEP|GENERICIZE|RESET|TEMPLATE)$/ { print $1 " -> " $2 }' "$TMP/manifest_rows")"
@@ -87,11 +109,12 @@ else
   sed 's/^/  /' "$TMP/missing" >&2
 fi
 
-comm -13 "$TMP/tracked" "$TMP/manifest" > "$TMP/extra"
+comm -13 "$TMP/tracked" "$TMP/manifest" > "$TMP/extra_all"
+comm -23 "$TMP/extra_all" "$TMP/omit_only" > "$TMP/extra"
 if [ ! -s "$TMP/extra" ]; then
   ok
 else
-  bad "EXTRACTION.md §2 lists files that are not tracked under .claude:"
+  bad "EXTRACTION.md §2 lists files that are not tracked under .claude and not marked omit-only:"
   sed 's/^/  /' "$TMP/extra" >&2
 fi
 

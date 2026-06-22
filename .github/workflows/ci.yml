@@ -236,7 +236,8 @@ jobs:
       # can drop a file during extraction or ship instance-stained material into a
       # template. This test compares the table to `git ls-files .claude` and fails
       # on a stale count, missing row, duplicate row, untracked row, invalid
-      # category, or dead CI wiring.
+      # category, or dead CI wiring. Source-only TEMPLATE rows explicitly marked
+      # omit-only may be absent after extraction.
       - name: Extraction-manifest completeness
         run: bash .claude/hooks/extraction-manifest.test.sh
 

@@ -49,12 +49,14 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Current tracked inventory: 66 files.
+Manifest source inventory: 66 rows.
 
-Every tracked file under `.claude/` is itemized exactly once below;
+Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
 `git ls-files .claude` and fails CI on a stale count, a missing row, a duplicate row, an
-untracked row, or an invalid category.
+untracked row, or an invalid category. Rows whose action starts
+`Omit from extracted template;` are source-only template inputs and may be absent after
+extraction.
 
 Categories: **KEEP** (generic, copy verbatim) · **GENERICIZE** (reused but carries a
 project/toolchain or instance assumption to strip) · **RESET** (replace contents with a
@@ -66,7 +68,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `DESIGN-NOTES.md` | KEEP | Companion rationale for the harness. Carry with this manifest; it explains why the load-bearing machinery exists. |
 | `EXTRACTION.md` | KEEP | This manifest and extraction playbook. Carry so the next extraction has a complete inventory. |
 | `MODELS.md` | GENERICIZE | The adapter's only model-naming file. Keep the table shape and semantics; replace the concrete rows with sensible defaults plus a "swap per your account" note. |
-| `PROJECT.md` | TEMPLATE | Live project profile. Do not ship this instance file; ship `PROJECT.template.md` for adopters to fill. |
+| `PROJECT.md` | TEMPLATE | Omit from extracted template; live project profile. Ship `PROJECT.template.md` for adopters to fill. |
 | `PROJECT.template.md` | TEMPLATE | Fill-in-the-blanks project profile. Ship as the template's profile source. |
 | `README.md` | GENERICIZE | Adapter-layer doc is generic, but examples may name this source environment. Strip project names/examples; keep the structure. |
 | `adapters/claude-code-probes.md` | RESET | Probe instantiation + dated results are environment-specific. Reset to "instantiated, NOT yet executed" with placeholder launcher/scheduler rows. |
