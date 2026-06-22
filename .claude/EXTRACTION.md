@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 71 rows.
+Manifest source inventory: 73 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -102,6 +102,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
 | `hooks/pr-review-docs.test.sh` | KEEP | Encoding test for the PR-review workflow and binding. Verbatim. |
 | `hooks/probe-fingerprint-docs.test.sh` | KEEP | Encoding test for probe fingerprint recording and machinery-freshness inputs. Verbatim. |
+| `hooks/reconcile-inflight-selection.sh` | KEEP | Runtime in-flight (open PR/branch) selection refusal — the tracker-based half of live-state reconciliation. Verbatim. |
+| `hooks/reconcile-inflight-selection.test.sh` | KEEP | Paired regression tests for in-flight selection reconciliation (`gh` mocked). Verbatim. |
 | `hooks/reconcile-task-selection.sh` | KEEP | Runtime live-state reconciliation precondition. Verbatim. |
 | `hooks/reconcile-task-selection.test.sh` | KEEP | Paired regression tests for selection reconciliation. Verbatim. |
 | `hooks/retrospective-docs.test.sh` | KEEP | Encoding test for retrospective workflow/binding invariants. Verbatim. |

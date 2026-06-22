@@ -14,7 +14,8 @@
 # contradiction signal is the SAME done-but-unchecked drift the reconcile precondition refuses
 # on, sourced from lib-tasks-drift.sh — one drift definition, now THREE consumers (the CI gate,
 # the reconcile precondition, and this announce decision), so the pause can never disagree with
-# the refusal. Like reconcile, this covers MERGED/LANDED drift only; the in-flight axis is #105.
+# the refusal. Like reconcile, this covers MERGED/LANDED drift only; the in-flight axis is
+# handled by the companion reconcile-inflight-selection.sh (#105/T615).
 #
 # The pause is NOT a way to start stale work: a `confirm` asks the caller to confirm or REDIRECT
 # the target, never to override reconcile's refusal — so "refused, not started" still holds.

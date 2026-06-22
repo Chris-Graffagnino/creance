@@ -119,11 +119,11 @@ property (the enforcing checks are named in the profile's invariant checklist).
   surface the drift with its conflicting evidence (the commit/PR) instead of starting stale
   work (for an *implicitly* resolved auto-pick this same refusal is delivered by the
   announce-and-confirm step below as a pause for redirection — still never starting the
-  candidate). This precondition currently reconciles against **landed/merged** evidence only;
-  refusing a candidate that is merely **in-flight** — an open PR/branch with no landed work yet
-  — is a known gap deferred to a tracked follow-up, not yet part of this check. The check
-  **fails open** — when live state is unavailable it degrades to the prior behavior with a
-  surfaced warning, never a hard stall.
+  candidate). This precondition reconciles two axes: a **git-only** check refuses a candidate
+  whose ID carries **landed/merged** work, and a **tracker [role]** read refuses one merely
+  **in-flight** — a mapped issue with an open, unmerged PR/branch — surfacing the conflict. Each
+  **fails open** with a surfaced warning (the in-flight axis, a network read, degrades to the
+  git-only result when the tracker is unavailable), never a hard stall.
 - **Announce the resolved target, and confirm an implicit pick that live state contradicts
   ([selection announce-and-confirm]).** After the candidate is resolved, announce the resolved
   target — its task ID and issue — before the first file edit. Whether to also **pause for
@@ -136,8 +136,8 @@ property (the enforcing checks are named in the profile's invariant checklist).
   path, not pre-empted by the refusal. Either response invites a *redirect* and never starts the
   contradicted candidate. An explicit request, or an implicit pick live state does **not**
   contradict, announces and proceeds without a pause; when live state is unreadable the step
-  **degrades to announce-only**, never a stall it cannot justify. Broadening the contradiction to
-  in-flight targets is the same deferred follow-up.
+  **degrades to announce-only**, never a stall it cannot justify. The **in-flight** axis is
+  handled by the reconciliation refusal above, not by this confirm pause.
 - Confirm the selected task ID, its `path`, and its `US#` before editing anything.
 
 ## 2. Read the context (always, every task)
