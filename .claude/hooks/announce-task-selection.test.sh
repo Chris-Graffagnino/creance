@@ -30,12 +30,14 @@ bad() { fail=$((fail + 1)); printf 'FAIL %s\n' "$1" >&2; }
 
 # run_decision <expected-stdout> <repo-dir> <name> [script-args...] — run with the repo as CWD
 # (so the script's specs/*/tasks.md glob and `git log` resolve against the fixture) and assert
-# the printed decision word equals the expected one.
+# BOTH the printed decision word AND exit 0 — the contract is "exit 0 (decision) / 2 (usage)"
+# (SKILL binding), so a decision that printed the right word but exited non-zero must still FAIL.
 run_decision() {
   local want="$1" dir="$2" name="$3"; shift 3
-  local got
-  got="$( cd "$dir" && bash "$SCRIPT" "$@" 2>/dev/null )"
-  if [ "$got" = "$want" ]; then ok; else bad "$name (want '$want', got '$got')"; fi
+  local got rc=0
+  got="$( cd "$dir" && bash "$SCRIPT" "$@" 2>/dev/null )" || rc=$?
+  if [ "$got" = "$want" ] && [ "$rc" -eq 0 ]; then ok
+  else bad "$name (want '$want' exit 0, got '$got' exit $rc)"; fi
 }
 
 # run_exit <expected-exit> <repo-dir> <name> [script-args...] — assert the exit code (usage).
@@ -75,6 +77,37 @@ S="$TMP/substr"; new_repo "$S"; mkdir -p "$S/specs/feat"
 printf -- '- [ ] T913 [cheap] open task (US1)\n' > "$S/specs/feat/tasks.md"
 git -C "$S" commit -q --allow-empty -m "fix: [T91] an unrelated, lower task"
 run_decision proceed "$S" "substring: [T91] commit does not contradict implicit T913" T913 implicit
+
+# ── Composed production path (craft review on PR #128, finding 1): the §1 binding runs the
+#    reconcile precondition AND this announce decision, keyed to the selection's provenance.
+#    Prove `confirm` is REACHABLE on the real composed path — not only on the announce hook in
+#    isolation — and that an explicit stale pick is reconcile's TERMINAL refusal, not a confirm.
+#    Without this, the documented "announce after reconcile clears" would make `confirm` dead:
+#    reconcile exits 3 on the same drift the confirm uses, so a confirm gated behind a reconcile
+#    exit 0 could never fire. run_composed mirrors the binding's documented composition exactly.
+RECON="$HOOKS/reconcile-task-selection.sh"
+# run_composed <expected-outcome> <repo-dir> <name> <mode> <id> — explicit: reconcile is
+# authoritative (exit 3 = terminal `refuse`; else announce → `proceed`). implicit: announce
+# decides (`confirm` | `proceed` | `announce-only`); reconcile is not a separate terminal gate
+# because the confirm surfaces that same drift as a pause-for-redirect.
+run_composed() {
+  local want="$1" dir="$2" name="$3" mode="$4" id="$5"
+  local outcome
+  if [ "$mode" = "explicit" ]; then
+    if ( cd "$dir" && bash "$RECON" "$id" >/dev/null 2>&1 ); then
+      outcome="$( cd "$dir" && bash "$SCRIPT" "$id" explicit 2>/dev/null )"
+    else
+      outcome="refuse"
+    fi
+  else
+    outcome="$( cd "$dir" && bash "$SCRIPT" "$id" implicit 2>/dev/null )"
+  fi
+  if [ "$outcome" = "$want" ]; then ok; else bad "$name (want '$want', got '$outcome')"; fi
+}
+run_composed confirm "$P" "composed: implicit drifted T911 -> confirm IS reachable on the real path" implicit T911
+run_composed proceed "$P" "composed: implicit open T910 -> proceed" implicit T910
+run_composed refuse  "$P" "composed: explicit drifted T911 -> reconcile terminal refusal (not confirm)" explicit T911
+run_composed proceed "$P" "composed: explicit open T910 -> proceed" explicit T910
 
 # ── Fail-open (done-when 4): no git state -> an implicit pick degrades to `announce-only`
 #    (announce, no spurious confirm-stall), never a hard stall. A bare temp dir under $TMP is

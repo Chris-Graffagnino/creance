@@ -117,24 +117,27 @@ property (the enforcing checks are named in the profile's invariant checklist).
   reconciles the candidate's box against authoritative live `git`/tracker state. A candidate
   whose live state shows landed/merged work for its ID is **not selectable**: refuse it and
   surface the drift with its conflicting evidence (the commit/PR) instead of starting stale
-  work. This precondition currently reconciles against **landed/merged** evidence only;
+  work (for an *implicitly* resolved auto-pick this same refusal is delivered by the
+  announce-and-confirm step below as a pause for redirection — still never starting the
+  candidate). This precondition currently reconciles against **landed/merged** evidence only;
   refusing a candidate that is merely **in-flight** — an open PR/branch with no landed work yet
   — is a known gap deferred to a tracked follow-up, not yet part of this check. The check
   **fails open** — when live state is unavailable it degrades to the prior behavior with a
   surfaced warning, never a hard stall.
 - **Announce the resolved target, and confirm an implicit pick that live state contradicts
-  ([selection announce-and-confirm]).** Once reconciliation clears a candidate, announce the
-  resolved target — its task ID and issue — before the first file edit. Whether to also
-  **pause for confirmation** is a deterministic decision, not a model "noticing": pause only
-  when the selection was **implicit** (no task ID/issue was named) *and* live state
-  **contradicts** the auto-picked candidate — the UX complement to reconciliation's refusal,
-  so a silent auto-pick cannot diverge from intent unchallenged. An **explicit** request, or
-  an implicit pick live state does **not** contradict, announces and proceeds without a pause;
-  when live state is unreadable the step **degrades to announce-only**, never a stall it cannot
-  justify. The pause invites a *redirect* — it never starts the contradicted candidate
-  (reconciliation still refuses that). The contradiction signal is the same done-but-unchecked
-  drift reconciliation refuses on; broadening it to in-flight targets is the same deferred
-  follow-up.
+  ([selection announce-and-confirm]).** After the candidate is resolved, announce the resolved
+  target — its task ID and issue — before the first file edit. Whether to also **pause for
+  confirmation** is a deterministic decision, not a model "noticing": pause only when the
+  selection was **implicit** (no task ID/issue was named) *and* live state **contradicts** the
+  auto-picked candidate. The contradiction is the same done-but-unchecked drift reconciliation
+  refuses on, but the two responses are **keyed to the pick's provenance**: an **explicit** stale
+  pick is reconciliation's terminal refusal above (the user named it), whereas an **implicit**
+  contradicted auto-pick is surfaced *here* as the confirm pause — reachable on the composed
+  path, not pre-empted by the refusal. Either response invites a *redirect* and never starts the
+  contradicted candidate. An explicit request, or an implicit pick live state does **not**
+  contradict, announces and proceeds without a pause; when live state is unreadable the step
+  **degrades to announce-only**, never a stall it cannot justify. Broadening the contradiction to
+  in-flight targets is the same deferred follow-up.
 - Confirm the selected task ID, its `path`, and its `US#` before editing anything.
 
 ## 2. Read the context (always, every task)
