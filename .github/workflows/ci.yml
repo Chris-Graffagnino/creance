@@ -108,6 +108,19 @@ jobs:
       - name: Selection announce-and-confirm tests
         run: bash .claude/hooks/announce-task-selection.test.sh
 
+      # T615 in-flight selection refusal (#105): the IN-FLIGHT half of live-state
+      # reconciliation, the tracker-based companion to the git-only merged half above. After
+      # the merged check clears a candidate, /next-task refuses one whose mapped issue has an
+      # OPEN, unmerged PR/branch (work already in flight — invisible to a git-only commit-subject
+      # scan). Necessarily a `gh` read, so it lives in the adapter (no `gh` in workflow/**, P1)
+      # and FAILS OPEN to the merged-only result when gh/network is unavailable. The .test.sh
+      # mocks gh on the script's `GH` seam: the same PAIRED harness discipline as reconcile's —
+      # ONE tracker state REFUSES the in-flight task AND SELECTS a genuinely-open one (each arm,
+      # PR and branch, exercised) — so "no false positive" can't be met by a check that never
+      # fires; it also asserts this wiring (P2 "machinery proves it is live").
+      - name: In-flight selection-reconciliation tests
+        run: bash .claude/hooks/reconcile-inflight-selection.test.sh
+
       # [autonomy activation] (T610, epic #81): autonomy-mode.sh is the deterministic,
       # default-OFF activation decision for the [isolated workspace] role
       # (.claude/workflow/README.md). It is the deliberate INVERSE of guard.sh — it FAILS

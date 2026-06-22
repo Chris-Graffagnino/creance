@@ -189,7 +189,7 @@
       unavailable; paired test (explicit→no-pause, implicit-contradiction→pause,
       implicit-consistent→no-false-pause) (#103; repo-maintenance — done-when on issue) —
       strong: edits the runtime-neutral workflow boundary (constitution P1/P3)
-- [ ] T615 [strong] Deterministically refuse in-flight (open-PR/branch) next-task candidates:
+- [x] T615 [strong] Deterministically refuse in-flight (open-PR/branch) next-task candidates:
       after `[live-state reconciliation]` clears a candidate on the merged/landed axis,
       additionally refuse a candidate whose mapped issue has an open, unmerged PR/branch,
       surfacing the conflict — the in-flight half of the #80 stale-pick pair that T608
