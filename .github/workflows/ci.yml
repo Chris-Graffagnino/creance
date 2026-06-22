@@ -55,6 +55,17 @@ jobs:
       - name: Shell-portability lint tests
         run: bash .claude/hooks/shell-lint.test.sh
 
+      # #122 review hardening: the shared runtime-neutrality scanner is a real
+      # library now, so pin its API contract directly instead of only through
+      # transitive docs tests. The coverage test scans every tracked
+      # workflow/**.md file through that shared banned-token set, so a new
+      # neutral doc cannot forget to opt in.
+      - name: Runtime-neutrality scanner tests
+        run: bash .claude/hooks/lib-neutrality-scan.test.sh
+
+      - name: Workflow neutrality scan coverage
+        run: bash .claude/hooks/neutrality-scan-coverage.test.sh
+
       # Tasks-file resolution stays unambiguous (issue #21): the template skeleton
       # must never match the engine's specs/*/{spec,tasks}.md fallback globs, and no
       # task ID may appear in more than one live tasks file. Rule 3 (#69) also FAILs

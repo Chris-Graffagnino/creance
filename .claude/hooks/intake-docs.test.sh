@@ -21,6 +21,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 TRIAGE="$DIR/workflow/triage.md"
 INTAKE="$DIR/workflow/intake.md"
 
@@ -241,6 +243,17 @@ check "T606 DW3: note references the spec-auditor reviewer spec" "$INTAKE_FLAT" 
   "\`reviewers/spec-auditor.md\` → \"The"
 check "T606 DW3: note frames the reviewer as the post-implementation backstop" "$INTAKE_FLAT" \
   "post-implementation"
+
+# ── Runtime-neutral boundary (constitution P1) ─────────────────────────────────
+# Intake is a neutral workflow doc, so it uses the same shared banned-token set as
+# the other workflow-doc encoding tests (#122).
+mech="$(neutral_mechanism_leaks "$INTAKE")"
+if [ -z "$mech" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL neutral boundary: runtime-specific mechanism leaked into %s\n     found: %s\n' "$INTAKE" "$mech" >&2
+fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

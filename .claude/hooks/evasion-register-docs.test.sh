@@ -15,6 +15,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 REG="$DIR/workflow/reviewers/evasion-register.md"
 SPEC="$DIR/workflow/reviewers/spec-auditor.md"
 CON="$DIR/workflow/reviewers/constitution-auditor.md"
@@ -183,9 +185,7 @@ check "extraction: register self-documents the reset-to-seeds on extraction" "$R
 # `.claude/` profile pointer first (so it never false-matches \bclaude\b), then ban
 # the runtime-specific mechanism set — same scan the telemetry/pr-review docs tests
 # run over their neutral docs.
-mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$REG" \
-  | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
-  | sort -u | tr '\n' ' ')"
+mech="$(neutral_mechanism_leaks "$REG")"
 if [ -z "$mech" ]; then
   pass=$((pass + 1))
 else

@@ -23,6 +23,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 WF="$DIR/workflow/pr-review.md"
 SK="$DIR/skills/pr-review/SKILL.md"
 
@@ -63,8 +65,7 @@ check "AC1 neutral: no new binding-contract row" "$WF_FLAT" \
 # before scanning (matches how contract-auditor reads the boundary). `git` is
 # deliberately absent from the banned set below — it is the harness's assumed VCS
 # substrate, exempt per constitution P1 / PROJECT.md "Invariant checklist".
-mech="$(printf '%s' "$WF_FLAT" | sed 's#\.claude/#PROFILEPTR/#g' \
-  | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' || true)"
+mech="$(neutral_mechanism_leaks "$WF")"
 if [ -z "$mech" ]; then
   pass=$((pass + 1))
 else

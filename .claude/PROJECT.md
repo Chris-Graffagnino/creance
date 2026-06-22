@@ -118,8 +118,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   substrate, may be named directly (e.g. `git rev-parse --show-toplevel` for the repo
   root); the ban binds runtime-specific mechanisms — `gh` and other vendor CLIs, model
   IDs, and Claude-Code-only tokens (`--model`, `--json`, `PreToolUse`, `settings.json`) —
-  the set the encoding-test mech scans enforce (`pr-review-docs.test.sh`,
-  `telemetry-docs.test.sh`).
+  the set `lib-neutrality-scan.sh` exposes to the distributed docs encoding tests.
 - Guard behavior changed without a matching `guard.test.sh` case, or settings.json
   matcher drift the wiring assertion would miss — FAIL (the "silently dead guard" class,
   DESIGN-NOTES §"the guard was silently dead").
@@ -170,7 +169,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 
 | Invariant | Auditor rule | Deterministic backstop (lint/test) |
 |---|---|---|
-| Runtime-neutral workflow layer | contract-auditor: hunt concrete mechanisms in `workflow/**` | Partial deterministic backstop: distributed doc encoding tests scan their owned workflow docs for runtime-specific mechanism tokens; `telemetry-docs.test.sh` now covers the core neutral docs including `workflow/next-task.md`; remaining coverage gaps are tracked in #122 |
+| Runtime-neutral workflow layer | contract-auditor: hunt concrete mechanisms in `workflow/**` | `lib-neutrality-scan.test.sh` pins the shared scanner contract; `neutrality-scan-coverage.test.sh` scans every tracked neutral workflow doc through that banned-token set; distributed docs encoding tests also scan their owned workflow docs at the local acceptance surface |
 | Guard change ↔ guard test | constitution-auditor: diff touching `guard.sh` without `guard.test.sh` | `guard.test.sh` in CI `verify` (incl. matcher-wiring assertion) |
 | No selectable template artifacts / duplicate task IDs | spec-auditor: tasks-file resolution per this profile | CI `verify` repo-consistency step (fails on `specs/000-template/{spec,tasks}.md` or duplicate `T<nnn>` across live tasks files) |
 | Telemetry observes, never decides (P5) | constitution-auditor: hunt gate/tier logic reading telemetry or evaluation records | none yet — judgment-only |

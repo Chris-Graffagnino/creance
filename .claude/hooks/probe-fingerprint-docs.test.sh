@@ -26,6 +26,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 NEU="$DIR/workflow/conformance-probes.md"
 ADP="$DIR/adapters/claude-code-probes.md"
 
@@ -139,9 +141,7 @@ check "adapter: ties recording to US5.AC1 and defers currency to T402" "$ADP_FLA
 # (the GitHub CLI, model IDs, Claude-Code-only tokens). `git` is the harness's universal
 # VCS substrate and is exempt; strip the `.claude/` profile pointer first so the
 # `\bclaude\b` word match never false-fires on it (same shape as telemetry-docs.test.sh).
-mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$NEU" \
-  | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
-  | sort -u | tr '\n' ' ')"
+mech="$(neutral_mechanism_leaks "$NEU")"
 if [ -z "$mech" ]; then
   pass=$((pass + 1))
 else

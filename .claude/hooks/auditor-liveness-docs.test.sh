@@ -22,6 +22,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 NEU="$DIR/workflow/auditor-liveness.md"
 CORPUS="$DIR/workflow/reviewers/auditor-liveness-corpus.md"
 TRIAGE="$DIR/workflow/triage.md"
@@ -231,9 +233,7 @@ check "CI: verify runs this encoding test" "$(flat "$CI")" \
 # scan the telemetry / evasion-register docs tests run over their neutral docs. Covers
 # BOTH new neutral files (the methodology doc and the fixture manifest).
 for nf in "$NEU" "$CORPUS"; do
-  mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$nf" \
-    | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
-    | sort -u | tr '\n' ' ')"
+  mech="$(neutral_mechanism_leaks "$nf")"
   if [ -z "$mech" ]; then
     pass=$((pass + 1))
   else

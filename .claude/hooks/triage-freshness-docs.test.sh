@@ -24,6 +24,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 NEU="$DIR/workflow/triage.md"
 ADP="$DIR/skills/triage/SKILL.md"
 
@@ -121,14 +123,10 @@ check "adapter: GUARD-SILENT is addressed in the binding" "$ADP_FLAT" \
   "GUARD-SILENT"
 
 # ── Runtime-neutral boundary (constitution P1) ───────────────────────────────────────
-# The triage workflow doc must name no runtime-specific mechanism (the GitHub CLI, model IDs,
-# Claude-Code-only tokens). `git` is the harness's universal VCS substrate and is exempt; the
-# fingerprint recipe (guard.sh hash + the settings matcher) is the adapter's, not the neutral
-# doc's. Strip the `.claude/` profile pointer first so the `\bclaude\b` word match never
-# false-fires on it (same shape as probe-fingerprint-docs.test.sh / telemetry-docs.test.sh).
-mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$NEU" \
-  | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
-  | sort -u | tr '\n' ' ')"
+# The triage workflow doc must name no runtime-specific mechanism. The shared scanner's
+# token contract, including line-wrapped prose mechanism names, is pinned by
+# lib-neutrality-scan.test.sh.
+mech="$(neutral_mechanism_leaks "$NEU")"
 if [ -z "$mech" ]; then
   pass=$((pass + 1))
 else
