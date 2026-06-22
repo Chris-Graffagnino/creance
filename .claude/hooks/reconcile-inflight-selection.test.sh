@@ -34,13 +34,27 @@ bad() { fail=$((fail + 1)); printf 'FAIL %s\n' "$1" >&2; }
 # subcommand: `pr list` -> $STUB_PRS, `issue list` -> $STUB_ISSUES, `api …/branches` ->
 # $STUB_BRANCHES. STUB_FAIL=1 makes every call exit non-zero (the "tracker unavailable" path).
 # An unset fixture is empty success — exactly what real gh returns for "nothing matched".
+# Signal 2's per-branch merged probe (`pr list --head <b> --state merged`) is keyed on --head:
+# it returns a merged-PR number iff <b> is listed in $STUB_MERGED_HEADS; STUB_FAIL_HEAD=1 fails
+# ONLY that probe (the new read's fail-open path, #130).
 STUB="$TMP/gh"
 cat > "$STUB" <<'STUB_EOF'
 #!/usr/bin/env bash
 [ -n "${STUB_ARGV:-}" ] && printf '%s\n' "$*" >> "$STUB_ARGV"
 [ "${STUB_FAIL:-0}" = "1" ] && exit 1
 case "$1 $2" in
-  "pr list")    [ -n "${STUB_PRS:-}" ]    && cat "$STUB_PRS" ;;
+  "pr list")
+    # `--head <branch>` marks signal 2's per-branch merged probe; signal 1's open-PR scan uses
+    # --search and no --head. The probe emits a merged-PR number iff <branch> is in
+    # $STUB_MERGED_HEADS (post-`--jq` shape: just the number). STUB_FAIL_HEAD=1 fails the probe.
+    probe_head=""; prev=""
+    for a in "$@"; do [ "$prev" = "--head" ] && probe_head="$a"; prev="$a"; done
+    if [ -n "$probe_head" ]; then
+      [ "${STUB_FAIL_HEAD:-0}" = "1" ] && exit 1
+      [ -n "${STUB_MERGED_HEADS:-}" ] && grep -qxF "$probe_head" "$STUB_MERGED_HEADS" && printf '120\n'
+    else
+      [ -n "${STUB_PRS:-}" ] && cat "$STUB_PRS"
+    fi ;;
   "issue list") [ -n "${STUB_ISSUES:-}" ] && cat "$STUB_ISSUES" ;;
 esac
 [ "$1" = "api" ] && [ -n "${STUB_BRANCHES:-}" ] && cat "$STUB_BRANCHES"
@@ -80,6 +94,32 @@ STUB_BRANCHES="$TMP/branches-nopr105.txt" run_inflight 3 "PR-only: open PR [T615
 #    branch signal alone.
 printf '300\tfeat: [T616] unrelated open pr\thttps://gh/x/y/pull/300\n' > "$TMP/prs-nopr615.tsv"
 STUB_PRS="$TMP/prs-nopr615.tsv" run_inflight 3 "branch-only: branch feat/105-… , no PR [T615] -> REFUSE" T615
+
+# ── Merged-leftover branch is NOT in-flight (#130). A candidate's mapped issue can carry a
+#    remote branch left undeleted after its PR already MERGED (e.g. the intake PR that created
+#    the task) — stale cleanup-debt, not active work. Signal 2 must SKIP such a branch (a
+#    PR-STATE read, so squash and merge-commit merges both count), and must keep scanning so a
+#    merged-stale branch can't mask a genuine in-flight sibling. Paired in ONE fixture state:
+#    T616 (issue #119) has ONLY a merged-stale branch -> SELECTED; T617 (issue #131) has a
+#    merged-stale branch AND a live in-flight branch -> REFUSED on the live one. No OPEN PR
+#    carries [T616]/[T617] (STUB_PRS empty), so signal 1 clears and signal 2 alone decides.
+printf '119\tfeat: [T616] omnigent adapter\n131\tfeat: [T617] a later task\n' > "$TMP/issues-merged.tsv"
+printf 'main\nchore/119-intake-omnigent-adapter\nchore/131-intake-stale\nfeat/131-live-work\n' > "$TMP/branches-merged.txt"
+printf 'chore/119-intake-omnigent-adapter\nchore/131-intake-stale\n' > "$TMP/merged-heads.txt"
+STUB_PRS= STUB_ISSUES="$TMP/issues-merged.tsv" STUB_BRANCHES="$TMP/branches-merged.txt" STUB_MERGED_HEADS="$TMP/merged-heads.txt" \
+  run_inflight 0 "#130 regression: a merged-leftover branch (PR already merged) is SKIPPED -> SELECTED" T616
+STUB_PRS= STUB_ISSUES="$TMP/issues-merged.tsv" STUB_BRANCHES="$TMP/branches-merged.txt" STUB_MERGED_HEADS="$TMP/merged-heads.txt" \
+  run_inflight 3 "#130 no false-negative: a live in-flight branch beside a merged-stale one still REFUSES" T617
+# The refusal must surface the LIVE branch, not the merged-stale sibling — proof the scan
+# continued past the stale match (a head -1 + skip would have wrongly SELECTED T617).
+msg="$( STUB_PRS= STUB_ISSUES="$TMP/issues-merged.tsv" STUB_BRANCHES="$TMP/branches-merged.txt" STUB_MERGED_HEADS="$TMP/merged-heads.txt" GH="$STUB" bash "$SCRIPT" T617 2>&1 )"
+case "$msg" in *"open branch:"*feat/131-live-work*) ok ;; *) bad "#130: refusal surfaces the merged-stale sibling instead of the live branch (got: $msg)" ;; esac
+# The new per-branch merged probe fails open too (done-when 4): a `pr list --head` error after
+# signal 1 + issue + branches all succeed degrades to selectable + warning, never a stall.
+STUB_PRS= STUB_ISSUES="$TMP/issues-merged.tsv" STUB_BRANCHES="$TMP/branches-merged.txt" STUB_FAIL_HEAD=1 \
+  run_inflight 0 "#130 fail-open: a 'pr list --head' error degrades to selectable" T617
+warn="$( STUB_PRS= STUB_ISSUES="$TMP/issues-merged.tsv" STUB_BRANCHES="$TMP/branches-merged.txt" STUB_FAIL_HEAD=1 GH="$STUB" bash "$SCRIPT" T617 2>&1 )"
+case "$warn" in *fail-open*) ok ;; *) bad "#130 fail-open: --head error missing surfaced warning (got: $warn)" ;; esac
 
 # ── Whole-id / delimiter anchoring: a [T61] PR and a /1054- branch must NOT make T615 look
 #    in-flight (mirrors the merged half's bracket-anchored match).
