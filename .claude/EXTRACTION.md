@@ -89,9 +89,9 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
 | `hooks/guard.test.sh` | KEEP | Guard tests including matcher-wiring and edit-guard assertions. Verbatim. |
 | `hooks/intake-docs.test.sh` | KEEP | Encoding test for intake/triage workflow docs and skill binding. Verbatim. |
-| `hooks/isolated-workspace.sh` | KEEP | Worktree lifecycle binding for [isolated workspace]. Verbatim. |
-| `hooks/isolated-workspace.test.sh` | KEEP | Lifecycle regression tests and CI wiring assertion. Verbatim. |
-| `hooks/isolation-falsification.test.sh` | KEEP | Adversarial proof that un-gated work cannot reach base via the isolation lifecycle. Verbatim. |
+| `hooks/isolated-workspace.sh` | GENERICIZE | Keep the [isolated workspace] worktree lifecycle verbatim, but the ephemeral worktree's `creance-ws-` mktemp prefix and `.creance-ws-owner` provenance-marker filename hardcode this project's name (`enter`'s `mktemp -d .../creance-ws-XXXXXX`, the marker write/read, and the `*/creance-ws-*` teardown name-guard). A verbatim clone would create `creance`-named temp dirs and marker files. On extraction, rename both to a neutral prefix (`ws-`/`harness-ws-`); update the two coupled tests below in lockstep. (Descriptive mentions of the prefix in `DESIGN-NOTES.md`, `skills/next-task/SKILL.md`, and example paths in `workflows/gate-loop.test.js` are self-contained — same this-repo flavor those KEEP files already carry — and don't break on rename.) |
+| `hooks/isolated-workspace.test.sh` | GENERICIZE | Keep the lifecycle regression tests and CI-wiring assertion verbatim, but its look-alike fixtures (`creance-ws-LOOKALIKE-*`) hardcode the prefix to exercise the `*/creance-ws-*` name-guard. Rename them in lockstep with `isolated-workspace.sh` above so the extracted test matches the genericized script. |
+| `hooks/isolation-falsification.test.sh` | GENERICIZE | Keep the adversarial base-unreachability proof verbatim, but its forged-marker fixture (`creance-ws-FORGED`) hardcodes the prefix to pass the `*/creance-ws-*` name filter. Rename it in lockstep with `isolated-workspace.sh` above. |
 | `hooks/lib-tasks-drift.sh` | KEEP | Shared task-drift detection library for runtime selection and CI consistency. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
