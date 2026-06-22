@@ -18,8 +18,11 @@
 # commit match (so [T90] never trips T901, and /105- never trips /1054-):
 #   * an OPEN PR whose title carries `[<task-id>]` (PR title convention <type>: [<id>] <desc>);
 #   * a remote branch `<type>/<issue#>-…` bound to the candidate's mapped issue (resolved from
-#     the task id) — covers both a PR's head branch AND a branch pushed before its PR exists
-#     (branch cut at §4, PR opened at §8: the real "started, not yet PR'd" window).
+#     the task id) whose work is NOT already merged — a branch pushed before its PR exists
+#     (branch cut at §4, PR opened at §8: the real "started, not yet PR'd" window). A branch left
+#     undeleted after its PR already MERGED, with its tip unchanged since the merge, is stale
+#     cleanup-debt, not in-flight — skipped (#130); but one REUSED for follow-up work (tip
+#     advanced past the merge) is in-flight again — refused (Codex, PR #131 review).
 #
 # Run from the repo root:  bash .claude/hooks/reconcile-inflight-selection.sh <task-id>
 # Exit: 0 selectable (or fail-open) · 2 usage · 3 in-flight (candidate is being worked — refuse).
@@ -84,10 +87,35 @@ issues="$( "$GH" issue list --state all --search "$id in:title" --limit 50 \
   || fail_open "gh issue list failed"
 issue_no="$( printf '%s\n' "$issues" | grep -F "[$id]" | head -1 | cut -f1 )"
 if [ -n "$issue_no" ]; then
-  branches="$( "$GH" api --paginate "repos/{owner}/{repo}/branches" --jq '.[].name' 2>/dev/null )" \
+  # Each branch as <name>\t<tip-sha> (.commit.sha) — the tip is needed to tell a stale leftover
+  # from a reused branch below.
+  branches="$( "$GH" api --paginate "repos/{owner}/{repo}/branches" \
+                 --jq '.[] | [.name, .commit.sha] | @tsv' 2>/dev/null )" \
     || fail_open "gh api branches failed"
-  branch_hit="$( printf '%s\n' "$branches" | grep -F "/$issue_no-" | head -1 )"
-  [ -n "$branch_hit" ] && refuse "open branch: $branch_hit (issue #$issue_no)"
+  # Scan EVERY branch bound to the issue, not just the first: a branch whose PR has already
+  # MERGED *and whose tip has not moved since* is stale cleanup-debt left undeleted (e.g. the
+  # intake PR's branch that created this very task) — NOT in-flight work — so skip it and keep
+  # scanning. A merged-only match must not refuse the candidate forever (#130), and a head -1 +
+  # skip would instead mask a genuine in-flight sibling under the same issue.
+  #
+  # "Already merged" is a PR-STATE read (`pr list --head … --state merged`), so it holds for
+  # squash and merge-commit merges alike — a git-ancestry test would miss a squash-merged branch
+  # (its head is not an ancestor of base). But a merged PR alone is NOT enough to call a branch
+  # stale: an undeleted branch can be REUSED for follow-up work after its PR merged, advancing its
+  # tip past the merge — and that new, unmerged work is exactly the branch-only in-flight window
+  # this hook refuses (Codex, PR #131 review). So skip ONLY when the branch tip equals the merged
+  # PR's recorded head (`headRefOid`, frozen at merge time): tip == merged head ⇒ nothing pushed
+  # since ⇒ stale; tip moved past it ⇒ reused ⇒ refuse. A branch with no merged PR at all is the
+  # plain "started, not yet PR'd" window — refuse on it too. A gh failure on the per-branch read
+  # drops to fail-open, same as every other tracker read here.
+  while IFS=$'\t' read -r branch_hit branch_tip; do
+    [ -n "$branch_hit" ] || continue
+    merged_head="$( "$GH" pr list --head "$branch_hit" --state merged --limit 1 --json headRefOid \
+                      --jq '.[0].headRefOid // empty' 2>/dev/null )" \
+      || fail_open "gh pr list --head failed"
+    [ -n "$merged_head" ] && [ "$merged_head" = "$branch_tip" ] && continue
+    refuse "open branch: $branch_hit (issue #$issue_no)"
+  done < <(printf '%s\n' "$branches" | grep -F "/$issue_no-")
 fi
 
 echo "inflight: $id is selectable — no open PR/branch in flight for it."
