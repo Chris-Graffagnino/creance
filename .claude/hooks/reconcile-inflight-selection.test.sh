@@ -84,6 +84,14 @@ printf '105\tfeat: [T615] refuse in-flight candidates\n' > "$TMP/issues-615.tsv"
 STUB_PRS="$TMP/prs-substr.tsv" STUB_ISSUES="$TMP/issues-615.tsv" STUB_BRANCHES="$TMP/branches-substr.txt" \
   run_inflight 0 "anchoring: [T61] PR + /1054- branch do not trip T615" T615
 
+# ── Surfacing (done-when 1, "surfacing the conflict"): a refusal must PRINT the conflicting
+#    PR/branch, not merely exit 3. Re-uses the paired fixtures (exports restored after the
+#    anchoring prefix override) — PR arm prints the PR, branch-only arm prints the branch.
+msg="$( GH="$STUB" bash "$SCRIPT" T615 2>&1 )"
+case "$msg" in *"open PR:"*200*) ok ;; *) bad "surfacing: PR refusal does not surface the conflicting PR (got: $msg)" ;; esac
+msg="$( GH="$STUB" STUB_PRS="$TMP/prs-nopr615.tsv" bash "$SCRIPT" T615 2>&1 )"
+case "$msg" in *"open branch:"*feat/105-inflight-refusal*) ok ;; *) bad "surfacing: branch refusal does not surface the conflicting branch (got: $msg)" ;; esac
+
 # ── Fail-open (done-when 4): the tracker is unavailable. gh ERRORS (auth/network) and gh ABSENT
 #    both degrade to selectable WITH a surfaced warning, never a hard stall.
 STUB_FAIL=1 run_inflight 0 "fail-open: gh errors -> selectable (degrade to merged-only)" T615

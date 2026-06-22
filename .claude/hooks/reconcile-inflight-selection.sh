@@ -48,42 +48,43 @@ fail_open() {
   exit 0
 }
 
+# Refuse the candidate, surfacing the conflicting evidence (done-when 1).
+refuse() {
+  {
+    echo "inflight: REFUSING $id — work is already in flight for it:"
+    printf '    %s\n' "$1"
+    echo "  Starting $id now would duplicate in-flight work. Take over that PR/branch, or pick another task."
+  } >&2
+  exit "$INFLIGHT_EXIT"
+}
+
 command -v "$GH" >/dev/null 2>&1 || fail_open "gh not found"
 
 # Signal 1 — an OPEN PR whose title carries [<id>]. TSV: <number>\t<title>\t<url>. The
 # bracket-anchored grep is whole-id-safe ([T61] never matches an unchecked T615). A gh failure
-# (auth/network) drops to fail-open, never a stall.
+# (auth/network) drops to fail-open, never a stall. A PR hit is CONCLUSIVE: refuse at once,
+# before any further tracker read, so a later partial failure can never mask the refusal
+# (and a PR's head branch is already a branch, so signal 2 would add nothing here).
 prs="$( "$GH" pr list --state open --limit 200 --json number,title,url \
           --jq '.[] | [.number, .title, .url] | @tsv' 2>/dev/null )" \
   || fail_open "gh pr list failed"
 pr_hit="$( printf '%s\n' "$prs" | grep -F "[$id]" | head -1 )"
+[ -n "$pr_hit" ] && refuse "open PR:     $pr_hit"
 
-# Resolve the candidate's mapped issue (its title carries [<id>]) so the branch match can be
-# anchored to the issue number. The server-side search is only a prefilter; the client-side
-# bracket grep is what makes the match exact.
+# Signal 2 — no PR carries [<id>], so look for a branch <type>/<issue#>-… pushed before its PR
+# exists (the real "started, not yet PR'd" window). First resolve the candidate's mapped issue
+# (its title carries [<id>]) for the anchor: the server-side search is only a prefilter, the
+# client-side bracket grep makes the match exact. Then the /<n>- match is delimiter-anchored,
+# so /105- never matches /1054- or /15-.
 issues="$( "$GH" issue list --state all --search "$id in:title" --limit 50 \
              --json number,title --jq '.[] | [.number, .title] | @tsv' 2>/dev/null )" \
   || fail_open "gh issue list failed"
 issue_no="$( printf '%s\n' "$issues" | grep -F "[$id]" | head -1 | cut -f1 )"
-
-# Signal 2 — a remote branch <type>/<issue#>-… bound to that issue (covers a PR's head branch
-# AND a branch with no PR yet). Only checkable once the issue number is known. The /<n>- match
-# is delimiter-anchored: /105- never matches /1054- or /15-.
-branch_hit=""
 if [ -n "$issue_no" ]; then
   branches="$( "$GH" api --paginate "repos/{owner}/{repo}/branches" --jq '.[].name' 2>/dev/null )" \
     || fail_open "gh api branches failed"
   branch_hit="$( printf '%s\n' "$branches" | grep -F "/$issue_no-" | head -1 )"
-fi
-
-if [ -n "$pr_hit" ] || [ -n "$branch_hit" ]; then
-  {
-    echo "inflight: REFUSING $id — work is already in flight for it:"
-    [ -n "$pr_hit" ]     && printf '    open PR:     %s\n' "$pr_hit"
-    [ -n "$branch_hit" ] && printf '    open branch: %s (issue #%s)\n' "$branch_hit" "$issue_no"
-    echo "  Starting $id now would duplicate in-flight work. Take over that PR/branch, or pick another task."
-  } >&2
-  exit "$INFLIGHT_EXIT"
+  [ -n "$branch_hit" ] && refuse "open branch: $branch_hit (issue #$issue_no)"
 fi
 
 echo "inflight: $id is selectable — no open PR/branch in flight for it."
