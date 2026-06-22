@@ -49,50 +49,88 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-47 tracked files. Categories: **KEEP** (generic, copy verbatim) · **GENERICIZE** (reused
-but carries a project/toolchain assumption to strip) · **RESET** (replace contents with a
+Manifest source inventory: 66 rows.
+
+Every source file under `.claude/` is itemized exactly once below.
+`hooks/extraction-manifest.test.sh` compares this table with
+`git ls-files .claude` and fails CI on a stale count, a missing row, a duplicate row, an
+untracked row, or an invalid category. Rows whose action starts
+`Omit from extracted template;` are source-only template inputs and may be absent after
+extraction.
+
+Categories: **KEEP** (generic, copy verbatim) · **GENERICIZE** (reused but carries a
+project/toolchain or instance assumption to strip) · **RESET** (replace contents with a
 fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship the
 `.template` form only).
 
-> **The table below itemizes the load-bearing dispositions, not yet all 47 files.** Surfaces
-> added since the original cut — the `intake`/`pr-review`/`retrospective`/`telemetry`
-> workflow docs + their skill bindings, the `hooks/*-docs.test.sh` encoding backstops +
-> `check-tasks-consistency.{sh,test.sh}` + `gate-loop.test.js` — are not yet each listed; the
-> category rules still apply (a neutral `workflow/**` doc or skill binding → **KEEP**; a
-> `hooks/*-docs.test.sh` → **KEEP**, unless it asserts instance-specific content → then
-> **GENERICIZE** it in lockstep with that content, as with the evasion-register pair below).
-> Full per-file refresh + a deterministic completeness backstop tracked in **#90**.
-
 | File | Category | Action |
 |---|---|---|
+| `DESIGN-NOTES.md` | KEEP | Companion rationale for the harness. Carry with this manifest; it explains why the load-bearing machinery exists. |
+| `EXTRACTION.md` | KEEP | This manifest and extraction playbook. Carry so the next extraction has a complete inventory. |
+| `MODELS.md` | GENERICIZE | The adapter's only model-naming file. Keep the table shape and semantics; replace the concrete rows with sensible defaults plus a "swap per your account" note. |
+| `PROJECT.md` | TEMPLATE | Omit from extracted template; live project profile. Ship `PROJECT.template.md` for adopters to fill. |
+| `PROJECT.template.md` | TEMPLATE | Fill-in-the-blanks project profile. Ship as the template's profile source. |
+| `README.md` | GENERICIZE | Adapter-layer doc is generic, but examples may name this source environment. Strip project names/examples; keep the structure. |
+| `adapters/claude-code-probes.md` | RESET | Probe instantiation + dated results are environment-specific. Reset to "instantiated, NOT yet executed" with placeholder launcher/scheduler rows. |
+| `adapters/codex-cli-dry-run.md` | KEEP | Dry-run walkthrough for the Codex CLI adapter spec. Keep as a reference example. |
+| `adapters/codex-cli.md` | KEEP | Second-adapter spec/stub — a worked example of porting to a non-Claude runtime. Keep as reference. |
+| `agents/constitution-auditor.md` | KEEP | Subagent binding. Verbatim. |
+| `agents/contract-auditor.md` | KEEP | Subagent binding. Verbatim. |
+| `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |
+| `hooks/agents-residency-check.sh` | KEEP | Deterministic residency budget for the always-resident `AGENTS.md`. Verbatim. |
+| `hooks/agents-residency-check.test.sh` | KEEP | Regression + CI-wiring test for the residency check. Verbatim. |
+| `hooks/auditor-liveness-docs.test.sh` | KEEP | Encoding test for the auditor-liveness corpus and wiring. Verbatim. |
+| `hooks/autonomy-mode.sh` | KEEP | Deterministic [autonomy activation] binding. Verbatim. |
+| `hooks/autonomy-mode.test.sh` | KEEP | Activation fail-closed/default-off regression tests. Verbatim. |
+| `hooks/check-tasks-consistency.sh` | KEEP | Tasks-file consistency and drift gate. Verbatim. |
+| `hooks/check-tasks-consistency.test.sh` | KEEP | Regression tests proving the tasks-file consistency gate fires and avoids false positives. Verbatim. |
+| `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register. Keep structural/neutrality/extraction checks; drop only instance-coupled real-escape assertions when the register is reset. |
+| `hooks/extraction-manifest.test.sh` | KEEP | Completeness backstop for this cut-list. Verbatim. |
+| `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
+| `hooks/guard.test.sh` | KEEP | Guard tests including matcher-wiring and edit-guard assertions. Verbatim. |
+| `hooks/intake-docs.test.sh` | KEEP | Encoding test for intake/triage workflow docs and skill binding. Verbatim. |
+| `hooks/isolated-workspace.sh` | KEEP | Worktree lifecycle binding for [isolated workspace]. Verbatim. |
+| `hooks/isolated-workspace.test.sh` | KEEP | Lifecycle regression tests and CI wiring assertion. Verbatim. |
+| `hooks/isolation-falsification.test.sh` | KEEP | Adversarial proof that un-gated work cannot reach base via the isolation lifecycle. Verbatim. |
+| `hooks/lib-tasks-drift.sh` | KEEP | Shared task-drift detection library for runtime selection and CI consistency. Verbatim. |
+| `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
+| `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
+| `hooks/pr-review-docs.test.sh` | KEEP | Encoding test for the PR-review workflow and binding. Verbatim. |
+| `hooks/probe-fingerprint-docs.test.sh` | KEEP | Encoding test for probe fingerprint recording and machinery-freshness inputs. Verbatim. |
+| `hooks/reconcile-task-selection.sh` | KEEP | Runtime live-state reconciliation precondition. Verbatim. |
+| `hooks/reconcile-task-selection.test.sh` | KEEP | Paired regression tests for selection reconciliation. Verbatim. |
+| `hooks/retrospective-docs.test.sh` | KEEP | Encoding test for retrospective workflow/binding invariants. Verbatim. |
+| `hooks/reviewer-roster.test.sh` | KEEP | Drift backstop for the §7 reviewer roster and read-only agent bindings. Verbatim. |
+| `hooks/shell-lint.sh` | KEEP | Shell syntax/portability checker used by CI and the edit guard. Verbatim. |
+| `hooks/shell-lint.test.sh` | KEEP | Regression tests for the shell portability checker. Verbatim. |
+| `hooks/telemetry-docs.test.sh` | KEEP | Encoding test for telemetry docs and neutral-boundary constraints. Verbatim. |
+| `hooks/triage-freshness-docs.test.sh` | KEEP | Encoding test for PROBES-STALE / GUARD-SILENT machinery freshness surfacing. Verbatim. |
+| `settings.json` | GENERICIZE | Keep the guard hook wiring exactly; replace this repo's permission/toolchain allowlist with template placeholders. |
+| `skills/auditor-liveness/SKILL.md` | KEEP | Claude adapter binding for auditor-liveness runs. Verbatim. |
+| `skills/constitution-check/SKILL.md` | KEEP | Claude adapter binding for the constitution check. Verbatim. |
+| `skills/intake/SKILL.md` | KEEP | Claude adapter binding for intake. Verbatim. |
+| `skills/next-task/SKILL.md` | KEEP | Adapter binding + the single [environment block]. Verbatim, but see §3 note on the env block's bash+PowerShell assumption. |
+| `skills/pr-review/SKILL.md` | KEEP | Claude adapter binding for PR review. Verbatim. |
+| `skills/retrospective/SKILL.md` | KEEP | Claude adapter binding for retrospectives. Verbatim. |
+| `skills/triage/SKILL.md` | KEEP | Claude adapter binding for triage. Verbatim. |
 | `workflow/README.md` | KEEP | The binding contract — the spine. Verbatim. |
-| `workflow/next-task.md` | KEEP | Per-task loop. Verbatim. |
-| `workflow/triage.md` | KEEP | Read-only heartbeat. Verbatim. |
+| `workflow/auditor-liveness.md` | KEEP | Runtime-neutral auditor-liveness methodology. Verbatim. |
+| `workflow/conformance-probes.md` | KEEP | Neutral probe checklist. Verbatim. |
 | `workflow/constitution-check.md` | KEEP | Pre-PR compliance gate. Verbatim. |
 | `workflow/gate-loop.md` | KEEP | §7 gate as pseudocode. Verbatim. |
-| `workflow/conformance-probes.md` | KEEP | Neutral probe checklist. Verbatim. |
-| `workflow/reviewers/spec-auditor.md` | KEEP | Acceptance reviewer spec. Verbatim. |
+| `workflow/intake.md` | KEEP | Runtime-neutral intake workflow. Verbatim. |
+| `workflow/next-task.md` | KEEP | Per-task loop. Verbatim. |
+| `workflow/pr-review.md` | KEEP | Runtime-neutral PR-review workflow. Verbatim. |
+| `workflow/retrospective.md` | KEEP | Runtime-neutral retrospective workflow. Verbatim. |
+| `workflow/reviewers/auditor-liveness-corpus.md` | KEEP | Fixture manifest for auditor-liveness. Verbatim. |
 | `workflow/reviewers/constitution-auditor.md` | KEEP | Values reviewer spec. Verbatim. |
 | `workflow/reviewers/contract-auditor.md` | KEEP | Architecture reviewer spec. Verbatim. |
-| `skills/next-task/SKILL.md` | KEEP | Adapter binding + the **single [environment block]** (OS/shell/CLI concrete forms live here and nowhere else). Verbatim — but see §3 note on the env block's bash+PowerShell assumption. |
-| `skills/triage/SKILL.md` | KEEP | Adapter binding. Verbatim. |
-| `skills/constitution-check/SKILL.md` | KEEP | Adapter binding. Verbatim. |
-| `agents/spec-auditor.md` | KEEP | Subagent (no edit tools, no model pin). Verbatim. |
-| `agents/constitution-auditor.md` | KEEP | Subagent. Verbatim. |
-| `agents/contract-auditor.md` | KEEP | Subagent. Verbatim. |
-| `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
-| `hooks/guard.test.sh` | KEEP | Guard tests incl. the matcher-wiring assertion. Verbatim. |
-| `workflows/gate-loop.js` | KEEP | [orchestrated run] adapter script. Verbatim. |
-| `adapters/codex-cli.md` | KEEP | Second-adapter spec/stub — a worked example of porting to a non-Claude runtime. Keep as reference. |
-| `adapters/codex-cli-dry-run.md` | KEEP | Its dry-run walkthrough. Keep as reference. |
-| `README.md` | GENERICIZE | The adapter-layer doc is generic, but its "Reuse on a new project" steps reference `specs/001-bird-journal/` and bird-journal examples. Strip the project name; keep the structure. |
-| `settings.json` | GENERICIZE | The `permissions.allow` list hardcodes a JS/React-Native toolchain (`npm`, `npx jest`, `npx tsc`, `npx prettier`). The git/`gh` rules and the **`hooks.PreToolUse` block are generic and load-bearing — keep them exactly** (the matcher must keep `Agent|Task`; see DESIGN-NOTES §"the guard was silently dead"). Replace the toolchain rules with a placeholder + a comment. |
-| `MODELS.md` | GENERICIZE | The adapter's only model-naming file. The *semantics* section is generic; the actual model rows (`fable`/`opus`/`sonnet`/`haiku`) are this environment's choices. Keep the table shape; leave the rows as a sensible default with a "swap per your account" note. |
-| `PROJECT.md` | TEMPLATE | Pure bird-journal facts. **Do not ship it.** Ship `PROJECT.template.md` as the only profile (it already exists and is complete). |
-| `PROJECT.template.md` | TEMPLATE | The fill-in-the-blanks profile. **This is the profile the template repo ships.** Keep. |
-| `adapters/claude-code-probes.md` | RESET | Carries this repo's **dated probe *results*** (the 2026-06-11 run that caught two live failures) — and the *instantiation table* (top half) is not clean either: its rows name this environment's concretes (the `BirdJournal-TriageHeartbeat` scheduler task, `triage-heartbeat.ps1`, Windows Task Scheduler steps). Reset **both halves**: drop the dated results (or move them into DESIGN-NOTES as the worked example) and genericize the instantiation rows' environment concretes to placeholders (`<scheduler-task>`, `<launcher-script>`) so a fresh project's probe run validates *its* launcher setup, not bird-journal's. End state: "instantiated, NOT yet executed — run before trusting". |
 | `workflow/reviewers/evasion-register.md` | GENERICIZE | The cumulative cheat-museum. Its **universal pattern exhibits** (the spec-derived ones — test-gaming, green-suite, vendor-leak, measurement-gains-control) are engine-level and ship verbatim. Its **real-escape exhibits** (EV-03/06/08) hardcode *this repo's* commit SHAs (`5bb6186`…) and instance test-file paths (`probe-fingerprint-docs.test.sh:119`, `reviewer-roster.test.sh`) — project facts (the one documented engine-file exception, `PROJECT.md` → "Architecture boundaries"). On extraction, **reset the real-escape exhibits to the "spec-derived seed (no escape logged yet)" form** (or move them into DESIGN-NOTES as the worked example, like `claude-code-probes.md`); keep the universal patterns + the mechanization-status scaffold. A fresh project's retrospective grows its own exemplars per incident. |
-| `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register — **KEEP** its structural / neutrality / DW2–DW4 / extraction-hygiene checks. It also asserts the **instance** real-escape exemplar strings (the DW1 "real escape with `file:line`" check). Drop **only those** instance-coupled assertions in lockstep when the register's real-escape exhibits are reset above, so the extracted test matches the genericized register. |
+| `workflow/reviewers/spec-auditor.md` | KEEP | Acceptance reviewer spec. Verbatim. |
+| `workflow/telemetry.md` | KEEP | Runtime-neutral telemetry record and observe-only semantics. Verbatim. |
+| `workflow/triage.md` | KEEP | Read-only heartbeat. Verbatim. |
+| `workflows/gate-loop.js` | KEEP | [orchestrated run] adapter script. Verbatim. |
+| `workflows/gate-loop.test.js` | KEEP | JS encoding tests for the gate-loop adapter script. Verbatim. |
 
 **Gitignored — never travel** (machine-local; confirm your template `.gitignore` keeps them
 out): `settings.local.json` (per-machine permission overrides, e.g. the Windows full-path

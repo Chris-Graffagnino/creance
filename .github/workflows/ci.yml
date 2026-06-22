@@ -231,6 +231,16 @@ jobs:
       - name: Evasion-register encoding tests
         run: bash .claude/hooks/evasion-register-docs.test.sh
 
+      # Extraction manifest completeness (#90): .claude/EXTRACTION.md §2 is the
+      # handoff cut-list for every tracked file in .claude/. A missing disposition
+      # can drop a file during extraction or ship instance-stained material into a
+      # template. This test compares the table to `git ls-files .claude` and fails
+      # on a stale count, missing row, duplicate row, untracked row, invalid
+      # category, or dead CI wiring. Source-only TEMPLATE rows explicitly marked
+      # omit-only may be absent after extraction.
+      - name: Extraction-manifest completeness
+        run: bash .claude/hooks/extraction-manifest.test.sh
+
       # T605 auditor-liveness encoding tests (#75): the standing planted-violation
       # corpus that keeps the judgment auditors proven live — the model-driven analog
       # of guard.test.sh, promoted from the one-time P-RV probe. The runtime-neutral
