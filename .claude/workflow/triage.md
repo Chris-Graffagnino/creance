@@ -14,7 +14,7 @@ procedure is safe to run unattended because it cannot change the repo.
   later.
 - **The ONLY write is the inbox file**, which is out-of-repo (see §4). That write is permitted
   on the base branch because it lives outside the repo root.
-- If any read fails (e.g. the GitHub CLI is missing), note it under "Heartbeat health" and
+- If any read fails (e.g. the tracker read mechanism is unavailable), note it under "Heartbeat health" and
   continue; never let one failed read abort the run.
 
 ## 1. Read the sources (all read-only)
@@ -22,9 +22,9 @@ procedure is safe to run unattended because it cannot change the repo.
    `[ ]` or `[x]`, its phase, `[US#]`, and `path`.
 2. `git log --oneline -20` — recent commits. Commit subjects carry the task ID and PR number
    (e.g. `<type>: [<task-id>] … (#<pr>)`).
-3. GitHub state via its CLI. Two gotchas, both mandatory:
-   - The CLI **may not be on PATH** in a headless run — try it first, then fall back per the
-     **[environment block]**.
+3. Tracker state via the adapter's read mechanism. Two gotchas, both mandatory:
+   - The read mechanism **may be unavailable** in a headless run — try it first, then fall
+     back per the **[environment block]**.
    - **If this repo is a FORK,** issues/PRs live on your `origin`, not the upstream (usually
      empty). A bare call may resolve to *upstream* and falsely report "nothing open." Derive
      the `origin` slug once **per the profile's Identity section** and target that slug

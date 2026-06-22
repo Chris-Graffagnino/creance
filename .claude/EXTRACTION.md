@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 66 rows.
+Manifest source inventory: 67 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -92,6 +92,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/isolated-workspace.sh` | GENERICIZE | Keep the [isolated workspace] worktree lifecycle verbatim, but the ephemeral worktree's `creance-ws-` mktemp prefix and `.creance-ws-owner` provenance-marker filename hardcode this project's name (`enter`'s `mktemp -d .../creance-ws-XXXXXX`, the marker write/read, and the `*/creance-ws-*` teardown name-guard). A verbatim clone would create `creance`-named temp dirs and marker files. On extraction, rename both to a neutral prefix (`ws-`/`harness-ws-`); update the two coupled tests below in lockstep. (Descriptive mentions of the prefix in `DESIGN-NOTES.md`, `skills/next-task/SKILL.md`, and example paths in `workflows/gate-loop.test.js` are self-contained — same this-repo flavor those KEEP files already carry — and don't break on rename.) |
 | `hooks/isolated-workspace.test.sh` | GENERICIZE | Keep the lifecycle regression tests and CI-wiring assertion verbatim, but its look-alike fixtures (`creance-ws-LOOKALIKE-*`) hardcode the prefix to exercise the `*/creance-ws-*` name-guard. Rename them in lockstep with `isolated-workspace.sh` above so the extracted test matches the genericized script. |
 | `hooks/isolation-falsification.test.sh` | GENERICIZE | Keep the adversarial base-unreachability proof verbatim, but its forged-marker fixture (`creance-ws-FORGED`) hardcodes the prefix to pass the `*/creance-ws-*` name filter. Rename it in lockstep with `isolated-workspace.sh` above. |
+| `hooks/lib-neutrality-scan.sh` | KEEP | Shared runtime-neutral workflow-doc mechanism scanner used by the distributed docs encoding tests. Verbatim. |
 | `hooks/lib-tasks-drift.sh` | KEEP | Shared task-drift detection library for runtime selection and CI consistency. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |

@@ -24,6 +24,8 @@
 set -u
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=lib-neutrality-scan.sh
+. "$DIR/hooks/lib-neutrality-scan.sh"
 NEU="$DIR/workflow/triage.md"
 ADP="$DIR/skills/triage/SKILL.md"
 
@@ -126,9 +128,21 @@ check "adapter: GUARD-SILENT is addressed in the binding" "$ADP_FLAT" \
 # fingerprint recipe (guard.sh hash + the settings matcher) is the adapter's, not the neutral
 # doc's. Strip the `.claude/` profile pointer first so the `\bclaude\b` word match never
 # false-fires on it (same shape as probe-fingerprint-docs.test.sh / telemetry-docs.test.sh).
-mech="$(sed 's#\.claude/#PROFILEPTR/#g' "$NEU" \
-  | grep -oiE '\bgh\b|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json' \
-  | sort -u | tr '\n' ' ')"
+probe_file="$(mktemp -t neutrality-scan.XXXXXX)"
+printf 'GitHub\nCLI\n' > "$probe_file"
+probe_mech="$(neutral_mechanism_leaks "$probe_file")"
+rm -f "$probe_file"
+case "$probe_mech" in
+  *"GitHub CLI"*)
+  pass=$((pass + 1))
+  ;;
+  *)
+  fail=$((fail + 1))
+  printf 'FAIL neutral boundary: shared scan no longer catches line-wrapped "GitHub CLI"\n' >&2
+  ;;
+esac
+
+mech="$(neutral_mechanism_leaks "$NEU")"
 if [ -z "$mech" ]; then
   pass=$((pass + 1))
 else
