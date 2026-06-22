@@ -169,7 +169,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 
 | Invariant | Auditor rule | Deterministic backstop (lint/test) |
 |---|---|---|
-| Runtime-neutral workflow layer | contract-auditor: hunt concrete mechanisms in `workflow/**` | Distributed docs encoding tests scan their owned workflow docs through the shared `lib-neutrality-scan.sh` banned-token set; `telemetry-docs.test.sh` covers the core neutral docs including `workflow/next-task.md` and `workflow/constitution-check.md`, while the intake/triage/pr-review/probe-fingerprint/auditor-liveness/evasion-register tests cover their owned neutral docs |
+| Runtime-neutral workflow layer | contract-auditor: hunt concrete mechanisms in `workflow/**` | `lib-neutrality-scan.test.sh` pins the shared scanner contract; `neutrality-scan-coverage.test.sh` scans every tracked neutral workflow doc through that banned-token set; distributed docs encoding tests also scan their owned workflow docs at the local acceptance surface |
 | Guard change ↔ guard test | constitution-auditor: diff touching `guard.sh` without `guard.test.sh` | `guard.test.sh` in CI `verify` (incl. matcher-wiring assertion) |
 | No selectable template artifacts / duplicate task IDs | spec-auditor: tasks-file resolution per this profile | CI `verify` repo-consistency step (fails on `specs/000-template/{spec,tasks}.md` or duplicate `T<nnn>` across live tasks files) |
 | Telemetry observes, never decides (P5) | constitution-auditor: hunt gate/tier logic reading telemetry or evaluation records | none yet — judgment-only |

@@ -123,25 +123,9 @@ check "adapter: GUARD-SILENT is addressed in the binding" "$ADP_FLAT" \
   "GUARD-SILENT"
 
 # ── Runtime-neutral boundary (constitution P1) ───────────────────────────────────────
-# The triage workflow doc must name no runtime-specific mechanism (the GitHub CLI, model IDs,
-# Claude-Code-only tokens). `git` is the harness's universal VCS substrate and is exempt; the
-# fingerprint recipe (guard.sh hash + the settings matcher) is the adapter's, not the neutral
-# doc's. Strip the `.claude/` profile pointer first so the `\bclaude\b` word match never
-# false-fires on it (same shape as probe-fingerprint-docs.test.sh / telemetry-docs.test.sh).
-probe_file="$(mktemp -t neutrality-scan.XXXXXX)"
-printf 'GitHub\nCLI\n' > "$probe_file"
-probe_mech="$(neutral_mechanism_leaks "$probe_file")"
-rm -f "$probe_file"
-case "$probe_mech" in
-  *"GitHub CLI"*)
-  pass=$((pass + 1))
-  ;;
-  *)
-  fail=$((fail + 1))
-  printf 'FAIL neutral boundary: shared scan no longer catches line-wrapped "GitHub CLI"\n' >&2
-  ;;
-esac
-
+# The triage workflow doc must name no runtime-specific mechanism. The shared scanner's
+# token contract, including line-wrapped prose mechanism names, is pinned by
+# lib-neutrality-scan.test.sh.
 mech="$(neutral_mechanism_leaks "$NEU")"
 if [ -z "$mech" ]; then
   pass=$((pass + 1))

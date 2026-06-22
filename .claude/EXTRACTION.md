@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 67 rows.
+Manifest source inventory: 69 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -93,7 +93,9 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/isolated-workspace.test.sh` | GENERICIZE | Keep the lifecycle regression tests and CI-wiring assertion verbatim, but its look-alike fixtures (`creance-ws-LOOKALIKE-*`) hardcode the prefix to exercise the `*/creance-ws-*` name-guard. Rename them in lockstep with `isolated-workspace.sh` above so the extracted test matches the genericized script. |
 | `hooks/isolation-falsification.test.sh` | GENERICIZE | Keep the adversarial base-unreachability proof verbatim, but its forged-marker fixture (`creance-ws-FORGED`) hardcodes the prefix to pass the `*/creance-ws-*` name filter. Rename it in lockstep with `isolated-workspace.sh` above. |
 | `hooks/lib-neutrality-scan.sh` | KEEP | Shared runtime-neutral workflow-doc mechanism scanner used by the distributed docs encoding tests. Verbatim. |
+| `hooks/lib-neutrality-scan.test.sh` | KEEP | Contract tests for the shared runtime-neutral workflow-doc mechanism scanner. Verbatim. |
 | `hooks/lib-tasks-drift.sh` | KEEP | Shared task-drift detection library for runtime selection and CI consistency. Verbatim. |
+| `hooks/neutrality-scan-coverage.test.sh` | KEEP | Global backstop that scans every tracked neutral workflow markdown doc through the shared scanner. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
 | `hooks/pr-review-docs.test.sh` | KEEP | Encoding test for the PR-review workflow and binding. Verbatim. |
