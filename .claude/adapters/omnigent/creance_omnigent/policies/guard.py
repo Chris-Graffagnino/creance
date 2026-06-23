@@ -61,6 +61,13 @@ DEFAULT_MODEL_KEYS = ("model",)
 DEFAULT_EDIT_PATH_KEYS = (
     "path", "file_path", "file", "target_file", "filename", "filepath",
 )
+# UNVERIFIED: the event phase(s) on which an edit's RESULT is observable on disk (a
+# post-write firing). docs/POLICIES.md documents `tool_call` (pre-write) and `request`
+# only — no post-write phase — so the real name is pinned on the live driver at T620. The
+# [edit guard] fires ONLY on these phases and abstains on every other (notably the pre-write
+# `tool_call`): a delta measured before the write reflects the file's pre-edit state, not
+# the edit (see the [edit guard] PHASE NOTE and make_edit_guard).
+DEFAULT_RESULT_PHASES = ("tool_result",)
 
 _BACKTICK = re.compile(r"`([^`]+)`")
 
@@ -357,14 +364,22 @@ def _rule_constitution_floor(event, models_file, reviewer_keys, reviewer_match, 
 # --------------------------------------------------------------------------------------
 # [edit guard] (rule 7) — delta-based fix-forward lint reject.
 #
-# PHASE NOTE (UNVERIFIED -> pinned at T620): the README bound this to a `tool_result`
-# policy, but `docs/POLICIES.md` documents `tool_call` and `request` phases only — no
-# `tool_result` phase. The delta logic below is phase-independent (baseline HEAD blob vs
-# the touched file's current diagnostics), so the evaluator runs on an edit-tool event
-# regardless of phase. It is only *meaningful* once the file reflects the edit (a
-# post-write firing). If a runtime can fire only pre-write, the on-disk file is unchanged,
-# the delta is 0, and the guard fails OPEN — never a false reject. Which phase Omnigent
-# actually fires for edits is pinned on the live driver at T620.
+# PHASE NOTE (UNVERIFIED firing phase -> pinned at T620): this check compares the touched
+# file's CURRENT on-disk diagnostics against its committed (HEAD) baseline, so it is only
+# correct on a POST-WRITE firing — one where the on-disk file already reflects the edit.
+# `docs/POLICIES.md` documents `tool_call` (pre-write) and `request` only — no post-write
+# phase — so the real one is pinned on the live driver at T620 (DEFAULT_RESULT_PHASES).
+#
+# Why it must NOT also run pre-write: before the write, the on-disk file is the PRE-edit
+# content. If that content already carries diagnostics above HEAD (a file left dirty by a
+# prior edit, a manual change, or a failed-open write), the pre-write delta is already
+# positive and the guard would DENY the very edit meant to FIX it — a false reject, the
+# opposite of fix-forward (PR #137 review: Codex P2 / craft H1). The reference `guard.sh`
+# avoids this structurally by running PostToolUse only (guard.sh:199). So make_edit_guard
+# fires ONLY on DEFAULT_RESULT_PHASES and abstains (fail-open) on every pre-write phase.
+# Until T620 pins the real post-write phase, the guard abstains on all *documented* phases
+# — inert-but-correct, never a false reject; the delta logic is exercised in tests via a
+# post-write (`tool_result`) event.
 # --------------------------------------------------------------------------------------
 
 def _default_project_file():
@@ -490,6 +505,16 @@ def _edit_guard_eval(file_path, cwd, checkers, path_keys=DEFAULT_EDIT_PATH_KEYS)
 
 # --------------------------------------------------------------------------------------
 # Registered policy factories (Omnigent "kind": "factory" — a configured callable).
+#
+# TELEMETRY (deferred to T620; PR #137 review: craft M2). `workflow/telemetry.md` makes the
+# [guard] the emitter of `block` records (one per DENY) and the per-gate `evaluation`
+# liveness record (the strong-floor path that fires on every gate run). This port emits
+# neither: emission needs the live telemetry-stream path (PROJECT.md -> Paths -> Telemetry)
+# and a real dispatch context, and the `evaluation` signal is only meaningful once the guard
+# is wired to a driver and a gate actually runs — both T620 ("real-driver liveness"). Per
+# telemetry.md's governing law ("telemetry observes; it never decides"), a silent stream
+# changes no DENY/abstain decision here, so deferring emission is behaviour-preserving; T620
+# owns wiring it (and the README degradations table records the deferral).
 # --------------------------------------------------------------------------------------
 
 def make_guard_tool_call(
@@ -531,15 +556,23 @@ def make_guard_tool_call(
     return policy
 
 
-def make_edit_guard(checkers=None, edit_path_keys=DEFAULT_EDIT_PATH_KEYS):
+def make_edit_guard(
+    checkers=None, edit_path_keys=DEFAULT_EDIT_PATH_KEYS, result_phases=DEFAULT_RESULT_PHASES,
+):
     """The [edit guard] policy. ``checkers`` is an optional {glob: checker} map override;
-    when None the profile's "Edit-time checks" map is read. Phase-tolerant (see PHASE
-    NOTE): runs on an edit-tool event whether delivered as `tool_result` or `tool_call`."""
+    when None the profile's "Edit-time checks" map is read. ``result_phases`` are the event
+    phases on which the touched file's on-disk state reflects the edit (a post-write firing);
+    the policy fires only on those and abstains on every pre-write phase (see PHASE NOTE) so
+    it can never DENY a fix-forward edit before it runs. The default is UNVERIFIED upstream
+    and pinned on the live driver at T620."""
+    phases = frozenset(result_phases)
 
     def policy(event):
         try:
             if not isinstance(event, dict):
                 return None
+            if event.get("type") not in phases:
+                return None  # pre-write / unknown phase -> abstain (never a false reject)
             if _target(event) not in EDIT_TOOLS:
                 return None
             fp = _edit_path(event, edit_path_keys)

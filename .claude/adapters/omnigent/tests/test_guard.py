@@ -17,6 +17,7 @@ use synthetic model ids so no real model vocabulary lands in the adapter subtree
 T617 neutral-core confinement check stays green).
 """
 
+import importlib
 import os
 import subprocess
 import sys
@@ -331,41 +332,71 @@ class TestEditGuard(GuardTestBase):
         with open(p, "w") as f:
             f.write(content)
 
+    def _result(self, target, **kw):
+        # The edit guard fires only on a POST-WRITE phase (DEFAULT_RESULT_PHASES); the test
+        # writes the file first, then delivers the result-phase event (the on-disk file
+        # reflects the edit). A pre-write `tool_call` is covered by its own abstain test.
+        return _event(target, type_="tool_result", **kw)
+
     def test_new_diagnostic_denied(self):
         cwd = self.repo("feature/x")
         p = self._commit(cwd, "f.txt", "clean\n")       # baseline 0 BANG
         self._write(p, "clean\nBANG\n")                 # edit adds 1
-        self.assertDeny(self.pol(_event("sys_os_edit", path=p, cwd=cwd)),
+        self.assertDeny(self.pol(self._result("sys_os_edit", path=p, cwd=cwd)),
                         "edit-lint-regression")
 
     def test_no_new_diagnostic_allowed(self):
         cwd = self.repo("feature/x")
         p = self._commit(cwd, "f.txt", "clean\n")
         self._write(p, "still clean\n")
-        self.assertAllow(self.pol(_event("sys_os_edit", path=p, cwd=cwd)))
+        self.assertAllow(self.pol(self._result("sys_os_edit", path=p, cwd=cwd)))
 
     def test_preexisting_diagnostic_not_blocking(self):
         # Baseline already has a BANG; an edit that keeps the count is allowed.
         cwd = self.repo("feature/x")
         p = self._commit(cwd, "f.txt", "BANG\nold\n")   # baseline 1
         self._write(p, "BANG\nnew line\n")              # still 1
-        self.assertAllow(self.pol(_event("sys_os_edit", path=p, cwd=cwd)))
+        self.assertAllow(self.pol(self._result("sys_os_edit", path=p, cwd=cwd)))
+
+    def test_pre_write_tool_call_abstains_on_dirty_file(self):
+        # Regression (PR #137: Codex P2 / craft H1). A file already dirty ABOVE its HEAD
+        # baseline, edited again to fix it: on the PRE-write `tool_call` phase the on-disk
+        # file is still the dirty pre-edit content, so a delta check would DENY the fix
+        # before it runs. The guard must abstain on every pre-write phase.
+        cwd = self.repo("feature/x")
+        p = self._commit(cwd, "f.txt", "clean\n")       # baseline 0 BANG
+        self._write(p, "BANG\nBANG\n")                  # dirty: 2 BANG, above baseline
+        # tool_call (pre-write) must NOT block, even though current(2) > baseline(0).
+        self.assertAllow(self.pol(_event("sys_os_edit", path=p, cwd=cwd, type_="tool_call")))
+        # request (the other documented, non-post-write phase) must also abstain.
+        self.assertAllow(self.pol(_event("sys_os_edit", path=p, cwd=cwd, type_="request")))
+
+    def test_result_phase_param_override(self):
+        # T620 pins the real post-write phase via result_phases; the guard fires on it.
+        pol = guard.make_edit_guard(checkers=self.checkers, result_phases=("on_write_done",))
+        cwd = self.repo("feature/x")
+        p = self._commit(cwd, "f.txt", "clean\n")
+        self._write(p, "clean\nBANG\n")
+        self.assertDeny(pol(_event("sys_os_edit", path=p, cwd=cwd, type_="on_write_done")),
+                        "edit-lint-regression")
+        # …and abstains on the default tool_result once reconfigured away from it.
+        self.assertAllow(pol(_event("sys_os_edit", path=p, cwd=cwd, type_="tool_result")))
 
     def test_out_of_repo_fails_open(self):
         cwd = self.repo("feature/x")
         outside = os.path.join(self.tmpdir(), "x.txt")
         self._write(outside, "BANG\nBANG\n")
-        self.assertAllow(self.pol(_event("sys_os_edit", path=outside, cwd=cwd)))
+        self.assertAllow(self.pol(self._result("sys_os_edit", path=outside, cwd=cwd)))
 
     def test_no_checker_for_type_fails_open(self):
         cwd = self.repo("feature/x")
         p = self._commit(cwd, "f.md", "clean\n")        # *.md not in self.checkers
         self._write(p, "BANG\n")
-        self.assertAllow(self.pol(_event("sys_os_edit", path=p, cwd=cwd)))
+        self.assertAllow(self.pol(self._result("sys_os_edit", path=p, cwd=cwd)))
 
     def test_non_edit_tool_ignored(self):
         cwd = self.repo("feature/x")
-        self.assertAllow(self.pol(_event("sys_os_shell", command="echo hi", cwd=cwd)))
+        self.assertAllow(self.pol(self._result("sys_os_shell", command="echo hi", cwd=cwd)))
 
     def test_default_checkers_resolve_project_map(self):
         # The None-default reads the profile's "Edit-time checks" map; *.sh must resolve.
@@ -405,7 +436,9 @@ class TestFailOpen(GuardTestBase):
         orig = guard._resolve_checker
         guard._resolve_checker = lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("boom"))
         try:
-            self.assertIsNone(pol(_event("sys_os_edit", path=p, cwd=cwd)))
+            # A post-write phase so the policy reaches the (monkeypatched-to-raise) checker
+            # resolution; the try/except must still abstain.
+            self.assertIsNone(pol(_event("sys_os_edit", path=p, cwd=cwd, type_="tool_result")))
         finally:
             guard._resolve_checker = orig
 
@@ -423,6 +456,51 @@ class TestFailOpen(GuardTestBase):
         # A non-tool_call phase must not trigger the tool_call rules.
         ev = _event("sys_os_shell", "git add .", cwd=cwd, type_="request")
         self.assertIsNone(pol(ev))
+
+
+# ── Registry discovery surface (the declared extension contract) ─────────────────────
+
+class TestRegistry(GuardTestBase):
+    """Pin ``registry.POLICY_REGISTRY`` (PR #137: craft L3). Every other test imports the
+    factories directly, but Omnigent discovers them through the registry, so a handler
+    typo / rename / kind drift there would pass the rest of the suite untouched. These load
+    each descriptor exactly as Omnigent would — resolve the dotted handler, instantiate the
+    factory, drive one event through the resulting policy."""
+
+    @staticmethod
+    def _resolve(dotted):
+        """Import a 'pkg.mod.attr' handler the way a policy loader does (raises on drift)."""
+        mod, _, attr = dotted.rpartition(".")
+        return getattr(importlib.import_module(mod), attr)
+
+    def test_every_handler_resolves_and_instantiates(self):
+        from creance_omnigent import registry
+        self.assertTrue(registry.POLICY_REGISTRY, "POLICY_REGISTRY is empty")
+        for d in registry.POLICY_REGISTRY:
+            for key in ("handler", "kind", "name", "description", "params_schema"):
+                self.assertIn(key, d, "registry entry missing %r: %r" % (key, d))
+            self.assertEqual(d["kind"], "factory", "unexpected kind: %r" % (d,))
+            factory = self._resolve(d["handler"])           # raises if the path is wrong
+            self.assertTrue(callable(factory), "handler not callable: %s" % d["handler"])
+            policy = factory()                              # instantiate with declared defaults
+            self.assertTrue(callable(policy),
+                            "factory returned no policy: %s" % d["handler"])
+            # Closed object schema — no unbounded factory-config surface.
+            self.assertEqual(d["params_schema"].get("additionalProperties"), False,
+                             "params_schema not closed: %s" % d["handler"])
+
+    def test_registered_policy_denies_a_banned_action(self):
+        # Exercise one event through every registry-resolved policy (no hardcoded handler
+        # name): a banned action must be caught by the discovery path, not just by a direct
+        # import elsewhere in this file.
+        from creance_omnigent import registry
+        cwd = self.repo("feature/x")
+        ev = _event("sys_os_shell", "git add .", cwd=cwd)
+        responses = [self._resolve(d["handler"])()(ev) for d in registry.POLICY_REGISTRY]
+        denies = [r for r in responses
+                  if isinstance(r, dict) and r.get("result") == guard.DENY]
+        self.assertTrue(denies, "no registered policy DENYed `git add .` via the registry")
+        self.assertIn("git-add-all", denies[0]["reason"])
 
 
 # ── CI wiring (machinery proves it is live — constitution P2) ────────────────────────

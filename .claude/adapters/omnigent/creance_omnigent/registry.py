@@ -56,8 +56,9 @@ POLICY_REGISTRY = [
             "Delta-based fix-forward lint reject: reruns the profile's configured "
             "checker on a touched file and DENYs only when the edit raises diagnostics "
             "above the file's committed baseline. Fails open when no checker maps to the "
-            "type. Phase-tolerant — see guard.py PHASE NOTE (tool_result phase UNVERIFIED "
-            "upstream; pinned at T620)."
+            "type. Fires only on a post-write phase (result_phases; default tool_result is "
+            "UNVERIFIED upstream — pinned at T620) and abstains on every pre-write phase so "
+            "it never blocks a fix-forward edit — see guard.py PHASE NOTE."
         ),
         "params_schema": {
             "type": "object",
@@ -68,6 +69,12 @@ POLICY_REGISTRY = [
                                    "profile's 'Edit-time checks' map.",
                 },
                 "edit_path_keys": {"type": "array", "items": {"type": "string"}},
+                "result_phases": {
+                    "type": "array", "items": {"type": "string"},
+                    "description": "Post-write phase name(s) the edit's on-disk result is "
+                                   "observable on; default ['tool_result'] is UNVERIFIED — "
+                                   "pin at T620. The guard abstains on all other phases.",
+                },
             },
             "additionalProperties": False,
         },
