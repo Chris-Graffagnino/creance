@@ -224,7 +224,7 @@
 > unlike T609's umbrella #81 it is **not** an open tracker for the epic — completion is
 > tracked by the four boxes below. T616 itself is intentionally a note here, not a checkbox.
 
-- [ ] T617 [strong] (T616a) Omnigent adapter skeleton + role→mechanism doc + neutral-core
+- [x] T617 [strong] (T616a) Omnigent adapter skeleton + role→mechanism doc + neutral-core
       check: stand up `.claude/adapters/omnigent/` — a `README.md` role→mechanism table
       binding **every** `[role]` in `workflow/README.md`'s binding contract to an Omnigent
       mechanism (or a documented graceful degradation naming the absent runtime feature),

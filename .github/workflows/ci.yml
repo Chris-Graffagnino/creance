@@ -66,6 +66,21 @@ jobs:
       - name: Workflow neutrality scan coverage
         run: bash .claude/hooks/neutrality-scan-coverage.test.sh
 
+      # T617 Omnigent-adapter neutral-core check (#134, #119 AC4 — load-bearing): the
+      # paired proof that adding a third adapter left the neutral core untouched.
+      # (A) workflow/** surfaces no Omnigent MECHANISM names — via the SHARED
+      # lib-neutrality-scan.sh banned-token set (the Omnigent vocabulary was ADDED to that
+      # one set, never forked into a second scanner — constitution P2), planted-token FAILS
+      # / real-tree PASSES. (B) the Omnigent model-table vocabulary is confined to
+      # adapters/omnigent/MODELS.md (model ids are extracted from MODELS.md at run time so
+      # the list self-syncs, then sought across the adapter subtree + workflow/**),
+      # planted-model-id FAILS / real-tree PASSES. Same "machinery proves it is live"
+      # discipline as the reconcile/guard tests. Adapter-side (.claude/adapters/ + hooks/
+      # are runtime bindings), so a CI change, not a workflow/** change — no constitution
+      # P1 concern.
+      - name: Omnigent neutral-core check
+        run: bash .claude/hooks/omnigent-neutral-core.test.sh
+
       # Tasks-file resolution stays unambiguous (issue #21): the template skeleton
       # must never match the engine's specs/*/{spec,tasks}.md fallback globs, and no
       # task ID may appear in more than one live tasks file. Rule 3 (#69) also FAILs

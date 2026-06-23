@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 73 rows.
+Manifest source inventory: 77 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -74,6 +74,9 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `adapters/claude-code-probes.md` | RESET | Probe instantiation + dated results are environment-specific. Reset to "instantiated, NOT yet executed" with placeholder launcher/scheduler rows. |
 | `adapters/codex-cli-dry-run.md` | KEEP | Dry-run walkthrough for the Codex CLI adapter spec. Keep as a reference example. |
 | `adapters/codex-cli.md` | KEEP | Second-adapter spec/stub — a worked example of porting to a non-Claude runtime. Keep as reference. |
+| `adapters/omnigent/README.md` | KEEP | Third-adapter spec/stub (Omnigent meta-harness) — role→mechanism table, a worked example of porting to a cross-vendor runtime. Keep as reference. |
+| `adapters/omnigent/MODELS.md` | KEEP | The Omnigent adapter's only tier→model table (cross-vendor reviewer resolution included). Keep as reference. |
+| `adapters/omnigent/environment.md` | KEEP | The Omnigent adapter's single [environment block] + [comment marker] concrete form. Keep as reference. |
 | `agents/constitution-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/contract-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |
@@ -100,6 +103,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/neutrality-scan-coverage.test.sh` | KEEP | Global backstop that scans every tracked neutral workflow markdown doc through the shared scanner. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
+| `hooks/omnigent-neutral-core.test.sh` | KEEP | Paired neutral-core-untouched check for the Omnigent adapter (mechanism-leak + model-confinement). Verbatim. |
 | `hooks/pr-review-docs.test.sh` | KEEP | Encoding test for the PR-review workflow and binding. Verbatim. |
 | `hooks/probe-fingerprint-docs.test.sh` | KEEP | Encoding test for probe fingerprint recording and machinery-freshness inputs. Verbatim. |
 | `hooks/reconcile-inflight-selection.sh` | KEEP | Runtime in-flight (open PR/branch) selection refusal — the tracker-based half of live-state reconciliation. Verbatim. |
