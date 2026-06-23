@@ -86,6 +86,8 @@ assert_leak "POLICY_REGISTRY export" "Export a POLICY_REGISTRY list." "POLICY_RE
 assert_leak "openai-agents harness" "Run the openai-agents harness." "openai-agents"
 assert_leak "sys_os_shell tool" "Policy on sys_os_shell." "sys_os_shell"
 assert_leak "sys_os_edit tool" "Policy on sys_os_edit." "sys_os_edit"
+assert_leak "sys_os_write tool" "Policy on sys_os_write." "sys_os_write"
+assert_leak "sys_os_read tool" "Policy on sys_os_read." "sys_os_read"
 assert_leak "sys_session_send tool" "Dispatch via sys_session_send." "sys_session_send"
 assert_leak "executor.harness key" "Set executor.harness." "executor.harness"
 assert_leak "executor.model key" "Set executor.model." "executor.model"

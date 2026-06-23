@@ -11,11 +11,12 @@
 #   * Claude Code adapter: gh / GitHub CLI, claude/opus/sonnet/fable/haiku, --model,
 #     --json, PreToolUse, settings.json.
 #   * Omnigent adapter (T617): omnigent, polly, policy_modules, POLICY_REGISTRY,
-#     openai-agents, the sys_os_*/sys_session_send tool names, executor.harness/.model.
+#     openai-agents, the WHOLE sys_os_* tool family (sys_os_[a-z]+ — read/write/edit/shell;
+#     the guard binds the edit guard to sys_os_write too) + sys_session_send, executor.harness/.model.
 #     (claude-sdk needs no entry — \bclaude\b already matches it.)
 
 neutral_mechanism_pattern() {
-  printf '%s' '\bgh\b|GitHub([[:space:]]+[[:alnum:]_-]+){0,5}[[:space:]]+CLI|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json|\bomnigent\b|\bpolly\b|policy_modules|POLICY_REGISTRY|openai-agents|sys_os_shell|sys_os_edit|sys_session_send|executor\.harness|executor\.model'
+  printf '%s' '\bgh\b|GitHub([[:space:]]+[[:alnum:]_-]+){0,5}[[:space:]]+CLI|\bclaude\b|\bopus\b|\bsonnet\b|\bfable\b|\bhaiku\b|--model|--json|PreToolUse|settings\.json|\bomnigent\b|\bpolly\b|policy_modules|POLICY_REGISTRY|openai-agents|sys_os_[a-z]+|sys_session_send|executor\.harness|executor\.model'
 }
 
 neutral_mechanism_scan_error() {

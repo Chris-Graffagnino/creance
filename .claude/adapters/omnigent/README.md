@@ -19,9 +19,13 @@ asserted.
 
 **Reused unchanged:** `workflow/**`, `PROJECT.md`, `memory/constitution.md`, `specs/**`.
 The instruction surface is *already shared*: this repo's `CLAUDE.md` is literally the line
-`AGENTS.md`, and an Omnigent agent reads it via `instructions: AGENTS.md` (relative to the
-config's directory; `instructions:` takes precedence over an inline `prompt:`) — zero
-migration for the standing rules.
+`AGENTS.md`, and an Omnigent agent binds the same rules with `instructions:` (which takes
+precedence over an inline `prompt:`). The path is **resolved relative to the config's
+directory** (`docs/AGENT_YAML_SPEC.md`): from `.claude/adapters/omnigent/` the repo-root
+file is `instructions: ../../../AGENTS.md` — **not** a bare `AGENTS.md`, which would resolve
+to a non-existent `.claude/adapters/omnigent/AGENTS.md` and silently fail to bind. (If T620
+instead roots `config.yaml` at the repo top, the path is simply `AGENTS.md`.) Either way,
+zero migration for the standing rules.
 
 ## Role → mechanism table
 
@@ -74,7 +78,8 @@ as the Codex adapter's do, with two differences in Omnigent's favour and **one c
   framework-level on-error default is pinned on the live driver at T620.
 - **Phase-0 risk resolved (the `#119` open question).** Does `omnigent claude` (the
   `claude-sdk` harness) load this repo's `.claude/settings.json` PreToolUse hooks? **AGENTS.md
-  rides natively** (`instructions: AGENTS.md`), so the standing rules travel. Whether the
+  rides natively** (`instructions: ../../../AGENTS.md` from the adapter config dir — see
+  "Reused unchanged" above), so the standing rules travel. Whether the
   Claude-Code *hook wiring* is bridged is **UNVERIFIED** — Omnigent has its **own** policy
   engine, so the conforming path is the **policy port above** (T618), independent of any hook
   bridge. If a live T620 probe shows the hooks do load, `guard.sh` riding inside
@@ -88,7 +93,8 @@ delegates each task to an implementer sub-agent in its own worktree, routes the 
 **different-vendor** reviewer, and leaves the merge to the human. The §7 gate maps directly:
 
 - The orchestrator (`config.yaml`, T620) is an `omnigent`-executor agent whose
-  `instructions: AGENTS.md` + prompt forbid direct coding and encode the `gate-loop.md`
+  `instructions: ../../../AGENTS.md` (the repo-root file; see "Reused unchanged") + prompt
+  forbid direct coding and encode the `gate-loop.md`
   loop. It dispatches the three `reviewers/*.yaml` sub-agents (T619) — each `purpose: review`,
   each a vendor **other** than the implementer's, each handed only the diff + its contract
   and **no write tools**. A reviewer that returns no verdict counts as **failing, never

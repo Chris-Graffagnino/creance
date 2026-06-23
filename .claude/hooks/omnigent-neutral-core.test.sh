@@ -76,12 +76,15 @@ else bad "A1: no workflow/**.md files found to scan"; fi
 if [ -z "$(printf '%s' "$real_leaks" | tr -d '[:space:]')" ]; then ok
 else bad "A1: a mechanism name leaked into the neutral core:$real_leaks"; fi
 
-# A2 (planted FAILS): an Omnigent mechanism token in a workflow-shaped fixture is caught.
+# A2 (planted FAILS): Omnigent mechanism tokens in a workflow-shaped fixture are caught —
+# including sys_os_write, the edit-guard tool the README binds (the whole sys_os_* family
+# must be banned, not just shell/edit; #135 Codex P2 / craft #2).
 plant="$TMP/neutral-fixture.md"
-printf 'This neutral doc wrongly drives omnigent run config.yaml via policy_modules.\n' > "$plant"
+printf 'This neutral doc wrongly drives omnigent run config.yaml via policy_modules on sys_os_write.\n' > "$plant"
 got="$(neutral_mechanism_leaks "$plant")"
 if printf '%s' "$got" | grep -qF -- 'omnigent' \
-  && printf '%s' "$got" | grep -qF -- 'policy_modules'; then ok
+  && printf '%s' "$got" | grep -qF -- 'policy_modules' \
+  && printf '%s' "$got" | grep -qF -- 'sys_os_write'; then ok
 else bad "A2: planted Omnigent token NOT caught by the shared scanner (got '${got:-<empty>}')"; fi
 
 # ── Part B: model vocabulary confined to MODELS.md (paired) ──────────────────────
