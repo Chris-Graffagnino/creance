@@ -1,0 +1,19 @@
+# Contract [reviewer] — Omnigent binding (T619, #139; #119 AC3).
+#
+# Binds the runtime-neutral contract/architecture-reviewer spec to an Omnigent
+# `purpose: review` sub-agent. READ-ONLY and CROSS-VENDOR by construction (a DIFFERENT
+# vendor than the implementer — examples/polly/config.yaml). The mechanical boundary checks
+# suit the [cheap tier], which also adds model diversity vs. a strong-tier maker. Dispatched
+# only on the roster's dispatch-contract condition (the orchestrator's call, T620).
+# Rationale + field grounding: see reviewers/constitution.yaml's header.
+type: agent
+purpose: review
+description: "Adversarial read-only contract/architecture reviewer — guards interface seams + swappability (cross-vendor)."
+executor:
+  harness: codex
+  model: "[cheap tier]"
+instructions: ../../../workflow/reviewers/contract-auditor.md
+sandbox:
+  write_paths: []
+  allow_network: false
+pass_history: false

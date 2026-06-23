@@ -11,9 +11,10 @@ The skeleton landed at **T617 (T616 epic · part a)**: the role→mechanism tabl
 and the deterministic neutral-core-untouched check (`#119` AC4). The mechanism
 *implementations* land in later sub-tasks: the `[guard]` / `[edit guard]` policies
 (`creance_omnigent/policies/guard.py`) are **now built and unit-tested at T618** (`#119`
-AC2); the cross-vendor `[reviewer]` sub-agents (`reviewers/*.yaml`) at **T619** (AC3); and
-the orchestrator `config.yaml` + conformance probes + live-driver run at **T620** (AC5 +
-Done-when). The adapter is **still not wired to a live driver** — that is T620. Mechanism
+AC2); the cross-vendor `[reviewer]` sub-agents (`reviewers/*.yaml`) are **now built and
+deterministically checked at T619** (`#119` AC3 — `reviewers/{spec,constitution,contract}.yaml`
++ `tests/test_reviewers.py`); and the orchestrator `config.yaml` + conformance probes +
+live-driver run at **T620** (AC5 + Done-when). The adapter is **still not wired to a live driver** — that is T620. Mechanism
 facts below were verified against Omnigent's docs (sources at the end, fetched 2026-06-23);
 anything not verifiable is marked **UNVERIFIED** rather than asserted.
 
@@ -35,7 +36,7 @@ The runtime-neutral spec of each role (inputs / outputs / constraints) lives in
 | Role | Omnigent mechanism |
 |------|--------------------|
 | **[workflow]** | A per-agent **skill** (`skills/<name>/SKILL.md` under this adapter's config dir — Omnigent ships skills, e.g. `examples/polly/skills/cross-review/`), thin like a Claude skill binding: it names the neutral doc (`.claude/workflow/<name>.md`), tells the agent to read+execute it, and restates this table. On-demand from the session. The **scheduler/headless** path is a **degradation** (see [headless run]); the exact skill trigger-frontmatter syntax is **UNVERIFIED** — pin at T620 |
-| **[reviewer]** | A sub-agent declared under `tools:` as `<name>: {type: agent, executor: {harness, model}, …}` with **`purpose: review`** and **a different vendor than the implementer** ("review is ALWAYS done by a DIFFERENT vendor", `examples/polly/config.yaml`). Read-only **by tool-scoping** — the reviewer declares **no file-mutation tools** (no write `os_env`), so it can be handed the diff + its contract but cannot edit ("reviewers report issues without editing"). Parallel = concurrent dispatches; the verdict is the sub-agent's returned message. Cross-vendor isolation is **structurally stronger** than the Claude adapter's same-runtime/different-context split. Spec files: `reviewers/*.yaml` at **T619** |
+| **[reviewer]** | A sub-agent declared under `tools:` as `<name>: {type: agent, executor: {harness, model}, …}` with **`purpose: review`** and **a different vendor than the implementer** ("review is ALWAYS done by a DIFFERENT vendor", `examples/polly/config.yaml`). Read-only **by tool-scoping** — the reviewer declares **no file-mutation tools** (no write `os_env`), so it can be handed the diff + its contract but cannot edit ("reviewers report issues without editing"). Parallel = concurrent dispatches; the verdict is the sub-agent's returned message. Cross-vendor isolation is **structurally stronger** than the Claude adapter's same-runtime/different-context split. Spec files: `reviewers/{spec,constitution,contract}.yaml` (**built at T619**); the cross-vendor + read-only + `[frontier]`-pin properties are checked deterministically by `tests/test_reviewers.py` |
 | **[frontier tier] / [strong tier] / [cheap tier]** | `executor.model` (+ `executor.harness`) per agent/sub-agent, resolved through **`MODELS.md`** (this adapter's only model-naming file). Each sub-agent picks its own harness+model, so tiers — and the cross-vendor reviewer rule — are structural. Resolution semantics (minimum, round up, never down; constitution `[reviewer]` floor pinned to `[frontier]` per AC3) live in `MODELS.md` |
 | **[code-review pass]** | A `purpose: review` cross-vendor sub-agent over the branch diff with a **general** code-review brief (Omnigent's cross-vendor review is first-class — `examples/polly/skills/cross-review/`, `.github/workflows/polly-review.yml`). Not a spec-bound `[reviewer]`; the brief is general |
 | **[security-review pass]** | **Degradation** (`workflow/README.md` → "No [security-review pass] mechanism"): no dedicated security subcommand — run a `purpose: review` sub-agent with a security-lens brief scoped to the profile's privacy/credential/payment invariants, same cross-vendor isolation as a `[reviewer]` |
@@ -114,11 +115,15 @@ delegates each task to an implementer sub-agent in its own worktree, routes the 
 - The orchestrator (`config.yaml`, T620) is an `omnigent`-executor agent whose
   `instructions: ../../../AGENTS.md` (the repo-root file; see "Reused unchanged") + prompt
   forbid direct coding and encode the `gate-loop.md`
-  loop. It dispatches the three `reviewers/*.yaml` sub-agents (T619) — each `purpose: review`,
-  each a vendor **other** than the implementer's, each handed only the diff + its contract
-  and **no write tools**. A reviewer that returns no verdict counts as **failing, never
-  passed** (`gate-loop.md`). The constitution reviewer's `executor.model` is pinned to
-  `[frontier]` (AC3), so its tier floor is **structural**, not runtime-checked.
+  loop. It dispatches the three `reviewers/*.yaml` sub-agents (**built at T619**) — each
+  `purpose: review`, each on a harness whose vendor is **other** than the implementer's
+  (resolved through `MODELS.md` → "Harness → vendor"), each handed only the diff + its
+  contract and **no write tools** (empty sandbox `write_paths`, no `os_env` grant). A
+  reviewer that returns no verdict counts as **failing, never passed** (`gate-loop.md`). The
+  constitution reviewer's `executor.model` is pinned to `[frontier]` (AC3), so its tier
+  floor is **structural**, not runtime-checked. `tests/test_reviewers.py` proves the
+  cross-vendor, read-only, and `[frontier]`-pin properties deterministically (paired
+  plant-FAILS / real-PASSES); the live **P-RV** isolation probe is **T620**.
 - Until `config.yaml` exists (T620), the gate is the `next-task.md` §7 **prose loop**, run
   exactly as written — the contract's documented `[orchestrated run]` degradation.
 

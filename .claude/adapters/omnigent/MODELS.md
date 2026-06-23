@@ -42,12 +42,34 @@ never resolves to the implementer's vendor. When the implementer ran on `claude-
 | acceptance / contract `[reviewer]` | **[cheap tier]**, rounded to a different vendor | `gpt-5.5` | `codex` (or `openai-agents`) |
 | constitution `[reviewer]` | **[frontier tier]** (pinned — `#119` AC3) | `gpt-5.5` | `codex` (or `openai-agents`) |
 
-The concrete `executor.model` / `executor.harness` pins for each reviewer sub-agent land
-in `reviewers/{spec,constitution,contract}.yaml` at **T619**; this table is the single
-source those YAMLs read. If your account has no second vendor, cross-vendor review degrades
-to same-vendor-different-context review — note the degradation loudly in the PR
-(`workflow/README.md` → "How an adapter degrades gracefully"); it is a real loss of the
-maker≠checker *vendor* independence, not a silent fallback.
+The concrete `executor.harness` pins for each reviewer sub-agent are declared in
+`reviewers/{spec,constitution,contract}.yaml` (**built at T619**); each carries its tier as
+the `executor.model` **role token** (`[frontier tier]` / `[cheap tier]`), never a concrete
+id — this table is the single source that resolves those roles. If your account has no
+second vendor, cross-vendor review degrades to same-vendor-different-context review — note
+the degradation loudly in the PR (`workflow/README.md` → "How an adapter degrades
+gracefully"); it is a real loss of the maker≠checker *vendor* independence, not a silent
+fallback.
+
+### Harness → vendor (the single source the T619 cross-vendor check reads)
+
+The cross-vendor rule compares **vendors**, not harnesses — `codex` and `openai-agents` are
+one vendor; `claude-sdk` another. So the check needs a harness→vendor resolution and the
+implementer's harness to compare against.
+
+**Implementer / orchestrator harness:** `claude-sdk` (the primary path above). Every
+`[reviewer]` must resolve to a harness whose vendor **differs** from this one.
+
+| Harness | Vendor |
+|---|---|
+| `claude-sdk` | anthropic |
+| `codex` | openai |
+| `openai-agents` | openai |
+
+`tests/test_reviewers.py` (the T619 deterministic check) reads **both** the implementer
+line and this table at run time — nothing about vendors is hardcoded in the check, and no
+vendor/model vocabulary leaks outside this file (`#119` AC4). Adding a vendor is a one-row
+edit here; the reviewers and the check follow with no other change.
 
 ## How a consumer resolves a tier (semantics in `workflow/README.md` → binding contract)
 

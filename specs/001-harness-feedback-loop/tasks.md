@@ -243,7 +243,7 @@
       strings. Unit-tested only here; real-driver liveness deferred to T620 (#119 AC2; T616
       epic part b; create issue on demand; repo-maintenance — done-when on issue) — strong:
       deterministic governance policy across the boundary (P2/P3)
-- [ ] T619 [strong] (T616c) Cross-vendor read-only `[reviewer]` sub-agents: three
+- [x] T619 [strong] (T616c) Cross-vendor read-only `[reviewer]` sub-agents: three
       `purpose: review` sub-agents that receive the **full review-standard inputs** yet hold
       **no file-mutation capability**, with a deterministic assertion that each resolved
       vendor **differs** from the orchestrator's (expected-FAIL same-vendor, expected-PASS

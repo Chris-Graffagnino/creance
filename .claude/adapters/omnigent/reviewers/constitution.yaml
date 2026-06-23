@@ -1,0 +1,36 @@
+# Constitution [reviewer] — Omnigent binding (T619, #139; #119 AC3).
+#
+# Binds the runtime-neutral constitution-reviewer spec to an Omnigent `purpose: review`
+# sub-agent. READ-ONLY and CROSS-VENDOR by construction — Omnigent's defining rule
+# ("review is ALWAYS done by a DIFFERENT vendor than the implementer",
+# examples/polly/config.yaml) made STRUCTURAL here, not prompt-enforced.
+#
+#   - purpose: review   Polly's review role (examples/polly/config.yaml purpose values:
+#                       implement / review / explore / search).
+#   - executor.harness  a DIFFERENT vendor than the claude-sdk (anthropic) implementer;
+#                       resolved through MODELS.md "Harness -> vendor" (the single source).
+#   - executor.model    the [frontier tier] ROLE, never a concrete model id (the AC4
+#                       confinement check keeps model vocabulary in MODELS.md only). The
+#                       constitution reviewer is PINNED to [frontier] (#119 AC3), so its
+#                       [strong tier] floor is satisfied by rounding up -- structural, not
+#                       runtime-checked.
+#   - read-only         empty sandbox write_paths + no os_env grant + no write tools:
+#                       handed only the diff + this contract, never the worktree.
+#   - instructions      the neutral spec, resolved relative to this file's directory
+#                       (docs/AGENT_YAML_SPEC.md: relative paths resolve from the YAML
+#                       file's directory).
+#
+# Grounded in docs/AGENT_YAML_SPEC.md + examples/polly/config.yaml. The exact firing of
+# purpose: as a static field vs a dispatch arg, and the OS sandbox type:
+# (linux_bwrap / darwin_seatbelt), are pinned on the live driver at T620.
+type: agent
+purpose: review
+description: "Adversarial read-only constitution/values reviewer (cross-vendor; the maker is not the checker)."
+executor:
+  harness: codex
+  model: "[frontier tier]"
+instructions: ../../../workflow/reviewers/constitution-auditor.md
+sandbox:
+  write_paths: []
+  allow_network: false
+pass_history: false
