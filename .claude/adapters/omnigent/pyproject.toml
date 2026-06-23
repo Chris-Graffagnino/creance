@@ -1,0 +1,19 @@
+# Packaging for the Omnigent adapter glue. Omnigent imports this by dotted path
+# (policy_modules: [creance_omnigent.registry]); `pip install .` / `uv pip install -e .`
+# from this directory exposes it. The live install + driver run land at T620.
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "creance-omnigent"
+version = "0.1.0"
+description = "Creance harness — Omnigent adapter glue ([guard] / [edit guard] policies)"
+requires-python = ">=3.12"
+# No runtime dependencies: the policies are stdlib-only (os/re/subprocess/...), so they
+# unit-test without Omnigent installed and stay decoupled from its release cadence.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["creance_omnigent*"]

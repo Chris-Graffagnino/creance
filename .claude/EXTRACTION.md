@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 77 rows.
+Manifest source inventory: 83 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -77,6 +77,12 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `adapters/omnigent/README.md` | KEEP | Third-adapter spec/stub (Omnigent meta-harness) — role→mechanism table, a worked example of porting to a cross-vendor runtime. Keep as reference. |
 | `adapters/omnigent/MODELS.md` | KEEP | The Omnigent adapter's only tier→model table (cross-vendor reviewer resolution included). Keep as reference. |
 | `adapters/omnigent/environment.md` | KEEP | The Omnigent adapter's single [environment block] + [comment marker] concrete form. Keep as reference. |
+| `adapters/omnigent/pyproject.toml` | KEEP | Packaging for the `creance_omnigent` adapter glue package (stdlib-only, no runtime deps). Keep as reference; rename the package on extraction only if the whole adapter is re-flavored. |
+| `adapters/omnigent/creance_omnigent/__init__.py` | KEEP | Importable adapter-glue package marker (the dotted path Omnigent loads). Keep as reference. |
+| `adapters/omnigent/creance_omnigent/registry.py` | KEEP | `POLICY_REGISTRY` export — how Omnigent discovers the guard policies via `policy_modules:`. Keep as reference. |
+| `adapters/omnigent/creance_omnigent/policies/__init__.py` | KEEP | Policy subpackage marker. Keep as reference. |
+| `adapters/omnigent/creance_omnigent/policies/guard.py` | KEEP | The Omnigent `[guard]` / `[edit guard]` policy port — the runtime-neutral guard rules as deterministic, fail-open `tool_call` / `tool_result` policies (T618). Keep as reference; names no models (tiers resolved from `MODELS.md` at run time). |
+| `adapters/omnigent/tests/test_guard.py` | KEEP | Unit tests for the Omnigent guard policy port (DENY cases, passing control, adversarial variants, fail-open). Run by CI `verify`. Keep as reference. |
 | `agents/constitution-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/contract-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |

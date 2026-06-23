@@ -235,7 +235,7 @@
       `.claude/adapters/omnigent/MODELS.md`), runnable in `verify`. No live driver required (#119
       AC1+AC4; T616 epic part a; create issue on demand; repo-maintenance — done-when on
       issue) — strong: defines the adapter binding across the runtime-neutral boundary (P1/P3)
-- [ ] T618 [strong] (T616b) `[guard]`/`[edit guard]` as Omnigent policies: implement the
+- [x] T618 [strong] (T616b) `[guard]`/`[edit guard]` as Omnigent policies: implement the
       guard rules normatively listed in `workflow/README.md` as deterministic, **fail-open**
       `tool_call`/`tool_result` policies (under `.claude/adapters/omnigent/`) with unit tests —
       `git add .`/`-A`, commit/push-to-base, and base-branch edits return DENY; a passing

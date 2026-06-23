@@ -350,6 +350,35 @@ jobs:
             node "$t"
           done
 
+      # T618 Omnigent [guard]/[edit guard] policy unit tests (#136, #119 AC2):
+      # creance_omnigent/policies/guard.py ports the runtime-neutral [guard] rules
+      # (workflow/README.md → "The [guard] rules") to Omnigent tool_call/tool_result
+      # policies — deterministic, fail-open, with DENY cases for base-branch edits, bulk
+      # staging (git add .), commit/push-to-base and base-refspec pushes, a passing control
+      # (explicit-file staging), and a fail-open-on-exception assertion. Wired here so the
+      # machinery is proven live, not silently dead (constitution P2; the SAME fail-closed
+      # glob + per-file loop as the JS gate-loop tests above — zero matches is an error, so
+      # the step can never silently run nothing). Adapter-side (.claude/adapters/omnigent/
+      # is the Omnigent binding), so a CI change, not a workflow/** change — no constitution
+      # P1 concern. Real-driver liveness (the P-* conformance probes) is deferred to T620.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Omnigent guard policy tests (Python)
+        run: |
+          shopt -s nullglob
+          tests=(.claude/adapters/omnigent/tests/test_*.py)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "no .claude/adapters/omnigent/tests/test_*.py found — Python test wiring is dead" >&2
+            exit 1
+          fi
+          for t in "${tests[@]}"; do
+            echo "→ python3 $t"
+            python3 "$t"
+          done
+
       # ── Add your project's toolchain steps below (type check, lint, format,
       #    test) and mirror them in AGENTS.md "Verification Commands". Keep the
       #    job name `verify` in sync with PROJECT.md "Required check". ──
