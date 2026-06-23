@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 83 rows.
+Manifest source inventory: 87 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -83,6 +83,10 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `adapters/omnigent/creance_omnigent/policies/__init__.py` | KEEP | Policy subpackage marker. Keep as reference. |
 | `adapters/omnigent/creance_omnigent/policies/guard.py` | KEEP | The Omnigent `[guard]` / `[edit guard]` policy port — the runtime-neutral guard rules as deterministic, fail-open `tool_call` / `tool_result` policies (T618). Keep as reference; names no models (tiers resolved from `MODELS.md` at run time). |
 | `adapters/omnigent/tests/test_guard.py` | KEEP | Unit tests for the Omnigent guard policy port (DENY cases, passing control, adversarial variants, fail-open). Run by CI `verify`. Keep as reference. |
+| `adapters/omnigent/reviewers/spec.yaml` | KEEP | The Omnigent acceptance `[reviewer]` sub-agent — `purpose: review`, read-only, cross-vendor, binds `workflow/reviewers/spec-auditor.md` (T619). Keep as reference; names no models (tiers resolved from `MODELS.md`). |
+| `adapters/omnigent/reviewers/constitution.yaml` | KEEP | The Omnigent constitution `[reviewer]` sub-agent — `purpose: review`, read-only, cross-vendor, `executor.model` pinned to `[frontier tier]` (T619, #119 AC3). Keep as reference; names no models. |
+| `adapters/omnigent/reviewers/contract.yaml` | KEEP | The Omnigent contract `[reviewer]` sub-agent — `purpose: review`, read-only, cross-vendor, binds `workflow/reviewers/contract-auditor.md` (T619). Keep as reference; names no models. |
+| `adapters/omnigent/tests/test_reviewers.py` | KEEP | Deterministic paired check for the Omnigent cross-vendor read-only reviewers (cross-vendor / read-only / `[frontier]`-pin; real-PASS + plant-FAIL; T619). Run by CI `verify`. Keep as reference. |
 | `agents/constitution-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/contract-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |
