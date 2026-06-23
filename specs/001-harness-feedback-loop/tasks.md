@@ -213,28 +213,55 @@
 > an epic and may be decomposed at implementation time (the T609→T610–T613 pattern) if a
 > done-when exceeds one PR's reasonable scope.
 
-- [ ] T616 [strong] Omnigent adapter: bind every `[role]` in `workflow/README.md`'s
-      binding contract to an Omnigent mechanism — orchestrator agent (`instructions:`
-      = the neutral methodology) + cross-vendor `[reviewer]` sub-agents that receive the **full review-standard
-      inputs** (`workflow/README.md` → "The review standard": linked issue, task ID,
-      relevant specs/contracts, constitution, the diff, test plan/results) yet hold **no
-      file-mutation capability** (read-only — never write access to the worktree) +
-      `[guard]`/`[edit guard]` as Omnigent `tool_call`/`tool_result`
-      policies (deterministic, fail-open) + `[autonomy activation]` fail-closed (promote
-      via PR, never auto-merge) + a single tier→model table — as adapter material under
-      `.claude/adapters/omnigent/`, consuming the neutral core **unchanged**. Ships with a
-      **paired** neutral-core-untouched CI check (a planted Omnigent-mechanism token in a
-      `workflow/**` fixture FAILS; the real tree PASSES) and conformance probes
-      (expected-PASS **and** expected-FAIL fixtures per the auditor-liveness pattern, T605)
-      run on a real driver; the guard policy's liveness is proven on a real driver, not
-      only unit-tested ; and **each `[reviewer]` sub-agent is proven a reviewer, not a second maker** — its
-      resolved vendor deterministically asserted to differ from the orchestrator's
-      (expected-FAIL on a same-vendor config, expected-PASS on cross-vendor) and the
-      **P-RV** isolation probe confirming it read-only on a real driver (a "fix this file
-      directly" lure yields a FAIL verdict with the working tree byte-identical after the
-      run — no file-mutation capability), not a prose "review-only" claim (#119; new
-      runtime adapter — done-when on issue) — strong: defines a new adapter binding across
-      the runtime-neutral boundary (constitution P1/P2/P3/P4)
+> **T616 (epic, #119) — decomposed at implementation time** into the four sub-tasks below
+> (T617–T620), following the T609→T610–T613 pattern. The letter-suffix form `T616a` is
+> deliberately **not** used: `[T616a]` fails the shared drift lib's `[T<nnn>]` match
+> (`lib-tasks-drift.sh` / `check-tasks-consistency.sh`), so each sub-task carries its own
+> 3-digit ID with an independently checkable box (one box → one PR → one rule-3 check). The
+> rubric is #119's AC1–AC5, **partitioned one-AC-set-per-sub-task** (AC1+AC4 → T617, AC2 →
+> T618, AC3 → T619, AC5+Done-when → T620) so the acceptance reviewer grades each sub-task
+> against the ACs it owns. Origin issue **#119 is closed** (intake landed via PR #120);
+> unlike T609's umbrella #81 it is **not** an open tracker for the epic — completion is
+> tracked by the four boxes below. T616 itself is intentionally a note here, not a checkbox.
+
+- [ ] T617 [strong] (T616a) Omnigent adapter skeleton + role→mechanism doc + neutral-core
+      check: stand up `.claude/adapters/omnigent/` — a `README.md` role→mechanism table
+      binding **every** `[role]` in `workflow/README.md`'s binding contract to an Omnigent
+      mechanism (or a documented graceful degradation naming the absent runtime feature),
+      `MODELS.md` (the adapter's ONLY tier→model table), and the `[environment block]` —
+      grounded in Omnigent's real docs, not invented; **plus** the **paired** deterministic
+      neutral-core-untouched CI check (a planted Omnigent-mechanism token in a `workflow/**`
+      fixture FAILS, the real tree PASSES; no vendor/model names outside
+      `.claude/adapters/omnigent/MODELS.md`), runnable in `verify`. No live driver required (#119
+      AC1+AC4; T616 epic part a; create issue on demand; repo-maintenance — done-when on
+      issue) — strong: defines the adapter binding across the runtime-neutral boundary (P1/P3)
+- [ ] T618 [strong] (T616b) `[guard]`/`[edit guard]` as Omnigent policies: implement the
+      guard rules normatively listed in `workflow/README.md` as deterministic, **fail-open**
+      `tool_call`/`tool_result` policies (under `.claude/adapters/omnigent/`) with unit tests —
+      `git add .`/`-A`, commit/push-to-base, and base-branch edits return DENY; a passing
+      control (explicit-file staging ALLOWED) + adversarial variants, not the literal banned
+      strings. Unit-tested only here; real-driver liveness deferred to T620 (#119 AC2; T616
+      epic part b; create issue on demand; repo-maintenance — done-when on issue) — strong:
+      deterministic governance policy across the boundary (P2/P3)
+- [ ] T619 [strong] (T616c) Cross-vendor read-only `[reviewer]` sub-agents: three
+      `purpose: review` sub-agents that receive the **full review-standard inputs** yet hold
+      **no file-mutation capability**, with a deterministic assertion that each resolved
+      vendor **differs** from the orchestrator's (expected-FAIL same-vendor, expected-PASS
+      cross-vendor) and the constitution auditor's model pinned to `[frontier]`. Config +
+      deterministic check here; the **P-RV** real-driver isolation probe deferred to T620
+      (#119 AC3; T616 epic part c; create issue on demand; repo-maintenance — done-when on
+      issue) — strong: maker≠checker enforced structurally across the boundary (P3/P4)
+- [ ] T620 [strong] (T616d) Conformance probes + live integration on a real driver
+      (**blocked: Omnigent provisioning** — not on PyPI; needs a from-source install +
+      cross-vendor API keys): instantiate `.claude/adapters/omnigent/omnigent-probes.md` per
+      `workflow/conformance-probes.md` and **run on a real driver** — guard, reviewer
+      (P-RV), and isolation probes record PASS with dated fingerprints (expected-PASS **and**
+      expected-FAIL fixtures, the T605 auditor-liveness pattern) — and prove the Done-when:
+      `omnigent run …/config.yaml` drives a task in a worktree → three cross-vendor auditors
+      gate it → PASS opens a PR (human merges) / FAIL discards; the guard DENYs the banned
+      actions live; the neutral-core diff is empty. Closes the epic (#119 AC5+Done-when; T616
+      epic part d; create issue on demand; repo-maintenance — done-when on issue) — strong:
+      live cross-vendor proof closing the adapter binding (P1/P2/P3/P4)
 
 ## Criterion ownership (multi-task user stories)
 
