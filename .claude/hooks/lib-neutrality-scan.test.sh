@@ -78,6 +78,18 @@ assert_leak "json flag token" "Request --json output." "--json"
 assert_leak "hook token" "Wire PreToolUse." "PreToolUse"
 assert_leak "settings file token" "Read settings.json." "settings.json"
 
+# Omnigent adapter vocabulary (T617) — same shared scanner, no fork.
+assert_leak "omnigent runtime token" "Drive omnigent run config.yaml." "omnigent"
+assert_leak "polly orchestrator token" "Shape it like the polly orchestrator." "polly"
+assert_leak "policy_modules key" "Register under policy_modules." "policy_modules"
+assert_leak "POLICY_REGISTRY export" "Export a POLICY_REGISTRY list." "POLICY_REGISTRY"
+assert_leak "openai-agents harness" "Run the openai-agents harness." "openai-agents"
+assert_leak "sys_os_shell tool" "Policy on sys_os_shell." "sys_os_shell"
+assert_leak "sys_os_edit tool" "Policy on sys_os_edit." "sys_os_edit"
+assert_leak "sys_session_send tool" "Dispatch via sys_session_send." "sys_session_send"
+assert_leak "executor.harness key" "Set executor.harness." "executor.harness"
+assert_leak "executor.model key" "Set executor.model." "executor.model"
+
 assert_clean "git stays exempt" "Run git rev-parse --show-toplevel."
 assert_clean ".claude profile pointer stays exempt" "Read .claude/workflow/README.md."
 
