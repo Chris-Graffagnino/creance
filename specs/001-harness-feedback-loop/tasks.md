@@ -232,12 +232,12 @@
       grounded in Omnigent's real docs, not invented; **plus** the **paired** deterministic
       neutral-core-untouched CI check (a planted Omnigent-mechanism token in a `workflow/**`
       fixture FAILS, the real tree PASSES; no vendor/model names outside
-      `adapters/omnigent/MODELS.md`), runnable in `verify`. No live driver required (#119
+      `.claude/adapters/omnigent/MODELS.md`), runnable in `verify`. No live driver required (#119
       AC1+AC4; T616 epic part a; create issue on demand; repo-maintenance — done-when on
       issue) — strong: defines the adapter binding across the runtime-neutral boundary (P1/P3)
 - [ ] T618 [strong] (T616b) `[guard]`/`[edit guard]` as Omnigent policies: implement the
       guard rules normatively listed in `workflow/README.md` as deterministic, **fail-open**
-      `tool_call`/`tool_result` policies (under `adapters/omnigent/`) with unit tests —
+      `tool_call`/`tool_result` policies (under `.claude/adapters/omnigent/`) with unit tests —
       `git add .`/`-A`, commit/push-to-base, and base-branch edits return DENY; a passing
       control (explicit-file staging ALLOWED) + adversarial variants, not the literal banned
       strings. Unit-tested only here; real-driver liveness deferred to T620 (#119 AC2; T616
@@ -253,7 +253,7 @@
       issue) — strong: maker≠checker enforced structurally across the boundary (P3/P4)
 - [ ] T620 [strong] (T616d) Conformance probes + live integration on a real driver
       (**blocked: Omnigent provisioning** — not on PyPI; needs a from-source install +
-      cross-vendor API keys): instantiate `adapters/omnigent/omnigent-probes.md` per
+      cross-vendor API keys): instantiate `.claude/adapters/omnigent/omnigent-probes.md` per
       `workflow/conformance-probes.md` and **run on a real driver** — guard, reviewer
       (P-RV), and isolation probes record PASS with dated fingerprints (expected-PASS **and**
       expected-FAIL fixtures, the T605 auditor-liveness pattern) — and prove the Done-when:
