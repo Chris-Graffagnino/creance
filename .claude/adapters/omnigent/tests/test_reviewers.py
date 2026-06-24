@@ -8,23 +8,35 @@ Encodes #119 AC3 — the three ``reviewers/*.yaml`` are ``purpose: review`` sub-
       ``MODELS.md`` (Omnigent's "review is ALWAYS a different vendor than the implementer"
       rule made STRUCTURAL, not prompt-enforced);
   (2) READ-ONLY     — no file-mutation capability (empty sandbox ``write_paths``, no
-      ``os_env`` write/inherit grant, no ``sys_os_edit`` / ``sys_os_write`` /
-      ``sys_os_shell`` tool), so each is handed only the diff + its contract, never the
-      worktree;
+      ``os_env`` write/inherit grant, no ``sys_os_*`` OS-capability tool), so each is handed
+      only the diff + its contract, never the worktree;
   (3) the constitution reviewer's ``executor.model`` is PINNED to the ``[frontier tier]``
       role, so its ``[strong tier]`` floor is satisfied structurally by rounding up.
 
+The structured fields are read with an INDENTATION-SCOPED parser (``_tree``): ``harness`` and
+``model`` are read at the ``executor.*`` path and ``write_paths`` at ``sandbox.*`` — a
+top-level decoy ``harness:`` / ``write_paths:`` can NOT mask the real nested field, so the
+maker≠checker oracle grades the field it actually claims to (the High craft finding on PR
+#141). ``executor.model`` is validated against the DECLARED tier-role set parsed from
+``MODELS.md`` (a bogus ``[nonsense tier]`` is rejected, not just any bracketed token), and
+the read-only check denies the whole ``sys_os_*`` OS-capability namespace (a new mutation
+verb like ``sys_os_delete`` can not slip past a fixed denylist) — the Medium finding. The
+precise positive read-only capability allowlist is refined once the live driver pins the tool
+taxonomy (T620).
+
 PAIRED, the "machinery proves it is live" discipline shared with ``guard.test.sh`` /
 ``reviewer-roster.test.sh`` / ``omnigent-neutral-core.test.sh``: the REAL tree PASSES, while
-a planted SAME-VENDOR reviewer FAILS the cross-vendor assertion, a planted WRITABLE reviewer
-FAILS the read-only assertion, and a planted NON-FRONTIER constitution reviewer FAILS the
-pin assertion. Sanity guards forbid a vacuous pass.
+planted violations FAIL — a same-vendor reviewer (and a top-level harness decoy) fails
+cross-vendor, a writable reviewer (and a top-level write_paths decoy) fails read-only, an
+undeclared tier role and a non-frontier constitution model fail their pins. Every plant
+re-runs the SAME production predicate the real tree passes (``is_cross_vendor`` /
+``is_read_only`` / ``is_pinned_to_frontier`` / the declared-role set), so no plant merely
+re-states its own mutation. Sanity guards forbid a vacuous pass.
 
-Hermetic: stdlib only (no PyYAML, no Omnigent install, no network). The harness->vendor map
-AND the implementer harness are read FROM ``MODELS.md`` at run time (self-syncing; no vendor
-vocabulary is hardcoded here, so the ``#119`` AC4 confinement check stays green and the test
-follows a one-row MODELS.md edit with no change). No concrete model id ever appears in this
-file (the confinement check scans it).
+Hermetic: stdlib only (no PyYAML, no Omnigent install, no network). The harness->vendor map,
+the implementer harness, AND the tier-role set are read FROM ``MODELS.md`` at run time
+(self-syncing; no vendor/model vocabulary is hardcoded here, so the ``#119`` AC4 confinement
+check stays green and the test follows a one-row MODELS.md edit with no change).
 
 Run directly (the CI ``verify`` step does, via the ``tests/test_*.py`` glob):
 
@@ -34,7 +46,6 @@ Run directly (the CI ``verify`` step does, via the ``tests/test_*.py`` glob):
 import os
 import re
 import subprocess
-import sys
 import unittest
 
 ADAPTER_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -48,15 +59,28 @@ REVIEWERS = {
     "contract": "contract-auditor",
 }
 FRONTIER_ROLE = "[frontier tier]"
-WRITE_TOOL_TOKENS = ("sys_os_edit", "sys_os_write", "sys_os_shell")
 WRITE_OS_ENV = ("inherit", "write", "rw", "readwrite")
+# A read-only reviewer is handed only the diff + its contract, never the worktree, so it must
+# hold NO OS-capability tool. Deny the whole ``sys_os_*`` namespace (the documented
+# sys_os_edit / sys_os_write / sys_os_shell mutators AND any unverified verb such as
+# sys_os_delete) rather than a fixed denylist a new verb could slip past. The precise
+# positive read-only allowlist is pinned against the live driver taxonomy at T620.
+OS_TOOL_RE = re.compile(r"\bsys_os_\w+\b")
 
 
-# ── Minimal YAML field reads (the reviewer files are flat + controlled) ───────────────
+# ── Minimal indentation-scoped YAML reads (the reviewer files are flat block style) ───
+
+def _unquote(v):
+    v = v.strip()
+    if len(v) >= 2 and v[0] in "\"'" and v[-1] == v[0]:
+        return v[1:-1]
+    return v
+
 
 def _decomment(text):
-    """Drop comment lines and inline ``# ...`` comments (field values carry no ``#``), so a
-    documentation comment that mentions a banned token never trips a content scan."""
+    """The de-commented text (whole-line + inline ``# ...`` comments dropped; field values
+    carry no ``#``). Used for the namespace tool scan, so a documentation comment that
+    mentions a tool token never trips it."""
     out = []
     for line in text.splitlines():
         line = line.split("#", 1)[0]
@@ -65,59 +89,108 @@ def _decomment(text):
     return "\n".join(out)
 
 
-def _scalar(text, key):
-    """First ``key: value`` scalar (surrounding quotes stripped), or None. ``text`` is
-    expected already de-commented. Keys used here (purpose/harness/model/write_paths/os_env)
-    are unique within a reviewer file, so a flat per-key search is unambiguous."""
-    m = re.search(r"(?m)^\s*%s:\s*(.+?)\s*$" % re.escape(key), text)
-    if not m:
-        return None
-    v = m.group(1).strip()
-    if len(v) >= 2 and v[0] in "\"'" and v[-1] == v[0]:
-        v = v[1:-1]
-    return v
+def _tree(text):
+    """Parse the controlled block-style reviewer YAML into nested dicts of scalar strings.
+    Indentation-scoped: each key attaches to the nearest shallower mapping, so a top-level
+    DECOY key can NOT mask the real nested ``executor.*`` / ``sandbox.*`` field. Comments and
+    blank lines are dropped; block-list items (``- x``) and flow values (``[]`` / ``["."]``)
+    are kept as raw scalar strings. Stdlib-only — the reviewer files use no anchors/multiline
+    scalars (``TestSanity.test_reviewer_files_parse_structurally`` guards that assumption)."""
+    root = {}
+    stack = [(-1, root)]  # (indent, mapping-open-at-that-indent)
+    for raw in text.splitlines():
+        body = raw.split("#", 1)[0]
+        if not body.strip():
+            continue
+        indent = len(body) - len(body.lstrip())
+        m = re.match(r"^([^:\s][^:]*?):\s*(.*)$", body.strip())
+        if not m:
+            continue  # a list item or other non-mapping line — nothing to bind
+        key, val = m.group(1).strip(), m.group(2).strip()
+        while indent <= stack[-1][0]:
+            stack.pop()
+        parent = stack[-1][1]
+        if val == "":
+            child = {}
+            parent[key] = child
+            stack.append((indent, child))
+        else:
+            parent[key] = _unquote(val)
+    return root
+
+
+def _at(tree, *path):
+    """The scalar at a nested key path, or None (None too if the path lands on a mapping)."""
+    node = tree
+    for k in path:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(k)
+    return None if isinstance(node, dict) else node
+
+
+def _all_scalars(tree, key):
+    """Every scalar bound to ``key`` at ANY depth — used for fail-closed scans (os_env): a
+    write grant anywhere trips read-only, so it can not be hidden at an unexpected level."""
+    out = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k == key and not isinstance(v, dict):
+                    out.append(v)
+                walk(v)
+
+    walk(tree)
+    return out
 
 
 def purpose_of(text):
-    return _scalar(_decomment(text), "purpose")
+    return _at(_tree(text), "purpose")
 
 
 def harness_of(text):
-    return _scalar(_decomment(text), "harness")
+    return _at(_tree(text), "executor", "harness")
 
 
 def model_of(text):
-    return _scalar(_decomment(text), "model")
+    return _at(_tree(text), "executor", "model")
 
 
 def instructions_of(text):
-    return _scalar(_decomment(text), "instructions")
+    return _at(_tree(text), "instructions")
 
 
 def is_read_only(text):
-    """No file-mutation capability: empty sandbox write_paths, no os_env write/inherit
-    grant, and no file-mutation tool. (AC3: handed only diff + contract, never the
-    worktree.)"""
-    t = _decomment(text)
-    wp = _scalar(t, "write_paths")
+    """No file-mutation capability: empty ``sandbox.write_paths``, no ``os_env`` write/inherit
+    grant (at any level), and no ``sys_os_*`` OS-capability tool. (AC3: handed only the diff +
+    its contract, never the worktree.)"""
+    tree = _tree(text)
+    wp = _at(tree, "sandbox", "write_paths")
     if wp is None or wp.replace(" ", "") != "[]":
         return False
-    os_env = _scalar(t, "os_env")
-    if os_env is not None and os_env.strip().lower() in WRITE_OS_ENV:
+    if any(v.strip().lower() in WRITE_OS_ENV for v in _all_scalars(tree, "os_env")):
         return False
-    if any(re.search(r"\b%s\b" % re.escape(tok), t) for tok in WRITE_TOOL_TOKENS):
+    if OS_TOOL_RE.search(_decomment(text)):
         return False
     return True
 
 
 def is_cross_vendor(text, vmap, orch_vendor):
-    """The reviewer's harness resolves to a KNOWN vendor that differs from the
+    """The reviewer's ``executor.harness`` resolves to a KNOWN vendor that differs from the
     implementer's. An unknown harness is not provably cross-vendor -> False (a FAIL)."""
     v = vmap.get(harness_of(text))
     return v is not None and v != orch_vendor
 
 
-# ── MODELS.md: the single source for the implementer harness + harness->vendor map ────
+def is_pinned_to_frontier(text):
+    """The constitution reviewer's ``executor.model`` is the ``[frontier tier]`` role (its
+    ``[strong]`` floor satisfied by rounding up — #119 AC3). The production predicate that
+    BOTH the real-tree assertion and the plant-FAIL re-run, so neither restates a mutation."""
+    return model_of(text) == FRONTIER_ROLE
+
+
+# ── MODELS.md: single source for implementer harness, harness->vendor, tier-role set ──
 
 def _models_text():
     with open(MODELS_MD, encoding="utf-8") as f:
@@ -155,6 +228,30 @@ def harness_vendor_map(models_text):
     return mp
 
 
+def tier_roles(models_text):
+    """The DECLARED tier-role set — the first column of the primary ``| Tier ... | Model | ...``
+    table in MODELS.md (the single source). An ``executor.model`` must be one of these roles;
+    a bogus ``[nonsense tier]`` is not, so the model check validates membership rather than
+    accepting any bracketed token."""
+    roles = set()
+    in_table = False
+    for line in models_text.splitlines():
+        s = line.strip()
+        if re.match(r"^\|\s*Tier\b.*\|\s*Model\s*\|", s):
+            in_table = True
+            continue
+        if in_table:
+            if not s.startswith("|"):
+                break
+            if set(s) <= set("|-: "):
+                continue
+            first = s.strip("|").split("|")[0]
+            m = re.search(r"\[[^\]]*tier\]", first)
+            if m:
+                roles.add(m.group(0))
+    return roles
+
+
 def _read(stem):
     with open(os.path.join(REVIEWERS_DIR, "%s.yaml" % stem), encoding="utf-8") as f:
         return f.read()
@@ -166,6 +263,7 @@ class ReviewersTestBase(unittest.TestCase):
         self.vmap = harness_vendor_map(self.models)
         self.orch_harness = implementer_harness(self.models)
         self.orch_vendor = self.vmap.get(self.orch_harness)
+        self.roles = tier_roles(self.models)
 
 
 # ── Sanity: the check cannot pass vacuously ──────────────────────────────────────────
@@ -179,10 +277,26 @@ class TestSanity(ReviewersTestBase):
         self.assertIn(self.orch_harness, self.vmap, "implementer harness not in the harness->vendor map")
         self.assertIsNotNone(self.orch_vendor)
 
+    def test_tier_roles_declared(self):
+        self.assertIn(FRONTIER_ROLE, self.roles,
+                      "MODELS.md declares no [frontier tier] row (tier-role set: %s)" % sorted(self.roles))
+
     def test_all_three_reviewers_present(self):
         for stem in REVIEWERS:
             p = os.path.join(REVIEWERS_DIR, "%s.yaml" % stem)
             self.assertTrue(os.path.isfile(p), "missing reviewer sub-agent %s" % p)
+
+    def test_reviewer_files_parse_structurally(self):
+        # The minimal parser's assumption: each reviewer file is flat block YAML carrying
+        # executor:/sandbox: mappings (no flow-style, anchors, or multiline scalars). If a
+        # file is reformatted so a nested field stops being reachable, the structured reads
+        # would silently return None — catch that HERE with a clear message.
+        for stem in REVIEWERS:
+            tree = _tree(_read(stem))
+            self.assertIsInstance(tree.get("executor"), dict,
+                                  "%s.yaml has no executor: mapping (parser assumption broke)" % stem)
+            self.assertIsInstance(tree.get("sandbox"), dict,
+                                  "%s.yaml has no sandbox: mapping (parser assumption broke)" % stem)
 
 
 # ── AC3 on the real tree (every reviewer) ────────────────────────────────────────────
@@ -203,14 +317,16 @@ class TestRealReviewers(ReviewersTestBase):
             self.assertTrue(os.path.isfile(resolved),
                             "%s.yaml instructions path does not resolve to a file: %s" % (stem, resolved))
 
-    def test_each_model_is_a_tier_role_not_a_concrete_id(self):
-        # Defends the confinement invariant at the YAML level: a concrete model id here would
-        # also be caught by omnigent-neutral-core.test.sh, but failing it HERE names the cause.
+    def test_each_model_is_a_declared_tier_role(self):
+        # Defends the confinement invariant at the YAML level AND rejects an undeclared role:
+        # the model must be one of MODELS.md's declared tier tokens (the single source), not
+        # merely "some bracketed [* tier]" — so a bogus [nonsense tier] does not pass.
         for stem in REVIEWERS:
             model = model_of(_read(stem))
             self.assertIsNotNone(model, "%s.yaml has no executor.model" % stem)
-            self.assertRegex(model, r"^\[.*tier\]$",
-                             "%s.yaml model %r is not a tier role token" % (stem, model))
+            self.assertIn(model, self.roles,
+                          "%s.yaml model %r is not a DECLARED tier role %s (MODELS.md is the single source)"
+                          % (stem, model, sorted(self.roles)))
 
     def test_each_is_cross_vendor(self):
         for stem in REVIEWERS:
@@ -227,27 +343,51 @@ class TestRealReviewers(ReviewersTestBase):
                             "%s.yaml is not read-only (write_paths/os_env/write-tool)" % stem)
 
     def test_constitution_pinned_to_frontier(self):
-        self.assertEqual(model_of(_read("constitution")), FRONTIER_ROLE,
-                         "constitution.yaml executor.model is not pinned to %s" % FRONTIER_ROLE)
+        self.assertTrue(is_pinned_to_frontier(_read("constitution")),
+                        "constitution.yaml executor.model is not pinned to %s" % FRONTIER_ROLE)
 
 
 # ── Paired plant-FAILS: each property's violation must be caught (AC6 discipline) ─────
 
 class TestPlantedViolations(ReviewersTestBase):
     def test_same_vendor_reviewer_fails_cross_vendor(self):
-        # Repoint a reviewer at the implementer's OWN harness -> same vendor -> must FAIL.
+        # Repoint a reviewer at the implementer's OWN (nested) harness -> same vendor -> FAIL.
         text = _read("constitution")
-        same = re.sub(r"(?m)^(\s*harness:\s*).*$", r"\g<1>%s" % self.orch_harness, text)
+        same = re.sub(r"(?m)^(\s+harness:\s*).*$", r"\g<1>%s" % self.orch_harness, text)
         self.assertNotEqual(harness_of(same), harness_of(text), "mutation did not change the harness")
         self.assertFalse(is_cross_vendor(same, self.vmap, self.orch_vendor),
                          "a same-vendor reviewer was NOT caught by the cross-vendor check")
 
+    def test_top_level_harness_decoy_does_not_mask_nested(self):
+        # High finding: a flat "first harness: anywhere" parser reads a top-level decoy and
+        # wrongly PASSES. Set the REAL nested executor.harness to the implementer's (same
+        # vendor) and prepend a cross-vendor top-level decoy — the nested field must win.
+        text = _read("constitution")
+        same = re.sub(r"(?m)^(\s+harness:\s*).*$", r"\g<1>%s" % self.orch_harness, text)
+        cross = next(h for h, v in self.vmap.items() if v != self.orch_vendor)
+        decoyed = "harness: %s\n" % cross + same
+        self.assertEqual(harness_of(decoyed), self.orch_harness,
+                         "nested executor.harness must win over a top-level decoy")
+        self.assertFalse(is_cross_vendor(decoyed, self.vmap, self.orch_vendor),
+                         "a top-level harness decoy masked a same-vendor nested executor.harness")
+
     def test_writable_write_paths_fails_read_only(self):
         text = _read("contract")
         self.assertTrue(is_read_only(text))
-        writable = re.sub(r"(?m)^(\s*write_paths:\s*).*$", r'\g<1>["."]', text)
+        writable = re.sub(r"(?m)^(\s+write_paths:\s*).*$", r'\g<1>["."]', text)
         self.assertFalse(is_read_only(writable),
                          "a non-empty write_paths was NOT caught by the read-only check")
+
+    def test_top_level_write_paths_decoy_does_not_mask_nested(self):
+        # High finding (read-only side): a top-level decoy empty write_paths must not mask a
+        # writable nested sandbox.write_paths.
+        text = _read("contract")
+        writable = re.sub(r"(?m)^(\s+write_paths:\s*).*$", r'\g<1>["."]', text)
+        decoyed = "write_paths: []\n" + writable
+        self.assertEqual(_at(_tree(decoyed), "sandbox", "write_paths").replace(" ", ""), '["."]',
+                         "nested sandbox.write_paths must win over a top-level decoy")
+        self.assertFalse(is_read_only(decoyed),
+                         "a top-level write_paths decoy masked a writable nested sandbox")
 
     def test_os_env_inherit_fails_read_only(self):
         text = _read("spec")
@@ -263,13 +403,32 @@ class TestPlantedViolations(ReviewersTestBase):
         self.assertFalse(is_read_only(leaky),
                          "a granted file-mutation tool was NOT caught by the read-only check")
 
+    def test_unknown_os_tool_fails_read_only(self):
+        # Medium finding: a mutation verb OUTSIDE the documented three (e.g. sys_os_delete)
+        # must still FAIL read-only — the check denies the whole sys_os_* namespace, so a new
+        # verb can not slip past a fixed denylist (positive allowlist refined at T620).
+        text = _read("spec")
+        self.assertTrue(is_read_only(text))
+        leaky = text + "\ntools:\n  - sys_os_delete\n"
+        self.assertFalse(is_read_only(leaky),
+                         "an unknown sys_os_* mutation tool was treated as read-only")
+
+    def test_undeclared_tier_role_is_rejected(self):
+        # Medium finding: the model check validates against the DECLARED set, so a bracketed
+        # token that is NOT a real tier ([nonsense tier]) is rejected — a bare r'\[.*tier\]'
+        # regex would have accepted it.
+        bogus = re.sub(r'(?m)^(\s+model:\s*).*$', r'\g<1>"[nonsense tier]"', _read("contract"))
+        self.assertEqual(model_of(bogus), "[nonsense tier]", "mutation did not change the model")
+        self.assertNotIn(model_of(bogus), self.roles,
+                         "an undeclared tier role was accepted by the declared-set check")
+
     def test_non_frontier_constitution_fails_pin(self):
         text = _read("constitution")
-        downgraded = re.sub(r'(?m)^(\s*model:\s*).*$', r'\g<1>"[cheap tier]"', text)
-        self.assertNotEqual(model_of(downgraded), FRONTIER_ROLE,
-                            "mutation did not change the model")
-        # The pin assertion is "model == FRONTIER_ROLE"; the mutation must break it.
-        self.assertFalse(model_of(downgraded) == FRONTIER_ROLE,
+        downgraded = re.sub(r'(?m)^(\s+model:\s*).*$', r'\g<1>"[cheap tier]"', text)
+        self.assertNotEqual(model_of(downgraded), FRONTIER_ROLE, "mutation did not change the model")
+        # Re-run the production pin predicate against the mutated input (symmetric with the
+        # cross-vendor / read-only plants — not a restatement of the mutation).
+        self.assertFalse(is_pinned_to_frontier(downgraded),
                          "a non-frontier constitution reviewer was NOT caught by the pin check")
 
 
