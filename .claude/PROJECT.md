@@ -15,11 +15,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Constitution (law):** `memory/constitution.md` (filled from
   `memory/constitution.template.md`; the reviewers fail closed without it).
 - **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`;
-  `specs/002-spec-quality-gate/spec.md`
-- **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`
-  and `specs/002-spec-quality-gate/tasks.md` — the engine selects across all
-  `specs/*/tasks.md`; task IDs are unique across them (001 = T1xx–T6xx, 002 = T7xx).
-  `specs/000-template/tasks.template.md` is a skeleton, never a backlog.
+  `specs/002-spec-quality-gate/spec.md`; `specs/003-maker-eval-corpus/spec.md`
+- **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`,
+  `specs/002-spec-quality-gate/tasks.md`, and `specs/003-maker-eval-corpus/tasks.md` — the
+  engine selects across all `specs/*/tasks.md`; task IDs are unique across them
+  (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx). `specs/000-template/tasks.template.md` is a
+  skeleton, never a backlog.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;
@@ -200,3 +201,6 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 - Spec 002 — the spec-quality reviewer is model judgment, so it ships an auditor-liveness
   fixture pair (P2) and its dispatch stays deterministic with a CI-lint backstop (P3) →
   T702, T703, T704.
+- Spec 003 — the maker eval is a measurement channel, so it stays observe-only with a
+  deterministic CI fence proving no gate/tier/guard/selection path reads it (P5) → T802,
+  T804.
