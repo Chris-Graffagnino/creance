@@ -85,8 +85,10 @@ envelope:
 
 - A **`block`** record is appended for **every blocked action**, whatever the rule.
 - An **`evaluation`** record is appended on at least one guard path **guaranteed to fire
-  during every gate run** — the strong-tier floor check on the constitution [reviewer]
-  dispatch — whatever that check's outcome. This is the liveness signal: a window with
+  during every gate run** — the strong-tier floor check on a **strong-floored [reviewer]**
+  dispatch (the constitution reviewer, which fires on every gate run; and the spec-quality
+  reviewer, which fires on every spec-touching one — so a spec-touching gate run logs more
+  than one) — whatever that check's outcome. This is the liveness signal: a window with
   gate runs but zero `evaluation` records means the guard is silently dead (the triage
   [workflow]'s GUARD-SILENT check), which "no `block` records" alone cannot distinguish
   from "nothing to block".

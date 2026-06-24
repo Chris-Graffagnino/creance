@@ -56,6 +56,11 @@ DEFAULT_DISPATCH_TOOLS = ("sys_session_send",)
 DEFAULT_REVIEWER_KEYS = (
     "agent", "subagent", "subagent_type", "reviewer", "to", "target_agent", "purpose",
 )
+# The strong-floored reviewers (workflow/README.md rule 5): substring needles identifying a
+# constitution- or spec-quality-reviewer dispatch. `spec-quality` (NOT `spec`) so the
+# acceptance reviewer `spec-auditor` is left un-floored — mirrors guard.sh's exact-match
+# control case (issue #147).
+DEFAULT_REVIEWER_MATCH = ("constitution", "spec-quality")
 DEFAULT_MODEL_KEYS = ("model",)
 # UNVERIFIED: the argument key carrying an edit's target path.
 DEFAULT_EDIT_PATH_KEYS = (
@@ -316,12 +321,15 @@ def _rank_below_strong(model, models_file):
     return None
 
 
-def _is_constitution_dispatch(args, reviewer_keys, reviewer_match):
-    needle = reviewer_match.lower()
+def _is_strong_floored_dispatch(args, reviewer_keys, reviewer_match):
+    needles = (reviewer_match,) if isinstance(reviewer_match, str) else tuple(reviewer_match)
+    needles = [n.lower() for n in needles if n]
     for k in reviewer_keys:
         v = args.get(k)
-        if isinstance(v, str) and needle in v.lower():
-            return True
+        if isinstance(v, str):
+            vlow = v.lower()
+            if any(needle in vlow for needle in needles):
+                return True
     return False
 
 
@@ -339,22 +347,22 @@ def _extract_model(args, model_keys):
     return None
 
 
-def _rule_constitution_floor(event, models_file, reviewer_keys, reviewer_match, model_keys):
+def _rule_strong_floor(event, models_file, reviewer_keys, reviewer_match, model_keys):
     args = _args(event)
-    if not _is_constitution_dispatch(args, reviewer_keys, reviewer_match):
+    if not _is_strong_floored_dispatch(args, reviewer_keys, reviewer_match):
         return None
     model = _extract_model(args, model_keys)
     if not model:
         return _deny(
             "strong-floor-no-model",
-            "constitution reviewer dispatched without a model — it would inherit the "
+            "a strong-floored reviewer dispatched without a model — it would inherit the "
             "session model and can silently break the [strong tier] floor. Pass the "
             "strong-tier (or above) model from MODELS.md explicitly.",
         )
     if _rank_below_strong(model, models_file) == "deny":
         return _deny(
             "strong-floor-below",
-            "constitution reviewer dispatched below the [strong tier] floor "
+            "a strong-floored reviewer dispatched below the [strong tier] floor "
             "(model: '{}'). It never downgrades — pass a model at-or-above the "
             "strong-tier row of MODELS.md.".format(model),
         )
@@ -522,7 +530,7 @@ def make_guard_tool_call(
     models_file=None,
     dispatch_tools=DEFAULT_DISPATCH_TOOLS,
     reviewer_keys=DEFAULT_REVIEWER_KEYS,
-    reviewer_match="constitution",
+    reviewer_match=DEFAULT_REVIEWER_MATCH,
     model_keys=DEFAULT_MODEL_KEYS,
     edit_path_keys=DEFAULT_EDIT_PATH_KEYS,
 ):
@@ -546,7 +554,7 @@ def make_guard_tool_call(
                         return resp
                 return None
             if target in disp:
-                return _rule_constitution_floor(
+                return _rule_strong_floor(
                     event, mfile, reviewer_keys, reviewer_match, model_keys,
                 )
             return None
