@@ -50,16 +50,26 @@ generation quality becomes a trend I can inspect rather than an anecdote.
 - AC1: A runtime-neutral workflow doc defines a small, frozen set of representative
   tasks, each paired with a known-good rubric; an eval run resolves the current
   model table, executes each task via a **[headless run]** of the maker, and scores
-  the output with a read-only **[reviewer]**-style judge against the rubric. It
+  the output with a read-only **[reviewer]**-style judge against the rubric. The
+  judge is part of the frozen instrument — its identity is **pinned independently of
+  the maker model-table change** (declared in the profile / `.claude/MODELS.md`, not
+  re-resolved from the row a maker swap moves), so between two runs only the maker
+  varies and the differential stays an independent measurement (constitution P1). It
   names **[roles]** only (constitution P1) and names where records are stored via
-  `.claude/PROJECT.md` → "Paths" (beside telemetry, out-of-repo by default).
-- AC2: Each run emits exactly one append-only record per corpus task (task ID, the
-  model-table resolution used, the per-rubric verdict/score, and a timestamp), in
-  the gate-telemetry JSONL form; a failed write changes nothing (it has nothing to
-  block — AC4).
-- AC3: Each run records a deterministic content-hash fingerprint of the model table
-  alongside its results — mirroring the probe-run fingerprint (spec 001 US5.AC1) —
-  so a model swap is detectable as a fingerprint change, not inferred from timing.
+  `.claude/PROJECT.md` → "Paths" — its **own append-only path beside the telemetry
+  stream** (out-of-repo by default), kept distinct so the US2.AC3 fence can scope to
+  it.
+- AC2: Each run emits exactly one append-only record per corpus task (a shared **run
+  id**, the corpus task ID, the model-table resolution used, the per-rubric
+  verdict/score, and a timestamp), in the gate-telemetry JSONL form. A run is
+  **complete** only when every corpus task has a record under that run id; a failed
+  or partial write changes nothing (it has nothing to block — AC4), and an incomplete
+  run is never treated as a comparable baseline (US2.AC2).
+- AC3: Each run records a deterministic content-hash fingerprint alongside its
+  results — mirroring the probe-run fingerprint (spec 001 US5.AC1) — with **separate
+  components for the maker model-table resolution and the pinned-judge identity**, so
+  a maker swap and a judge change are each detectable as their own fingerprint change,
+  not inferred from timing and not conflated with each other (US2.AC2).
 - AC4: The eval is **observe-only (constitution P5)**: no record, score, or flag
   feeds a gate outcome, a tier assignment, or gate semantics. The corpus and its
   rubrics are reviewer-spec-class artifacts — changed only by a human-reviewed PR,
@@ -76,11 +86,17 @@ can never gain control authority.
   schedule (the T605 / [workflow] cadence), exposed by a skill binding reusing
   existing roles — no new binding-contract role is created.
 - AC2: Triage gains a read-only "Maker eval" section: score regressions against the
-  last recorded run, a **MAKER-EVAL-STALE** flag when the current model-table
-  fingerprint differs from the last run's (a swap with no fresh eval, a warning),
-  and an explicit "no data yet" empty state — rendered consistently with the other
-  snapshot sections, never silently omitted (spec 001 US2/US5 pattern). Triage
-  neither runs the eval nor writes records.
+  last **complete** recorded run (an incomplete run — not every corpus task present
+  under its run id, US1.AC2 — renders as incomplete, never a silent baseline) under an
+  **explicit regression threshold that tolerates the judge's run-to-run noise** (not
+  "any delta", so the observe-only channel does not become alert noise); a
+  **MAKER-EVAL-STALE** flag when the current maker fingerprint differs from the last
+  run's (a swap with no fresh eval, a warning); a **JUDGE-CHANGED / not-comparable**
+  annotation when the judge fingerprint component (US1.AC3) differs between the two
+  runs being differenced — suppressing the regression call rather than reporting a
+  confounded delta; and an explicit "no data yet" empty state — all rendered
+  consistently with the other snapshot sections, never silently omitted (spec 001
+  US2/US5 pattern). Triage neither runs the eval nor writes records.
 - AC3: A **deterministic CI assertion** fences the channel: the eval-record path is
   referenced only by the eval writer and the triage reader, and by no gate, tier,
   guard, or selection code path — so P5 is enforced deterministically, not left to

@@ -207,4 +207,6 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   `guard.test.sh` case (P2/P4) → T701, T702, T703, T704.
 - Spec 003 — the maker eval is a measurement channel, so it stays observe-only with a
   deterministic CI fence proving no gate/tier/guard/selection path reads it (P5) → T802,
-  T804.
+  T804. Its judge is pinned independently of the maker model-table change and triage
+  suppresses cross-judge comparisons, so the differential stays an independent
+  measurement (P1) → T801, T802, T803.
