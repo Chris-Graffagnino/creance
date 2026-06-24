@@ -15,11 +15,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Constitution (law):** `memory/constitution.md` (filled from
   `memory/constitution.template.md`; the reviewers fail closed without it).
 - **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`;
-  `specs/002-spec-quality-gate/spec.md`
-- **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`
-  and `specs/002-spec-quality-gate/tasks.md` — the engine selects across all
-  `specs/*/tasks.md`; task IDs are unique across them (001 = T1xx–T6xx, 002 = T7xx).
-  `specs/000-template/tasks.template.md` is a skeleton, never a backlog.
+  `specs/002-spec-quality-gate/spec.md`; `specs/003-maker-eval-corpus/spec.md`
+- **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`,
+  `specs/002-spec-quality-gate/tasks.md`, and `specs/003-maker-eval-corpus/tasks.md` — the
+  engine selects across all `specs/*/tasks.md`; task IDs are unique across them
+  (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx). `specs/000-template/tasks.template.md` is a
+  skeleton, never a backlog.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;
@@ -30,13 +31,14 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 
 ## Task & branch conventions
 - **Task ID format:** `T` + 3 digits, unique across all live `specs/*/tasks.md` — each
-  spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx).
+  spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx).
 - **Model tier tag:** every task line carries `[frontier]`/`[strong]`/`[cheap]` — the
   task's MINIMUM capability tier, resolved via `.claude/MODELS.md`. Untagged → executor
   judges, leaning strong.
 - **Criterion ownership (multi-task stories):** each live `specs/*/tasks.md` carries a
   "Criterion ownership" section mapping each `US#.AC<n>` to exactly one owning task
-  (`specs/001-harness-feedback-loop/tasks.md`, `specs/002-spec-quality-gate/tasks.md`).
+  (`specs/001-harness-feedback-loop/tasks.md`, `specs/002-spec-quality-gate/tasks.md`,
+  `specs/003-maker-eval-corpus/tasks.md`).
 - **Issue / PR / commit title:** `<type>: [<task-id>] <description>` for task work;
   `<type>: <description>` for repo maintenance (matches existing history).
 - **Branch name:** `<type>/<issue#>-<short-slug>` (e.g. `fix/21-template-tasks-glob-collision`).
@@ -203,3 +205,8 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   fixture pair (P2) and its dispatch stays deterministic with a CI-lint backstop (P3); its
   strong-tier floor generalizes guard rule 5, a guard-behavior change shipping with its
   `guard.test.sh` case (P2/P4) → T701, T702, T703, T704.
+- Spec 003 — the maker eval is a measurement channel, so it stays observe-only with a
+  deterministic CI fence proving no gate/tier/guard/selection path reads it (P5) → T802,
+  T804. Its judge is pinned independently of the maker model-table change and triage
+  suppresses cross-judge comparisons, so the differential stays an independent
+  measurement (P1) → T801, T802, T803.
