@@ -6,8 +6,10 @@
 #   2. `git add .` / `-A` / `--all`
 #   3. `git commit` / `git push` while on `main`
 #   4. any `git push` whose refspec targets `main`, from any branch
-#   5. constitution-auditor Agent dispatch with a missing or below-strong
-#      `model` (tier names from a fixture table via GUARD_MODELS_FILE)
+#   5. strong-floored reviewer (constitution-auditor / spec-quality-auditor)
+#      Agent dispatch with a missing or below-strong `model`, while the
+#      un-floored acceptance/contract reviewers pass (tier names from a fixture
+#      table via GUARD_MODELS_FILE)
 #   6. self-colliding in-place sed edits — an `s#`/`s/` delimiter colliding with
 #      a URL in the operand (the silent PR-body-blank class, issue #95)
 # plus the telemetry logging paths (workflow/telemetry.md): block records,
@@ -103,9 +105,12 @@ check 0 "$FEAT" "r4 allow: branch named maintenance" "$(bashp 'git push origin m
 check 0 "$FEAT" "r4 allow: push && gh pr create --base main" "$(bashp 'git push -u origin feature/x && gh pr create --base main')"
 check 0 "$FEAT" "r4 allow: no push in the command" "$(bashp 'git status')"
 
-# --- rule 5: constitution-auditor strong floor (model names from the table) ---
+# --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
 # hook's test seam so these tests don't couple to the real table's model names.
+# The floor covers BOTH strong-floored reviewers (constitution-auditor and, per
+# issue #147 / T701, spec-quality-auditor); the un-floored acceptance/contract
+# reviewers must still pass on a cheap model.
 MODELS_FIXTURE="$TMP/MODELS.md"
 cat > "$MODELS_FIXTURE" <<'EOF'
 | Tier (ordinal, highest first) | Model | Effort |
@@ -128,6 +133,18 @@ check 0 "$FEAT" "r5 allow: full model ID containing the floor name" "$(agentp Ag
 check 0 "$FEAT" "r5 allow: other subagent without a model param" "$(agentnm Agent spec-auditor)"
 check 0 "$FEAT" "r5 allow: unknown model name (fail open)" "$(agentp Agent constitution-auditor some-new-model)"
 check 0 "$FEAT" "r5 allow: cheap name only in prompt, model at floor" '{"tool_name":"Agent","tool_input":{"subagent_type":"constitution-auditor","prompt":"sonnet is the cheap tier","model":"opus"}}'
+# The floor generalizes to the spec-quality reviewer (issue #147 / T701): the
+# same strong floor fires on a spec-quality-auditor dispatch.
+check 2 "$FEAT" "r5 block: spec-quality-auditor, no model param" "$(agentnm Agent spec-quality-auditor)"
+check 2 "$FEAT" "r5 block: spec-quality-auditor on cheap (sonnet)" "$(agentp Agent spec-quality-auditor sonnet)"
+check 2 "$FEAT" "r5 block: spec-quality-auditor on cheap (haiku)" "$(agentp Agent spec-quality-auditor haiku)"
+check 2 "$FEAT" "r5 block: spec-quality-auditor via legacy Task, cheap model" "$(agentp Task spec-quality-auditor sonnet)"
+check 0 "$FEAT" "r5 allow: spec-quality-auditor at the floor" "$(agentp Agent spec-quality-auditor opus)"
+check 0 "$FEAT" "r5 allow: spec-quality-auditor above the floor" "$(agentp Agent spec-quality-auditor fable)"
+check 0 "$FEAT" "r5 allow: spec-quality-auditor unknown model (fail open)" "$(agentp Agent spec-quality-auditor some-new-model)"
+# The acceptance reviewer (spec-auditor) is NOT strong-floored — a cheap-model
+# dispatch is allowed; the case match is exact, so a spec-* prefix never floors it.
+check 0 "$FEAT" "r5 allow: spec-auditor (acceptance) on cheap model, not floored" "$(agentp Agent spec-auditor sonnet)"
 export GUARD_MODELS_FILE="$TMP/no-such-table.md"
 check 0 "$FEAT" "r5 allow: table missing -> fail open (cheap model)" "$(agentp Agent constitution-auditor sonnet)"
 unset GUARD_MODELS_FILE
@@ -256,6 +273,11 @@ tcount 1 '"record":"block".*"rule":"sed-url-delimiter-collision".*"tool":"Bash"'
 check 0 "$FEAT" "tele: dispatch at floor still allowed" "$(agentp Agent constitution-auditor opus)"
 tcount 1 '"record":"evaluation".*"rule":"strong-floor".*"tool":"Agent"' "tele: allowed dispatch appends one evaluation record"
 tcount 0 '"record":"block"' "tele: allowed dispatch appends no block record"
+# The spec-quality reviewer's dispatch logs the same liveness signal (issue #147).
+: > "$TELE"
+check 0 "$FEAT" "tele: spec-quality-auditor dispatch at floor allowed" "$(agentp Agent spec-quality-auditor opus)"
+tcount 1 '"record":"evaluation".*"rule":"strong-floor".*"tool":"Agent"' "tele: spec-quality-auditor dispatch appends one evaluation record"
+tcount 0 '"record":"block"' "tele: spec-quality-auditor allowed dispatch appends no block record"
 : > "$TELE"
 check 2 "$FEAT" "tele: no-model dispatch still blocked" "$(agentnm Agent constitution-auditor)"
 tcount 1 '"record":"evaluation"' "tele: blocked dispatch logs evaluation first"

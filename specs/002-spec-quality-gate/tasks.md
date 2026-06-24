@@ -7,7 +7,7 @@
 
 ## Phase 1 — The reviewer
 
-- [ ] T701 [strong] Spec-quality reviewer spec (`reviewers/`): the five hunts
+- [x] T701 [strong] Spec-quality reviewer spec (`reviewers/`): the five hunts
       (untestability, internal contradiction read against the full current spec,
       unstated edge/negative cases, gameability, undocumented architecture call),
       read-only / reports-only, `US#.AC#` evidence, evasion-register consult —

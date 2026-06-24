@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 87 rows.
+Manifest source inventory: 88 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -148,6 +148,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `workflow/reviewers/contract-auditor.md` | KEEP | Architecture reviewer spec. Verbatim. |
 | `workflow/reviewers/evasion-register.md` | GENERICIZE | The cumulative cheat-museum. Its **universal pattern exhibits** (the spec-derived ones — test-gaming, green-suite, vendor-leak, measurement-gains-control) are engine-level and ship verbatim. Its **real-escape exhibits** (EV-03/06/08) hardcode *this repo's* commit SHAs (`5bb6186`…) and instance test-file paths (`probe-fingerprint-docs.test.sh:119`, `reviewer-roster.test.sh`) — project facts (the one documented engine-file exception, `PROJECT.md` → "Architecture boundaries"). On extraction, **reset the real-escape exhibits to the "spec-derived seed (no escape logged yet)" form** (or move them into DESIGN-NOTES as the worked example, like `claude-code-probes.md`); keep the universal patterns + the mechanization-status scaffold. A fresh project's retrospective grows its own exemplars per incident. |
 | `workflow/reviewers/spec-auditor.md` | KEEP | Acceptance reviewer spec. Verbatim. |
+| `workflow/reviewers/spec-quality-auditor.md` | KEEP | Spec-quality reviewer spec — grades spec content one phase upstream of the acceptance reviewer (T701). Verbatim. |
 | `workflow/telemetry.md` | KEEP | Runtime-neutral telemetry record and observe-only semantics. Verbatim. |
 | `workflow/triage.md` | KEEP | Read-only heartbeat. Verbatim. |
 | `workflows/gate-loop.js` | KEEP | [orchestrated run] adapter script. Verbatim. |

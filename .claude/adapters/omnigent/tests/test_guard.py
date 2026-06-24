@@ -223,9 +223,9 @@ class TestEditOnBase(GuardTestBase):
         self.assertAllow(self.pol(_event("sys_os_edit", path=outside, cwd=cwd)))
 
 
-# ── Rule 5 — constitution reviewer below the strong tier ─────────────────────────────
+# ── Rule 5 — strong-floored reviewers below the strong tier ──────────────────────────
 
-class TestConstitutionFloor(GuardTestBase):
+class TestStrongFloor(GuardTestBase):
     def setUp(self):
         super().setUp()
         # Synthetic MODELS.md — fake ids (hyphen+digit so they're extracted; the harness
@@ -263,7 +263,26 @@ class TestConstitutionFloor(GuardTestBase):
     def test_unrankable_model_fails_open(self):
         self.assertAllow(self.pol(self._dispatch(model="mystery-1-0")))
 
-    def test_non_constitution_dispatch_ignored(self):
+    # The spec-quality reviewer is floored too (issue #147) — same arms as the
+    # constitution reviewer, mirroring guard.sh's generalized rule 5.
+    def test_spec_quality_absent_model_denied(self):
+        self.assertDeny(
+            self.pol(self._dispatch(model=None, reviewer="spec-quality-auditor")),
+            "strong-floor-no-model",
+        )
+
+    def test_spec_quality_below_strong_denied(self):
+        self.assertDeny(
+            self.pol(self._dispatch(model="cheap-3-3", reviewer="spec-quality-auditor")),
+            "strong-floor-below",
+        )
+
+    def test_spec_quality_strong_allowed(self):
+        self.assertAllow(self.pol(self._dispatch(model="strong-7-7", reviewer="spec-quality-auditor")))
+
+    def test_acceptance_reviewer_not_floored(self):
+        # The `spec-quality` needle must NOT collide with the acceptance reviewer
+        # `spec-auditor` — the control proving substring matching stays precise.
         self.assertAllow(self.pol(self._dispatch(model="cheap-3-3", reviewer="spec-auditor")))
 
     def test_model_in_nested_executor(self):

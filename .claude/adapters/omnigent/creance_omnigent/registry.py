@@ -41,7 +41,12 @@ POLICY_REGISTRY = [
                     "description": "Sub-agent dispatch tool names (UNVERIFIED — pin at T620).",
                 },
                 "reviewer_keys": {"type": "array", "items": {"type": "string"}},
-                "reviewer_match": {"type": "string", "default": "constitution"},
+                "reviewer_match": {
+                    "type": "array", "items": {"type": "string"},
+                    "default": ["constitution", "spec-quality"],
+                    "description": "Substring needles identifying a strong-floored reviewer "
+                                   "dispatch (the constitution and spec-quality reviewers).",
+                },
                 "model_keys": {"type": "array", "items": {"type": "string"}},
                 "edit_path_keys": {"type": "array", "items": {"type": "string"}},
             },

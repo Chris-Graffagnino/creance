@@ -56,12 +56,13 @@ The deterministic gate blocks, before execution:
 3. **`git commit` / `git push` while on the base branch.**
 4. Any **`git push` whose refspec targets the base branch** (e.g. `HEAD:main`, `:main`,
    or `main` as the push destination), regardless of the branch currently checked out.
-5. **Dispatching the constitution [reviewer] below the [strong tier]** — any [reviewer]
-   dispatch of the constitution reviewer whose model selection is **absent** (it would
-   silently inherit the dispatching session's model) or resolves **below the strong-tier
-   row of the adapter's model table**. The tier→model resolution is read from the model
-   table at enforcement time, never hardcoded in the gate (the one-line-model-swap
-   property); a model name the table cannot rank, or an unreadable table, falls open.
+5. **Dispatching a strong-floored [reviewer] below the [strong tier]** — any [reviewer]
+   dispatch of a **strong-floored reviewer** (the **constitution reviewer** and the
+   **spec-quality reviewer**) whose model selection is **absent** (it would silently
+   inherit the dispatching session's model) or resolves **below the strong-tier row of the
+   adapter's model table**. The tier→model resolution is read from the model table at
+   enforcement time, never hardcoded in the gate (the one-line-model-swap property); a
+   model name the table cannot rank, or an unreadable table, falls open.
 6. An **in-place text substitution whose delimiter also appears in the literal content
    being substituted in** — e.g. a URL whose `/` or `#` collides with the chosen
    delimiter — which silently corrupts or blanks the output instead of failing loudly.
