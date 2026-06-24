@@ -185,9 +185,9 @@ So the redundancy is load-bearing: **one source of truth + derived mirrors + an 
 drift oracle.** Collapsing it back into three hand-edited lists, or deleting the test as "it
 only checks the obvious," re-opens the silent-drift hole the roster was built to close. Two
 constraints keep the roster itself honest: it names only spec-paths, tiers, and conditions —
-never a model (**P1**); and its dispatch-conditions are restricted to two deterministic
-values (`always`, `dispatch-contract`), so no model judgment ever lands on the gate's
-load-bearing path (**P3**).
+never a model (**P1**); and its dispatch-conditions are restricted to three deterministic
+values (`always`, `dispatch-contract`, `dispatch-spec` — the spec-touch condition added in
+T703), so no model judgment ever lands on the gate's load-bearing path (**P3**).
 
 ---
 

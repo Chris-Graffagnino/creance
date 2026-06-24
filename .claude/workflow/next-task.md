@@ -359,6 +359,11 @@ working tree exactly as before.
    - The **contract [reviewer]** (`workflow/reviewers/contract-auditor.md`) — only on the
      roster's `dispatch-contract` condition: when the change touches a provider interface,
      monetization, or the data model.
+   - The **spec-quality [reviewer]** (`workflow/reviewers/spec-quality-auditor.md`) — only on
+     the roster's `dispatch-spec` condition: when the diff adds, edits, or renames a
+     `specs/*/spec.md` (git status `A`/`M`/`R`; a pure deletion `D` does not fire). It returns
+     PASS/FAIL against the spec-content quality rubric, dispatched at the **[strong tier]**
+     floor (the spec is the cheapest place to lose a project).
 3. Run a **[code-review pass]** (use a **[security-review pass]** if the change touches
    privacy, location, or in-app purchases). Where the adapter provides one, also run a
    **[craft-review pass]** for the craft layer (the review standard's dimensions 6–7:

@@ -231,4 +231,40 @@ await test('workspacePath with a space: git -C path is shell-quoted into one arg
   }
 });
 
+// --- 10. dispatchSpec set: the spec-quality reviewer joins the round at strong (T703) ----
+// US2.AC1: a diff that adds/edits/renames a specs/*/spec.md flips dispatchSpec, and the
+// gate dispatches the spec-quality reviewer alongside the always-reviewers, on the STRONG
+// tier (its [strong tier] floor — the spec is the cheapest place to lose a project). The
+// agentType is stubbed, so this proves the wiring independent of T706's agent binding.
+await test('dispatchSpec: spec-quality-auditor dispatched at strong on a spec-touching diff', async () => {
+  const result = await runGateLoop({ ...baseArgs, dispatchSpec: true }, async (_p, opts) => ({
+    verdict: 'PASS',
+    report: `${opts.agentType} pass report`,
+  }));
+  assert.equal(result.gate, 'PASS');
+  assert.deepEqual(
+    result.telemetry.rounds[0].map((e) => [e.auditor, e.tier]),
+    [
+      ['spec-auditor', 'cheap'],
+      ['constitution-auditor', 'strong'],
+      ['spec-quality-auditor', 'strong'],
+    ],
+  );
+});
+
+// --- 11. dispatchSpec unset: NO spec-quality dispatch, gate runs exactly as before (T703) --
+// US2.AC2: on a diff touching no spec.md the reviewer is not dispatched — the round is the
+// unchanged two-member always-set. The exact-array assertion (cf. test 1) is the one-sided-
+// test guard: it proves the spec-quality push is genuinely gated, not unconditionally present.
+await test('no dispatchSpec: spec-quality-auditor is NOT dispatched (non-spec diff)', async () => {
+  const result = await runGateLoop(baseArgs, async (_p, opts) => ({
+    verdict: 'PASS',
+    report: `${opts.agentType} pass report`,
+  }));
+  assert.equal(result.gate, 'PASS');
+  const auditors = result.telemetry.rounds[0].map((e) => e.auditor);
+  assert.ok(!auditors.includes('spec-quality-auditor'), 'spec-quality not dispatched without dispatchSpec');
+  assert.deepEqual(auditors, ['spec-auditor', 'constitution-auditor']);
+});
+
 console.log(`\n${testsRun} tests passed`);

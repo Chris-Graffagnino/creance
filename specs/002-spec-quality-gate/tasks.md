@@ -23,7 +23,7 @@
 
 ## Phase 2 — Dispatch, the mechanizable backstop, and dedup
 
-- [ ] T703 [strong] Add the reviewer to the gate roster (`gate-loop.md`) under a
+- [x] T703 [strong] Add the reviewer to the gate roster (`gate-loop.md`) under a
       deterministic dispatch condition — a `specs/*/spec.md` added/edited/renamed
       (git `A`/`M`/`R`, the statuses that leave spec content to grade; pure deletion
       `D` documented as non-firing); update both derived mirrors (`next-task.md` §7

@@ -19,15 +19,18 @@
 # globally by telemetry-docs.test.sh's mech scan and bound here implicitly: a model ID in
 # the tier column would break the canonical-set match.
 #
-# Encodes issue #64 done-when AC1–AC6:
+# Encodes issue #64 done-when AC1–AC6 (extended for the spec-quality reviewer, T703):
 #   AC1 roster is exactly the canonical set (no extra rows)        → roster_ok
-#   AC2 gate-loop.js mirrors it (keys, tiers, contract gated)       → js_ok
+#   AC2 gate-loop.js mirrors it (keys, tiers, both conditionals     → js_ok
+#       gated on their input flag)
 #   AC3 next-task.md §7 references the same paths + conditions      → prose_ok
-#   AC4 each roster reviewer has a workflow/reviewers/<name>.md spec → specs_agents_ok
-#   AC5 each agents/<name>.md exists and excludes edit tools         → specs_agents_ok
+#   AC4 each roster reviewer has a workflow/reviewers/<name>.md spec → AC4 loop (all four)
+#   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (the three
+#       excludes edit tools (the spec-quality agent binding is           with a Claude agent;
+#       T706/US2.AC5, so it is not yet in this list)                     spec-quality → T706)
 #   AC6 drift in any one site (drop a reviewer / flip a tier or      → AC6 block: temp-copy
-#       condition) FAILs the check                                       mutations re-run the
-#                                                                         site checks and assert
+#       condition) FAILs the check — incl. the spec-quality              mutations re-run the
+#       reviewer on every site                                           site checks and assert
 #                                                                         each one trips
 #
 # Run: bash .claude/hooks/reviewer-roster.test.sh
@@ -55,7 +58,8 @@ done
 EXPECTED="$(printf '%s\n' \
   'spec-auditor|cheap|always' \
   'constitution-auditor|strong|always' \
-  'contract-auditor|cheap|dispatch-contract' | sort)"
+  'contract-auditor|cheap|dispatch-contract' \
+  'spec-quality-auditor|strong|dispatch-spec' | sort)"
 
 ok()   { pass=$((pass + 1)); }
 bad() { # bad <message>
@@ -67,13 +71,15 @@ bad() { # bad <message>
 #    sorted. A roster row is a markdown table row naming a reviewers/<stem>-auditor.md
 #    spec; the header and the |---| delimiter never match, and gate-loop.md's prose
 #    mentions `reviewers/` only generically (no `-auditor.md`), so only the data rows hit.
+#    The stem class is [a-z-]+ (not [a-z]+) so a multi-segment stem like
+#    spec-quality-auditor parses as one key, not just its trailing quality-auditor segment.
 parse_roster() {
   awk -F'|' '
-    /reviewers\/[a-z]+-auditor\.md/ {
+    /reviewers\/[a-z-]+-auditor\.md/ {
       key=$2; tier=$3; cond=$4
-      match(key, /[a-z]+-auditor/); key=substr(key, RSTART, RLENGTH)
+      match(key, /[a-z-]+-auditor/); key=substr(key, RSTART, RLENGTH)
       gsub(/[^a-z-]/, "", tier)   # cheap | strong
-      gsub(/[^a-z-]/, "", cond)   # always | dispatch-contract
+      gsub(/[^a-z-]/, "", cond)   # always | dispatch-contract | dispatch-spec
       print key "|" tier "|" cond
     }
   ' "$1" | sort
@@ -83,26 +89,39 @@ parse_roster() {
 #       no extra rows).
 roster_ok() { [ "$(parse_roster "$1")" = "$EXPECTED" ]; }
 
-# AC2 — gate-loop.js names the three keys with matching tiers (constitution=strong;
-#       spec+contract=cheap) and gates contract on dispatchContract (a guarded .push,
-#       never the unconditional array literal). Exact fixed-string matches on the
-#       authored shape (two literals + a conditional push, per #62's carry-forward note).
+# AC2 — gate-loop.js names the four keys with matching tiers (constitution + spec-quality
+#       = strong; spec + contract = cheap) and gates BOTH conditional reviewers on their
+#       input flag (a guarded .push, never the unconditional array literal): contract on
+#       dispatchContract, spec-quality on dispatchSpec. Exact fixed-string matches on the
+#       authored shape (two literals + two conditional pushes).
 js_ok() {
   local f="$1" r=0
   grep -qF "key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'" "$f" || r=1
   grep -qF "key: 'constitution-auditor', model: input.strongModel, tier: 'strong'" "$f" || r=1
   grep -qF "reviewers.push({ key: 'contract-auditor', model: input.cheapModel, tier: 'cheap' })" "$f" || r=1
   grep -qF "if (input.dispatchContract)" "$f" || r=1
-  # contract must be gated: it may appear ONLY on a push line, never in the
-  # unconditional array literal. A contract line without `push` is drift.
+  grep -qF "reviewers.push({ key: 'spec-quality-auditor', model: input.strongModel, tier: 'strong' })" "$f" || r=1
+  grep -qF "if (input.dispatchSpec)" "$f" || r=1
+  # the conditional reviewers must be gated: each may appear ONLY on a push line, never in
+  # the unconditional array literal. A contract/spec-quality line without `push` is drift.
   if grep -F "key: 'contract-auditor'" "$f" | grep -vqF "push"; then r=1; fi
+  if grep -F "key: 'spec-quality-auditor'" "$f" | grep -vqF "push"; then r=1; fi
+  # …and each gated push must sit DIRECTLY under its own `if (input.dispatchX)` guard — not
+  # merely somewhere in the file. Without this, lifting a push out of its block (while an
+  # `if (input.dispatchX)` line survives elsewhere) passes every check above yet dispatches
+  # the reviewer UNCONDITIONALLY — breaking the no-dispatch-on-non-matching-diff contract
+  # (US2.AC2 for spec-quality; Codex P2, PR #151). `grep -A1` (BSD + GNU) pins each push to
+  # its guard's immediate next line.
+  grep -A1 -F "if (input.dispatchContract)" "$f" | grep -qF "reviewers.push({ key: 'contract-auditor'" || r=1
+  grep -A1 -F "if (input.dispatchSpec)" "$f" | grep -qF "reviewers.push({ key: 'spec-quality-auditor'" || r=1
   return $r
 }
 
-# AC3 — next-task.md §7 step 2 references the same three reviewer spec paths with the
-#       same conditions (always / always / contract-conditional) and points at the
-#       roster. Scoped to §7 and whitespace-flattened so prose re-wrapping can't break it;
-#       the needles are distinctive authored prose, bound to each reviewer's condition.
+# AC3 — next-task.md §7 step 2 references the same four reviewer spec paths with the
+#       same conditions (always / always / contract-conditional / spec-conditional) and
+#       points at the roster. Scoped to §7 and whitespace-flattened so prose re-wrapping
+#       can't break it; the needles are distinctive authored prose, bound to each
+#       reviewer's condition.
 section7() { awk '/^## 7\./{f=1} /^## 8\./{f=0} f' "$1"; }
 prose_ok() {
   local f="$1" s r=0
@@ -117,6 +136,10 @@ prose_ok() {
   printf '%s' "$s" | grep -qF "reviewers/contract-auditor.md" || r=1
   printf '%s' "$s" | grep -qF "dispatch-contract" || r=1
   printf '%s' "$s" | grep -qF "provider interface, monetization, or the data model" || r=1
+  # spec-quality — the dispatch-spec condition
+  printf '%s' "$s" | grep -qF "reviewers/spec-quality-auditor.md" || r=1
+  printf '%s' "$s" | grep -qF "dispatch-spec" || r=1
+  printf '%s' "$s" | grep -qF "adds, edits, or renames a" || r=1
   # points at the roster as the source of truth
   printf '%s' "$s" | grep -qF "reviewer roster" || r=1
   printf '%s' "$s" | grep -qF "gate-loop.md" || r=1
@@ -135,22 +158,33 @@ $(parse_roster "$GL" | sed 's/^/       /')"
 js_ok "$JS" \
   && ok \
   || bad "AC2 js: gate-loop.js reviewers array/push does not mirror the roster
-     (expected spec=cheap, constitution=strong, contract=cheap gated on dispatchContract)"
+     (expected spec=cheap, constitution=strong, contract=cheap gated on dispatchContract,
+     spec-quality=strong gated on dispatchSpec)"
 
 prose_ok "$NT" \
   && ok \
-  || bad "AC3 prose: next-task.md §7 step 2 does not reference the roster's three specs
-     with conditions always / always / contract-conditional, or omits the roster pointer"
+  || bad "AC3 prose: next-task.md §7 step 2 does not reference the roster's four specs
+     with conditions always / always / contract-conditional / spec-conditional, or omits
+     the roster pointer"
 
-# AC4 + AC5 — each canonical reviewer has a spec, and an agent file that excludes edit
-#            tools (maker≠checker's "no edit tools by construction" as a CI invariant).
-for key in spec-auditor constitution-auditor contract-auditor; do
+# AC4 — every canonical reviewer has a workflow/reviewers/<name>.md spec. The spec-quality
+#       reviewer's spec landed in T701, so it is checked here alongside the original three.
+for key in spec-auditor constitution-auditor contract-auditor spec-quality-auditor; do
   if [ -f "$REVDIR/$key.md" ]; then
     ok
   else
     bad "AC4 spec: missing reviewer spec $REVDIR/$key.md"
   fi
+done
 
+# AC5 — each ADAPTER-BOUND reviewer has an agent file that excludes edit tools
+#       (maker≠checker's "no edit tools by construction" as a CI invariant). The
+#       spec-quality reviewer's Claude agent binding lands in T706 (US2.AC5); until then it
+#       is a roster member with a spec but no agent file, so it is intentionally absent from
+#       this list — T706 adds its agent row here together with the binding. (Its gate-loop.js
+#       dispatch is gated on dispatchSpec, which T706 wires the dispatcher to pass; the
+#       conditional push and the strong tier are proven now by js_ok + gate-loop.test.js.)
+for key in spec-auditor constitution-auditor contract-auditor; do
   af="$AGENTDIR/$key.md"
   if [ ! -f "$af" ]; then
     bad "AC5 agent: missing agent file $af"
@@ -203,6 +237,39 @@ mut_fail "js flip-tier" js_ok "$TMP/js-tier.js"
 # Prose site (next-task.md) — drop a reviewer reference.
 grep -vF 'reviewers/spec-auditor.md' "$NT" > "$TMP/nt-drop.md"
 mut_fail "prose drop-reviewer" prose_ok "$TMP/nt-drop.md"
+
+# ── The spec-quality reviewer (T703) is drift-protected on every site too: dropping its
+#    row/push/reference must trip the corresponding site check, exactly like the originals. ──
+
+# Roster site — drop the spec-quality row.
+grep -vF 'reviewers/spec-quality-auditor.md' "$GL" > "$TMP/gl-drop-sq.md"
+mut_fail "roster drop-spec-quality" roster_ok "$TMP/gl-drop-sq.md"
+
+# JS site — drop the gated spec-quality push.
+grep -vF "reviewers.push({ key: 'spec-quality-auditor'" "$JS" > "$TMP/js-drop-sq.js"
+mut_fail "js drop-spec-quality" js_ok "$TMP/js-drop-sq.js"
+
+# Prose site — drop the spec-quality reviewer reference.
+grep -vF 'reviewers/spec-quality-auditor.md' "$NT" > "$TMP/nt-drop-sq.md"
+mut_fail "prose drop-spec-quality" prose_ok "$TMP/nt-drop-sq.md"
+
+# ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
+#    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
+#    touching no contract/spec would still dispatch it, breaking US2.AC2. Each mutation swaps
+#    a guard line with the push beneath it (the push now runs unconditionally); BOTH the push
+#    string and the `if (input.dispatchX)` string survive, so every "appears somewhere" check
+#    stays green and ONLY js_ok's immediate-adjacency check trips (Codex P2, PR #151 — CI must
+#    catch a reviewer becoming unconditional, not just being dropped). ──
+
+# JS site — lift the contract push out from under its guard (swap guard ↔ push).
+awk '/if \(input\.dispatchContract\)/ { g=$0; getline b; print b; print g; next } { print }' \
+  "$JS" > "$TMP/js-ungate-contract.js"
+mut_fail "js ungate-contract" js_ok "$TMP/js-ungate-contract.js"
+
+# JS site — lift the spec-quality push out from under its guard (swap guard ↔ push).
+awk '/if \(input\.dispatchSpec\)/ { g=$0; getline b; print b; print g; next } { print }' \
+  "$JS" > "$TMP/js-ungate-sq.js"
+mut_fail "js ungate-spec-quality" js_ok "$TMP/js-ungate-sq.js"
 
 echo "reviewer-roster encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

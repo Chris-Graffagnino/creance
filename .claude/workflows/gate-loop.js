@@ -25,6 +25,8 @@
 //   cheapModel       (required) MODELS.md [cheap tier] row — acceptance + contract
 //   dispatchContract (default false) true when the diff touches a provider
 //                    interface, monetization, or the data model (§7's rule)
+//   dispatchSpec     (default false) true when the diff adds, edits, or renames a
+//                    specs/*/spec.md (git A/M/R; a pure deletion D does not fire)
 //   maxFixRounds     (default 2) the §7 non-convergence bound
 //   fix              (default true) false → one report-only fan-out, no fix stage
 //   workspacePath    (optional) the [isolated workspace] path whose committed diff the
@@ -114,7 +116,8 @@ const reviewerPrompt =
 // single source of truth for gate membership, tier, and dispatch-condition. This array is
 // the adapter-side encoding of that table: spec-auditor (cheap/always) + constitution-
 // auditor (strong/always) as the unconditional set, contract-auditor (cheap) pushed only
-// under the `dispatch-contract` condition. Do NOT edit membership/tier/condition here in
+// under the `dispatch-contract` condition, and spec-quality-auditor (strong) pushed only
+// under the `dispatch-spec` condition. Do NOT edit membership/tier/condition here in
 // isolation — change the roster, then mirror it here. reviewer-roster.test.sh (CI `verify`)
 // FAILs if this site drifts from the roster.
 //
@@ -127,6 +130,9 @@ const reviewers = [
 ];
 if (input.dispatchContract) {
   reviewers.push({ key: 'contract-auditor', model: input.cheapModel, tier: 'cheap' });
+}
+if (input.dispatchSpec) {
+  reviewers.push({ key: 'spec-quality-auditor', model: input.strongModel, tier: 'strong' });
 }
 
 const verdicts = {}; // reviewer key → its LATEST {verdict, report}, verbatim
