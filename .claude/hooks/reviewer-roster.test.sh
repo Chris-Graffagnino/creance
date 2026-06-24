@@ -106,6 +106,14 @@ js_ok() {
   # the unconditional array literal. A contract/spec-quality line without `push` is drift.
   if grep -F "key: 'contract-auditor'" "$f" | grep -vqF "push"; then r=1; fi
   if grep -F "key: 'spec-quality-auditor'" "$f" | grep -vqF "push"; then r=1; fi
+  # …and each gated push must sit DIRECTLY under its own `if (input.dispatchX)` guard — not
+  # merely somewhere in the file. Without this, lifting a push out of its block (while an
+  # `if (input.dispatchX)` line survives elsewhere) passes every check above yet dispatches
+  # the reviewer UNCONDITIONALLY — breaking the no-dispatch-on-non-matching-diff contract
+  # (US2.AC2 for spec-quality; Codex P2, PR #151). `grep -A1` (BSD + GNU) pins each push to
+  # its guard's immediate next line.
+  grep -A1 -F "if (input.dispatchContract)" "$f" | grep -qF "reviewers.push({ key: 'contract-auditor'" || r=1
+  grep -A1 -F "if (input.dispatchSpec)" "$f" | grep -qF "reviewers.push({ key: 'spec-quality-auditor'" || r=1
   return $r
 }
 
@@ -244,6 +252,24 @@ mut_fail "js drop-spec-quality" js_ok "$TMP/js-drop-sq.js"
 # Prose site — drop the spec-quality reviewer reference.
 grep -vF 'reviewers/spec-quality-auditor.md' "$NT" > "$TMP/nt-drop-sq.md"
 mut_fail "prose drop-spec-quality" prose_ok "$TMP/nt-drop-sq.md"
+
+# ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
+#    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
+#    touching no contract/spec would still dispatch it, breaking US2.AC2. Each mutation swaps
+#    a guard line with the push beneath it (the push now runs unconditionally); BOTH the push
+#    string and the `if (input.dispatchX)` string survive, so every "appears somewhere" check
+#    stays green and ONLY js_ok's immediate-adjacency check trips (Codex P2, PR #151 — CI must
+#    catch a reviewer becoming unconditional, not just being dropped). ──
+
+# JS site — lift the contract push out from under its guard (swap guard ↔ push).
+awk '/if \(input\.dispatchContract\)/ { g=$0; getline b; print b; print g; next } { print }' \
+  "$JS" > "$TMP/js-ungate-contract.js"
+mut_fail "js ungate-contract" js_ok "$TMP/js-ungate-contract.js"
+
+# JS site — lift the spec-quality push out from under its guard (swap guard ↔ push).
+awk '/if \(input\.dispatchSpec\)/ { g=$0; getline b; print b; print g; next } { print }' \
+  "$JS" > "$TMP/js-ungate-sq.js"
+mut_fail "js ungate-spec-quality" js_ok "$TMP/js-ungate-sq.js"
 
 echo "reviewer-roster encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
