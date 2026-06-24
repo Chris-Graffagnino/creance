@@ -29,7 +29,7 @@
       `D` documented as non-firing); update both derived mirrors (`next-task.md` §7
       prose, `gate-loop.js` array) and `reviewer-roster.test.sh` in the same diff;
       no-dispatch on non-spec diffs proven (US2)
-- [ ] T704 [strong] Deterministic spec-lint over `specs/*/spec.md` (empty AC, a
+- [x] T704 [strong] Deterministic spec-lint over `specs/*/spec.md` (empty AC, a
       `US#` with zero ACs, a verbatim-duplicate AC) + a `.test.sh` proving it fires
       on planted smells and does not false-fire on a clean spec; wire into CI
       `verify` (US2)

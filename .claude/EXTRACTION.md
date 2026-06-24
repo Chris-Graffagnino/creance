@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 88 rows.
+Manifest source inventory: 90 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -124,6 +124,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/reviewer-roster.test.sh` | KEEP | Drift backstop for the §7 reviewer roster and read-only agent bindings. Verbatim. |
 | `hooks/shell-lint.sh` | KEEP | Shell syntax/portability checker used by CI and the edit guard. Verbatim. |
 | `hooks/shell-lint.test.sh` | KEEP | Regression tests for the shell portability checker. Verbatim. |
+| `hooks/spec-lint.sh` | KEEP | Deterministic spec-content lint over `specs/*/spec.md` (the mechanizable spec-quality smells). Verbatim. |
+| `hooks/spec-lint.test.sh` | KEEP | Regression + CI-wiring tests for the spec-content lint. Verbatim. |
 | `hooks/telemetry-docs.test.sh` | KEEP | Encoding test for telemetry docs and neutral-boundary constraints. Verbatim. |
 | `hooks/triage-freshness-docs.test.sh` | KEEP | Encoding test for PROBES-STALE / GUARD-SILENT machinery freshness surfacing. Verbatim. |
 | `settings.json` | GENERICIZE | Keep the guard hook wiring exactly; replace this repo's permission/toolchain allowlist with template placeholders. |
