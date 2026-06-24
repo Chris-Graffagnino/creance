@@ -14,10 +14,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 ## Paths
 - **Constitution (law):** `memory/constitution.md` (filled from
   `memory/constitution.template.md`; the reviewers fail closed without it).
-- **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`
-- **Tasks (backlog):** `specs/001-harness-feedback-loop/tasks.md` — the canonical and
-  only live tasks file. `specs/000-template/tasks.template.md` is a skeleton, never a
-  backlog.
+- **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`;
+  `specs/002-spec-quality-gate/spec.md`
+- **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`
+  and `specs/002-spec-quality-gate/tasks.md` — the engine selects across all
+  `specs/*/tasks.md`; task IDs are unique across them (001 = T1xx–T6xx, 002 = T7xx).
+  `specs/000-template/tasks.template.md` is a skeleton, never a backlog.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;
@@ -195,3 +197,6 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 - Retrospective proposes via PR only, never silent self-modification (US3 non-goals) →
   T301, T302.
 - Machinery-freshness checks guard the guard itself → T401, T402.
+- Spec 002 — the spec-quality reviewer is model judgment, so it ships an auditor-liveness
+  fixture pair (P2) and its dispatch stays deterministic with a CI-lint backstop (P3) →
+  T702, T703, T704.
