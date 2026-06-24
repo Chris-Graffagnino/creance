@@ -7,9 +7,11 @@ Encodes #119 AC3 — the three ``reviewers/*.yaml`` are ``purpose: review`` sub-
       implementer/orchestrator's (``claude-sdk``), via the ``Harness -> vendor`` map in
       ``MODELS.md`` (Omnigent's "review is ALWAYS a different vendor than the implementer"
       rule made STRUCTURAL, not prompt-enforced);
-  (2) READ-ONLY     — no file-mutation capability (empty sandbox ``write_paths``, no
-      ``os_env`` write/inherit grant, no ``sys_os_*`` OS-capability tool), so each is handed
-      only the diff + its contract, never the worktree;
+  (2) READ-ONLY     — no file-mutation capability ANYWHERE: every ``write_paths`` empty
+      (top-level ``sandbox`` AND the ``os_env.sandbox`` Omnigent actually applies), no
+      unrestricted ``sandbox: {type: none}``, no ``os_env`` inherit/write grant, no
+      ``sys_os_*`` OS-capability tool — each handed only the diff + its contract, never the
+      worktree;
   (3) the constitution reviewer's ``executor.model`` is PINNED to the ``[frontier tier]``
       role, so its ``[strong tier]`` floor is satisfied structurally by rounding up.
 
@@ -23,6 +25,14 @@ the read-only check denies the whole ``sys_os_*`` OS-capability namespace (a new
 verb like ``sys_os_delete`` can not slip past a fixed denylist) — the Medium finding. The
 precise positive read-only capability allowlist is refined once the live driver pins the tool
 taxonomy (T620).
+
+The read-only check inspects the EFFECTIVE sandbox: Omnigent's filesystem grant rides
+``os_env`` (a mapping carrying ``sandbox.write_paths`` / ``sandbox.type``, written in
+block-list form in the upstream spec), so the parser handles block sequences and the check
+rejects a writable ``os_env.sandbox`` — not only the top-level ``sandbox`` (Codex PR #141 P2).
+The neutral-spec binding is also asserted to resolve WITHIN the repo root, so a T620 config
+bundle rooted at the repo top can package it (Codex P1; live loading is pinned by the T620
+P-RV probe).
 
 PAIRED, the "machinery proves it is live" discipline shared with ``guard.test.sh`` /
 ``reviewer-roster.test.sh`` / ``omnigent-neutral-core.test.sh``: the REAL tree PASSES, while
@@ -90,33 +100,51 @@ def _decomment(text):
 
 
 def _tree(text):
-    """Parse the controlled block-style reviewer YAML into nested dicts of scalar strings.
-    Indentation-scoped: each key attaches to the nearest shallower mapping, so a top-level
-    DECOY key can NOT mask the real nested ``executor.*`` / ``sandbox.*`` field. Comments and
-    blank lines are dropped; block-list items (``- x``) and flow values (``[]`` / ``["."]``)
-    are kept as raw scalar strings. Stdlib-only — the reviewer files use no anchors/multiline
-    scalars (``TestSanity.test_reviewer_files_parse_structurally`` guards that assumption)."""
-    root = {}
-    stack = [(-1, root)]  # (indent, mapping-open-at-that-indent)
+    """Parse the controlled block-style reviewer YAML into nested dicts / lists / scalar
+    strings. Indentation-scoped recursive descent, so a top-level DECOY key can NOT mask the
+    real nested ``executor.*`` / ``os_env.sandbox.*`` field, and BLOCK sequences
+    (``write_paths:`` then ``- .``) parse to real lists — Omnigent's own spec writes
+    ``os_env.sandbox.write_paths`` in block form, so a flow-only reader would miss a writable
+    grant there (Codex PR #141 P2). Flow values (``[]`` / ``["."]``) are kept as raw scalar
+    strings. Stdlib-only — the reviewer files use no anchors/multiline scalars
+    (``TestSanity.test_reviewer_files_parse_structurally`` guards that assumption)."""
+    lines = []
     for raw in text.splitlines():
         body = raw.split("#", 1)[0]
-        if not body.strip():
-            continue
-        indent = len(body) - len(body.lstrip())
-        m = re.match(r"^([^:\s][^:]*?):\s*(.*)$", body.strip())
-        if not m:
-            continue  # a list item or other non-mapping line — nothing to bind
-        key, val = m.group(1).strip(), m.group(2).strip()
-        while indent <= stack[-1][0]:
-            stack.pop()
-        parent = stack[-1][1]
-        if val == "":
-            child = {}
-            parent[key] = child
-            stack.append((indent, child))
-        else:
-            parent[key] = _unquote(val)
-    return root
+        if body.strip():
+            lines.append(body)
+    pos = [0]
+
+    def parse(min_indent):
+        node = None
+        while pos[0] < len(lines):
+            line = lines[pos[0]]
+            indent = len(line) - len(line.lstrip())
+            if indent < min_indent:
+                break
+            s = line.strip()
+            if s.startswith("- "):                       # block-sequence item
+                if node is None:
+                    node = []
+                if not isinstance(node, list):
+                    break
+                pos[0] += 1
+                node.append(_unquote(s[2:].strip()))
+            else:                                         # mapping entry
+                m = re.match(r"^([^:\s][^:]*?):\s*(.*)$", s)
+                if not m:
+                    pos[0] += 1
+                    continue
+                if node is None:
+                    node = {}
+                if not isinstance(node, dict):
+                    break
+                key, val = m.group(1).strip(), m.group(2).strip()
+                pos[0] += 1
+                node[key] = (parse(indent + 1) or "") if val == "" else _unquote(val)
+        return node
+
+    return parse(0) or {}
 
 
 def _at(tree, *path):
@@ -129,20 +157,34 @@ def _at(tree, *path):
     return None if isinstance(node, dict) else node
 
 
-def _all_scalars(tree, key):
-    """Every scalar bound to ``key`` at ANY depth — used for fail-closed scans (os_env): a
-    write grant anywhere trips read-only, so it can not be hidden at an unexpected level."""
+def _find_all(tree, key):
+    """Every value bound to ``key`` at ANY depth (scalar, list, or mapping) — fail-closed
+    scans inspect the EFFECTIVE config, so a grant can not hide at an unexpected level (e.g. a
+    writable ``write_paths`` under ``os_env.sandbox`` rather than the top-level ``sandbox``)."""
     out = []
 
     def walk(node):
         if isinstance(node, dict):
             for k, v in node.items():
-                if k == key and not isinstance(v, dict):
+                if k == key:
                     out.append(v)
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
                 walk(v)
 
     walk(tree)
     return out
+
+
+def _is_empty_paths(node):
+    """True iff a ``write_paths`` value declares no writable path — an empty block list, the
+    flow form ``[]``, or absent."""
+    if node is None:
+        return True
+    if isinstance(node, list):
+        return not [x for x in node if str(x).strip()]
+    return str(node).strip() in ("[]", "")
 
 
 def purpose_of(text):
@@ -162,14 +204,25 @@ def instructions_of(text):
 
 
 def is_read_only(text):
-    """No file-mutation capability: empty ``sandbox.write_paths``, no ``os_env`` write/inherit
-    grant (at any level), and no ``sys_os_*`` OS-capability tool. (AC3: handed only the diff +
-    its contract, never the worktree.)"""
+    """No file-mutation capability anywhere — the EFFECTIVE read-only check (Codex PR #141 P2).
+    Omnigent applies the filesystem sandbox from ``os_env`` (a mapping carrying
+    ``sandbox.write_paths`` / ``sandbox.type``), so a writable grant can ride ``os_env``, not
+    only a top-level ``sandbox``. Read-only requires: every ``write_paths`` declared ANYWHERE
+    is empty, no unrestricted ``sandbox: {type: none}``, no scalar ``os_env`` inherit/write
+    grant, and no ``sys_os_*`` OS-capability tool. (AC3: handed only the diff + its contract,
+    never the worktree.)
+
+    Residual, UNVERIFIED-until-T620: a bare mapping ``os_env`` with no explicit ``sandbox``
+    resolves to the platform-default sandbox whose ``write_paths`` this static check can not
+    see — the live P-RV probe pins it; the shipped reviewers declare no ``os_env`` at all."""
     tree = _tree(text)
-    wp = _at(tree, "sandbox", "write_paths")
-    if wp is None or wp.replace(" ", "") != "[]":
+    if any(not _is_empty_paths(wp) for wp in _find_all(tree, "write_paths")):
         return False
-    if any(v.strip().lower() in WRITE_OS_ENV for v in _all_scalars(tree, "os_env")):
+    if any(isinstance(sb, dict) and str(sb.get("type", "")).strip().lower() == "none"
+           for sb in _find_all(tree, "sandbox")):
+        return False
+    osenv = tree.get("os_env")
+    if isinstance(osenv, str) and osenv.strip().lower() in WRITE_OS_ENV:
         return False
     if OS_TOOL_RE.search(_decomment(text)):
         return False
@@ -257,6 +310,14 @@ def _read(stem):
         return f.read()
 
 
+def _repo_root():
+    return subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=os.path.dirname(os.path.abspath(__file__)),
+        capture_output=True, text=True,
+    ).stdout.strip()
+
+
 class ReviewersTestBase(unittest.TestCase):
     def setUp(self):
         self.models = _models_text()
@@ -308,6 +369,7 @@ class TestRealReviewers(ReviewersTestBase):
                              "%s.yaml is not purpose: review" % stem)
 
     def test_each_binds_its_neutral_spec(self):
+        repo_root = _repo_root()
         for stem, spec in REVIEWERS.items():
             instr = instructions_of(_read(stem))
             self.assertIsNotNone(instr, "%s.yaml has no instructions:" % stem)
@@ -316,6 +378,15 @@ class TestRealReviewers(ReviewersTestBase):
             resolved = os.path.normpath(os.path.join(REVIEWERS_DIR, instr))
             self.assertTrue(os.path.isfile(resolved),
                             "%s.yaml instructions path does not resolve to a file: %s" % (stem, resolved))
+            # Codex PR #141 P1: the spec resolves relative to the YAML's dir (AGENT_YAML_SPEC),
+            # but Omnigent loads instructions from the uploaded config bundle — an out-of-repo
+            # path could not be packaged. Assert the spec stays WITHIN the repo, so a T620
+            # config.yaml rooted at the repo top contains it. (Whether the bundle root is the
+            # repo top vs. the adapter dir is the T620 wiring decision; the live P-RV probe
+            # verifies the reviewers actually load their contract.)
+            self.assertEqual(os.path.commonpath([resolved, repo_root]), repo_root,
+                             "%s.yaml instructions escape the repo root (unpackageable): %s"
+                             % (stem, resolved))
 
     def test_each_model_is_a_declared_tier_role(self):
         # Defends the confinement invariant at the YAML level AND rejects an undeclared role:
@@ -396,6 +467,29 @@ class TestPlantedViolations(ReviewersTestBase):
         self.assertFalse(is_read_only(leaky),
                          "an os_env: inherit grant was NOT caught by the read-only check")
 
+    def test_os_env_sandbox_write_paths_fails_read_only(self):
+        # Codex PR #141 P2: Omnigent's effective filesystem grant rides os_env.sandbox, so a
+        # writable os_env.sandbox.write_paths must FAIL read-only even when the top-level
+        # sandbox is empty. Cover BOTH list styles — the upstream spec writes write_paths in
+        # block-list form, which a flow-only parser would miss.
+        text = _read("contract")
+        self.assertTrue(is_read_only(text))
+        flow = text + "\nos_env:\n  type: caller_process\n  sandbox:\n    write_paths: ['.']\n"
+        block = text + "\nos_env:\n  type: caller_process\n  sandbox:\n    write_paths:\n      - .\n"
+        self.assertFalse(is_read_only(flow),
+                         "a writable os_env.sandbox.write_paths (flow) was treated as read-only")
+        self.assertFalse(is_read_only(block),
+                         "a writable os_env.sandbox.write_paths (block list) was treated as read-only")
+
+    def test_os_env_sandbox_type_none_fails_read_only(self):
+        # P2 (effective sandbox): an os_env whose sandbox is unrestricted (`type: none` —
+        # Omnigent's "no sandbox") grants full filesystem write and must FAIL read-only.
+        text = _read("contract")
+        self.assertTrue(is_read_only(text))
+        leaky = text + "\nos_env:\n  type: caller_process\n  sandbox:\n    type: none\n"
+        self.assertFalse(is_read_only(leaky),
+                         "an unrestricted os_env.sandbox (type: none) was treated as read-only")
+
     def test_write_tool_fails_read_only(self):
         text = _read("spec")
         self.assertTrue(is_read_only(text))
@@ -436,12 +530,7 @@ class TestPlantedViolations(ReviewersTestBase):
 
 class TestCIWiring(unittest.TestCase):
     def test_verify_runs_these_tests(self):
-        root = subprocess.run(
-            ["git", "rev-parse", "--show-toplevel"],
-            cwd=os.path.dirname(os.path.abspath(__file__)),
-            capture_output=True, text=True,
-        ).stdout.strip()
-        with open(os.path.join(root, ".github", "workflows", "ci.yml"), encoding="utf-8") as f:
+        with open(os.path.join(_repo_root(), ".github", "workflows", "ci.yml"), encoding="utf-8") as f:
             text = f.read()
         # The glob `.claude/adapters/omnigent/tests/test_*.py` runs this file; assert the
         # step still targets that path (the same self-wiring discipline as test_guard.py).

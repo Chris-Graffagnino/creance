@@ -124,6 +124,23 @@ delegates each task to an implementer sub-agent in its own worktree, routes the 
   floor is **structural**, not runtime-checked. `tests/test_reviewers.py` proves the
   cross-vendor, read-only, and `[frontier]`-pin properties deterministically (paired
   plant-FAILS / real-PASSES); the live **P-RV** isolation probe is **T620**.
+- **Two config-load facts the Codex PR #141 review surfaced — verified against the spec, the
+  live behaviour pinned at T620 (beyond T619's static check):**
+  - *Instruction loading (P1).* The neutral specs bind via `instructions: ../../../workflow/...`
+    — resolved relative to the YAML's directory (`docs/AGENT_YAML_SPEC.md`), which lands them at
+    `.claude/workflow/reviewers/*.md`. Omnigent loads `instructions` from the **uploaded config
+    bundle**, so whether `.claude/workflow/**` is packaged depends on the T620 `config.yaml`
+    **root**: a repo-top root contains them (the `instructions: ../../../AGENTS.md` orchestrator
+    path assumes the same); an adapter-dir root would not, and the spec would arrive as literal
+    text. `tests/test_reviewers.py` asserts each spec path stays **within the repo**; **P-RV**
+    confirms the reviewers actually load their contract.
+  - *Effective read-only (P2).* Omnigent applies the filesystem sandbox from **`os_env.sandbox`**
+    (`os_env` is a mapping: `{type, cwd, sandbox: {type, write_paths, allow_network}}`), so
+    read-only holds by each reviewer declaring **no `os_env` grant at all** — the top-level
+    `sandbox: {write_paths: []}` is belt-and-suspenders (not in the spec's top-level field list,
+    likely inert). The check now rejects a writable `os_env.sandbox.write_paths` or an
+    unrestricted `sandbox: {type: none}`; **P-RV** must also confirm a sub-agent with no `os_env`
+    does **not** inherit the orchestrator's unrestricted sandbox.
 - Until `config.yaml` exists (T620), the gate is the `next-task.md` §7 **prose loop**, run
   exactly as written — the contract's documented `[orchestrated run]` degradation.
 
