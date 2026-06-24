@@ -10,9 +10,10 @@
 #   3. `git commit` / `git push` while on branch `main`.
 #   4. Any `git push` whose refspec targets `main` (e.g. `HEAD:main`, `:main`,
 #      or `main` as the destination), regardless of current branch.
-#   5. Any Agent dispatch of `constitution-auditor` whose `model` parameter is
-#      absent or names a below-strong tier — the strong floor (issue #94). Tier
-#      names are resolved from .claude/MODELS.md at runtime, never hardcoded.
+#   5. Any Agent dispatch of a strong-floored reviewer — `constitution-auditor`
+#      or `spec-quality-auditor` — whose `model` parameter is absent or names a
+#      below-strong tier (the strong floor; issues #94, #147). Tier names are
+#      resolved from .claude/MODELS.md at runtime, never hardcoded.
 #   6. An in-place `sed` `s` substitution whose `#`/`/` delimiter ALSO occurs in
 #      the URL it substitutes — an unescaped `https?://` under `s/`, or a `#`
 #      fragment (a 4th `#`) under `s#` — which silently corrupts/blanks the output
@@ -263,29 +264,38 @@ case "$tool" in
     fi
     ;;
   Agent|Task)
-    # Rule 5: the constitution [reviewer]'s strong floor. The auditor agents
-    # carry no model pin (the model table owns all model names), so an omitted
-    # `model` parameter silently inherits the session model — on a cheap-tier
-    # session, exactly the downgrade the floor forbids. Unknown model names and
-    # an unreadable table fail open; other subagents are untouched.
-    if [ "$(jstr subagent_type)" = "constitution-auditor" ]; then
-      # Liveness signal (workflow/telemetry.md): this path fires on every gate
-      # run (the gate always dispatches the constitution [reviewer]), so one
-      # `evaluation` record per dispatch distinguishes a live guard from
-      # "nothing to block" — logged whatever the check's outcome.
-      log_telemetry evaluation strong-floor
-      strong="$(tier_models strong)"
-      if [ -n "$strong" ]; then
-        model="$(jstr model)"
-        if [ -z "$model" ]; then
-          block strong-floor-no-model "constitution-auditor dispatched without a 'model' parameter — it would inherit the session model and can silently break the [strong tier] floor. Pass the strong-tier model from .claude/MODELS.md explicitly on the dispatch."
+    # Rule 5: the strong-tier floor for the values / spec-quality [reviewer]s.
+    # Both the constitution [reviewer] and the spec-quality [reviewer] (issue
+    # #147) are pinned at-or-above the [strong tier] (DESIGN-NOTES §6): the
+    # cheapest place to lose a project is shipping a constitution violation, or
+    # grading every later diff against a bad spec, on a downgraded model. The
+    # auditor agents carry no model pin (the model table owns all model names),
+    # so an omitted `model` parameter silently inherits the session model — on a
+    # cheap-tier session, exactly the downgrade the floor forbids. Unknown model
+    # names and an unreadable table fail open; the acceptance/contract reviewers
+    # and all other subagents are untouched.
+    sub="$(jstr subagent_type)"
+    case "$sub" in
+      constitution-auditor|spec-quality-auditor)
+        # Liveness signal (workflow/telemetry.md): a floored reviewer's dispatch
+        # logs one `evaluation` record whatever the check's outcome, so a live
+        # guard is distinguishable from "nothing to block" — the constitution
+        # reviewer fires on every gate run, the spec-quality reviewer on every
+        # spec-touching one.
+        log_telemetry evaluation strong-floor
+        strong="$(tier_models strong)"
+        if [ -n "$strong" ]; then
+          model="$(jstr model)"
+          if [ -z "$model" ]; then
+            block strong-floor-no-model "$sub dispatched without a 'model' parameter — it would inherit the session model and can silently break the [strong tier] floor. Pass the strong-tier model from .claude/MODELS.md explicitly on the dispatch."
+          fi
+          if ! model_in "$model" $strong $(tier_models frontier) \
+             && model_in "$model" $(tier_models cheap); then
+            block strong-floor-below "$sub dispatched below the [strong tier] floor (model: '$model'). This reviewer never downgrades — pass a model at-or-above the strong-tier row of .claude/MODELS.md."
+          fi
         fi
-        if ! model_in "$model" $strong $(tier_models frontier) \
-           && model_in "$model" $(tier_models cheap); then
-          block strong-floor-below "constitution-auditor dispatched below the [strong tier] floor (model: '$model'). The constitution reviewer never downgrades — pass a model at-or-above the strong-tier row of .claude/MODELS.md."
-        fi
-      fi
-    fi
+        ;;
+    esac
     ;;
 esac
 exit 0
