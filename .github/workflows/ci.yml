@@ -361,12 +361,17 @@ jobs:
       # the step can never silently run nothing). Adapter-side (.claude/adapters/omnigent/
       # is the Omnigent binding), so a CI change, not a workflow/** change — no constitution
       # P1 concern. Real-driver liveness (the P-* conformance probes) is deferred to T620.
+      #
+      # T619 (#139, #119 AC3) adds tests/test_reviewers.py — the cross-vendor + read-only +
+      # [frontier]-pin check over reviewers/*.yaml — under the SAME test_*.py glob below, so
+      # it rides this step with no wiring change (the glob, not a per-file list, is what
+      # makes that safe; each test file also self-asserts this wiring).
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Omnigent guard policy tests (Python)
+      - name: Omnigent adapter tests (Python — guard policies + reviewer config)
         run: |
           shopt -s nullglob
           tests=(.claude/adapters/omnigent/tests/test_*.py)

@@ -1,0 +1,19 @@
+# Acceptance [reviewer] — Omnigent binding (T619, #139; #119 AC3).
+#
+# Binds the runtime-neutral acceptance-reviewer spec to an Omnigent `purpose: review`
+# sub-agent. READ-ONLY and CROSS-VENDOR by construction (a DIFFERENT vendor than the
+# implementer — examples/polly/config.yaml). The criterion-by-criterion acceptance check
+# suits the [cheap tier], which also adds model diversity vs. the maker. The dispatcher
+# (the T620 orchestrator) supplies the task ID at dispatch time (the spec's required input).
+# Rationale + field grounding: see reviewers/constitution.yaml's header.
+type: agent
+purpose: review
+description: "Adversarial read-only acceptance reviewer — grades the diff against the task's US#/done-when (cross-vendor)."
+executor:
+  harness: codex
+  model: "[cheap tier]"
+instructions: ../../../workflow/reviewers/spec-auditor.md
+sandbox:
+  write_paths: []
+  allow_network: false
+pass_history: false
