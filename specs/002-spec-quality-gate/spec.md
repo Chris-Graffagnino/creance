@@ -11,13 +11,15 @@ Creance grades every implementation against its spec but trusts the spec itself:
 an ambiguous, contradictory, or gameable acceptance criterion is faithfully
 certified the moment code matches it. This spec applies the harness's maker ≠
 checker discipline one phase upstream. An adversarial, read-only [reviewer] grades
-the spec content *in a diff under review* for testability, internal consistency,
-unstated edge cases, gameability, and undocumented architecture calls; it is
-dispatched deterministically whenever a diff touches a `specs/*/spec.md`; the
-unambiguously-mechanizable smells fail in a CI lint, and the judgment reviewer
-owns only the subtler forms. Done means: a `spec.md` cannot reach a gate PASS
-without an adversarial quality verdict, and the mechanizable smells fail
-deterministically in CI.
+the spec content *in a diff under review* — reading the full current `spec.md` for
+context, so a newly added criterion that contradicts or duplicates an *unchanged*
+one is still caught — for testability, internal consistency, unstated edge cases,
+gameability, and undocumented architecture calls; it is dispatched deterministically
+whenever a diff adds, edits, or renames a `specs/*/spec.md` (the change statuses
+that leave spec content to grade); the unambiguously-mechanizable smells fail in a
+CI lint, and the judgment reviewer owns only the subtler forms. Done means: a
+`spec.md` cannot reach a gate PASS without an adversarial quality verdict, and the
+mechanizable smells fail deterministically in CI.
 
 Motivation and provenance: the "New SDLC with vibe coding" analysis
 (https://addyosmani.com/blog/new-sdlc-vibe-coding; the Kaggle whitepaper),
@@ -47,8 +49,10 @@ before any code is written against it.
 
 **Acceptance Criteria**
 - AC1: A runtime-neutral reviewer spec (a new `reviewers/` entry) defines an
-  adversarial, read-only **[reviewer]**: inputs are the added/edited spec content
-  in the diff plus `memory/constitution.md`; for each criterion it hunts (a)
+  adversarial, read-only **[reviewer]**: inputs are the **full current `spec.md`**
+  (the added/edited content in the diff is the review target, but the whole spec is
+  in scope so a contradiction or duplicate against an *unchanged* criterion is
+  caught) plus `memory/constitution.md`; for each criterion it hunts (a)
   untestability — no test could encode it as stated; (b) internal contradiction —
   one criterion negates or duplicates another; (c) unstated edge/negative cases the
   criterion implies but omits; (d) gameability — the cheapest way to satisfy it
@@ -61,16 +65,21 @@ before any code is written against it.
   P4); it consults `reviewers/evasion-register.md` at dispatch and cites the
   matching exhibit, exactly as the existing auditors do.
 - AC3: It is dispatched **at or above the [strong tier]** with an explicit model
-  resolution — an absent or below-strong selection is a guard veto, reusing guard
-  rule 5's mechanism, not a new gate — because the spec is the cheapest place to
-  lose a project (constitution P2/P3; the constitution-reviewer floor precedent,
+  resolution — an absent or below-strong selection is a guard veto. Enforcing it
+  generalizes guard rule 5 (today constitution-auditor-specific,
+  `.claude/hooks/guard.sh`) to also fire on the spec-quality reviewer's dispatch,
+  shipping with a matching `guard.test.sh` case (a guard-behavior change ships with
+  its test — P2), not a new gate — because the spec is the cheapest place to lose a
+  project (constitution P2/P3; the constitution-reviewer floor precedent,
   DESIGN-NOTES §6).
 - AC4: The reviewer ships with a known-bad / known-good fixture pair in the
   auditor-liveness corpus (`reviewers/auditor-liveness-corpus.md`) — ≥1
-  expected-FAIL spec (e.g. a contradictory AC pair) and ≥1 expected-PASS — so the
-  judgment reviewer is proven live and stays so under model drift (constitution
-  P2/P3; the T605 pattern). Liveness stays observe-only — it never feeds a gate
-  outcome (constitution P5).
+  expected-FAIL spec (including a case where an *added* criterion contradicts an
+  *unchanged* one elsewhere in the same spec, proving the reviewer reads the full
+  spec and not just the diff) and ≥1 expected-PASS — so the judgment reviewer is
+  proven live and stays so under model drift (constitution P2/P3; the T605
+  pattern). Liveness stays observe-only — it never feeds a gate outcome
+  (constitution P5).
 
 ### US2 — Deterministic dispatch, the mechanizable backstop, and dedup
 As a harness operator, I want the reviewer to fire deterministically on exactly
@@ -80,13 +89,16 @@ deterministic and no rule is forked.
 
 **Acceptance Criteria**
 - AC1: The reviewer is added to the gate roster (`gate-loop.md`) under a third
-  **deterministic** dispatch condition — a diff that adds or edits a
-  `specs/*/spec.md` — alongside `always` / `dispatch-contract`, with both derived
-  mirrors (the `next-task.md` §7 prose and the `gate-loop.js` array) and the drift
-  test (`reviewer-roster.test.sh`) updated in the same diff (DESIGN-NOTES §12). The
-  condition is deterministic; no model judgment lands on the dispatch decision
-  (constitution P3; §12's two-value restriction widened to a third *deterministic*
-  value, preserving the property).
+  **deterministic** dispatch condition — a diff that adds, edits, or renames a
+  `specs/*/spec.md` (git status `A`/`M`/`R` — the closed set that leaves spec
+  content to grade; a pure deletion `D` has no spec to review and is the one
+  documented non-firing status, since guarding deletion of a live spec is a separate
+  control, not this quality reviewer's job) — alongside `always` /
+  `dispatch-contract`, with both derived mirrors (the `next-task.md` §7 prose and the
+  `gate-loop.js` array) and the drift test (`reviewer-roster.test.sh`) updated in the
+  same diff (DESIGN-NOTES §12). The condition is deterministic; no model judgment
+  lands on the dispatch decision (constitution P3; §12's two-value restriction
+  widened to a third *deterministic* value, preserving the property).
 - AC2: On a diff touching no `spec.md`, the reviewer is not dispatched and the gate
   runs exactly as before — no gate-semantics change for non-spec work.
 - AC3: A **deterministic CI lint** over `specs/*/spec.md` FAILs the unambiguously-

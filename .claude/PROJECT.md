@@ -29,12 +29,14 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   on #18).
 
 ## Task & branch conventions
-- **Task ID format:** `T` + 3 digits (phase-numbered: T1xx–T4xx), unique across the repo.
+- **Task ID format:** `T` + 3 digits, unique across all live `specs/*/tasks.md` — each
+  spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx).
 - **Model tier tag:** every task line carries `[frontier]`/`[strong]`/`[cheap]` — the
   task's MINIMUM capability tier, resolved via `.claude/MODELS.md`. Untagged → executor
   judges, leaning strong.
-- **Criterion ownership (multi-task stories):** `specs/001-harness-feedback-loop/tasks.md`
-  → "Criterion ownership" maps each `US#.AC<n>` to exactly one owning task.
+- **Criterion ownership (multi-task stories):** each live `specs/*/tasks.md` carries a
+  "Criterion ownership" section mapping each `US#.AC<n>` to exactly one owning task
+  (`specs/001-harness-feedback-loop/tasks.md`, `specs/002-spec-quality-gate/tasks.md`).
 - **Issue / PR / commit title:** `<type>: [<task-id>] <description>` for task work;
   `<type>: <description>` for repo maintenance (matches existing history).
 - **Branch name:** `<type>/<issue#>-<short-slug>` (e.g. `fix/21-template-tasks-glob-collision`).
@@ -198,5 +200,6 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   T301, T302.
 - Machinery-freshness checks guard the guard itself → T401, T402.
 - Spec 002 — the spec-quality reviewer is model judgment, so it ships an auditor-liveness
-  fixture pair (P2) and its dispatch stays deterministic with a CI-lint backstop (P3) →
-  T702, T703, T704.
+  fixture pair (P2) and its dispatch stays deterministic with a CI-lint backstop (P3); its
+  strong-tier floor generalizes guard rule 5, a guard-behavior change shipping with its
+  `guard.test.sh` case (P2/P4) → T701, T702, T703, T704.
