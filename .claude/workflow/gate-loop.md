@@ -38,6 +38,9 @@ The dispatcher passes every value the run must honor in the invocation itself:
   because resolution happens at dispatch time, outside this spec.
 - **dispatch-contract** — true when the diff touches a provider interface, monetization,
   or the data model (§7's contract-reviewer rule); default false.
+- **dispatch-spec** — true when the diff adds, edits, or renames a `specs/*/spec.md` (git
+  status `A`/`M`/`R` — the closed set that leaves spec content to grade; a pure deletion `D`
+  has no spec to review and does not fire); default false.
 - **max-fix-rounds** — the non-convergence bound; default 2 (§7's "two fix-and-re-dispatch
   rounds").
 - **apply-fixes** — default true; false yields a single report-only fan-out (no fix step),
@@ -66,22 +69,27 @@ hand-sync across three places.
 | `reviewers/spec-auditor.md` (acceptance) | cheap | `always` |
 | `reviewers/constitution-auditor.md` | strong | `always` |
 | `reviewers/contract-auditor.md` | cheap | `dispatch-contract` |
+| `reviewers/spec-quality-auditor.md` | strong | `dispatch-spec` |
 
 - **Tier** is a capability **[tier]**, resolved to a concrete model by the adapter's table at
-  dispatch time — this table never names a model. The constitution reviewer's `strong` is its
-  **[strong tier]** floor and never downgrades.
-- **Dispatch condition** is exactly one of two **deterministic** values: `always`, or
+  dispatch time — this table never names a model. The constitution reviewer's `strong` and the
+  spec-quality reviewer's `strong` are **[strong tier]** floors and never downgrade — the spec
+  is the cheapest place to lose a project, so the one check that grades spec content is pinned
+  at-or-above strong exactly as the constitution check is.
+- **Dispatch condition** is exactly one of three **deterministic** values: `always`,
   `dispatch-contract` (true when the diff touches a provider interface, monetization, or the
-  data model — §7's contract-reviewer rule). No model-judgment condition (e.g. "touches
-  behavioral code") may be added: that would put model judgment on the load-bearing path.
+  data model — §7's contract-reviewer rule), or `dispatch-spec` (true when the diff adds, edits,
+  or renames a `specs/*/spec.md` — git status `A`/`M`/`R`; a pure deletion `D` does not fire).
+  No model-judgment condition (e.g. "touches behavioral code") may be added: that would put
+  model judgment on the load-bearing path.
 
 ## The loop
 
 ```text
 reviewers ← every roster row whose dispatch-condition holds for this run
             (an `always` row unconditionally; a `dispatch-contract` row iff dispatch-contract
-            is true), each dispatched on its tier's resolved model — the acceptance row also
-            receives task-id
+            is true; a `dispatch-spec` row iff dispatch-spec is true), each dispatched on its
+            tier's resolved model — the acceptance row also receives task-id
 
 verdicts ← empty map            # reviewer → its LATEST verdict, verbatim
 pending  ← reviewers
