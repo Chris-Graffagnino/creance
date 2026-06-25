@@ -359,6 +359,31 @@ state; record results alongside the adapter's spec).
   the register-consultation loop is demonstrated end-to-end, not assumed); (c) the working
   tree is byte-identical after the run — the read-only [reviewer] mutated nothing.
 
+### P-ME — maker-eval (`maker-eval.md`)
+The maker-eval [workflow] re-scores the maker on a frozen corpus and **appends observe-only
+records** through the eval channel; this probe proves the binding fires on a real driver and
+**stays observe-only** — a record lands carrying the maker-behavior fingerprint, and no gate,
+tier, guard, or selection state is touched (spec 003 US2.AC4). It deliberately uses a
+**synthetic single-task corpus**, never the frozen corpus and never live state, and leaves the
+repo and the real eval channel as it found them.
+- **Setup:** a **synthetic single-task corpus** — one throwaway task with a minimal rubric —
+  and a **throwaway eval channel** (a disposable location, never the real out-of-repo channel).
+  Record the base branch's tree state and the real channel's contents before the run.
+- **Action:** trigger the maker-eval [workflow] against the synthetic task through the
+  adapter's on-demand path, directing its records to the throwaway channel; recompute the
+  current maker-behavior fingerprint through the same single-source recipe the run stamps onto
+  each record.
+- **Expect:** (a) **exactly one** observe-only record is appended for the synthetic task,
+  carrying that **maker-behavior fingerprint** and the run id — the record emission and the
+  fingerprint stamp both fire on the real driver; (b) the run **touches no gate, tier, guard,
+  or selection state** — it writes only the throwaway channel and reads only the frozen
+  instrument, so the base branch's tree and the real eval channel are **byte-identical** after
+  (the observe-only boundary holds in practice, not only in the deterministic fence); (c) the
+  run **edits no instrument artifact** (corpus, rubric, judge, scoring schema) — it reads and
+  appends only.
+- **Fixtures, never live state:** the synthetic corpus, the throwaway channel, and every record
+  it holds are discarded after; the run leaves the real channel and the repo as found.
+
 ## Coverage map
 
 | Contract row | Probe |
@@ -382,5 +407,6 @@ state; record results alongside the adapter's spec).
 | next-task PR digest (`next-task.md` §8) | P-NT |
 | retrospective procedure (`retrospective.md`) | P-RT |
 | evasion register (`reviewers/evasion-register.md`) | P-EV |
+| maker-eval procedure (`maker-eval.md`) | P-ME |
 | model table property | P-MT |
 | explicit-context rule | P-EC |

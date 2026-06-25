@@ -11,10 +11,13 @@
 #   (`packets/`) — together with the channel access seam (the `MAKER_EVAL_DIR` /
 #   `MAKER_EVAL_ROOT` env override, the `<repo>-maker-eval` channel dir name, and
 #   invoking the `maker-eval-emit` writer) — are referenced ONLY by the eval WRITER
-#   (hooks/maker-eval-emit.sh) and the triage READER (skills/triage/SKILL.md), and by
+#   (hooks/maker-eval-emit.sh), its RUN binding (skills/maker-eval/SKILL.md, which only
+#   DRIVES the writer — T805), and the triage READER (skills/triage/SKILL.md), and by
 #   NO gate, tier, guard, or selection code path. A reference anywhere outside the
 #   allowlist below means a control-authority path can read or write the observe-only
-#   channel — exactly the P5 breach this fences against.
+#   channel — exactly the P5 breach this fences against. (The non-executable declaration /
+#   manifest / probe-doc / test surface in Tier 2 names the channel by nature, not to act
+#   on it.)
 #
 # WHY TOKENS, NOT THE ABSOLUTE PATH: the channel is an OUT-OF-REPO directory resolved
 # at run time (.claude/PROJECT.md → "Paths" → Maker-eval records), so the fence keys on
@@ -59,16 +62,20 @@ CHANNEL_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MA
 # path, and a reference there is the P5 violation.
 allowed() {
   case "$1" in
-    # Tier 1 — the channel's two sanctioned code paths.
-    .claude/hooks/maker-eval-emit.sh) return 0 ;;  # the eval WRITER
-    .claude/skills/triage/SKILL.md)   return 0 ;;  # the triage READER
-    # Tier 2 — declaration / manifest / tests / the fence itself (non-executable, or no
-    # control authority). CI is intentionally absent: it is line-scoped below, not here.
-    .claude/PROJECT.md)                return 0 ;;  # the profile path declaration
-    .claude/PROJECT.template.md)       return 0 ;;  # the template's path row
-    .claude/EXTRACTION.md)             return 0 ;;  # the extraction cut-list
-    .claude/hooks/maker-eval-fence.sh) return 0 ;;  # the fence (names the tokens to scan)
-    *.test.sh | *.test.js)             return 0 ;;  # tests exercise the channel (no authority)
+    # Tier 1 — the channel's sanctioned CODE paths: the writer, its run binding, and the
+    # reader. None carries gate/tier/guard/selection authority — they ARE the eval
+    # write/read surface (the run binding only DRIVES the writer; T805).
+    .claude/hooks/maker-eval-emit.sh)       return 0 ;;  # the eval WRITER (appends the record)
+    .claude/skills/maker-eval/SKILL.md)     return 0 ;;  # the eval RUN binding (drives the writer)
+    .claude/skills/triage/SKILL.md)         return 0 ;;  # the triage READER (surfaces, never writes)
+    # Tier 2 — declaration / manifest / probe-doc / tests / the fence itself (non-executable,
+    # or no control authority). CI is intentionally absent: it is line-scoped below, not here.
+    .claude/PROJECT.md)                     return 0 ;;  # the profile path declaration
+    .claude/PROJECT.template.md)            return 0 ;;  # the template's path row
+    .claude/EXTRACTION.md)                  return 0 ;;  # the extraction cut-list
+    .claude/adapters/claude-code-probes.md) return 0 ;;  # the P-ME probe instantiation (names the writer/channel by nature)
+    .claude/hooks/maker-eval-fence.sh)      return 0 ;;  # the fence (names the tokens to scan)
+    *.test.sh | *.test.js)                  return 0 ;;  # tests exercise the channel (no authority)
     *) return 1 ;;
   esac
 }
