@@ -31,8 +31,8 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Maker-eval records:** default per `workflow/maker-eval.md` — out-of-repo beside the
   triage inbox in its **own channel directory, kept distinct from the telemetry stream** so
   the US2.AC3 P5 fence (T804) can scope to it: `<triage inbox dir>/creance-maker-eval/`,
-  holding `records.jsonl` (append-only, one line per corpus task per run) and a `packets/`
-  subtree for the per-task transcript review packets — any in-record packet link resolves
+  holding `records.jsonl` (append-only, one line per (corpus task × maker tier) per run) and a `packets/`
+  subtree for the per-(task × tier) transcript review packets — any in-record packet link resolves
   only inside this directory.
 
 ## Task & branch conventions

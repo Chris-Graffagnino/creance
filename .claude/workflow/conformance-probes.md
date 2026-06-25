@@ -375,15 +375,15 @@ channel as it found them.
 - **Setup:** a **synthetic single-task corpus** — one throwaway task with a minimal rubric —
   and a **throwaway eval channel** (a disposable location, never the real out-of-repo channel).
   Record the base branch's tree state and the real channel's contents before the run.
-- **Action:** drive the binding's **observe-only record emission** for the synthetic task — the
-  append step the [workflow] performs through the eval channel — directing the record to the
-  throwaway channel; recompute the current maker-behavior fingerprint through the same
-  single-source recipe the run stamps onto each record. (Driving the emission step directly,
+- **Action:** drive the binding's **observe-only record emission** for the synthetic task at one
+  maker tier — the append step the [workflow] performs through the eval channel — directing the
+  record to the throwaway channel; recompute the current maker-behavior fingerprint through the
+  same single-source recipe the run stamps onto each record. (Driving the emission step directly,
   rather than a full model-driven run, is what keeps this a deterministic conformance probe;
   the generation + judging path is the live/gate path named above.)
 - **Expect:** (a) **exactly one** observe-only record is appended for the synthetic task,
-  carrying that **maker-behavior fingerprint** and the run id — the record emission and the
-  fingerprint stamp both fire on the real driver; (b) the run **touches no gate, tier, guard,
+  carrying that **maker-behavior fingerprint**, the run id, and the maker tier it scored — the
+  record emission and the fingerprint stamp both fire on the real driver; (b) the run **touches no gate, tier, guard,
   or selection state** — it writes only the throwaway channel and reads only the frozen
   instrument, so the base branch's tree and the real eval channel are **byte-identical** after
   (the observe-only boundary holds in practice, not only in the deterministic fence); (c) the

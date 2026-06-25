@@ -12,11 +12,13 @@
 #   `MAKER_EVAL_ROOT` env override and the `<repo>-maker-eval` channel dir name) — are
 #   READ/RESOLVED only by the eval WRITER (hooks/maker-eval-emit.sh) and the triage READER
 #   (skills/triage/SKILL.md), and by NO gate, tier, guard, or selection code path. The eval
-#   RUN binding (skills/maker-eval/SKILL.md) may only DRIVE the writer (invoke `maker-eval-emit`)
+#   RUN binding (skills/maker-eval/SKILL.md) may only DRIVE the writer (`maker-eval-emit record`)
+#   or recompute the fingerprint (`maker-eval-emit fingerprint`, no channel I/O)
 #   — it is the maker-eval analog of CI: a real execution surface that is NOT whole-file
-#   trusted but line-scoped below, so a writer invocation in it is benign while a channel
-#   READ/RESOLVE in it still FAILs (PR #164; spec 003 US2.AC3 scopes the record path + packet
-#   store to the writer and the reader). A reference anywhere outside the allowlist/line-scope
+#   trusted but line-scoped below, so a writer drive / fingerprint recompute in it is benign
+#   while a channel READ/RESOLVE — a record-path/packet/seam token OR the emitter's channel-
+#   reading `complete` subcommand — still FAILs (PR #164; spec 003 US2.AC3 scopes the record
+#   path + packet store to the writer and the reader). A reference anywhere outside the allowlist/line-scope
 #   below means a control-authority path can read or write the observe-only channel — exactly
 #   the P5 breach this fences against. (The non-executable declaration / manifest / probe-doc /
 #   test surface in Tier 2 names the channel by nature, not to act on it.)
@@ -65,6 +67,17 @@ ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 CHANNEL_READ_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval'
 WRITER_INVOCATION='maker-eval-emit'
 CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
+
+# The emitter's CHANNEL-READING subcommand. Driving the writer to APPEND (`record`) or
+# recomputing the maker-behavior fingerprint (`fingerprint`, which reads only the model
+# table + the maker surfaces, never the channel) is the run binding's sanctioned job — both
+# are benign there. But `complete` RESOLVES the channel and READS records.jsonl to count a
+# run's records, so naming it in the line-scoped run binding is a channel READ, not a writer
+# drive — exactly the read the binding may not do (the triage reader's job, spec 003 US2.AC3).
+# The whole-emitter line-scope this replaces let `complete` pass because it carries no explicit
+# CHANNEL_READ token (PR #164 Codex P2). `complete` is the emitter's ONLY channel-reading
+# subcommand today; a new read subcommand must be added here with a paired test. Portable ERE.
+EMITTER_READ_SUBCOMMAND='maker-eval-emit(\.sh)?[[:space:]]+complete'
 
 # Files permitted to carry the channel tokens. Tier 1 is the AC's "eval writer and
 # triage reader" — the only two control-authority code paths sanctioned to touch the
@@ -115,11 +128,13 @@ CI_BENIGN_LINE='^[0-9]+:[[:space:]]*#|^[0-9]+:[[:space:]]*run: bash \.claude/hoo
 # Run-binding line-scope. The maker-eval RUN binding (skills/maker-eval/SKILL.md) is NOT in
 # allowed() above: like ci.yml it is a real execution surface, so it is scanned and each
 # token-bearing line is a violation UNLESS it is benign. Benign = the line only DRIVES the
-# writer (a WRITER_INVOCATION token, no channel-read/seam token); a line that names the record
-# path, the packet store, or the channel seam/dir is the binding reaching INTO the channel — a
-# read/resolve the run binding may not do (that is the triage reader's job, spec 003 US2.AC3) —
-# and survives as a violation. Implemented by keeping only the CHANNEL_READ_TOKENS hits below
-# (the whole-file allowlist this replaces let any of those pass — PR #164 craft/Codex).
+# writer (`maker-eval-emit record`) or recomputes the fingerprint (`maker-eval-emit
+# fingerprint`, no channel I/O); a line that names the record path, the packet store, or the
+# channel seam/dir — OR invokes the emitter's channel-reading `complete` subcommand — is the
+# binding reaching INTO the channel, a read/resolve the run binding may not do (that is the
+# triage reader's job, spec 003 US2.AC3), and survives as a violation. Implemented by keeping
+# the CHANNEL_READ_TOKENS and EMITTER_READ_SUBCOMMAND hits below (the whole-file allowlist this
+# replaces let `complete` and any direct read pass — PR #164 craft/Codex).
 SKILL_BINDING='.claude/skills/maker-eval/SKILL.md'
 
 # Tracked-tree listing, repo-relative. git ls-files when ROOT is a work tree (skips
@@ -152,10 +167,11 @@ while IFS= read -r rel; do
     [ -n "$hits" ] || continue
   fi
   # The run binding is scanned, not whole-file allowlisted (it is a real execution surface):
-  # keep only the channel-READ/seam references as violations — a bare writer invocation is the
-  # binding's sanctioned job and drops out (see SKILL_BINDING above).
+  # keep as violations the channel-READ/seam references AND the emitter's channel-reading
+  # subcommand (`complete`) — a bare writer DRIVE (`record`) or fingerprint recompute is the
+  # binding's sanctioned job and drops out (see SKILL_BINDING / EMITTER_READ_SUBCOMMAND above).
   if [ "$rel" = "$SKILL_BINDING" ]; then
-    hits="$(printf '%s\n' "$hits" | grep -E "$CHANNEL_READ_TOKENS")"
+    hits="$(printf '%s\n' "$hits" | grep -E "$CHANNEL_READ_TOKENS|$EMITTER_READ_SUBCOMMAND")"
     [ -n "$hits" ] || continue
   fi
   violations=$((violations + 1))

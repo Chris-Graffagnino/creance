@@ -75,9 +75,12 @@ fingerprint below), never a silent re-grade.
 
 ## The run (read-only judge, headless maker — composes existing roles)
 
-A run, for each corpus task:
+A run, for each corpus task **at each maker tier**:
 
-1. **Resolve the current model table** to the maker's identity (the tier the run targets).
+1. **Resolve the current model table** to the maker's identity at this tier. A comparable run
+   exercises **every** maker tier the maker-behavior fingerprint spans (below): re-scoring only
+   one tier would let the run's recorded fingerprint certify a tier it never exercised, so a
+   single-tier run is a scoped diagnostic, never a baseline.
 2. **Execute the task as a [headless run] of the maker** — the maker generates the artifact
    or diff the task asks for, non-interactively, exactly as a real task would.
 3. **Score the output with the pinned read-only [reviewer]-style judge** against the task's
@@ -89,14 +92,14 @@ never edits the corpus, the rubrics, the judge, or any gate state.
 
 ## The record and the transcript review packet (the shape the emitter writes)
 
-Each run emits **exactly one append-only record per corpus task**, all sharing one **run id**,
-to the eval channel the profile names — `.claude/PROJECT.md` → "Paths" → **Maker-eval
+Each run emits **exactly one append-only record per (corpus task × maker tier)**, all sharing one
+**run id**, to the eval channel the profile names — `.claude/PROJECT.md` → "Paths" → **Maker-eval
 records**, its **own append-only path beside the telemetry stream**, kept distinct so the
 deterministic P5 fence can scope to it. Each record carries: the run id, the corpus task id,
-the **triple fingerprint** (below), the per-dimension verdict/score **each tagged with its
-lifecycle** (`capability`/`regression`/`saturated`, carried on the dimension — not one tag per
-task), and a timestamp — in the same append-only JSONL form the telemetry stream uses
-(`telemetry.md`).
+**the maker tier the task was scored at**, the **triple fingerprint** (below), the per-dimension
+verdict/score **each tagged with its lifecycle** (`capability`/`regression`/`saturated`, carried
+on the dimension — not one tag per task), and a timestamp — in the same append-only JSONL form
+the telemetry stream uses (`telemetry.md`).
 
 Alongside each record the run **stores a transcript review packet** for that task **within
 the eval channel's own fenced path** — the task prompt, the generated artifact/diff, the
@@ -107,7 +110,9 @@ packet resolves **only inside that same fenced path**, so packet artifacts never
 observe-only backstop and a regression stays human-reviewable rather than a bare dropped
 number.
 
-A run is **complete** only when **every** corpus task has a record under its run id. A failed
+A run is **complete** only when **every** corpus task has a record under its run id **at every
+maker tier** the maker-behavior fingerprint spans — so a single-tier (or scoped-task) run is
+never whole, and clearing the staleness flag certifies all tiers rather than one. A failed
 or partial write **changes nothing** — it has nothing to block (the eval is observe-only) — and
 an **incomplete run is never treated as a comparable baseline** by the regression surfacing
 (`triage.md`). The concrete JSONL/packet mechanism is the adapter's to supply; the emitter and

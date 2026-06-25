@@ -7,9 +7,10 @@
 # the exit code. This is the constitution-P2 backstop: the fence ships with the test
 # proving it FIRES on a planted cross-reference to EITHER path (US2.AC3) AND does not
 # false-fire on the real tree or on the sanctioned writer/reader/test surface. It also
-# proves the run binding (skills/maker-eval/SKILL.md) is LINE-SCOPED — a writer invocation
-# there is benign (case n), but a channel READ/RESOLVE in it still fires (cases p/q/r),
-# closing the whole-file-allowlist gap PR #164 found. Bash + git only, <1s; wired into the
+# proves the run binding (skills/maker-eval/SKILL.md) is LINE-SCOPED — a writer drive (case n)
+# or fingerprint recompute (case t) is benign, but a channel READ/RESOLVE in it still fires:
+# a record-path/packet/seam token (cases p/q/r) OR the emitter's channel-reading `complete`
+# subcommand (case s), closing the whole-file-allowlist gap PR #164 found. Bash + git only, <1s; wired into the
 # `verify` CI job (.github/workflows/ci.yml).
 # Run: bash .claude/hooks/maker-eval-fence.test.sh
 set -u
@@ -139,10 +140,11 @@ run_fence 0 "$N" "no false fire: maker-eval-emit (writer drive) in the line-scop
 O="$TMP/allow-probe-doc"; mkfix "$O" ".claude/adapters/claude-code-probes.md" 'P-ME: invoke maker-eval-emit; assert a record lands in records.jsonl with the fingerprint.'
 run_fence 0 "$O" "no false fire: tokens in the allowlisted P-ME probe instantiation"
 
-# ── the RUN binding is LINE-SCOPED, not whole-file trusted: it may DRIVE the writer (case n
-#    above) but a channel READ/RESOLVE inside it still FIRES — reading the record path or the
-#    packet store, or resolving the channel seam, is the triage reader's/writer's job, never the
-#    run binding's (spec 003 US2.AC3). The old whole-file allowlist let any of these pass, so a
+# ── the RUN binding is LINE-SCOPED, not whole-file trusted: it may DRIVE the writer (case n)
+#    or recompute the fingerprint (case t) but a channel READ/RESOLVE inside it still FIRES —
+#    reading the record path or the packet store, resolving the channel seam, or invoking the
+#    emitter's `complete` READ subcommand, is the triage reader's/writer's job, never the run
+#    binding's (spec 003 US2.AC3). The old whole-file allowlist let any of these pass, so a
 #    future edit reading eval records "to choose a tier" from the binding bypassed the P5 fence
 #    (PR #164 craft/Codex). These are the negative fixtures proving the line-scope closes it. ──
 
@@ -159,6 +161,21 @@ run_fence 1 "$Q_PKT" "FIRES: packet-store read planted in the run binding"
 #     binding drives the writer; it must not resolve the channel location itself.
 R_SEAM="$TMP/binding-resolves-seam"; mkfix "$R_SEAM" ".claude/skills/maker-eval/SKILL.md" 'eval_dir="${MAKER_EVAL_DIR:-}"   # planted channel resolve'
 run_fence 1 "$R_SEAM" "FIRES: MAKER_EVAL_DIR seam planted in the run binding"
+
+# (s) invoking the emitter's channel-READING subcommand (`complete`, which resolves the channel
+#     and reads records.jsonl to count a run's records) planted in the run binding FIRES — it is
+#     a channel read, not a writer drive. The whole-emitter line-scope this replaces let it pass
+#     because it carries no explicit records.jsonl token, yet `complete` reads exactly that
+#     (PR #164 Codex P2). The run binding emits records; the completeness READ is the triage reader's.
+S_DONE="$TMP/binding-invokes-complete"; mkfix "$S_DONE" ".claude/skills/maker-eval/SKILL.md" 'Then `bash .claude/hooks/maker-eval-emit.sh complete --run-id "$id"` to check the run.  # planted channel read'
+run_fence 1 "$S_DONE" "FIRES: maker-eval-emit complete (channel read) planted in the run binding"
+
+# (t) recomputing the fingerprint (`maker-eval-emit fingerprint`) reads only the model table +
+#     the maker surfaces, never the channel, so it is benign in the run binding (the binding's
+#     own MAKER-EVAL-STALE detector recipe) — it must not false-fire alongside (s), proving the
+#     line-scope distinguishes the emitter's read subcommand from its no-channel-I/O one.
+T_FP="$TMP/binding-invokes-fingerprint"; mkfix "$T_FP" ".claude/skills/maker-eval/SKILL.md" 'Recompute via `bash .claude/hooks/maker-eval-emit.sh fingerprint` — the maker-behavior field.'
+run_fence 0 "$T_FP" "no false fire: maker-eval-emit fingerprint (no channel I/O) in the run binding"
 
 # ── fail-closed: an unscannable root is a LOUD failure, never a silent pass (P2) ─
 run_fence 2 "$TMP/does-not-exist" "fail-closed: empty/unscannable root exits loud"

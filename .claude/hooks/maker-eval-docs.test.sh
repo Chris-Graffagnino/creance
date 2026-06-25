@@ -225,8 +225,8 @@ check "DW4: recorded separately so a judge/instrument change is its own movement
   "three separately-recorded components"
 
 # ── DW5 — the record + transcript review packet stored in the eval channel's fenced path ──
-check "DW5: one append-only record per corpus task, sharing a run id" "$NEU_FLAT" \
-  "exactly one append-only record per corpus task"
+check "DW5: one append-only record per (corpus task × maker tier), sharing a run id" "$NEU_FLAT" \
+  "exactly one append-only record per (corpus task × maker tier)"
 check "DW5: a transcript review packet per task" "$NEU_FLAT" \
   "stores a transcript review packet"
 check "DW5: the packet carries the first-upstream-failure classification" "$NEU_FLAT" \
@@ -235,6 +235,8 @@ check "DW5: the packet link resolves only inside the eval channel's fenced path"
   "resolves **only inside that same fenced path**"
 check "DW5: a run is complete only when every corpus task has a record" "$NEU_FLAT" \
   "complete** only when **every** corpus task has a record"
+check "DW5: completeness spans every maker tier (PR #164 tier coverage)" "$NEU_FLAT" \
+  "a record under its run id **at every maker tier**"
 check "DW5: a failed or partial write changes nothing" "$NEU_FLAT" \
   "failed or partial write **changes nothing**"
 check "DW5: an incomplete run is never a comparable baseline" "$NEU_FLAT" \
@@ -291,6 +293,13 @@ check "US2.AC1: binding declares the weekly schedule trigger" "$SKILL_FLAT" \
   "named minimum cadence is **weekly**"
 check "US2.AC1: binding composes existing roles only — no new binding-contract row" "$SKILL_FLAT" \
   "no new binding-contract row"
+# PR #164 (Codex P2): the maker-behavior fingerprint spans all maker tiers, so a default run
+# must cover every tier (else clearing MAKER-EVAL-STALE certifies a tier it never scored), and
+# each record names the tier it scored (the second completeness axis, enforced by the emitter).
+check "US2.AC1: binding's default run covers every maker tier (PR #164)" "$SKILL_FLAT" \
+  "targets **every** maker tier"
+check "US2.AC1: binding records the maker tier on each result (--tier)" "$SKILL_FLAT" \
+  "--tier <maker-tier>"
 # Negative case: the binding-contract table in workflow/README.md must NOT gain a
 # [maker-eval] role row (the skill composes existing roles; it appears only in the Files
 # list) — mirrors intake-docs.test.sh's AC5 negative check.

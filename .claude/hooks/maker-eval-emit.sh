@@ -35,16 +35,19 @@
 #       Inputs are rooted at MAKER_EVAL_ROOT (default: the repo root) so a test can
 #       point the recipe at a fixture tree.
 #
-#   record --run-id <id> --task <ME-id> --results <judge.json> \
+#   record --run-id <id> --task <ME-id> --tier <maker-tier> --results <judge.json> \
 #          [--prompt <f>] [--artifact <f>] [--judge <f>]
-#       Append EXACTLY ONE append-only JSONL record for one corpus task (US1.AC2) to
+#       Append EXACTLY ONE append-only JSONL record for one (corpus task × maker tier) to
 #       <channel>/records.jsonl and store its transcript review packet under
-#       <channel>/packets/<run-id>/<task-id>/ (run id and task id must be safe path
+#       <channel>/packets/<run-id>/<task-id>/<tier>/ (run id and task id must be safe path
 #       components — no `/` or `..` — so neither the packet dir nor its in-record link can
-#       escape the fenced channel; a violating id is a loud caller error). The record
-#       carries the run id, the
-#       corpus task id, the triple fingerprint, the per-dimension verdict/score each
-#       tagged with its lifecycle (from <judge.json>), the overall verdict, the
+#       escape the fenced channel; a violating id is a loud caller error). <maker-tier> is
+#       the maker tier the run scored this task at (one of the model table's maker tiers —
+#       a non-tier value is a loud caller error), recorded as `maker_tier` so `complete`
+#       can verify every tier the maker-behavior fingerprint spans was exercised (PR #164;
+#       spec 003 US2.AC1). The record carries the run id, the
+#       corpus task id, the maker tier, the triple fingerprint, the per-dimension verdict/score
+#       each tagged with its lifecycle (from <judge.json>), the overall verdict, the
 #       first-upstream-failure class, a timestamp, and a RELATIVE packet link that
 #       resolves only inside the fenced channel. <judge.json> is the judge's per-task
 #       output: { dimensions:[{dimension,lifecycle,verdict,evidence}...], overall,
@@ -56,10 +59,12 @@
 #       write failure is silent (exit 0, nothing written).
 #
 #   complete --run-id <id>
-#       Exit 0 + print "complete" iff every corpus task id has a record under <id> in
-#       records.jsonl; else exit 3 + "incomplete (missing: ...)". This is what the
-#       read-only surfacing uses so an INCOMPLETE run is never a comparable baseline
-#       (US1.AC2). A missing/empty stream is incomplete, never a silent baseline.
+#       Exit 0 + print "complete" iff every corpus task id has a record under <id> AT EVERY
+#       maker tier in records.jsonl; else exit 3 + "incomplete (missing: <task>@<tier> ...)".
+#       This is what the read-only surfacing uses so an INCOMPLETE run is never a comparable
+#       baseline (US1.AC2): requiring the full (task × tier) grid means a single-tier run
+#       cannot clear MAKER-EVAL-STALE while a changed cheap/frontier row went un-scored
+#       (PR #164; spec 003 US2.AC1). A missing/empty stream is incomplete, never a silent baseline.
 #
 # Channel resolution (the fenced eval path), precedence:
 #   1. MAKER_EVAL_DIR — test/override seam (mirrors GUARD_TELEMETRY_FILE);
@@ -84,7 +89,7 @@ CORPUS="$WORKFLOW_DIR/reviewers/maker-eval-corpus.md"
 PROFILE="${MAKER_EVAL_PROJECT_FILE:-$CLAUDE_DIR/PROJECT.md}"
 
 usage() {
-  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | complete --run-id <id>}\n' \
+  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | complete --run-id <id>}\n' \
     "$(basename "$0")" >&2
 }
 
@@ -207,6 +212,18 @@ corpus_task_ids() {
     | grep -E '^ME-[0-9]+$'
 }
 
+# ── maker tier names (the second axis of completeness) ───────────────────────────
+# The maker tier NAMES, parsed from the SAME model-table rows fp_maker_behavior hashes
+# into maker_behavior (the `[frontier|strong|cheap] tier` rows). Kept in lockstep with the
+# fingerprint surface so a complete run must cover EVERY tier the maker-behavior fingerprint
+# spans: recording the all-tier fingerprint after exercising only one tier would let a default
+# run clear MAKER-EVAL-STALE without re-scoring a changed cheap/frontier row (PR #164 Codex P2;
+# spec 003 US2.AC1). Same `^|…**[<tier> tier]**` anchor as fp_maker_behavior's grep.
+maker_tiers() {
+  grep -E '^\|[[:space:]]*\*\*\[(frontier|strong|cheap) tier\]\*\*' "$MODELS" 2>/dev/null \
+    | sed -E 's/.*\[(frontier|strong|cheap) tier\].*/\1/'
+}
+
 # ── record ──────────────────────────────────────────────────────────────────────
 # A packet-path token (run_id/task_id) must be a single non-escaping path component, so
 # neither the on-disk packet dir nor the in-record packet link can leave the fenced
@@ -233,11 +250,12 @@ results_valid() { # <results.json> -> 0 iff structurally a judge output
 }
 
 do_record() {
-  local run_id="" task_id="" results="" prompt_f="" artifact_f="" judge_f=""
+  local run_id="" task_id="" tier="" results="" prompt_f="" artifact_f="" judge_f=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --run-id)   run_id="${2:-}"; shift 2 ;;
       --task)     task_id="${2:-}"; shift 2 ;;
+      --tier)     tier="${2:-}"; shift 2 ;;
       --results)  results="${2:-}"; shift 2 ;;
       --prompt)   prompt_f="${2:-}"; shift 2 ;;
       --artifact) artifact_f="${2:-}"; shift 2 ;;
@@ -246,12 +264,21 @@ do_record() {
     esac
   done
   # Missing required args are a CALLER error (not a write failure): fail loud.
-  if [ -z "$run_id" ] || [ -z "$task_id" ] || [ -z "$results" ]; then
+  if [ -z "$run_id" ] || [ -z "$task_id" ] || [ -z "$tier" ] || [ -z "$results" ]; then
     usage; return 2
   fi
   if ! safe_token "$run_id" || ! safe_token "$task_id"; then
     printf 'maker-eval-emit: run id and task id must be safe path components (no "/" or ".."): run-id=[%s] task=[%s]\n' \
       "$run_id" "$task_id" >&2
+    return 2
+  fi
+  # The maker tier the run scored this task at must be a REAL maker tier (the rows the
+  # maker-behavior fingerprint spans), so `complete` can verify every tier was exercised and
+  # a typo cannot silently leave a run forever-incomplete. A loud caller error, not a write
+  # failure (PR #164; spec 003 US2.AC1).
+  if ! maker_tiers | grep -qxF -- "$tier"; then
+    printf 'maker-eval-emit: --tier must be a maker tier (%s): got [%s]\n' \
+      "$(maker_tiers | tr '\n' ' ')" "$tier" >&2
     return 2
   fi
   if [ ! -f "$results" ]; then
@@ -274,13 +301,17 @@ do_record() {
   [ -n "$fp" ] || return 0
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 0
   repo="$(repo_basename)"
-  packet_rel="packets/$run_id/$task_id"
+  # Tier-scoped packet dir: a run records one (task × tier) per record, so the packet path
+  # carries the tier too — else two tiers' packets for one task collide. `tier` is validated
+  # above as a maker-tier name (a safe single component), so the path cannot escape.
+  packet_rel="packets/$run_id/$task_id/$tier"
   failure="$(jq -r '.first_upstream_failure // "none"' "$results" 2>/dev/null)" || failure="none"
 
   rec="$(jq -c \
     --arg ts "$ts" --arg repo "$repo" --arg run "$run_id" --arg task "$task_id" \
-    --argjson fp "$fp" --arg packet "$packet_rel" \
+    --arg tier "$tier" --argjson fp "$fp" --arg packet "$packet_rel" \
     '{record:"maker-eval", timestamp:$ts, repo:$repo, run_id:$run, task_id:$task,
+      maker_tier:$tier,
       fingerprint:$fp,
       dimensions:(.dimensions // []),
       overall:(.overall // "fail"),
@@ -305,11 +336,11 @@ do_record() {
 }
 
 # ── complete ──────────────────────────────────────────────────────────────────
-record_present() { # <records-file> <run-id> <task-id>
+record_present() { # <records-file> <run-id> <task-id> <tier>
   [ -f "$1" ] || return 1
   local n
-  n="$(jq -c --arg r "$2" --arg t "$3" \
-        'select(.run_id == $r and .task_id == $t)' "$1" 2>/dev/null | grep -c .)"
+  n="$(jq -c --arg r "$2" --arg t "$3" --arg k "$4" \
+        'select(.run_id == $r and .task_id == $t and .maker_tier == $k)' "$1" 2>/dev/null | grep -c .)"
   [ "${n:-0}" -gt 0 ]
 }
 
@@ -323,19 +354,30 @@ do_complete() {
   done
   [ -n "$run_id" ] || { usage; return 2; }
 
-  local channel ids missing="" tid
+  # A run is a comparable baseline only when it has re-scored every corpus task at EVERY
+  # maker tier — the second completeness axis (PR #164; spec 003 US2.AC1). The all-tier
+  # maker_behavior fingerprint a record stamps is honest only if the run that recorded it
+  # exercised all tiers, so `complete` requires the full (task × tier) grid; a single-tier
+  # (or scoped-task) run never reaches it and is never a silent baseline.
+  local channel ids tiers missing="" tid k
   channel="$(channel_dir)" || { printf 'incomplete (channel unresolved)\n'; return 3; }
   ids="$(corpus_task_ids)"
   if [ -z "$ids" ]; then
     printf 'incomplete (no corpus tasks parsed)\n'
     return 3
   fi
-  while IFS= read -r tid; do
-    [ -n "$tid" ] || continue
-    record_present "$channel/records.jsonl" "$run_id" "$tid" || missing="$missing $tid"
-  done <<EOF
-$ids
-EOF
+  tiers="$(maker_tiers)"
+  if [ -z "$tiers" ]; then
+    printf 'incomplete (no maker tiers parsed)\n'
+    return 3
+  fi
+  # Task ids (ME-NN) and tier names (frontier/strong/cheap) carry no whitespace or glob
+  # metacharacters, so word-splitting the two lists is safe and avoids nested heredocs.
+  for tid in $ids; do
+    for k in $tiers; do
+      record_present "$channel/records.jsonl" "$run_id" "$tid" "$k" || missing="$missing $tid@$k"
+    done
+  done
   if [ -z "$missing" ]; then
     printf 'complete\n'
     return 0

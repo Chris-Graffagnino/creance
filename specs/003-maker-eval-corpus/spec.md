@@ -77,18 +77,21 @@ quality becomes a trend I can inspect rather than an anecdote.
   `.claude/PROJECT.md` → "Paths" — its **own append-only path beside the telemetry
   stream** (out-of-repo by default), kept distinct so the US2.AC3 fence can scope to
   it.
-- AC2: Each run emits exactly one append-only record per corpus task (a shared **run
-  id**, the corpus task ID, the maker-behavior fingerprint used (AC3), the per-rubric
+- AC2: Each run emits exactly one append-only record per **(corpus task × maker tier)** (a
+  shared **run id**, the corpus task ID, **the maker tier the task was scored at** (US2.AC1),
+  the maker-behavior fingerprint used (AC3), the per-rubric
   verdict/score, and a timestamp), in the gate-telemetry JSONL form, and **stores a
-  transcript review packet** per task **within the eval channel's own fenced path**
+  transcript review packet** per (task × tier) **within the eval channel's own fenced path**
   (US1.AC1 / US2.AC3) — the task prompt, the generated artifact/diff, the judge's report,
   and a compact **first-upstream-failure classification** (the earliest step that broke,
   not only the surface symptom); any in-record link to a packet resolves only inside that
   same fenced path, so the packet artifacts never escape the observe-only backstop and a
   regression stays human-reviewable rather than a bare dropped number. A run is **complete**
-  only when every corpus task has a record under that run id; a failed or partial write
-  changes nothing (it has nothing to block — AC4), and an incomplete run is never treated
-  as a comparable baseline (US2.AC2).
+  only when every corpus task has a record under that run id **at every maker tier** (US2.AC1);
+  a failed or partial write
+  changes nothing (it has nothing to block — AC4), and an incomplete run — including a
+  single-tier run missing other tiers (US2.AC1) — is never treated as a comparable baseline
+  (US2.AC2).
 - AC3: Each run records a deterministic content-hash fingerprint alongside its
   results — mirroring the probe-run fingerprint (spec 001 US5.AC1) — composed of **three
   separately-recorded components**: (1) the **maker-behavior fingerprint** — the maker
@@ -132,7 +135,11 @@ can never gain control authority.
   the maker model resolution or any of the instruction/runtime surfaces that shape its
   output, not the model table alone) and on a schedule (the T605 / [workflow] cadence),
   exposed by a skill binding reusing existing roles — no new binding-contract role is
-  created.
+  created. A (re-)run **covers every maker tier the maker-behavior fingerprint spans**,
+  recording the tier on each result; a run is a comparable baseline (one that clears the
+  staleness flag) only when every corpus task was scored at every tier — so a single-tier run
+  is a scoped diagnostic that can never clear staleness while a changed cheap/frontier row went
+  un-scored (PR #164).
 - AC2: Triage gains a read-only "Maker eval" section: score regressions against the
   last **complete** recorded run (an incomplete run — not every corpus task present
   under its run id, US1.AC2 — renders as incomplete, never a silent baseline) under an

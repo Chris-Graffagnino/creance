@@ -145,13 +145,14 @@ printf 'diff --git a/x b/x\n+change\n'   > "$TMP/artifact.diff"
 printf '# judge report\nassertion-locus only partial\n' > "$TMP/judge-report.md"
 
 LINE="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CH" bash "$EMIT" record \
-  --run-id run-A --task ME-01 --results "$TMP/judge.json" \
+  --run-id run-A --task ME-01 --tier strong --results "$TMP/judge.json" \
   --prompt "$TMP/prompt.txt" --artifact "$TMP/artifact.diff" --judge "$TMP/judge-report.md")"
 
 eq "AC2: exactly one JSONL line written" "1" "$(grep -c . "$CH/records.jsonl" 2>/dev/null)"
 eq "AC2: record is valid JSON"        "ok" "$(printf '%s' "$LINE" | jq -e . >/dev/null 2>&1 && echo ok)"
 eq "AC2: record carries the run id"   "run-A" "$(printf '%s' "$LINE" | jq -r .run_id)"
 eq "AC2: record carries the task id"  "ME-01" "$(printf '%s' "$LINE" | jq -r .task_id)"
+eq "AC2: record carries the maker tier (US2.AC1)" "strong" "$(printf '%s' "$LINE" | jq -r .maker_tier)"
 eq "AC2: record carries a timestamp (ISO-8601 Z)" "ok" \
   "$(printf '%s' "$LINE" | jq -r .timestamp | grep -qE '^[0-9]+-[0-9][0-9]-[0-9][0-9]T[0-9:]+Z$' && echo ok)"
 eq "AC2: record carries the overall verdict" "fail" "$(printf '%s' "$LINE" | jq -r .overall)"
@@ -183,23 +184,48 @@ done
 eq "AC2: packet records the first-upstream-failure class" "weak-verification" \
   "$(cat "$CH/$PKT/first-upstream-failure.txt" 2>/dev/null)"
 
-# append-only: a second task appends a second line (does not overwrite)
+# append-only: a second record appends a second line (does not overwrite)
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CH" bash "$EMIT" record \
-  --run-id run-A --task ME-02 --results "$TMP/judge.json" >/dev/null
-eq "AC2: records are append-only (2 tasks -> 2 lines)" "2" "$(grep -c . "$CH/records.jsonl")"
+  --run-id run-A --task ME-02 --tier strong --results "$TMP/judge.json" >/dev/null
+eq "AC2: records are append-only (2 records -> 2 lines)" "2" "$(grep -c . "$CH/records.jsonl")"
 
-# ── AC2: PARTIAL-RUN-IS-NOT-A-BASELINE ───────────────────────────────────────────
-# Two of three corpus tasks recorded under run-A -> incomplete (non-zero).
-out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CH" bash "$EMIT" complete --run-id run-A)"; rc=$?
-ne "AC2: partial run exits non-zero (not a baseline)" "0" "$rc"
-eq "AC2: partial run renders as incomplete" "ok" "$(printf '%s' "$out" | grep -q '^incomplete' && echo ok)"
-eq "AC2: incomplete names the missing task" "ok" "$(printf '%s' "$out" | grep -q 'ME-03' && echo ok)"
-# complete the run -> exit 0, "complete"
-MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CH" bash "$EMIT" record \
-  --run-id run-A --task ME-03 --results "$TMP/judge.json" >/dev/null
-out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CH" bash "$EMIT" complete --run-id run-A)"; rc=$?
-eq "AC2: a full run exits 0" "0" "$rc"
-eq "AC2: a full run renders as complete" "complete" "$out"
+# ── US2.AC1: --tier is required and must be a real maker tier ─────────────────────────
+# A typo'd or absent tier is a loud caller error, never a silently tier-less record that
+# would leave `complete` forever-incomplete or let a bad tier evade the (task × tier) grid.
+VCH="$TMP/tier-validation"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$VCH" bash "$EMIT" record \
+  --run-id run-V --task ME-01 --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
+eq "US2.AC1: a record with no --tier is a loud caller error (exit 2)" "2" "$rc"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$VCH" bash "$EMIT" record \
+  --run-id run-V --task ME-01 --tier bogus --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
+eq "US2.AC1: a non-maker-tier --tier is a loud caller error (exit 2)" "2" "$rc"
+eq "US2.AC1: a rejected tier lands no record" "0" "$(grep -c . "$VCH/records.jsonl" 2>/dev/null || echo 0)"
+
+# ── AC2 / US2.AC1: PARTIAL-RUN-IS-NOT-A-BASELINE — completeness spans (task × tier) ──
+# A run is comparable only when every corpus task is scored at EVERY maker tier, so a run
+# that scored ALL tasks at ONE tier (the old default) is NOT a baseline — the Finding-1 fix:
+# it cannot clear MAKER-EVAL-STALE while a changed cheap/frontier row went un-scored.
+TCH="$TMP/tier-channel"
+# (i) all three corpus tasks at strong only -> still incomplete (frontier/cheap missing).
+for t in ME-01 ME-02 ME-03; do
+  MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TCH" bash "$EMIT" record \
+    --run-id run-T --task "$t" --tier strong --results "$TMP/judge.json" >/dev/null
+done
+out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TCH" bash "$EMIT" complete --run-id run-T)"; rc=$?
+ne "US2.AC1: a single-tier run (all tasks, one tier) is NOT complete" "0" "$rc"
+eq "US2.AC1: single-tier run renders incomplete" "ok" "$(printf '%s' "$out" | grep -q '^incomplete' && echo ok)"
+eq "US2.AC1: incomplete names a missing (task@tier) pair" "ok" \
+  "$(printf '%s' "$out" | grep -qE 'ME-0[0-9]@(frontier|cheap)' && echo ok)"
+# (ii) fill in the remaining tiers (frontier + cheap) for every task -> complete.
+for t in ME-01 ME-02 ME-03; do
+  for k in frontier cheap; do
+    MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TCH" bash "$EMIT" record \
+      --run-id run-T --task "$t" --tier "$k" --results "$TMP/judge.json" >/dev/null
+  done
+done
+out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TCH" bash "$EMIT" complete --run-id run-T)"; rc=$?
+eq "US2.AC1: an all-tier run exits 0" "0" "$rc"
+eq "US2.AC1: an all-tier run renders as complete" "complete" "$out"
 # an empty/absent stream is incomplete, never a silent baseline
 out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/empty-ch" bash "$EMIT" complete --run-id run-Z)"; rc=$?
 ne "AC2: an absent stream is incomplete (no silent baseline)" "0" "$rc"
@@ -209,7 +235,7 @@ ne "AC2: an absent stream is incomplete (no silent baseline)" "0" "$rc"
 # print nothing to stderr, and write no record (the gate-telemetry silent-write law).
 printf 'i am a file, not a dir\n' > "$TMP/afile"
 err="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/afile/sub" bash "$EMIT" record \
-  --run-id run-B --task ME-01 --results "$TMP/judge.json" 2>&1 1>/dev/null)"; rc=$?
+  --run-id run-B --task ME-01 --tier strong --results "$TMP/judge.json" 2>&1 1>/dev/null)"; rc=$?
 eq "AC2: write failure exits 0 (silent-to-the-eval)" "0" "$rc"
 eq "AC2: write failure emits nothing to stderr" "" "$err"
 if [ -e "$TMP/afile/sub" ]; then bad "AC2: write failure wrote nothing" "created $TMP/afile/sub"; else ok; fi
@@ -240,7 +266,7 @@ BRT="$TMP/btree"; build_tree "$BRT"
 BHOME="$TMP/bhome"
 ( unset MAKER_EVAL_DIR
   HOME="$BHOME" MAKER_EVAL_ROOT="$BRT" MAKER_EVAL_PROJECT_FILE="$BPROF" \
-    bash "$EMIT" record --run-id run-B2 --task ME-01 --results "$TMP/judge.json" >/dev/null )
+    bash "$EMIT" record --run-id run-B2 --task ME-01 --tier strong --results "$TMP/judge.json" >/dev/null )
 if find "$BRT" -name records.jsonl 2>/dev/null | grep -q .; then
   bad "B: doc-pointer/prose is not the channel (no repo-internal record)" "records.jsonl under $BRT"
 else ok; fi
@@ -251,7 +277,7 @@ BPROF2="$TMP/profile-real.md"
 printf '## Paths\n- **Maker-eval records:** `%s/realchan`\n' "$TMP" > "$BPROF2"
 ( unset MAKER_EVAL_DIR
   HOME="$BHOME" MAKER_EVAL_ROOT="$BRT" MAKER_EVAL_PROJECT_FILE="$BPROF2" \
-    bash "$EMIT" record --run-id run-B3 --task ME-01 --results "$TMP/judge.json" >/dev/null )
+    bash "$EMIT" record --run-id run-B3 --task ME-01 --tier strong --results "$TMP/judge.json" >/dev/null )
 if [ -f "$TMP/realchan/records.jsonl" ]; then ok
 else bad "B: a concrete out-of-repo profile path is used as the channel" "missing $TMP/realchan/records.jsonl"; fi
 
@@ -259,13 +285,13 @@ else bad "B: a concrete out-of-repo profile path is used as the channel" "missin
 # the whole write silently — a record never lands without its requested packet files. ──
 DCH="$TMP/dchannel"; mkdir -p "$TMP/adir"
 out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$DCH" bash "$EMIT" record \
-  --run-id run-D --task ME-01 --results "$TMP/judge.json" --prompt "$TMP/adir" 2>/dev/null)"; rc=$?
+  --run-id run-D --task ME-01 --tier strong --results "$TMP/judge.json" --prompt "$TMP/adir" 2>/dev/null)"; rc=$?
 eq "D: a failing packet copy exits 0 (silent-to-the-eval)" "0" "$rc"
 eq "D: a failing packet copy prints no record" "" "$out"
 eq "D: a failing packet copy lands no record line" "0" "$(grep -c . "$DCH/records.jsonl" 2>/dev/null || echo 0)"
 # a requested-but-missing packet file likewise aborts (cp fails on a missing source)
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/dchannel2" bash "$EMIT" record \
-  --run-id run-D2 --task ME-01 --results "$TMP/judge.json" --prompt "$TMP/no-such-file" >/dev/null 2>&1; rc=$?
+  --run-id run-D2 --task ME-01 --tier strong --results "$TMP/judge.json" --prompt "$TMP/no-such-file" >/dev/null 2>&1; rc=$?
 eq "D: a requested-but-missing packet exits 0" "0" "$rc"
 eq "D: a requested-but-missing packet lands no record" "0" "$(grep -c . "$TMP/dchannel2/records.jsonl" 2>/dev/null || echo 0)"
 
@@ -273,13 +299,13 @@ eq "D: a requested-but-missing packet lands no record" "0" "$(grep -c . "$TMP/dc
 # never a counted record, so a garbled run can never render `complete`. ────────────────
 ECH="$TMP/echannel"; printf '%s\n' '{}' > "$TMP/empty.json"
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
-  --run-id run-E --task ME-01 --results "$TMP/empty.json" >/dev/null 2>&1; rc=$?
+  --run-id run-E --task ME-01 --tier strong --results "$TMP/empty.json" >/dev/null 2>&1; rc=$?
 eq "E: malformed judge output is rejected (exit 2)" "2" "$rc"
 eq "E: malformed judge output lands no record" "0" "$(grep -c . "$ECH/records.jsonl" 2>/dev/null || echo 0)"
 # end-to-end: a full set of malformed outputs never renders the run complete
 for t in ME-01 ME-02 ME-03; do
   MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
-    --run-id run-Emt --task "$t" --results "$TMP/empty.json" >/dev/null 2>&1
+    --run-id run-Emt --task "$t" --tier strong --results "$TMP/empty.json" >/dev/null 2>&1
 done
 out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" complete --run-id run-Emt)"; rc=$?
 ne "E: a run of malformed outputs never renders complete" "0" "$rc"
@@ -287,7 +313,7 @@ eq "E: that run renders incomplete" "ok" "$(printf '%s' "$out" | grep -q '^incom
 # a well-formed judge output is still accepted (no over-rejection)
 eq "E: a well-formed judge output is still recorded" "ME-01" \
   "$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/echannel-ok" bash "$EMIT" record \
-      --run-id run-Eok --task ME-01 --results "$TMP/judge.json" | jq -r .task_id)"
+      --run-id run-Eok --task ME-01 --tier strong --results "$TMP/judge.json" | jq -r .task_id)"
 
 # ── C (packet-path fence, #158 / AC2 "packet artifacts never escape"): a run_id or
 # task_id carrying `/` or `..` is a loud caller error — nothing is written and no packet
@@ -296,12 +322,12 @@ eq "E: a well-formed judge output is still recorded" "ME-01" \
 CCH="$TMP/cchannel"; mkdir -p "$CCH"
 for hostile in '../../escape' 'a/b' '..'; do
   MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CCH" bash "$EMIT" record \
-    --run-id "$hostile" --task ME-01 --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
+    --run-id "$hostile" --task ME-01 --tier strong --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
   eq "C: hostile run-id [$hostile] is a loud caller error (exit 2)" "2" "$rc"
 done
 # the same guard applies to the task id
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CCH" bash "$EMIT" record \
-  --run-id run-C --task '../../escape' --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
+  --run-id run-C --task '../../escape' --tier strong --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
 eq "C: hostile task-id is a loud caller error (exit 2)" "2" "$rc"
 # the `..`-traversal target ($CCH/packets/../../escape -> $TMP/escape) was never created,
 # and no record landed for any rejected id
@@ -310,7 +336,7 @@ eq "C: a rejected hostile id lands no record" "0" "$(grep -c . "$CCH/records.jso
 # a realistic, safe id still records (no over-rejection)
 eq "C: a safe id still records" "ME-01" \
   "$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/cchannel-ok" bash "$EMIT" record \
-      --run-id 2026-06-25T13-18-42Z --task ME-01 --results "$TMP/judge.json" | jq -r .task_id)"
+      --run-id 2026-06-25T13-18-42Z --task ME-01 --tier strong --results "$TMP/judge.json" | jq -r .task_id)"
 
 echo "maker-eval emit tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
