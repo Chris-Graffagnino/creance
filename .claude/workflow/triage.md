@@ -222,9 +222,12 @@ procedure is safe to run unattended because it cannot change the repo.
     flagged regression **links its transcript review packet** (the record's fenced `packet`
     path, US1.AC2) so the dropped score is reviewable in one hop, not a bare number.
   - **Baseline discipline.** Difference only **complete** runs; an **incomplete** latest run
-    renders as incomplete and is **never** a silent baseline. With fewer than two complete runs
-    there is nothing to difference — render the explicit "no data yet" / "only one complete run"
-    state.
+    renders as incomplete and is **never** a silent baseline. Regressions and Comparability are
+    the **two-run** signals: they need a comparable pair, so with fewer than two complete runs
+    there is nothing to difference — render their explicit "only one complete run — not enough to
+    difference" state. MAKER-EVAL-STALE and JUDGE-MISCALIBRATED are **single-run** signals that
+    derive from the last complete run alone, so they still render from one complete run; only a
+    wholly absent/empty channel — no complete run at all — collapses every line to "no data yet".
   - **MAKER-EVAL-STALE (a warning).** When the **current** maker-behavior fingerprint
     (recomputed §1.8) differs from the **last run's** recorded maker-behavior component, an eval
     is overdue — a maker swap or an instruction-surface edit happened with no fresh eval. A
@@ -320,11 +323,11 @@ shape:
 - CORPUS-STALE: <one of: "current — reviewer specs match the last auditor-liveness corpus run (<YYYY-MM-DD>, age <n>d)"  |  "STALE — reviewer specs changed since the last corpus run (<YYYY-MM-DD>, age <n>d); re-run the auditor-liveness corpus"  |  "no corpus run recorded yet — no baseline to compare against">
 
 ## Maker eval (last complete run: <run-id | none> · <YYYY-MM-DD>)
-- Regressions (past the noise threshold): <task-id (dimension meets→fails, …) — packet: <fenced packet path>> …   (or "none past the noise threshold")
+- Regressions (past the noise threshold): <task-id (dimension meets→fails, …) — packet: <fenced packet path>> …   (or "none past the noise threshold"; or "only one complete run — not enough to difference" when there is no prior complete run to difference against)
 - MAKER-EVAL-STALE: <one of: "current — maker-behavior fingerprint matches the last run (<YYYY-MM-DD>, age <n>d)"  |  "STALE — current maker-behavior fingerprint differs from the last run (<YYYY-MM-DD>, age <n>d); an eval is overdue"  |  "no maker-eval run recorded yet — no baseline to compare against">
-- Comparability: <one of: "comparable"  |  "JUDGE-CHANGED / not-comparable — judge identity moved between the two runs; regression call suppressed"  |  "INSTRUMENT-CHANGED / not-comparable — eval instrument moved between the two runs; regression call suppressed">
+- Comparability: <one of: "comparable"  |  "JUDGE-CHANGED / not-comparable — judge identity moved between the two runs; regression call suppressed"  |  "INSTRUMENT-CHANGED / not-comparable — eval instrument moved between the two runs; regression call suppressed"  |  "only one complete run — not enough to difference">
 - JUDGE-MISCALIBRATED: <one of: "within floor — judge↔owner agreement <x> ≥ floor <y>"  |  "warning: JUDGE-MISCALIBRATED — agreement <x> below floor <y>"  |  "no agreement recorded yet — calibration is US1.AC5's task">
-- <"no data yet — maker-eval channel absent/empty at <path>, or fewer than two complete runs" replaces the four lines above when §2 found no comparable pair>
+- <"no data yet — maker-eval channel absent/empty at <path>" replaces all four lines above only when there is no complete run at all; with exactly one complete run, MAKER-EVAL-STALE and JUDGE-MISCALIBRATED still render against that run, while Regressions and Comparability show "only one complete run — not enough to difference">
 - <"skipped malformed lines: <n>" — present only when nonzero>
 
 ## Heartbeat health

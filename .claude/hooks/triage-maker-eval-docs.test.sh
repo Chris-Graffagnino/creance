@@ -94,6 +94,24 @@ check "AC2: an incomplete latest run is never a silent baseline" "$NEU_FLAT" \
 check "AC2: fewer than two complete runs ⇒ explicit no-data state" "$NEU_FLAT" \
   "fewer than two complete runs"
 
+# ── US2.AC2 (bootstrap edge): ONE complete run still renders the SINGLE-run flags ───────────
+# Regression guard (PR #160 review): the no-data fallback must NOT blank MAKER-EVAL-STALE /
+# JUDGE-MISCALIBRATED. Both difference the current state against the LAST complete run alone
+# (spec.md US2.AC2 — "the last run's" fingerprint / agreement), so they fire from a single run;
+# only Regressions + Comparability need a prior run. Collapsing all four to "no data yet" in the
+# common one-run bootstrap would hide the very stale/miscalibrated signal US2.AC2 asks triage to
+# surface. These checks pin the split so a future edit cannot silently re-suppress it.
+check "AC2: §2 names the single-run flags as deriving from the last complete run alone" "$NEU_FLAT" \
+  "derive from the last complete run alone"
+check "AC2: §2 — one complete run still renders the single-run flags" "$NEU_FLAT" \
+  "still render from one complete run"
+check "AC2: §2 — the pair-dependent lines show 'not enough to difference', not a blanket no-data" "$NEU_FLAT" \
+  "not enough to difference"
+check "AC2: §4 — one complete run still renders MAKER-EVAL-STALE / JUDGE-MISCALIBRATED" "$NEU_FLAT" \
+  "still render against that run"
+check "AC2: §4 — the channel-absent collapse fires only with no complete run at all" "$NEU_FLAT" \
+  "only when there is no complete run at all"
+
 # ── US2.AC2: MAKER-EVAL-STALE on a maker-behavior fingerprint change (a warning) ───────────
 check "AC2: MAKER-EVAL-STALE flag is named" "$NEU_FLAT" "MAKER-EVAL-STALE"
 check "AC2: MAKER-EVAL-STALE fires on current-vs-last maker-behavior fingerprint drift" "$NEU_FLAT" \
