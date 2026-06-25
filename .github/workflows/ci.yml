@@ -342,6 +342,16 @@ jobs:
       - name: Maker-eval encoding tests
         run: bash .claude/hooks/maker-eval-docs.test.sh
 
+      # T802 maker-eval record emitter (#157, spec 003 US1.AC2/AC3): where the docs test
+      # above pins the corpus/doc SHAPE, this drives the concrete adapter emitter
+      # (maker-eval-emit.sh) and proves its behavior — the maker analog of guard.test.sh
+      # proving the telemetry emitter fires (P2 "machinery proven live"). It asserts the
+      # triple fingerprint's three components move INDEPENDENTLY, that record appends one
+      # JSONL line per corpus task with a packet fenced inside the channel, and the two
+      # mandated cases: write-failure-stays-silent + partial-run-is-not-a-baseline.
+      - name: Maker-eval emitter tests
+        run: bash .claude/hooks/maker-eval-emit.test.sh
+
       # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
       # methodology doc and the per-/next-task hub — new rules gravitate to it, so
       # it is the harness's accretion sink and sets the per-workflow context floor
