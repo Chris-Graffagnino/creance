@@ -79,11 +79,13 @@ quality becomes a trend I can inspect rather than an anecdote.
   it.
 - AC2: Each run emits exactly one append-only record per corpus task (a shared **run
   id**, the corpus task ID, the maker-behavior fingerprint used (AC3), the per-rubric
-  verdict/score, and a timestamp), in the gate-telemetry JSONL form, and **preserves or
-  links a transcript review packet** per task — the task prompt, the generated
-  artifact/diff, the judge's report, and a compact **first-upstream-failure
-  classification** (the earliest step that broke, not only the surface symptom) — so a
-  regression is human-reviewable rather than a bare dropped number. A run is **complete**
+  verdict/score, and a timestamp), in the gate-telemetry JSONL form, and **stores a
+  transcript review packet** per task **within the eval channel's own fenced path**
+  (US1.AC1 / US2.AC3) — the task prompt, the generated artifact/diff, the judge's report,
+  and a compact **first-upstream-failure classification** (the earliest step that broke,
+  not only the surface symptom); any in-record link to a packet resolves only inside that
+  same fenced path, so the packet artifacts never escape the observe-only backstop and a
+  regression stays human-reviewable rather than a bare dropped number. A run is **complete**
   only when every corpus task has a record under that run id; a failed or partial write
   changes nothing (it has nothing to block — AC4), and an incomplete run is never treated
   as a comparable baseline (US2.AC2).
@@ -94,14 +96,20 @@ quality becomes a trend I can inspect rather than an anecdote.
   relevant workflow docs, the adapter binding prompts, and the always-resident
   instructions), not the model table alone; (2) the **pinned-judge identity** — the
   judge's own model resolution, fixed independently of the maker swap (AC1); and (3) the
-  **eval-instrument fingerprint** — the corpus tasks and their prompts, the rubrics, the
-  judge prompt/spec, and the scoring schema. Recording them separately makes a maker
+  **eval-instrument fingerprint** — **every frozen-instrument artifact whose change
+  alters interpretation or comparability** (AC4): the corpus tasks and their prompts, the
+  per-dimension lifecycle metadata (AC1), the rubrics, the judge prompt/spec, the scoring
+  schema, and the owner-labeled calibration set with its labels and agreement floor
+  (AC5) — a reviewed-PR change to any of these moves this component. Recording them
+  separately makes a maker
   change, a judge change, and an instrument change each detectable as its own fingerprint
   movement — not inferred from timing and not conflated with one another — so triage can
   tell an expected maker delta from a confounded comparison (US2.AC2).
 - AC4: The eval is **observe-only (constitution P5)**: no record, score, or flag
   feeds a gate outcome, a tier assignment, or gate semantics. The frozen instrument —
-  the corpus, its rubrics, the judge prompt/spec, and the owner-labeled calibration set
+  every artifact in its eval-instrument fingerprint (AC3): the corpus and its prompts,
+  the per-dimension lifecycle metadata, the rubrics, the judge prompt/spec, the scoring
+  schema, and the owner-labeled calibration set with its labels and agreement floor
   (AC5) — comprises reviewer-spec-class artifacts, changed only by a human-reviewed PR,
   never by an automatic rewrite or a side effect of a run (constitution P4).
 - AC5: The pinned judge is **calibrated against human judgment, not assumed valid**: a
@@ -142,12 +150,13 @@ can never gain control authority.
   yet" empty state — all rendered consistently with the other snapshot sections, never
   silently omitted (spec 001 US2/US5 pattern). Triage neither runs the eval nor writes
   records.
-- AC3: A **deterministic CI assertion** fences the channel: the eval-record path is
-  referenced only by the eval writer and the triage reader, and by no gate, tier,
-  guard, or selection code path — so P5 is enforced deterministically, not left to
-  judgment (a deliberate strengthening over spec 001's telemetry, whose P5
-  enforcement is judgment-only). It ships with a `.test.sh` proving the fence fires
-  on a planted cross-reference and passes on the real tree (constitution P2).
+- AC3: A **deterministic CI assertion** fences the channel: the eval-record path **and
+  the transcript-packet storage under it (US1.AC2)** are referenced only by the eval
+  writer and the triage reader, and by no gate, tier, guard, or selection code path — so
+  P5 is enforced deterministically, not left to judgment (a deliberate strengthening over
+  spec 001's telemetry, whose P5 enforcement is judgment-only). It ships with a `.test.sh`
+  proving the fence fires on a planted cross-reference **to either path** and passes on
+  the real tree (constitution P2).
 - AC4: A conformance probe (a synthetic single-task corpus; verify a record is
   appended with the maker-behavior fingerprint and that no gate/tier state is touched)
   is added to the neutral checklist, instantiated for the active adapter, and passes
