@@ -24,7 +24,7 @@
       (P4); add the
       records-storage row (its own path beside telemetry) to `PROJECT.template.md` →
       "Paths" **and** the active `.claude/PROJECT.md` → "Paths" ([roles] only) (US1)
-- [ ] T802 [strong] Eval-run record emission (append-only JSONL, one per corpus
+- [x] T802 [strong] Eval-run record emission (append-only JSONL, one per corpus
       task, sharing a run id; a run is complete only when every corpus task is
       present) **+ a transcript review packet per task** (prompt, artifact/diff, judge
       report, compact first-upstream-failure class) **stored within the eval channel's
