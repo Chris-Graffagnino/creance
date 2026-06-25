@@ -366,6 +366,24 @@ jobs:
       - name: Triage maker-eval surfacing encoding tests
         run: bash .claude/hooks/triage-maker-eval-docs.test.sh
 
+      # T804 maker-eval P5 fence (#161, spec 003 US2.AC3): the DETERMINISTIC half of
+      # constitution P5 for the maker-eval channel — where spec-001 telemetry leaves P5
+      # to reviewer judgment, this proves it mechanically. maker-eval-fence.sh scans the
+      # tracked tree for the eval channel's path/IO tokens (records.jsonl, packets/, the
+      # MAKER_EVAL_* seam, the -maker-eval dir, the maker-eval-emit writer) and FAILs if
+      # any appear outside the writer (maker-eval-emit.sh) / reader (triage/SKILL.md)
+      # allowlist — so no gate/tier/guard/selection path can read or write the
+      # observe-only channel. The .test.sh proves it FIRES on a planted cross-reference
+      # to EITHER path across all four danger classes AND passes on the real tree (the P2
+      # "machinery proves it is live" discipline, same as guard.test.sh). Adapter-side
+      # (hooks/ is the Claude Code binding), so a CI change, not a workflow/** change — no
+      # constitution P1 concern.
+      - name: Maker-eval P5 fence
+        run: bash .claude/hooks/maker-eval-fence.sh
+
+      - name: Maker-eval P5 fence tests
+        run: bash .claude/hooks/maker-eval-fence.test.sh
+
       # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
       # methodology doc and the per-/next-task hub — new rules gravitate to it, so
       # it is the harness's accretion sink and sets the per-workflow context floor

@@ -54,7 +54,7 @@
       /not-comparable when the judge-identity or eval-instrument fingerprint moved +
       **JUDGE-MISCALIBRATED** when recorded judge↔owner agreement (T806) is below floor
       + explicit "no data yet"/incomplete empty states, read-only over the records (US2)
-- [ ] T804 [strong] Deterministic P5 fence: a CI assertion that the eval-record
+- [x] T804 [strong] Deterministic P5 fence: a CI assertion that the eval-record
       path **and the transcript-packet storage under it** are referenced only by the
       eval writer and the triage reader — and by no gate/tier/guard/selection path — +
       a `.test.sh` proving it fires on a planted cross-reference to either path and

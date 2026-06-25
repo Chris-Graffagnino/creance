@@ -171,7 +171,7 @@ same fence the profile's telemetry/evaluation invariant already draws: a measure
 that gains control authority has violated P5, whatever the convenience. A **deterministic CI
 assertion** enforces this boundary (the eval-record path and its transcript packets are
 referenced only by the eval writer and the read-only surfacing — never a gate/tier/guard/
-selection path); that fence is the next phase's (US2.AC3).
+selection path), enforced deterministically so P5 here is mechanical rather than judgment-only (US2.AC3).
 
 ## Seeding & growth (the instrument changes only by PR — never silently)
 
