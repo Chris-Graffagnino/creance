@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 93 rows.
+Manifest source inventory: 95 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -111,6 +111,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/lib-neutrality-scan.test.sh` | KEEP | Contract tests for the shared runtime-neutral workflow-doc mechanism scanner. Verbatim. |
 | `hooks/lib-tasks-drift.sh` | KEEP | Shared task-drift detection library for runtime selection and CI consistency. Verbatim. |
 | `hooks/maker-eval-docs.test.sh` | KEEP | Encoding test for the maker-eval corpus, the doc's fingerprint/observe-only/PR-only contract, and CI wiring. Verbatim. |
+| `hooks/maker-eval-emit.sh` | KEEP | Adapter-side maker-eval record + transcript-packet emitter and triple-fingerprint capture (observe-only). Verbatim. |
+| `hooks/maker-eval-emit.test.sh` | KEEP | Behavioral tests for the maker-eval emitter — fingerprint independence, record/packet fencing, silent-write, partial-run completeness. Verbatim. |
 | `hooks/neutrality-scan-coverage.test.sh` | KEEP | Global backstop that scans every tracked neutral workflow markdown doc through the shared scanner. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
