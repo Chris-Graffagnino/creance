@@ -75,9 +75,17 @@ check "AC2: regressions are noise-tolerant, not 'any delta'" "$NEU_FLAT" \
   "not \"any delta\""
 check "AC2: differences the frozen ordinal verdict scale, never an absolute score" "$NEU_FLAT" \
   "ordinal scale \`meets\` > \`partial\` > \`fails\`"
-check "AC2: the threshold is explicit (the regression-pin + step rule)" "$NEU_FLAT" \
-  "dimension worsens by"
-check "AC2: the threshold leans on lifecycle — a regression-pin backslide is signal" "$NEU_FLAT" \
+# The threshold has two explicit branches; pin BOTH against the actual rule, not nearby prose
+# (PR #160 craft review, P3/C13 — assert the invariant, not adjacent text). Branch (a) is
+# lifecycle-gated: a `regression`-lifecycle dimension worsening by even one step is signal. The
+# needle ties "-lifecycle" to "worsens by", so dropping the lifecycle gate — or the whole branch
+# — fails here, instead of passing on branch (b)'s untouched phrase as the old single check did.
+check "AC2: branch (a) — a regression-lifecycle dimension worsening one step is signal" "$NEU_FLAT" \
+  "-lifecycle dimension worsens by"
+check "AC2: branch (a) — those pins are known past failures, so a backslide is signal" "$NEU_FLAT" \
+  "these pin known past failures"
+# Branch (b): the noise-tolerant aggregate — total worsening across all dimensions ≥ 2 steps.
+check "AC2: branch (b) — total worsening across all dimensions clears the threshold" "$NEU_FLAT" \
   "total worsening across all dimensions is"
 check "AC2: a lone single-dimension flicker is within noise, not flagged" "$NEU_FLAT" \
   "within noise"
@@ -101,6 +109,8 @@ check "AC2: fewer than two complete runs ⇒ explicit no-data state" "$NEU_FLAT"
 # only Regressions + Comparability need a prior run. Collapsing all four to "no data yet" in the
 # common one-run bootstrap would hide the very stale/miscalibrated signal US2.AC2 asks triage to
 # surface. These checks pin the split so a future edit cannot silently re-suppress it.
+check "AC2: §2 opener scopes the two-run differential, not every signal" "$NEU_FLAT" \
+  "regression differential compares the"
 check "AC2: §2 names the single-run flags as deriving from the last complete run alone" "$NEU_FLAT" \
   "derive from the last complete run alone"
 check "AC2: §2 — one complete run still renders the single-run flags" "$NEU_FLAT" \

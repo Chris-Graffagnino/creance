@@ -207,8 +207,10 @@ procedure is safe to run unattended because it cannot change the repo.
   telemetry observes, never decides), none feeds any gate, tier, guard, or auditor decision.
 - **Maker eval (from the maker-eval records).** The maker analog of "Gate trends" — a
   read-only differential over the observe-only maker-eval records (§1.8), surfacing a degrading
-  maker before it reaches production. **Triage neither runs the eval nor writes records.** From
-  the **last complete run** and the **prior complete run** (§1.8):
+  maker before it reaches production. **Triage neither runs the eval nor writes records.** The
+  regression differential compares the **last complete run** and the **prior complete run**; the
+  MAKER-EVAL-STALE and JUDGE-MISCALIBRATED warnings each derive from the last complete run alone
+  (§1.8):
   - **Regressions (noise-tolerant — not "any delta").** Per corpus task, compare the two runs'
     per-dimension verdicts on the frozen ordinal scale `meets` > `partial` > `fails` (and the
     overall `pass`/`fail` — `maker-eval.md` → the scoring schema), and flag a task as a
