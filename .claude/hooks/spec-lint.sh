@@ -12,9 +12,9 @@
 #   * empty-ac     — an `- AC#:` bullet whose criterion text (after the label,
 #                    across wrapped continuation lines) is whitespace-only.
 #   * zero-acs     — a `### US#` story with no AC bullet at all.
-#   * duplicate-ac — two AC bullets in the SAME story whose normalized text is
-#                    identical (a verbatim within-story duplicate; cross-story
-#                    repeats do not fire — the smell is "within a story").
+#   * duplicate-ac — two AC bullets in the SAME story whose whitespace-normalized
+#                    text is identical (AC3 "verbatim", read as normalized — see
+#                    norm(); cross-story repeats do not fire — within a story).
 #
 # Prints ONE diagnostic per line to stdout (the shell-lint.sh format):
 #     <file>:<line>: <rule>: <detail>
@@ -39,6 +39,14 @@ for f in "$@"; do
   [ -f "$f" ] || continue
 
   awk -v F="$f" '
+    # Normalize an AC for duplicate comparison: collapse internal whitespace
+    # runs (so reflowed / rewrapped copy-paste still matches) and trim the ends.
+    # This is the owner-ratified reading of AC3 "verbatim" (PR #153): a duplicate
+    # is whitespace-NORMALIZED, not byte-exact. Byte-exact cannot compare wrapped
+    # multi-line ACs at all and would miss reflowed duplicates; normalized is
+    # strictly broader, so it never false-positives on genuinely distinct text
+    # (confirmed: rc 0 on every live spec). Do not narrow this to byte-exact
+    # without re-confirming the decision — dup_norm.md in the .test.sh pins it.
     function norm(s,   r) {
       r = s
       gsub(/[ \t]+/, " ", r)

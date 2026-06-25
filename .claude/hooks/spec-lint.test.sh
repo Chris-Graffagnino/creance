@@ -143,6 +143,23 @@ SPEC
 assert_rc   1            "$F" "wrapped duplicate -> rc 1"
 assert_rule duplicate-ac "$F" "wrapped duplicate -> named (continuation joined)"
 
+# --- duplicate-ac is WHITESPACE-NORMALIZED, not byte-exact: two ACs with the
+#     same words but different internal spacing AND a different wrap point still
+#     match (AC3 "verbatim", read as normalized — owner-confirmed, PR #153).
+#     This pins norm() against a silent drift back to byte-exact comparison. ---
+F="$TMP/dup_norm.md"; cat > "$F" <<'SPEC'
+# Spec
+## User stories
+### US1 — same criterion, different spacing and wrap
+
+**Acceptance Criteria**
+- AC1: The system records exactly one entry per submission.
+- AC2: The system records   exactly one entry
+       per submission.
+SPEC
+assert_rc   1            "$F" "whitespace-normalized duplicate -> rc 1"
+assert_rule duplicate-ac "$F" "differing spacing/reflow, same words -> duplicate"
+
 # --- duplicate-ac is WITHIN-story: a cross-story repeat must NOT fire ---
 F="$TMP/cross.md"; cat > "$F" <<'SPEC'
 # Spec
