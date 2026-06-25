@@ -9,8 +9,8 @@ and how to write a new one are documented in `.claude/README.md`.
 ```
 .claude/
   workflow/                 ← THIS layer: runtime-neutral methodology (portable)
-    next-task.md  triage.md  constitution-check.md  auditor-liveness.md
-    reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md  reviewers/evasion-register.md  reviewers/auditor-liveness-corpus.md
+    next-task.md  triage.md  constitution-check.md  auditor-liveness.md  maker-eval.md
+    reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md  reviewers/evasion-register.md  reviewers/auditor-liveness-corpus.md  reviewers/maker-eval-corpus.md
   PROJECT.md                ← project facts (also runtime-neutral)
   <adapter files>           ← the active runtime's binding (see .claude/README.md)
 ```
@@ -210,6 +210,12 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   fixture pair per auditor, re-run on every reviewer-spec change + ≥ weekly, **report-only**
   and **observe-only** (the model-driven analog of the [guard]'s `guard.test.sh`; never a
   gate — P5). Fixtures in `reviewers/auditor-liveness-corpus.md`.
+- `maker-eval.md` — the maker analog of auditor-liveness: a frozen golden-task corpus that
+  re-scores the **maker** (the generation path) on every **maker-behavior** fingerprint change
+  + ≥ weekly, scoring each task with a read-only **[reviewer]**-style judge whose identity is
+  pinned independently of the maker model-table change, emitting **observe-only** records with
+  a transcript review packet per task (never a gate — P5; grows by PR only — P4). Corpus,
+  judge spec, and scoring schema in `reviewers/maker-eval-corpus.md`.
 - `pr-review.md` — end-to-end review of an **open** PR: ingests the diff **and every inline
   comment** (bot/automated included), grounds each finding to current `file:line`, and posts
   one severity-ranked review. Applies "The review standard" above and reuses the `reviewers/`
@@ -226,5 +232,10 @@ If a runtime lacks a role, the methodology still runs, more weakly:
 - `reviewers/auditor-liveness-corpus.md` — the auditor-liveness fixture manifest: ≥1
   expected-FAIL and ≥1 expected-PASS planted-violation fixture per auditor (seeded from the
   evasion register), the known-bad/known-good corpus `auditor-liveness.md` runs.
+- `reviewers/maker-eval-corpus.md` — the maker-eval frozen instrument: the golden-task corpus
+  (each scored rubric dimension carrying `capability`/`regression`/`saturated` lifecycle
+  metadata, seeded from real signal classes + adopter workflows), the pinned-judge spec, the
+  scoring schema, the first-upstream-failure taxonomy, and the judge-calibration pointer — all
+  reviewer-spec-class artifacts the corpus `maker-eval.md` runs (changed by PR only — P4).
 
 All of them read project facts from `.claude/PROJECT.md` and the constitution it names.

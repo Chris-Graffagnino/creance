@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 90 rows.
+Manifest source inventory: 93 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -110,6 +110,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/lib-neutrality-scan.sh` | KEEP | Shared runtime-neutral workflow-doc mechanism scanner used by the distributed docs encoding tests. Verbatim. |
 | `hooks/lib-neutrality-scan.test.sh` | KEEP | Contract tests for the shared runtime-neutral workflow-doc mechanism scanner. Verbatim. |
 | `hooks/lib-tasks-drift.sh` | KEEP | Shared task-drift detection library for runtime selection and CI consistency. Verbatim. |
+| `hooks/maker-eval-docs.test.sh` | KEEP | Encoding test for the maker-eval corpus, the doc's fingerprint/observe-only/PR-only contract, and CI wiring. Verbatim. |
 | `hooks/neutrality-scan-coverage.test.sh` | KEEP | Global backstop that scans every tracked neutral workflow markdown doc through the shared scanner. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
@@ -142,6 +143,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `workflow/constitution-check.md` | KEEP | Pre-PR compliance gate. Verbatim. |
 | `workflow/gate-loop.md` | KEEP | §7 gate as pseudocode. Verbatim. |
 | `workflow/intake.md` | KEEP | Runtime-neutral intake workflow. Verbatim. |
+| `workflow/maker-eval.md` | KEEP | Runtime-neutral maker-eval methodology (the maker analog of auditor-liveness). Verbatim. |
 | `workflow/next-task.md` | KEEP | Per-task loop. Verbatim. |
 | `workflow/pr-review.md` | KEEP | Runtime-neutral PR-review workflow. Verbatim. |
 | `workflow/retrospective.md` | KEEP | Runtime-neutral retrospective workflow. Verbatim. |
@@ -149,6 +151,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `workflow/reviewers/constitution-auditor.md` | KEEP | Values reviewer spec. Verbatim. |
 | `workflow/reviewers/contract-auditor.md` | KEEP | Architecture reviewer spec. Verbatim. |
 | `workflow/reviewers/evasion-register.md` | GENERICIZE | The cumulative cheat-museum. Its **universal pattern exhibits** (the spec-derived ones — test-gaming, green-suite, vendor-leak, measurement-gains-control) are engine-level and ship verbatim. Its **real-escape exhibits** (EV-03/06/08) hardcode *this repo's* commit SHAs (`5bb6186`…) and instance test-file paths (`probe-fingerprint-docs.test.sh:119`, `reviewer-roster.test.sh`) — project facts (the one documented engine-file exception, `PROJECT.md` → "Architecture boundaries"). On extraction, **reset the real-escape exhibits to the "spec-derived seed (no escape logged yet)" form** (or move them into DESIGN-NOTES as the worked example, like `claude-code-probes.md`); keep the universal patterns + the mechanization-status scaffold. A fresh project's retrospective grows its own exemplars per incident. |
+| `workflow/reviewers/maker-eval-corpus.md` | KEEP | Frozen instrument manifest for maker-eval — corpus, per-dimension lifecycle metadata, rubrics, pinned-judge spec, scoring schema, calibration pointer. Portable; verbatim. |
 | `workflow/reviewers/spec-auditor.md` | KEEP | Acceptance reviewer spec. Verbatim. |
 | `workflow/reviewers/spec-quality-auditor.md` | KEEP | Spec-quality reviewer spec — grades spec content one phase upstream of the acceptance reviewer (T701). Verbatim. |
 | `workflow/telemetry.md` | KEEP | Runtime-neutral telemetry record and observe-only semantics. Verbatim. |

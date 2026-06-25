@@ -7,12 +7,12 @@
 
 ## Phase 1 — Corpus & run
 
-- [ ] T801 [strong] Runtime-neutral maker-eval workflow doc: a small frozen corpus
+- [x] T801 [strong] Runtime-neutral maker-eval workflow doc: a small frozen corpus
       **seeded from real Creance signals** (retrospective escapes, discovered-work
       clusters, owner comments, auditor-liveness fixtures) and adopter/product
-      workflows (template cold-start, adapter port), each task carrying **lifecycle
-      metadata** (capability/regression/saturated) so the set stays frozen yet grows
-      and retires by PR; + per-task rubric + a **pinned judge** (identity fixed
+      workflows (template cold-start, adapter port), each scored rubric dimension
+      carrying **lifecycle metadata** (capability/regression/saturated) so the set stays
+      frozen yet grows and retires by PR; + per-task rubric + a **pinned judge** (identity fixed
       independently of the maker model-table change), the eval run ([headless run] of
       the maker scored by that read-only [reviewer]-style judge), the record shape
       (run id + per-task) **incl. a transcript review packet** (prompt, artifact/diff,
