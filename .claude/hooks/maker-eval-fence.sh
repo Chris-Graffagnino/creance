@@ -9,15 +9,17 @@
 # WHAT IT PROVES (constitution P5 — telemetry/evaluation observes, never decides):
 #   The eval-record path (`records.jsonl`) and the transcript-packet storage under it
 #   (`packets/`) — together with the channel access seam (the `MAKER_EVAL_DIR` /
-#   `MAKER_EVAL_ROOT` env override, the `<repo>-maker-eval` channel dir name, and
-#   invoking the `maker-eval-emit` writer) — are referenced ONLY by the eval WRITER
-#   (hooks/maker-eval-emit.sh), its RUN binding (skills/maker-eval/SKILL.md, which only
-#   DRIVES the writer — T805), and the triage READER (skills/triage/SKILL.md), and by
-#   NO gate, tier, guard, or selection code path. A reference anywhere outside the
-#   allowlist below means a control-authority path can read or write the observe-only
-#   channel — exactly the P5 breach this fences against. (The non-executable declaration /
-#   manifest / probe-doc / test surface in Tier 2 names the channel by nature, not to act
-#   on it.)
+#   `MAKER_EVAL_ROOT` env override and the `<repo>-maker-eval` channel dir name) — are
+#   READ/RESOLVED only by the eval WRITER (hooks/maker-eval-emit.sh) and the triage READER
+#   (skills/triage/SKILL.md), and by NO gate, tier, guard, or selection code path. The eval
+#   RUN binding (skills/maker-eval/SKILL.md) may only DRIVE the writer (invoke `maker-eval-emit`)
+#   — it is the maker-eval analog of CI: a real execution surface that is NOT whole-file
+#   trusted but line-scoped below, so a writer invocation in it is benign while a channel
+#   READ/RESOLVE in it still FAILs (PR #164; spec 003 US2.AC3 scopes the record path + packet
+#   store to the writer and the reader). A reference anywhere outside the allowlist/line-scope
+#   below means a control-authority path can read or write the observe-only channel — exactly
+#   the P5 breach this fences against. (The non-executable declaration / manifest / probe-doc /
+#   test surface in Tier 2 names the channel by nature, not to act on it.)
 #
 # WHY TOKENS, NOT THE ABSOLUTE PATH: the channel is an OUT-OF-REPO directory resolved
 # at run time (.claude/PROJECT.md → "Paths" → Maker-eval records), so the fence keys on
@@ -39,34 +41,52 @@ set -u
 
 ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
-# The eval channel's path/IO surface — the eval-record path leaf (`records.jsonl`), the
-# transcript-packet storage dir (`packets`), the env access seam, the channel dir name
-# suffix, and the writer invocation. The packet dir is matched as a PATH SEGMENT — adjacent
-# to a `/` or a quote on either side — so all reference forms fire (`packets/`,
-# `$channel/packets` with no trailing slash, the pathlib `… / "packets"`, `'packets'`) while
-# the bare English plural in prose (".. transcript packets are ..") does not. Matching only
-# `packets/` let the no-trailing-slash forms evade (PR #162 Codex P2). ERE; portable
-# constructs only — char classes and '+'/'*', no awk-style {n} interval (shell-lint.sh, #97).
-CHANNEL_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval|maker-eval-emit'
+# The eval channel's path/IO surface, split into the two reference KINDS the fence
+# distinguishes (so the run binding can be line-scoped below, PR #164):
+#
+#   CHANNEL_READ_TOKENS — reaching INTO the channel: the eval-record path leaf
+#   (`records.jsonl`), the transcript-packet storage dir (`packets`), the env access seam
+#   (`MAKER_EVAL_DIR` / `MAKER_EVAL_ROOT`), and the channel dir-name suffix (`-maker-eval`).
+#   Naming any of these reads channel contents or resolves the channel location directly —
+#   per spec 003 US2.AC3 only the eval writer and the triage reader may. The packet dir is
+#   matched as a PATH SEGMENT — adjacent to a `/` or a quote on either side — so all
+#   reference forms fire (`packets/`, `$channel/packets` with no trailing slash, the pathlib
+#   `… / "packets"`, `'packets'`) while the bare English plural in prose (".. transcript
+#   packets are ..") does not. Matching only `packets/` let the no-trailing-slash forms
+#   evade (PR #162 Codex P2).
+#
+#   WRITER_INVOCATION — DRIVING the writer (`maker-eval-emit`): asking the emitter to append
+#   a record. This is the run binding's sanctioned job; it is NOT a read of the channel, so
+#   the run binding's line-scope (below) treats it as benign while a CHANNEL_READ_TOKENS
+#   reference there still fires.
+#
+# The fence scans for EITHER kind. ERE; portable constructs only — char classes and '+'/'*',
+# no awk-style {n} interval (shell-lint.sh, #97).
+CHANNEL_READ_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval'
+WRITER_INVOCATION='maker-eval-emit'
+CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
 
 # Files permitted to carry the channel tokens. Tier 1 is the AC's "eval writer and
 # triage reader" — the only two control-authority code paths sanctioned to touch the
 # channel. Tier 2 is the non-executable / non-control surface that must name the path by
 # its nature: the profile declaration, the extraction manifest, every test harness (tests
-# exercise the channel but carry no runtime authority), and the fence itself. CI is the
-# deliberate exception — it carries the wiring that RUNS the channel's tests, but it is
-# also a gate (it decides the merge), so it is NOT wholly trusted here: it is scanned
-# line-by-line in the loop below (see CI_BENIGN_LINE), not blanket-allowed. Anything NOT
-# matched here — guard.sh, gate-loop.{js,md}, MODELS.md, the reconcile-*/announce-*
-# selection hooks, next-task.md, and any future code path — is a gate/tier/guard/selection
-# path, and a reference there is the P5 violation.
+# exercise the channel but carry no runtime authority), and the fence itself. Two surfaces are
+# deliberately NOT blanket-allowed but scanned LINE-BY-LINE in the loop below, because each is
+# a real execution surface that may touch the channel only narrowly: (1) CI (it RUNS the
+# channel's tests but is also a gate that decides the merge — see CI_BENIGN_LINE), and (2) the
+# run binding (it may DRIVE the writer but never read the channel — see SKILL_BINDING). Anything
+# NOT matched here or line-scoped below — guard.sh, gate-loop.{js,md}, MODELS.md, the
+# reconcile-*/announce-* selection hooks, next-task.md, and any future code path — is a
+# gate/tier/guard/selection path, and a reference there is the P5 violation.
 allowed() {
   case "$1" in
-    # Tier 1 — the channel's sanctioned CODE paths: the writer, its run binding, and the
-    # reader. None carries gate/tier/guard/selection authority — they ARE the eval
-    # write/read surface (the run binding only DRIVES the writer; T805).
+    # Tier 1 — the channel's two whole-file-trusted CODE paths: the writer and the reader.
+    # Neither carries gate/tier/guard/selection authority — they ARE the eval write/read
+    # surface, so they may name any channel token. The run binding is deliberately NOT here:
+    # it may only DRIVE the writer, never read the channel, so it is line-scoped in the loop
+    # below (like CI), not whole-file trusted — PR #164; spec 003 US2.AC3 scopes the record
+    # path + packet store to the writer and the reader.
     .claude/hooks/maker-eval-emit.sh)       return 0 ;;  # the eval WRITER (appends the record)
-    .claude/skills/maker-eval/SKILL.md)     return 0 ;;  # the eval RUN binding (drives the writer)
     .claude/skills/triage/SKILL.md)         return 0 ;;  # the triage READER (surfaces, never writes)
     # Tier 2 — declaration / manifest / probe-doc / tests / the fence itself (non-executable,
     # or no control authority). CI is intentionally absent: it is line-scoped below, not here.
@@ -91,6 +111,16 @@ allowed() {
 # allowance to a bare invocation (a trailing `&& cat records.jsonl` does not match).
 CI_WORKFLOW='.github/workflows/ci.yml'
 CI_BENIGN_LINE='^[0-9]+:[[:space:]]*#|^[0-9]+:[[:space:]]*run: bash \.claude/hooks/[a-z0-9-]+\.test\.sh[[:space:]]*$'
+
+# Run-binding line-scope. The maker-eval RUN binding (skills/maker-eval/SKILL.md) is NOT in
+# allowed() above: like ci.yml it is a real execution surface, so it is scanned and each
+# token-bearing line is a violation UNLESS it is benign. Benign = the line only DRIVES the
+# writer (a WRITER_INVOCATION token, no channel-read/seam token); a line that names the record
+# path, the packet store, or the channel seam/dir is the binding reaching INTO the channel — a
+# read/resolve the run binding may not do (that is the triage reader's job, spec 003 US2.AC3) —
+# and survives as a violation. Implemented by keeping only the CHANNEL_READ_TOKENS hits below
+# (the whole-file allowlist this replaces let any of those pass — PR #164 craft/Codex).
+SKILL_BINDING='.claude/skills/maker-eval/SKILL.md'
 
 # Tracked-tree listing, repo-relative. git ls-files when ROOT is a work tree (skips
 # untracked build artifacts deterministically); else a find fallback so a non-git
@@ -119,6 +149,13 @@ while IFS= read -r rel; do
   # (comment / sanctioned *.test.sh wiring) and treat only what survives as a violation.
   if [ "$rel" = "$CI_WORKFLOW" ]; then
     hits="$(printf '%s\n' "$hits" | grep -vE "$CI_BENIGN_LINE")"
+    [ -n "$hits" ] || continue
+  fi
+  # The run binding is scanned, not whole-file allowlisted (it is a real execution surface):
+  # keep only the channel-READ/seam references as violations — a bare writer invocation is the
+  # binding's sanctioned job and drops out (see SKILL_BINDING above).
+  if [ "$rel" = "$SKILL_BINDING" ]; then
+    hits="$(printf '%s\n' "$hits" | grep -E "$CHANNEL_READ_TOKENS")"
     [ -n "$hits" ] || continue
   fi
   violations=$((violations + 1))

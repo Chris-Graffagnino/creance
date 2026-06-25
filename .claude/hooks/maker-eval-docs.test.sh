@@ -325,6 +325,11 @@ check "US2.AC4: P-ME touches no gate/tier/guard/selection state" "$PROBES_FLAT" 
   "touches no gate, tier, guard, or selection state"
 check "US2.AC4: P-ME edits no instrument artifact" "$PROBES_FLAT" \
   "edits no instrument artifact"
+# The probe is scoped to the deterministic record/fingerprint/boundary conformance; the
+# model-driven maker run + judge are deferred to live use / the gate (PR #164 — the probe must
+# not over-claim that the whole binding "fires", since it drives only the record emission).
+check "US2.AC4: P-ME scopes to emitter conformance; the model-driven run is deferred to live use" "$PROBES_FLAT" \
+  "the pinned-**[reviewer]** judging are exercised by live use"
 check "US2.AC4: P-ME in the coverage map" "$PROBES_FLAT" \
   "| maker-eval procedure (\`maker-eval.md\`) | P-ME |"
 check "US2.AC4: P-ME instantiated in the adapter probe table" "$ADAPTER_FLAT" \

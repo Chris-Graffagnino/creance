@@ -6,8 +6,11 @@
 # check-tasks-consistency.test.sh idiom) holding one planted fixture file, then asserts
 # the exit code. This is the constitution-P2 backstop: the fence ships with the test
 # proving it FIRES on a planted cross-reference to EITHER path (US2.AC3) AND does not
-# false-fire on the real tree or on the sanctioned writer/reader/test surface. Bash +
-# git only, <1s; wired into the `verify` CI job (.github/workflows/ci.yml).
+# false-fire on the real tree or on the sanctioned writer/reader/test surface. It also
+# proves the run binding (skills/maker-eval/SKILL.md) is LINE-SCOPED — a writer invocation
+# there is benign (case n), but a channel READ/RESOLVE in it still fires (cases p/q/r),
+# closing the whole-file-allowlist gap PR #164 found. Bash + git only, <1s; wired into the
+# `verify` CI job (.github/workflows/ci.yml).
 # Run: bash .claude/hooks/maker-eval-fence.test.sh
 set -u
 
@@ -124,16 +127,38 @@ run_fence 0 "$K" "no false fire: ci.yml step running a maker-eval *.test.sh"
 L="$TMP/allow-prose"; mkfix "$L" ".claude/workflow/some-neutral-doc.md" 'the eval-record path and its transcript packets are observed, never gated.'
 run_fence 0 "$L" "no false fire: bare word \"packets\" in prose (not a path segment)"
 
-# (n) the eval RUN binding (skills/maker-eval/SKILL.md) DRIVES the writer, so it names the
-#     writer invocation legitimately — allowlisted Tier 1, must not false-fire (T805, US2.AC1).
+# (n) the eval RUN binding (skills/maker-eval/SKILL.md) DRIVES the writer, so a writer
+#     invocation there is benign. The binding is LINE-SCOPED, not whole-file allowlisted
+#     (PR #164), so the writer-invocation line drops out and must not false-fire (T805, US2.AC1).
 N="$TMP/allow-run-binding"; mkfix "$N" ".claude/skills/maker-eval/SKILL.md" 'Append via: bash .claude/hooks/maker-eval-emit.sh record --run-id "$id" --task "$t".'
-run_fence 0 "$N" "no false fire: maker-eval-emit in the allowlisted run binding"
+run_fence 0 "$N" "no false fire: maker-eval-emit (writer drive) in the line-scoped run binding"
 
 # (o) the P-ME probe instantiation (adapters/claude-code-probes.md) names the writer + the
 #     record path by its NATURE (a conformance-probe doc, no control authority) — allowlisted
 #     Tier 2, must not false-fire (T805, US2.AC4).
 O="$TMP/allow-probe-doc"; mkfix "$O" ".claude/adapters/claude-code-probes.md" 'P-ME: invoke maker-eval-emit; assert a record lands in records.jsonl with the fingerprint.'
 run_fence 0 "$O" "no false fire: tokens in the allowlisted P-ME probe instantiation"
+
+# ── the RUN binding is LINE-SCOPED, not whole-file trusted: it may DRIVE the writer (case n
+#    above) but a channel READ/RESOLVE inside it still FIRES — reading the record path or the
+#    packet store, or resolving the channel seam, is the triage reader's/writer's job, never the
+#    run binding's (spec 003 US2.AC3). The old whole-file allowlist let any of these pass, so a
+#    future edit reading eval records "to choose a tier" from the binding bypassed the P5 fence
+#    (PR #164 craft/Codex). These are the negative fixtures proving the line-scope closes it. ──
+
+# (p) reading the eval-RECORD path planted in the run binding FIRES — the exact "read
+#     records.jsonl to choose a tier" escape both reviewers named (not a writer drive).
+P_REC="$TMP/binding-reads-records"; mkfix "$P_REC" ".claude/skills/maker-eval/SKILL.md" 'Then `cat "$chan/records.jsonl"` to choose the maker tier.  # planted read'
+run_fence 1 "$P_REC" "FIRES: records.jsonl READ planted in the run binding (not a writer drive)"
+
+# (q) reading the transcript-PACKET store planted in the run binding FIRES.
+Q_PKT="$TMP/binding-reads-packets"; mkfix "$Q_PKT" ".claude/skills/maker-eval/SKILL.md" 'Read `$channel/packets/$id/report` back into the gate.  # planted packet read'
+run_fence 1 "$Q_PKT" "FIRES: packet-store read planted in the run binding"
+
+# (r) resolving the channel SEAM (the env override) planted in the run binding FIRES — the
+#     binding drives the writer; it must not resolve the channel location itself.
+R_SEAM="$TMP/binding-resolves-seam"; mkfix "$R_SEAM" ".claude/skills/maker-eval/SKILL.md" 'eval_dir="${MAKER_EVAL_DIR:-}"   # planted channel resolve'
+run_fence 1 "$R_SEAM" "FIRES: MAKER_EVAL_DIR seam planted in the run binding"
 
 # ── fail-closed: an unscannable root is a LOUD failure, never a silent pass (P2) ─
 run_fence 2 "$TMP/does-not-exist" "fail-closed: empty/unscannable root exits loud"
