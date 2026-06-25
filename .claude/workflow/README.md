@@ -233,8 +233,8 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   expected-FAIL and ≥1 expected-PASS planted-violation fixture per auditor (seeded from the
   evasion register), the known-bad/known-good corpus `auditor-liveness.md` runs.
 - `reviewers/maker-eval-corpus.md` — the maker-eval frozen instrument: the golden-task corpus
-  (each task carrying `capability`/`regression`/`saturated` lifecycle metadata + a known-good
-  rubric, seeded from real signal classes + adopter workflows), the pinned-judge spec, the
+  (each scored rubric dimension carrying `capability`/`regression`/`saturated` lifecycle
+  metadata, seeded from real signal classes + adopter workflows), the pinned-judge spec, the
   scoring schema, the first-upstream-failure taxonomy, and the judge-calibration pointer — all
   reviewer-spec-class artifacts the corpus `maker-eval.md` runs (changed by PR only — P4).
 

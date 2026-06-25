@@ -43,13 +43,15 @@ declares, and that the profile's deterministic backstop enforces:
 
 - **A small, frozen set of representative tasks** — kept frozen so two runs are comparable.
   The set stays frozen for comparability **yet grows and retires only by reviewed PR**
-  (constitution P4, below), via the per-task **lifecycle metadata** each task carries:
-  `capability` (a forward task probing whether the maker *can* do something), `regression`
-  (a task pinned to a known past failure — a guard against backsliding), or `saturated` (a
-  task the maker reliably passes, kept as a calibration floor).
-- **Each task is paired with a known-good rubric** — the small set of dimensions the judge
-  scores it against, with the known-good answer stated, so "passed" is checkable rather than
-  vibes.
+  (constitution P4, below), via the per-dimension **lifecycle metadata** each scored rubric
+  dimension carries: `capability` (a forward dimension probing whether the maker *can* do
+  something), `regression` (a dimension pinned to a known past failure — a guard against
+  backsliding), or `saturated` (a dimension the maker reliably passes, kept as a calibration
+  floor). Lifecycle lives on the **dimension, not the task**, so one task can pin a regression
+  on one dimension while probing a capability on another (`reviewers/maker-eval-corpus.md`).
+- **Each task is paired with a known-good rubric** — the small set of **lifecycle-tagged
+  dimensions** the judge scores it against, with the known-good answer stated, so "passed" is
+  checkable rather than vibes.
 - **Seeded from real signals, not synthetic toys.** Each task is drawn from a real failure
   or workflow *class* the harness has actually seen — retrospective escapes (the
   evasion-register exhibits), discovered-work clusters, owner-comment steering, and
@@ -91,8 +93,9 @@ Each run emits **exactly one append-only record per corpus task**, all sharing o
 to the eval channel the profile names — `.claude/PROJECT.md` → "Paths" → **Maker-eval
 records**, its **own append-only path beside the telemetry stream**, kept distinct so the
 deterministic P5 fence can scope to it. Each record carries: the run id, the corpus task id,
-the task's lifecycle tag, the **triple fingerprint** (below), the per-rubric verdict/score,
-and a timestamp — in the same append-only JSONL form the telemetry stream uses
+the **triple fingerprint** (below), the per-dimension verdict/score **each tagged with its
+lifecycle** (`capability`/`regression`/`saturated`, carried on the dimension — not one tag per
+task), and a timestamp — in the same append-only JSONL form the telemetry stream uses
 (`telemetry.md`).
 
 Alongside each record the run **stores a transcript review packet** for that task **within
@@ -126,10 +129,11 @@ conflated:
 2. **Pinned-judge identity** — the judge's own model resolution, fixed independently of the
    maker swap (above), so a judge change is visible as its own movement.
 3. **Eval-instrument fingerprint** — **every frozen-instrument artifact whose change alters
-   interpretation or comparability**: the corpus tasks and their prompts, the per-task
+   interpretation or comparability**: the corpus tasks and their prompts, the per-dimension
    lifecycle metadata, the rubrics, the judge prompt/spec, the scoring schema, and the
    owner-labeled calibration set with its labels and agreement floor. A reviewed-PR change to
-   any of these moves this component.
+   any of these — including promoting or retiring a single dimension's lifecycle — moves this
+   component.
 
 Recording them separately lets the read-only surfacing tell an **expected maker delta** from a
 **confounded comparison**: a moved maker-behavior fingerprint with a stale eval is a staleness
@@ -171,11 +175,12 @@ selection path); that fence is the next phase's (US2.AC3).
 
 ## Seeding & growth (the instrument changes only by PR — never silently)
 
-The corpus, the rubrics, the lifecycle metadata, the judge prompt/spec, the scoring schema, and
-the owner-labeled calibration set are **reviewer-spec-class artifacts**: they are part of the
+The corpus, the rubrics, the per-dimension lifecycle metadata, the judge prompt/spec, the scoring
+schema, and the owner-labeled calibration set are **reviewer-spec-class artifacts**: they are part of the
 frozen instrument, so they are **changed only by a human-reviewed PR — never by an automatic
 rewrite or a side effect of a run** (constitution **P4**). A run only *reads* the instrument and
 *appends* observe-only records; it proposes an instrument change the way the retrospective
-proposes a hunt-rule tightening — as a reviewed PR, never in place. Adding a task, promoting a
-`capability` task to `regression`, retiring one to `saturated`, or re-labeling the calibration
-set all travel the standard issue → branch → §7 gate → PR flow, and the owner merges to apply.
+proposes a hunt-rule tightening — as a reviewed PR, never in place. Adding a task or a scored
+dimension, promoting a `capability` dimension to `regression`, retiring one to `saturated`, or
+re-labeling the calibration set all travel the standard issue → branch → §7 gate → PR flow, and
+the owner merges to apply.

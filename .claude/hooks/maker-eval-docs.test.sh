@@ -14,10 +14,12 @@
 # deterministic check can enforce must have that check).
 #
 # DW1 in particular is a REAL structural check, not a string grep: it parses the corpus
-# manifest and asserts >= 6 frozen tasks, every task carrying a valid lifecycle tag
-# (capability/regression/saturated) and a non-empty rubric, with all three lifecycle states
-# represented — so deleting a task, dropping a rubric, or collapsing the lifecycle spread
-# fails CI.
+# manifest's TWO tables — the task table (>= 6 frozen tasks, each id well-formed ME-<digits>
+# and UNIQUE) and the per-dimension rubric table (every scored dimension carrying a valid
+# lifecycle tag capability/regression/saturated + a non-empty criterion, with all three
+# lifecycle states represented and every dimension bound to a real task and back). Lifecycle
+# is per DIMENSION, not per task (spec 003 US1.AC1/AC3/AC4), so a duplicate/malformed task id,
+# a dropped criterion, a dangling dimension, or a collapsed lifecycle spread fails CI.
 #
 # Run: bash .claude/hooks/maker-eval-docs.test.sh
 set -u
@@ -63,56 +65,111 @@ MODELS_FLAT="$(flat "$MODELS")"
 PROJECT_FLAT="$(flat "$PROJECT")"
 TEMPLATE_FLAT="$(flat "$TEMPLATE")"
 
-# ── DW1 (structural) — >= 6 frozen tasks, each with a valid lifecycle tag + a rubric, ─────
-# all three lifecycle states represented. Parse the corpus manifest's task rows (markdown
-# table, "| ME-… |"). awk fields on '|': $2=id $3=lifecycle $6=rubric. The trim idiom is the
-# same one auditor-liveness-docs.test.sh / evasion-register-docs.test.sh use (BSD+GNU awk
-# safe — '|' alternation, never a {n} interval, #97). Plain counters keep this bash-3.2
-# portable; no associative arrays.
-cap=0; reg=0; sat=0
-rows=0; malformed=0
-while IFS= read -r row; do
-  rows=$((rows + 1))
-  id="$(printf '%s' "$row"   | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2 }')"
-  life="$(printf '%s' "$row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3 }')"
-  rub="$(printf '%s' "$row"  | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $6); print $6 }')"
-  case "$life" in
-    capability) cap=$((cap + 1)) ;;
-    regression) reg=$((reg + 1)) ;;
-    saturated) sat=$((sat + 1)) ;;
-    *) printf 'FAIL DW1: task %s has invalid lifecycle "%s" (want capability/regression/saturated)\n' "$id" "$life" >&2; malformed=1 ;;
-  esac
-  # A task with no rubric cannot be scored — the rubric is mandatory. "has an alphanumeric"
-  # rejects empty / "—" regardless of UTF-8 byte width.
-  if ! printf '%s' "$rub" | grep -qE '[[:alnum:]]'; then
-    printf 'FAIL DW1: task %s has no rubric\n' "$id" >&2; malformed=1
-  fi
-done < <(grep -E '^\| ME-' "$CORPUS")
+# ── DW1 (structural) — the corpus is two parseable markdown tables ("| ME-… |" rows):
+#   "## The corpus tasks …"             → | Task | Seed class | Maker task |        ($2 = id)
+#   "## The scored rubric dimensions …"  → | Task | Dimension | Lifecycle | Criterion |
+#                                           ($2 = task ref, $4 = lifecycle, $5 = criterion)
+# Lifecycle is per DIMENSION (spec 003 US1.AC1/AC3/AC4 — a task may mix a saturated floor with a
+# regression pin), so it is read from the rubric table, never the task table. rows_under emits
+# only the "| ME-…" rows under a given "## " heading, so the two tables parse independently. The
+# trim idiom matches auditor-liveness-docs.test.sh (BSD+GNU awk safe — '|' alternation, never a
+# {n} interval, #97). Plain counters + sort|uniq keep this bash-3.2 portable; no assoc. arrays.
+rows_under() { # <file> <section-heading-substring>: emit '| ME-…' rows under that "## " heading
+  awk -v h="$2" '
+    /^## / { insec = (index($0, h) > 0); next }
+    insec && /^\| ME-/ { print }
+  ' "$1"
+}
 
-if [ "$rows" -ge 6 ]; then
+# --- the task table: >= 6 frozen tasks, each id well-formed (ME-<digits>) and UNIQUE ---------
+# The run record keys records by corpus task id (maker-eval.md → "The record …"), so a duplicate
+# or malformed id would silently collide two tasks onto one baseline join (engineering-craft).
+task_ids="$(rows_under "$CORPUS" "The corpus tasks" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2 }' | grep -E '^ME-')"
+ntasks="$(printf '%s\n' "$task_ids" | grep -c .)"
+nuniq="$(printf  '%s\n' "$task_ids" | sort -u | grep -c .)"
+nbadid="$(printf '%s\n' "$task_ids" | grep -vcE '^ME-[0-9]+$')"
+
+if [ "$ntasks" -ge 6 ]; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL DW1: parsed only %s corpus task rows (expected >= 6 a small frozen set)\n' "$rows" >&2
+  printf 'FAIL DW1: parsed only %s corpus tasks (expected >= 6 a small frozen set)\n' "$ntasks" >&2
+fi
+if [ "$ntasks" -eq "$nuniq" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL DW1: corpus task ids are not unique (%s rows, %s distinct)\n' "$ntasks" "$nuniq" >&2
+  printf '%s\n' "$task_ids" | sort | uniq -d | sed 's/^/     duplicate id: /' >&2
+fi
+if [ "$nbadid" -eq 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL DW1: %s corpus task id(s) are not of the form ME-<digits>\n' "$nbadid" >&2
 fi
 
-# All three lifecycle states must be represented — the metadata is what keeps the set frozen
-# yet evolvable (capability probes, regression pins a known failure, saturated is the floor).
+# --- the rubric-dimension table: per-dimension lifecycle + a criterion, bound to a real task --
+cap=0; reg=0; sat=0; ndims=0; dim_bad=0
+while IFS= read -r row; do
+  [ -n "$row" ] || continue
+  ndims=$((ndims + 1))
+  ref="$(printf  '%s' "$row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2 }')"
+  life="$(printf '%s' "$row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $4); print $4 }')"
+  crit="$(printf '%s' "$row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $5); print $5 }')"
+  case "$life" in
+    capability) cap=$((cap + 1)) ;;
+    regression) reg=$((reg + 1)) ;;
+    saturated)  sat=$((sat + 1)) ;;
+    *) printf 'FAIL DW1: a dimension under %s has invalid lifecycle "%s" (want capability/regression/saturated)\n' "$ref" "$life" >&2; dim_bad=1 ;;
+  esac
+  # A dimension with no criterion cannot be scored. "has an alphanumeric" rejects empty / "—".
+  if ! printf '%s' "$crit" | grep -qE '[[:alnum:]]'; then
+    printf 'FAIL DW1: a dimension under %s has no criterion\n' "$ref" >&2; dim_bad=1
+  fi
+  # Referential integrity (forward): every dimension binds to a real corpus task id — a swapped
+  # row identity (engineering-craft) fails here rather than scoring a phantom task.
+  if ! printf '%s\n' "$task_ids" | grep -qxF -- "$ref"; then
+    printf 'FAIL DW1: rubric dimension references unknown task "%s"\n' "$ref" >&2; dim_bad=1
+  fi
+done < <(rows_under "$CORPUS" "scored rubric dimensions")
+
+if [ "$ndims" -ge 6 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL DW1: parsed only %s scored rubric dimensions (expected >= 1 per task, >= 6)\n' "$ndims" >&2
+fi
+
+# All three lifecycle states must be represented ACROSS the dimensions — the metadata is what
+# keeps the set frozen yet evolvable (capability probes, regression pins a known failure,
+# saturated is the floor). Counted per dimension now, not per task (spec 003 US1.AC1).
 for who in "capability:$cap" "regression:$reg" "saturated:$sat"; do
   state="${who%%:*}"; n="${who#*:}"
   if [ "$n" -ge 1 ]; then
     pass=$((pass + 1))
   else
     fail=$((fail + 1))
-    printf 'FAIL DW1: no task carries lifecycle "%s" (the frozen set must span all three states)\n' "$state" >&2
+    printf 'FAIL DW1: no dimension carries lifecycle "%s" (the set must span all three states)\n' "$state" >&2
   fi
 done
 
-if [ "$malformed" -eq 0 ]; then
+# Referential integrity (reverse): every task has >= 1 scored dimension — a task with no
+# dimension cannot be graded. Heredoc (not a pipe) so the counter survives in this shell.
+dim_refs="$(rows_under "$CORPUS" "scored rubric dimensions" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2 }')"
+uncovered=0
+while IFS= read -r tid; do
+  [ -n "$tid" ] || continue
+  printf '%s\n' "$dim_refs" | grep -qxF -- "$tid" || { printf 'FAIL DW1: task %s has no scored rubric dimension\n' "$tid" >&2; uncovered=1; }
+done <<EOF
+$task_ids
+EOF
+
+if [ "$dim_bad" -eq 0 ] && [ "$uncovered" -eq 0 ]; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL DW1: corpus manifest has malformed task rows (see above)\n' >&2
+  printf 'FAIL DW1: rubric-dimension table has malformed or dangling rows (see above)\n' >&2
 fi
 
 # DW1 prose: the corpus declares the lifecycle contract + the neutral doc points at it.
@@ -163,7 +220,7 @@ check "DW4: component 2 — the pinned-judge identity" "$NEU_FLAT" \
 check "DW4: component 3 — the eval-instrument fingerprint" "$NEU_FLAT" \
   "Eval-instrument fingerprint"
 check "DW4: the instrument fingerprint covers lifecycle metadata + calibration set + floor" "$NEU_FLAT" \
-  "the per-task lifecycle metadata, the rubrics, the judge prompt/spec, the scoring schema, and the owner-labeled calibration set with its labels and agreement floor"
+  "the per-dimension lifecycle metadata, the rubrics, the judge prompt/spec, the scoring schema, and the owner-labeled calibration set with its labels and agreement floor"
 check "DW4: recorded separately so a judge/instrument change is its own movement" "$NEU_FLAT" \
   "three separately-recorded components"
 
