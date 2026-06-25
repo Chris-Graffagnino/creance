@@ -268,6 +268,79 @@ check "DW7 (neutral): the frozen instrument changes only by a human-reviewed PR 
 check "DW7 (neutral): a run only reads the instrument and appends observe-only records" "$NEU_FLAT" \
   "A run only *reads* the instrument and *appends* observe-only records"
 
+# ── T805 (#163 — spec 003 US2.AC1) — the skill binding reuses [workflow]/[headless run]/ ──
+# [reviewer], runs on a maker-behavior fingerprint change AND a schedule, and adds no new
+# binding-contract role. The encoding test for T805's criteria lives here (alongside T801's)
+# rather than in a second file, mirroring intake-docs.test.sh (skill `[ -r ]` + workflow-doc
+# reference) and evasion-register-docs.test.sh (probe in the neutral checklist + the adapter
+# table + a cell-scoped PASS). A later edit that drops the binding, a trigger, or the
+# observe-only claim fails the `verify` CI job, so the criterion is anchored, not assumed.
+SKILL="$DIR/skills/maker-eval/SKILL.md"
+if [ -r "$SKILL" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US2.AC1: skill binding file present\n     missing: %s\n' "$SKILL" >&2
+fi
+SKILL_FLAT="$(flat "$SKILL")"
+check "US2.AC1: binding executes the runtime-neutral workflow doc" "$SKILL_FLAT" \
+  "\`.claude/workflow/maker-eval.md\`"
+check "US2.AC1: binding declares the maker-behavior fingerprint-change trigger (MAKER-EVAL-STALE)" "$SKILL_FLAT" \
+  "MAKER-EVAL-STALE"
+check "US2.AC1: binding declares the weekly schedule trigger" "$SKILL_FLAT" \
+  "named minimum cadence is **weekly**"
+check "US2.AC1: binding composes existing roles only — no new binding-contract row" "$SKILL_FLAT" \
+  "no new binding-contract row"
+# Negative case: the binding-contract table in workflow/README.md must NOT gain a
+# [maker-eval] role row (the skill composes existing roles; it appears only in the Files
+# list) — mirrors intake-docs.test.sh's AC5 negative check.
+if printf '%s' "$README_FLAT" | grep -qF -- "| **[maker-eval]**"; then
+  fail=$((fail + 1))
+  printf 'FAIL US2.AC1: no [maker-eval] role row in the binding-contract table\n' >&2
+else
+  pass=$((pass + 1))
+fi
+
+# ── T805 (#163 — spec 003 US2.AC4) — the P-ME conformance probe ────────────────────────────
+# The probe must exist in the neutral checklist, be instantiated in the adapter table, and
+# carry a recorded live PASS. The result check is CELL-SCOPED (mirrors evasion-register's P-EV
+# guidance, PR #89): a bare `| P-ME (` row-prefix needle would let a flip to FAIL/DEGRADED
+# still pass CI, so it would NOT enforce the done-when (a live probe recorded a PASS). Assert
+# the P-ME *results* row's result cell is PASS.
+PROBES="$DIR/workflow/conformance-probes.md"
+PROBES_FLAT="$(flat "$PROBES")"
+ADAPTER="$DIR/adapters/claude-code-probes.md"
+for f in "$PROBES" "$ADAPTER"; do
+  if [ ! -f "$f" ]; then
+    echo "FAIL US2.AC4: required file missing: $f" >&2
+    exit 1
+  fi
+done
+ADAPTER_FLAT="$(flat "$ADAPTER")"
+check "US2.AC4: P-ME probe defined in the neutral checklist" "$PROBES_FLAT" \
+  "### P-ME — maker-eval (\`maker-eval.md\`)"
+check "US2.AC4: P-ME records carry the maker-behavior fingerprint" "$PROBES_FLAT" \
+  "carrying that **maker-behavior fingerprint**"
+check "US2.AC4: P-ME touches no gate/tier/guard/selection state" "$PROBES_FLAT" \
+  "touches no gate, tier, guard, or selection state"
+check "US2.AC4: P-ME edits no instrument artifact" "$PROBES_FLAT" \
+  "edits no instrument artifact"
+check "US2.AC4: P-ME in the coverage map" "$PROBES_FLAT" \
+  "| maker-eval procedure (\`maker-eval.md\`) | P-ME |"
+check "US2.AC4: P-ME instantiated in the adapter probe table" "$ADAPTER_FLAT" \
+  "| P-ME |"
+# The results row begins `| P-ME (` (the dated run), distinct from the `| P-ME |`
+# instantiation row. awk field 3 is the result cell (the date cell carries no pipe) —
+# the same field layout as the P-EV row in evasion-register-docs.test.sh.
+pme_row="$(grep -E '^\| P-ME \(' "$ADAPTER" | head -1)"
+pme_cell="$(printf '%s\n' "$pme_row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3 }')"
+if [ "$pme_cell" = "PASS" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US2.AC4: P-ME results-row result cell is not PASS (got: %s)\n' "${pme_cell:-<no \`| P-ME (…)\` row>}" >&2
+fi
+
 # ── Discoverability — the workflow README files index lists the new docs ──────────────────
 check "README: files index names the maker-eval methodology doc" "$README_FLAT" \
   "\`maker-eval.md\`"
