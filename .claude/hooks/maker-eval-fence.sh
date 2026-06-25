@@ -44,27 +44,42 @@ CHANNEL_TOKENS='records\.jsonl|packets/|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-ev
 
 # Files permitted to carry the channel tokens. Tier 1 is the AC's "eval writer and
 # triage reader" — the only two control-authority code paths sanctioned to touch the
-# channel. Tier 2 is the non-control-authority surface that must name the path by its
-# nature: the profile declaration, the extraction manifest, CI wiring, every test
-# harness (tests exercise the channel but carry no runtime authority), and the fence
-# itself. Anything NOT matched here — guard.sh, gate-loop.{js,md}, MODELS.md, the
-# reconcile-*/announce-* selection hooks, next-task.md, and any future code path — is a
-# gate/tier/guard/selection path, and a reference there is the P5 violation.
+# channel. Tier 2 is the non-executable / non-control surface that must name the path by
+# its nature: the profile declaration, the extraction manifest, every test harness (tests
+# exercise the channel but carry no runtime authority), and the fence itself. CI is the
+# deliberate exception — it carries the wiring that RUNS the channel's tests, but it is
+# also a gate (it decides the merge), so it is NOT wholly trusted here: it is scanned
+# line-by-line in the loop below (see CI_BENIGN_LINE), not blanket-allowed. Anything NOT
+# matched here — guard.sh, gate-loop.{js,md}, MODELS.md, the reconcile-*/announce-*
+# selection hooks, next-task.md, and any future code path — is a gate/tier/guard/selection
+# path, and a reference there is the P5 violation.
 allowed() {
   case "$1" in
     # Tier 1 — the channel's two sanctioned code paths.
     .claude/hooks/maker-eval-emit.sh) return 0 ;;  # the eval WRITER
     .claude/skills/triage/SKILL.md)   return 0 ;;  # the triage READER
-    # Tier 2 — declaration / manifest / wiring / tests / the fence itself.
+    # Tier 2 — declaration / manifest / tests / the fence itself (non-executable, or no
+    # control authority). CI is intentionally absent: it is line-scoped below, not here.
     .claude/PROJECT.md)                return 0 ;;  # the profile path declaration
     .claude/PROJECT.template.md)       return 0 ;;  # the template's path row
     .claude/EXTRACTION.md)             return 0 ;;  # the extraction cut-list
-    .github/workflows/ci.yml)          return 0 ;;  # CI wiring (runs the writer/fence tests)
     .claude/hooks/maker-eval-fence.sh) return 0 ;;  # the fence (names the tokens to scan)
     *.test.sh | *.test.js)             return 0 ;;  # tests exercise the channel (no authority)
     *) return 1 ;;
   esac
 }
+
+# CI line-scope. CI is allowlisted only for the wiring that RUNS the channel's tests; as a
+# gate surface (it decides the merge) it must not hide a step that reads or writes the
+# channel. So ci.yml is scanned (absent from allowed() above) and each token-bearing line
+# is treated as a violation UNLESS it is benign: a YAML comment (cannot execute), or a step
+# invoking a maker-eval *.test.sh harness (running the channel's tests carries no control
+# authority). A surviving hit — e.g. a `run:` step that cats records.jsonl, or one that
+# invokes the writer maker-eval-emit.sh to fold a score into pass/fail — is the P5 breach.
+# Patterns match `grep -n` output (`<lineno>:<text>`); the `$` anchor keeps the test-wiring
+# allowance to a bare invocation (a trailing `&& cat records.jsonl` does not match).
+CI_WORKFLOW='.github/workflows/ci.yml'
+CI_BENIGN_LINE='^[0-9]+:[[:space:]]*#|^[0-9]+:[[:space:]]*run: bash \.claude/hooks/[a-z0-9-]+\.test\.sh[[:space:]]*$'
 
 # Tracked-tree listing, repo-relative. git ls-files when ROOT is a work tree (skips
 # untracked build artifacts deterministically); else a find fallback so a non-git
@@ -89,6 +104,12 @@ while IFS= read -r rel; do
   allowed "$rel" && continue
   hits="$(grep -I -nE "$CHANNEL_TOKENS" "$ROOT/$rel" 2>/dev/null)"
   [ -n "$hits" ] || continue
+  # CI is scanned, not wholly allowlisted (it is a gate surface): drop the benign lines
+  # (comment / sanctioned *.test.sh wiring) and treat only what survives as a violation.
+  if [ "$rel" = "$CI_WORKFLOW" ]; then
+    hits="$(printf '%s\n' "$hits" | grep -vE "$CI_BENIGN_LINE")"
+    [ -n "$hits" ] || continue
+  fi
   violations=$((violations + 1))
   printf 'P5 FENCE VIOLATION: %s references the observe-only maker-eval channel (eval-record path / transcript packets) — only the eval writer and the triage reader may, never a gate/tier/guard/selection path (constitution P5):\n' "$rel" >&2
   printf '%s\n' "$hits" | sed 's/^/    /' >&2

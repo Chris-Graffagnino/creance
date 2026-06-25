@@ -72,20 +72,37 @@ run_fence 1 "$D" "FIRES: creance-maker-eval dir planted in MODELS.md (tier path)
 E="$TMP/plant-emit-nexttask"; mkfix "$E" ".claude/workflow/next-task.md" 'then call maker-eval-emit to fold the score into selection'
 run_fence 1 "$E" "FIRES: maker-eval-emit invocation planted in next-task.md"
 
+# (f) reading the eval-record path planted in CI ITSELF. CI is a gate (it decides the
+#     merge), so a workflow step that reads records.jsonl to gate on it is a P5 breach.
+#     The old whole-file allowlist masked this (PR #162 craft/Codex finding); ci.yml is
+#     now scanned line-by-line, so the planted step survives the benign filter and fires.
+F_CI="$TMP/plant-ci-gate"; mkfix "$F_CI" ".github/workflows/ci.yml" '        run: cat "$HOME/.claude/triage/creance-maker-eval/records.jsonl"  # gate on it'
+run_fence 1 "$F_CI" "FIRES: records.jsonl read planted in ci.yml (CI gate surface)"
+
 # ── does NOT false-fire on the sanctioned surface ───────────────────────────────
 
-# (f) the eval WRITER may carry the tokens (it IS the channel writer).
+# (g) the eval WRITER may carry the tokens (it IS the channel writer).
 F="$TMP/allow-writer"; mkfix "$F" ".claude/hooks/maker-eval-emit.sh" 'printf "%s" "$channel/records.jsonl"  # the writer'
 run_fence 0 "$F" "no false fire: records.jsonl in the allowlisted writer"
 
-# (g) the triage READER may carry the tokens.
+# (h) the triage READER may carry the tokens.
 G="$TMP/allow-reader"; mkfix "$G" ".claude/skills/triage/SKILL.md" 'Read `<channel>/records.jsonl` and the `packets/` subtree.'
 run_fence 0 "$G" "no false fire: tokens in the allowlisted triage reader"
 
-# (h) a *.test.sh harness may carry the tokens (tests exercise the channel; no authority).
-#     This also proves the plant in cases (a)-(e) had to land in a NON-test file to fire.
+# (i) a *.test.sh harness may carry the tokens (tests exercise the channel; no authority).
+#     This also proves the plant in cases (a)-(f) had to land in a NON-test file to fire.
 H="$TMP/allow-test"; mkfix "$H" ".claude/hooks/guard.test.sh" 'echo "fixture: records.jsonl packets/ MAKER_EVAL_DIR"'
 run_fence 0 "$H" "no false fire: tokens in a *.test.sh harness"
+
+# (j) ci.yml is now scanned, but its sanctioned surface must NOT false-fire: a comment
+#     naming the tokens cannot execute, so it is benign.
+J="$TMP/allow-ci-comment"; mkfix "$J" ".github/workflows/ci.yml" '      # scans for records.jsonl / packets/ (the maker-eval channel)'
+run_fence 0 "$J" "no false fire: ci.yml comment naming the channel tokens"
+
+# (k) ...and a step that merely RUNS a maker-eval *.test.sh harness carries no control
+#     authority, so it is benign too — this is the wiring ci.yml is allowlisted for.
+K="$TMP/allow-ci-wiring"; mkfix "$K" ".github/workflows/ci.yml" '        run: bash .claude/hooks/maker-eval-emit.test.sh'
+run_fence 0 "$K" "no false fire: ci.yml step running a maker-eval *.test.sh"
 
 # ── fail-closed: an unscannable root is a LOUD failure, never a silent pass (P2) ─
 run_fence 2 "$TMP/does-not-exist" "fail-closed: empty/unscannable root exits loud"
