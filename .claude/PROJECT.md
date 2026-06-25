@@ -149,9 +149,9 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   flags, and fingerprints are evaluation records under this rule (spec 003 US1.AC4); the
   deterministic path-fence that no gate/tier/guard/selection code references the eval channel
   is T804 (spec 003 US2.AC3).
-- Reviewer specs (the auditor specs, **the evasion register, and the maker-eval instrument —
-  the corpus, rubrics, per-task lifecycle metadata, judge prompt/spec, scoring schema, and
-  owner-labeled calibration set with its labels and floor**, all under
+- Reviewer specs (the auditor specs **and the evasion register**, **plus the maker-eval
+  instrument — the corpus, rubrics, per-task lifecycle metadata, judge prompt/spec, scoring
+  schema, and owner-labeled calibration set with its labels and floor** — all under
   `.claude/workflow/reviewers/`), invariants, guards, or `memory/constitution.md` modified
   by automation outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a
   gate run or an eval run — FAIL (constitution P4; spec 001 / spec 003 US1.AC4 non-goals).
