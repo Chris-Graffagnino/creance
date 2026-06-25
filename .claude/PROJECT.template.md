@@ -26,6 +26,11 @@ CI / merge gate, Architecture boundaries, Invariant checklist, Constitution watc
 - **Architecture guardrails:** <path / section, or "none">
 - **Telemetry:** <append-only JSONL path per `workflow/telemetry.md`, or "default" —
   out-of-repo beside the triage inbox: `<triage inbox dir>/<repo-basename>-telemetry.jsonl`>
+- **Maker-eval records:** <eval channel per `workflow/maker-eval.md`, or "default" —
+  out-of-repo beside the triage inbox in its own directory, kept distinct from the telemetry
+  stream so the P5 fence can scope to it: `<triage inbox dir>/<repo-basename>-maker-eval/`
+  (`records.jsonl` + a `packets/` subtree for per-task transcript review packets); or "none"
+  if you do not run a maker eval>
 
 ## Task & branch conventions
 - **Task ID format:** <e.g. `T` + 3 digits; or "none — use issue numbers">

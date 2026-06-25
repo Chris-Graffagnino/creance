@@ -327,6 +327,21 @@ jobs:
       - name: Auditor-liveness encoding tests
         run: bash .claude/hooks/auditor-liveness-docs.test.sh
 
+      # T801 maker-eval encoding tests (#155, spec 003 US1.AC1/AC4): the maker analog of
+      # auditor-liveness — a frozen golden-task corpus that re-scores the MAKER (the generation
+      # path) on a maker-behavior fingerprint change + weekly, observe-only. The runtime-neutral
+      # methodology (.claude/workflow/maker-eval.md) + the frozen instrument
+      # (.claude/workflow/reviewers/maker-eval-corpus.md) ARE the implementation surface; the run
+      # itself is model-driven + report-only (it cannot be a deterministic hard gate — a flaky
+      # verdict would block honest work), so this is the P3 determinism backstop for the corpus
+      # SHAPE and the doc's triple-fingerprint / observe-only (P5) / PR-only (P4) contract: it
+      # parses the corpus and FAILs if a task lacks a valid lifecycle tag or a rubric, the
+      # lifecycle states are not all represented, or those sections drop — plus the neutrality
+      # scan over both new neutral docs. Same rationale as the other *-docs tests. Record
+      # emission (T802) and the deterministic P5 path-fence (T804) ship their own tests.
+      - name: Maker-eval encoding tests
+        run: bash .claude/hooks/maker-eval-docs.test.sh
+
       # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
       # methodology doc and the per-/next-task hub — new rules gravitate to it, so
       # it is the harness's accretion sink and sets the per-workflow context floor

@@ -28,6 +28,12 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Telemetry:** default per `workflow/telemetry.md` — out-of-repo beside the triage
   inbox: `<triage inbox dir>/creance-telemetry.jsonl` (design default decided by silence
   on #18).
+- **Maker-eval records:** default per `workflow/maker-eval.md` — out-of-repo beside the
+  triage inbox in its **own channel directory, kept distinct from the telemetry stream** so
+  the US2.AC3 P5 fence (T804) can scope to it: `<triage inbox dir>/creance-maker-eval/`,
+  holding `records.jsonl` (append-only, one line per corpus task per run) and a `packets/`
+  subtree for the per-task transcript review packets — any in-record packet link resolves
+  only inside this directory.
 
 ## Task & branch conventions
 - **Task ID format:** `T` + 3 digits, unique across all live `specs/*/tasks.md` — each
@@ -139,11 +145,16 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   procedure inlined *under* the ceiling that a `workflow/**` pointer could carry (P3).
 - A change that lets telemetry or evaluation records influence gate outcomes, model-tier
   assignment, or gate semantics (round limits, veto authority, tier floors) — FAIL
-  (constitution P5; spec 001 non-goals).
-- Reviewer specs (the auditor specs **and the evasion register**,
+  (constitution P5; spec 001 non-goals). The **maker-eval** records, scores, regression
+  flags, and fingerprints are evaluation records under this rule (spec 003 US1.AC4); the
+  deterministic path-fence that no gate/tier/guard/selection code references the eval channel
+  is T804 (spec 003 US2.AC3).
+- Reviewer specs (the auditor specs, **the evasion register, and the maker-eval instrument —
+  the corpus, rubrics, per-task lifecycle metadata, judge prompt/spec, scoring schema, and
+  owner-labeled calibration set with its labels and floor**, all under
   `.claude/workflow/reviewers/`), invariants, guards, or `memory/constitution.md` modified
   by automation outside a human-reviewed PR — e.g. an auto-rewrite or a side effect of a
-  gate run — FAIL (constitution P4; spec 001 non-goals).
+  gate run or an eval run — FAIL (constitution P4; spec 001 / spec 003 US1.AC4 non-goals).
 - A `.claude/hooks/*.sh` script carrying a known BSD-vs-GNU-divergent construct (a `yes`
   dash-leading argument, an `awk` `{n}`/`{n,m}` regex interval) — FAIL (the
   passes-locally-fails-CI class, #97). The same `shell-lint.sh` checker backs the
@@ -195,6 +206,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
 | Selection reconciles live state before starting — **merged/landed** (P3) **and in-flight** (open PR/branch; P3) — announces/confirms the resolved target deterministically (P3), sharing the drift logic not forking it (P2) | constitution-auditor: a `next-task.md` selection step trusting the checkbox without the deterministic reconciliation (merged **or** in-flight), a model-gated (not deterministic) confirm pause, or a forked copy of the drift detection | `reconcile-task-selection.test.sh` (paired: open selected + drifted refused) + `reconcile-inflight-selection.test.sh` (paired: in-flight PR/branch refused + genuinely-open selected; `gh` mocked; fail-open when the tracker is unavailable) + `announce-task-selection.test.sh` (paired: implicit-contradicted → confirm, implicit-consistent + explicit → proceed, fail-open → announce-only; **plus the composed reconcile+announce path** so `confirm` is proven reachable on the real flow, not just the hook in isolation); each git-drift consumer asserts it sources the shared `lib-tasks-drift.sh` (the in-flight check is exempt — a distinct tracker signal, not a drift fork), in CI `verify` |
 | Autonomous mode off by default + activation fails closed to review; promotion stays §7-gated (P3/P4; `[isolated workspace]`) | constitution-auditor: an activation path reachable without the deterministic `[autonomy activation]` check, the check failing open, or isolation writing the base branch directly | `autonomy-mode.test.sh` (default-off + fail-closed cases; asserts ci.yml runs the check+test and the neutral role + profile flag exist) in CI `verify` |
 | Isolation lifecycle never writes the base branch; the activation read is wired into the autonomous path; gate-in-place reads the workspace diff by explicit context and promote/discard never auto-merges or writes the base ref (P4; T611 lifecycle + T612 gate-in-place + T613 full falsification proof) | constitution-auditor: a `discard`/`exit`/promote path that writes the base ref or auto-merges, a gate that reads an inferred CWD instead of the passed workspace path, or an `enter` that falls back to the base branch instead of failing loud | `isolated-workspace.test.sh` (discard removes the dir + deletes only the ephemeral branch + leaves the base ref untouched + refuses a non-owned worktree; enter→work→exit leaves base untouched; enter fails loud) + `isolation-falsification.test.sh` (T613: the un-gated commit unreachable from base after exit, destroyed by discard, a forged `branch=main` marker cannot delete the checked-out base, no base-writing door in the script) + `gate-loop.test.js` (workspacePath retargets the reviewer/fixer prompt; absent → unchanged main-tree diff) in CI `verify`; live counterpart is the **P-IW** conformance probe |
+| Maker-eval is observe-only (P5) + its frozen instrument changes only by PR (P4); the corpus/doc carry their frozen shape (spec 003 US1.AC1/AC4) | constitution-auditor: an eval record/score/flag reaching a gate/tier/guard/selection path, or automation writing the maker-eval instrument (corpus, rubrics, per-task lifecycle metadata, judge prompt/spec, scoring schema, calibration set) outside a PR | `maker-eval-docs.test.sh` (parses the corpus for the lifecycle/rubric contract + pins the triple-fingerprint components, the observe-only/PR-only sections, the records-path-via-profile, discoverability + CI-wiring, and the neutrality scan over both new neutral docs) in CI `verify`; the deterministic **P5 path-fence** over the eval channel + packets is T804 (spec 003 US2.AC3) |
 
 ## Constitution watch (high-risk upcoming work — for triage look-ahead)
 - Telemetry must never affect gate outcomes (US1) → T102, T103.

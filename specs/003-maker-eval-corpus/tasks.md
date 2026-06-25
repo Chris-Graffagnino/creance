@@ -7,7 +7,7 @@
 
 ## Phase 1 — Corpus & run
 
-- [ ] T801 [strong] Runtime-neutral maker-eval workflow doc: a small frozen corpus
+- [x] T801 [strong] Runtime-neutral maker-eval workflow doc: a small frozen corpus
       **seeded from real Creance signals** (retrospective escapes, discovered-work
       clusters, owner comments, auditor-liveness fixtures) and adopter/product
       workflows (template cold-start, adapter port), each task carrying **lifecycle
