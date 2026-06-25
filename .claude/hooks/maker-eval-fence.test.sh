@@ -56,9 +56,16 @@ run_fence 0 "$REPO_ROOT" "PASSES: the real tracked tree"
 A="$TMP/plant-records-guard"; mkfix "$A" ".claude/hooks/guard.sh" 'cat "$chan/records.jsonl"   # planted cross-reference'
 run_fence 1 "$A" "FIRES: records.jsonl planted in guard.sh (guard path)"
 
-# (b) packets/ (the transcript-PACKET storage) planted in a GATE path.
+# (b) packets (the transcript-PACKET storage) planted across danger classes — and in all
+#     three reference forms, since the dir is matched as a path segment, not just `packets/`:
+#     a trailing slash; no trailing slash (`$channel/packets`); and the quote-wrapped pathlib
+#     form (`… / "packets"`). Matching only `packets/` let the latter two evade (PR #162 Codex P2).
 B="$TMP/plant-packets-gate"; mkfix "$B" ".claude/workflows/gate-loop.js" 'const p = "packets/" + runId + "/" + taskId; // planted'
-run_fence 1 "$B" "FIRES: packets/ planted in gate-loop.js (gate path)"
+run_fence 1 "$B" "FIRES: packets/ (trailing slash) planted in gate-loop.js (gate path)"
+B_NS="$TMP/plant-packets-noslash"; mkfix "$B_NS" ".claude/hooks/guard.sh" 'probe="$channel/packets"   # no trailing slash — planted'
+run_fence 1 "$B_NS" "FIRES: \$channel/packets (no trailing slash) planted in guard.sh (guard path)"
+B_PL="$TMP/plant-packets-pathlib"; mkfix "$B_PL" ".claude/hooks/reconcile-task-selection.sh" 'target = Path(channel) / "packets"  # pathlib, quote-wrapped — planted'
+run_fence 1 "$B_PL" "FIRES: quote-wrapped \"packets\" planted in reconcile-task-selection.sh (selection)"
 
 # (c) the MAKER_EVAL_DIR access seam planted in a SELECTION path.
 C="$TMP/plant-seam-selection"; mkfix "$C" ".claude/hooks/reconcile-task-selection.sh" 'eval_dir="${MAKER_EVAL_DIR:-}"  # planted'
@@ -103,6 +110,12 @@ run_fence 0 "$J" "no false fire: ci.yml comment naming the channel tokens"
 #     authority, so it is benign too — this is the wiring ci.yml is allowlisted for.
 K="$TMP/allow-ci-wiring"; mkfix "$K" ".github/workflows/ci.yml" '        run: bash .claude/hooks/maker-eval-emit.test.sh'
 run_fence 0 "$K" "no false fire: ci.yml step running a maker-eval *.test.sh"
+
+# (l) the path-segment match must NOT catch the bare English plural "packets" in prose —
+#     a non-allowlisted doc may discuss "transcript packets" without referencing the dir
+#     (real tree: workflow/maker-eval.md, reviewers/maker-eval-corpus.md, spec.md all do).
+L="$TMP/allow-prose"; mkfix "$L" ".claude/workflow/some-neutral-doc.md" 'the eval-record path and its transcript packets are observed, never gated.'
+run_fence 0 "$L" "no false fire: bare word \"packets\" in prose (not a path segment)"
 
 # ── fail-closed: an unscannable root is a LOUD failure, never a silent pass (P2) ─
 run_fence 2 "$TMP/does-not-exist" "fail-closed: empty/unscannable root exits loud"

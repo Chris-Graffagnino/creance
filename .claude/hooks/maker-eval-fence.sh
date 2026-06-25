@@ -37,10 +37,14 @@ set -u
 ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
 # The eval channel's path/IO surface — the eval-record path leaf (`records.jsonl`), the
-# transcript-packet storage leaf (`packets/`), the env access seam, the channel dir name
-# suffix, and the writer invocation. ERE; '+'/'*' only (no awk-style {n} interval — the
-# BSD/GNU-portable form shell-lint.sh enforces, #97).
-CHANNEL_TOKENS='records\.jsonl|packets/|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval|maker-eval-emit'
+# transcript-packet storage dir (`packets`), the env access seam, the channel dir name
+# suffix, and the writer invocation. The packet dir is matched as a PATH SEGMENT — adjacent
+# to a `/` or a quote on either side — so all reference forms fire (`packets/`,
+# `$channel/packets` with no trailing slash, the pathlib `… / "packets"`, `'packets'`) while
+# the bare English plural in prose (".. transcript packets are ..") does not. Matching only
+# `packets/` let the no-trailing-slash forms evade (PR #162 Codex P2). ERE; portable
+# constructs only — char classes and '+'/'*', no awk-style {n} interval (shell-lint.sh, #97).
+CHANNEL_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval|maker-eval-emit'
 
 # Files permitted to carry the channel tokens. Tier 1 is the AC's "eval writer and
 # triage reader" — the only two control-authority code paths sanctioned to touch the
