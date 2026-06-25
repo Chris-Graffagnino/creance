@@ -39,13 +39,21 @@
 #          [--prompt <f>] [--artifact <f>] [--judge <f>]
 #       Append EXACTLY ONE append-only JSONL record for one corpus task (US1.AC2) to
 #       <channel>/records.jsonl and store its transcript review packet under
-#       <channel>/packets/<run-id>/<task-id>/. The record carries the run id, the
+#       <channel>/packets/<run-id>/<task-id>/ (run id and task id must be safe path
+#       components — no `/` or `..` — so neither the packet dir nor its in-record link can
+#       escape the fenced channel; a violating id is a loud caller error). The record
+#       carries the run id, the
 #       corpus task id, the triple fingerprint, the per-dimension verdict/score each
 #       tagged with its lifecycle (from <judge.json>), the overall verdict, the
 #       first-upstream-failure class, a timestamp, and a RELATIVE packet link that
 #       resolves only inside the fenced channel. <judge.json> is the judge's per-task
 #       output: { dimensions:[{dimension,lifecycle,verdict,evidence}...], overall,
-#       first_upstream_failure }. Any write failure is silent (exit 0, nothing written).
+#       first_upstream_failure }. A MALFORMED judge output (no overall, or no rubric
+#       dimension carrying dimension/lifecycle/verdict) is a loud caller error (exit 2,
+#       nothing written) — never a silently-defaulted record a later `complete` would
+#       count. A REQUESTED packet artifact (--prompt/--artifact/--judge) must copy in, or
+#       the whole write aborts — a record never claims a packet file it lacks. Any other
+#       write failure is silent (exit 0, nothing written).
 #
 #   complete --run-id <id>
 #       Exit 0 + print "complete" iff every corpus task id has a record under <id> in
@@ -56,8 +64,9 @@
 # Channel resolution (the fenced eval path), precedence:
 #   1. MAKER_EVAL_DIR — test/override seam (mirrors GUARD_TELEMETRY_FILE);
 #   2. the profile — .claude/PROJECT.md → "Paths" → "Maker-eval records": a concrete
-#      backticked path with no <placeholder>; a placeholder-bearing value is prose
-#      describing the default, not an override;
+#      backticked override path that is absolute or ~/-rooted (the channel is out-of-repo).
+#      A <placeholder> value, a `*.md` doc pointer, or a bare relative sub-path name
+#      (`packets/`, `records.jsonl`) is prose describing the default, not an override;
 #   3. the shipped default — <home>/.claude/triage/<repo-basename>-maker-eval.
 #
 # Run: bash .claude/hooks/maker-eval-emit.sh <subcommand> [args]
@@ -159,8 +168,13 @@ repo_basename() {
 }
 
 profile_channel() {
+  # The channel is an OUT-OF-REPO directory, so a real override is absolute or ~/-rooted
+  # (Windows drive paths too). The Paths row also carries prose that is NOT an override —
+  # the doc pointer (`workflow/maker-eval.md`), a `<placeholder>` channel, and bare
+  # sub-path names (`packets/`, `records.jsonl`). Take the first backticked, placeholder-
+  # free, non-relative path; else empty (channel_dir then uses the shipped default).
   sed -n '/^[-*][[:space:]]*\*\*Maker-eval records:\*\*/,/^[-*#]/p' "$PROFILE" 2>/dev/null \
-    | grep -oE '`[^`<]+`' | grep '/' | head -1 | tr -d '`'
+    | grep -oE '`[^`<]+`' | tr -d '`' | grep -E '^(/|~/|[A-Za-z]:)' | head -1
 }
 
 channel_dir() {
@@ -194,6 +208,30 @@ corpus_task_ids() {
 }
 
 # ── record ──────────────────────────────────────────────────────────────────────
+# A packet-path token (run_id/task_id) must be a single non-escaping path component, so
+# neither the on-disk packet dir nor the in-record packet link can leave the fenced
+# channel (US1.AC2 "packet artifacts never escape"). A `/`- or `..`-bearing id is rejected.
+safe_token() { # <token> -> 0 iff a single non-escaping path component
+  case "$1" in
+    "" | "." )       return 1 ;;
+    *"/"* | *".."* ) return 1 ;;
+    * )              return 0 ;;
+  esac
+}
+
+# A well-formed judge output (the record-schema contract, US1.AC2): a non-empty overall
+# verdict plus at least one rubric dimension, each carrying its dimension/lifecycle/verdict.
+# A malformed output (e.g. `{}`, or non-JSON) is rejected loudly so a garbled judge run can
+# never default to a record that `complete` then counts as a baseline.
+results_valid() { # <results.json> -> 0 iff structurally a judge output
+  jq -e '
+    (.overall | type == "string") and (.overall | length > 0)
+    and ((.dimensions // []) | type == "array")
+    and ((.dimensions // []) | length > 0)
+    and ((.dimensions // []) | all(.dimension != null and .lifecycle != null and .verdict != null))
+  ' "$1" >/dev/null 2>&1
+}
+
 do_record() {
   local run_id="" task_id="" results="" prompt_f="" artifact_f="" judge_f=""
   while [ "$#" -gt 0 ]; do
@@ -211,8 +249,17 @@ do_record() {
   if [ -z "$run_id" ] || [ -z "$task_id" ] || [ -z "$results" ]; then
     usage; return 2
   fi
+  if ! safe_token "$run_id" || ! safe_token "$task_id"; then
+    printf 'maker-eval-emit: run id and task id must be safe path components (no "/" or ".."): run-id=[%s] task=[%s]\n' \
+      "$run_id" "$task_id" >&2
+    return 2
+  fi
   if [ ! -f "$results" ]; then
     printf 'maker-eval-emit: results file not found: %s\n' "$results" >&2
+    return 2
+  fi
+  if ! results_valid "$results"; then
+    printf 'maker-eval-emit: results file is not a well-formed judge output: %s\n' "$results" >&2
     return 2
   fi
 
@@ -244,9 +291,12 @@ do_record() {
 
   {
     mkdir -p "$channel/$packet_rel" || return 0
-    [ -n "$prompt_f" ]   && [ -f "$prompt_f" ]   && cp "$prompt_f"   "$channel/$packet_rel/prompt.txt"
-    [ -n "$artifact_f" ] && [ -f "$artifact_f" ] && cp "$artifact_f" "$channel/$packet_rel/artifact.txt"
-    [ -n "$judge_f" ]    && [ -f "$judge_f" ]    && cp "$judge_f"    "$channel/$packet_rel/judge-report.md"
+    # A REQUESTED packet artifact must land, or the whole write aborts silently — a record
+    # never claims a packet file it lacks. cp itself fails on a missing/unreadable source,
+    # so the copy (not a prior [ -f ] probe) is the gate.
+    [ -z "$prompt_f" ]   || cp "$prompt_f"   "$channel/$packet_rel/prompt.txt"       || return 0
+    [ -z "$artifact_f" ] || cp "$artifact_f" "$channel/$packet_rel/artifact.txt"     || return 0
+    [ -z "$judge_f" ]    || cp "$judge_f"    "$channel/$packet_rel/judge-report.md"  || return 0
     printf '%s\n' "$failure" > "$channel/$packet_rel/first-upstream-failure.txt" || return 0
     printf '%s\n' "$rec" >> "$channel/records.jsonl" || return 0
   } 2>/dev/null || return 0

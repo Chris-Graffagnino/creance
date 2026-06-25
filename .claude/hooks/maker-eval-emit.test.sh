@@ -224,5 +224,93 @@ if grep -nE '(gate-loop|reconcile-(task|inflight)|autonomy-mode|announce-task)' 
   bad "observe-only: emitter references a gate/tier/selection control-path script"
 else ok; fi
 
+# ── B (channel resolution, #158): the Maker-eval Paths row carries a doc pointer
+# (`workflow/maker-eval.md`) and bare sub-path prose (`packets/`, `records.jsonl`) beside
+# a <placeholder> channel — none is an override, so resolution must fall through to the
+# OUT-OF-REPO shipped default and never write inside the repo tree. ──────────────────────
+BPROF="$TMP/profile-docptr.md"
+cat > "$BPROF" <<'EOF'
+## Paths
+- **Maker-eval records:** default per `workflow/maker-eval.md` — out-of-repo beside the
+  triage inbox: `<triage inbox dir>/creance-maker-eval/`, holding `records.jsonl` and a
+  `packets/` subtree.
+- **Next:** x
+EOF
+BRT="$TMP/btree"; build_tree "$BRT"
+BHOME="$TMP/bhome"
+( unset MAKER_EVAL_DIR
+  HOME="$BHOME" MAKER_EVAL_ROOT="$BRT" MAKER_EVAL_PROJECT_FILE="$BPROF" \
+    bash "$EMIT" record --run-id run-B2 --task ME-01 --results "$TMP/judge.json" >/dev/null )
+if find "$BRT" -name records.jsonl 2>/dev/null | grep -q .; then
+  bad "B: doc-pointer/prose is not the channel (no repo-internal record)" "records.jsonl under $BRT"
+else ok; fi
+if [ -n "$(find "$BHOME/.claude/triage" -name records.jsonl 2>/dev/null)" ]; then ok
+else bad "B: record lands in the out-of-repo default channel" "no records.jsonl under $BHOME/.claude/triage"; fi
+# a concrete, out-of-repo (absolute) profile path IS honored as an override
+BPROF2="$TMP/profile-real.md"
+printf '## Paths\n- **Maker-eval records:** `%s/realchan`\n' "$TMP" > "$BPROF2"
+( unset MAKER_EVAL_DIR
+  HOME="$BHOME" MAKER_EVAL_ROOT="$BRT" MAKER_EVAL_PROJECT_FILE="$BPROF2" \
+    bash "$EMIT" record --run-id run-B3 --task ME-01 --results "$TMP/judge.json" >/dev/null )
+if [ -f "$TMP/realchan/records.jsonl" ]; then ok
+else bad "B: a concrete out-of-repo profile path is used as the channel" "missing $TMP/realchan/records.jsonl"; fi
+
+# ── D (atomic record+packet, #158): a REQUESTED packet artifact whose copy fails aborts
+# the whole write silently — a record never lands without its requested packet files. ──
+DCH="$TMP/dchannel"; mkdir -p "$TMP/adir"
+out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$DCH" bash "$EMIT" record \
+  --run-id run-D --task ME-01 --results "$TMP/judge.json" --prompt "$TMP/adir" 2>/dev/null)"; rc=$?
+eq "D: a failing packet copy exits 0 (silent-to-the-eval)" "0" "$rc"
+eq "D: a failing packet copy prints no record" "" "$out"
+eq "D: a failing packet copy lands no record line" "0" "$(grep -c . "$DCH/records.jsonl" 2>/dev/null || echo 0)"
+# a requested-but-missing packet file likewise aborts (cp fails on a missing source)
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/dchannel2" bash "$EMIT" record \
+  --run-id run-D2 --task ME-01 --results "$TMP/judge.json" --prompt "$TMP/no-such-file" >/dev/null 2>&1; rc=$?
+eq "D: a requested-but-missing packet exits 0" "0" "$rc"
+eq "D: a requested-but-missing packet lands no record" "0" "$(grep -c . "$TMP/dchannel2/records.jsonl" 2>/dev/null || echo 0)"
+
+# ── E (judge-output schema, #158): a malformed judge output is a loud caller error and
+# never a counted record, so a garbled run can never render `complete`. ────────────────
+ECH="$TMP/echannel"; printf '%s\n' '{}' > "$TMP/empty.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
+  --run-id run-E --task ME-01 --results "$TMP/empty.json" >/dev/null 2>&1; rc=$?
+eq "E: malformed judge output is rejected (exit 2)" "2" "$rc"
+eq "E: malformed judge output lands no record" "0" "$(grep -c . "$ECH/records.jsonl" 2>/dev/null || echo 0)"
+# end-to-end: a full set of malformed outputs never renders the run complete
+for t in ME-01 ME-02 ME-03; do
+  MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
+    --run-id run-Emt --task "$t" --results "$TMP/empty.json" >/dev/null 2>&1
+done
+out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" complete --run-id run-Emt)"; rc=$?
+ne "E: a run of malformed outputs never renders complete" "0" "$rc"
+eq "E: that run renders incomplete" "ok" "$(printf '%s' "$out" | grep -q '^incomplete' && echo ok)"
+# a well-formed judge output is still accepted (no over-rejection)
+eq "E: a well-formed judge output is still recorded" "ME-01" \
+  "$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/echannel-ok" bash "$EMIT" record \
+      --run-id run-Eok --task ME-01 --results "$TMP/judge.json" | jq -r .task_id)"
+
+# ── C (packet-path fence, #158 / AC2 "packet artifacts never escape"): a run_id or
+# task_id carrying `/` or `..` is a loud caller error — nothing is written and no packet
+# dir or in-record link escapes the channel. (The `:176/:179` link checks above only
+# exercise a benign id; these feed genuinely hostile tokens.) ──────────────────────────
+CCH="$TMP/cchannel"; mkdir -p "$CCH"
+for hostile in '../../escape' 'a/b' '..'; do
+  MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CCH" bash "$EMIT" record \
+    --run-id "$hostile" --task ME-01 --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
+  eq "C: hostile run-id [$hostile] is a loud caller error (exit 2)" "2" "$rc"
+done
+# the same guard applies to the task id
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CCH" bash "$EMIT" record \
+  --run-id run-C --task '../../escape' --results "$TMP/judge.json" >/dev/null 2>&1; rc=$?
+eq "C: hostile task-id is a loud caller error (exit 2)" "2" "$rc"
+# the `..`-traversal target ($CCH/packets/../../escape -> $TMP/escape) was never created,
+# and no record landed for any rejected id
+if [ -e "$TMP/escape" ]; then bad "C: no packet artifact escaped the fenced channel" "created $TMP/escape"; else ok; fi
+eq "C: a rejected hostile id lands no record" "0" "$(grep -c . "$CCH/records.jsonl" 2>/dev/null || echo 0)"
+# a realistic, safe id still records (no over-rejection)
+eq "C: a safe id still records" "ME-01" \
+  "$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/cchannel-ok" bash "$EMIT" record \
+      --run-id 2026-06-25T13-18-42Z --task ME-01 --results "$TMP/judge.json" | jq -r .task_id)"
+
 echo "maker-eval emit tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
