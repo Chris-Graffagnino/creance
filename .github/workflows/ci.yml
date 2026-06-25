@@ -96,6 +96,24 @@ jobs:
       - name: Tasks-file consistency tests
         run: bash .claude/hooks/check-tasks-consistency.test.sh
 
+      # T704 deterministic spec-content lint (#152, spec 002 US2.AC3): the
+      # mechanizable half of the spec-quality gate. spec-lint.sh FAILs the
+      # unambiguously-mechanizable spec smells over specs/*/spec.md — an empty AC
+      # bullet, a US# with zero ACs, an AC duplicated verbatim within a story — so
+      # the spec-quality [reviewer] (spec-quality-auditor, T701/T703) carries only
+      # the SUBTLER judgment (the AGENTS.md-residency pattern: a deterministic
+      # backstop with the auditor owning the subtle form; constitution P3 "add the
+      # backstop"). The .test.sh proves the lint FIRES on each planted smell and
+      # does NOT false-fire on a clean spec (incl. the live specs), AND that this
+      # wiring exists — the P2 "machinery proves it is live" discipline, same as
+      # shell-lint/guard. Adapter-side (hooks/ is the Claude Code binding), so a CI
+      # change, not a workflow/** change — no constitution P1 concern.
+      - name: Spec-content lint
+        run: bash .claude/hooks/spec-lint.sh specs/*/spec.md
+
+      - name: Spec-content lint tests
+        run: bash .claude/hooks/spec-lint.test.sh
+
       # T608 selection reconciliation (#80): the RUNTIME counterpart of the tasks-consistency
       # drift gate. /next-task selection now refuses a candidate whose box is unchecked but
       # whose work has merged (done-but-unchecked drift), replacing the prose "cross-check
