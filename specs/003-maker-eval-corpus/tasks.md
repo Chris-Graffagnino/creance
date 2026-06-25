@@ -47,7 +47,7 @@
 
 ## Phase 2 — Trigger, surface, and the P5 fence
 
-- [ ] T803 [cheap] Triage "Maker eval" section: score regressions vs the last
+- [x] T803 [cheap] Triage "Maker eval" section: score regressions vs the last
       *complete* run under an explicit noise-tolerant threshold (not "any delta"),
       **linking each regression's transcript review packet** + MAKER-EVAL-STALE on a
       **maker-behavior** fingerprint change + JUDGE-CHANGED and INSTRUMENT-CHANGED

@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 95 rows.
+Manifest source inventory: 96 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -131,6 +131,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/spec-lint.test.sh` | KEEP | Regression + CI-wiring tests for the spec-content lint. Verbatim. |
 | `hooks/telemetry-docs.test.sh` | KEEP | Encoding test for telemetry docs and neutral-boundary constraints. Verbatim. |
 | `hooks/triage-freshness-docs.test.sh` | KEEP | Encoding test for PROBES-STALE / GUARD-SILENT machinery freshness surfacing. Verbatim. |
+| `hooks/triage-maker-eval-docs.test.sh` | KEEP | Encoding test for the triage "Maker eval" differential-regression surfacing (US2.AC2 — threshold, packet link, MAKER-EVAL-STALE / JUDGE-CHANGED / INSTRUMENT-CHANGED / JUDGE-MISCALIBRATED, empty states). Verbatim. |
 | `settings.json` | GENERICIZE | Keep the guard hook wiring exactly; replace this repo's permission/toolchain allowlist with template placeholders. |
 | `skills/auditor-liveness/SKILL.md` | KEEP | Claude adapter binding for auditor-liveness runs. Verbatim. |
 | `skills/constitution-check/SKILL.md` | KEEP | Claude adapter binding for the constitution check. Verbatim. |
