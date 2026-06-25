@@ -384,8 +384,8 @@ channel as it found them.
 - **Expect:** (a) **exactly one** observe-only record is appended for the synthetic task,
   carrying that **maker-behavior fingerprint**, the run id, and the maker tier it scored — the
   record emission and the fingerprint stamp both fire on the real driver; (b) the run **touches no gate, tier, guard,
-  or selection state** — it writes only the throwaway channel and reads only the frozen
-  instrument, so the base branch's tree and the real eval channel are **byte-identical** after
+  or selection state** — it writes only the throwaway channel and reads only the synthetic
+  single-task corpus, so the base branch's tree and the real eval channel are **byte-identical** after
   (the observe-only boundary holds in practice, not only in the deterministic fence); (c) the
   run **edits no instrument artifact** (corpus, rubric, judge, scoring schema) — it reads and
   appends only.
