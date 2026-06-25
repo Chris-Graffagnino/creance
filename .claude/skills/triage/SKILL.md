@@ -57,3 +57,41 @@ analog of the two PROBES-STALE facts:
 Equal ⇒ auditors confirmed-live as of that run; different ⇒ **CORPUS-STALE** (report the last
 run's age either way). All three checks mutate nothing, honoring the read-only-on-the-repo
 contract above.
+
+## Maker-eval surfacing — concrete instantiation (`triage.md` §1.8 / §2)
+
+`triage.md`'s **"Maker eval"** section needs the adapter facts the neutral doc defers — where
+the records live, how to recompute the current maker-behavior fingerprint, and the record
+fields the differential reads. All reads here are **read-only** (honoring the contract above);
+triage **never** runs the eval or writes a record.
+
+- **The records + the packet link.** The channel is the profile → "Paths" → **Maker-eval
+  records** (out-of-repo, beside the telemetry stream — the same path
+  `.claude/hooks/maker-eval-emit.sh` resolves). Read `<channel>/records.jsonl` — one append-only
+  record per corpus task per run, each carrying `run_id`, `task_id`, the `fingerprint`
+  `{maker_behavior, judge_identity, eval_instrument}` object, the per-dimension `dimensions`
+  verdicts (each with its `lifecycle`), the `overall` verdict, and a relative `packet` path. A
+  flagged regression's packet link is that `packet` field, which resolves only **inside** the
+  channel (the US2.AC3 fence, T804) — render it as the path, not a repo link.
+- **The two runs to difference.** Group `records.jsonl` by `run_id`; a run is **complete** iff
+  every corpus task has a record under it — the read-only completeness oracle is
+  `bash .claude/hooks/maker-eval-emit.sh complete --run-id <id>` (exit 0 = complete, exit 3 =
+  incomplete). The **last complete** run and the **prior complete** run are the differential's
+  two inputs; an incomplete latest run is never a silent baseline.
+- **Recompute the current maker-behavior fingerprint** with the single-source recipe
+  `bash .claude/hooks/maker-eval-emit.sh fingerprint` → the `.maker_behavior` field of the
+  printed triple-fingerprint object. **Reuse that recipe — never re-derive it here** — so what
+  the maker-behavior surface covers (the model rows + the instruction/runtime surfaces) stays a
+  one-place edit; it is a content hash, so recomputing is read-only.
+- **MAKER-EVAL-STALE** compares that recomputed `.maker_behavior` against the **last run's**
+  recorded `fingerprint.maker_behavior`. Equal ⇒ current; different ⇒ **MAKER-EVAL-STALE** (an
+  eval is overdue). This is the maker analog of PROBES-STALE/CORPUS-STALE above.
+- **JUDGE-CHANGED / INSTRUMENT-CHANGED** compare the **two runs being differenced** (not the
+  live tree): the last complete run's `fingerprint.judge_identity` / `fingerprint.eval_instrument`
+  against the prior complete run's. A difference makes the pair **not-comparable** and suppresses
+  the regression call.
+- **JUDGE-MISCALIBRATED** reads the recorded judge↔owner agreement and its floor from the run's
+  records (added by US1.AC5 / T806 — the calibration set and agreement computation). Until those
+  fields are emitted, no agreement is present ⇒ render the neutral "no agreement recorded yet"
+  state. All of this stays observe-only (`maker-eval.md` → "Observe-only"): the section feeds no
+  gate, tier, guard, or selection path.

@@ -352,6 +352,20 @@ jobs:
       - name: Maker-eval emitter tests
         run: bash .claude/hooks/maker-eval-emit.test.sh
 
+      # T803 triage "Maker eval" section (#159, spec 003 US2.AC2): triage *reads* the
+      # observe-only records the T802 emitter writes and surfaces a read-only differential —
+      # score regressions of the last COMPLETE run vs the prior under an explicit
+      # noise-tolerant threshold (not "any delta"), link each regression's transcript packet,
+      # flag MAKER-EVAL-STALE on a maker-behavior fingerprint change, suppress a confounded
+      # comparison with JUDGE-CHANGED / INSTRUMENT-CHANGED, warn JUDGE-MISCALIBRATED below the
+      # agreement floor, and render explicit empty states — observe-only (P5), triage runs no
+      # eval and writes no record. The runtime-neutral doc (triage.md) + its Claude-adapter
+      # instantiation (triage/SKILL.md) are the implementation surface; this is the P3
+      # determinism backstop, same rationale as the other *-docs tests. The live differential's
+      # honesty is the §7 spec-auditor + a future probe; the P5 path-fence is T804's.
+      - name: Triage maker-eval surfacing encoding tests
+        run: bash .claude/hooks/triage-maker-eval-docs.test.sh
+
       # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
       # methodology doc and the per-/next-task hub — new rules gravitate to it, so
       # it is the harness's accretion sink and sets the per-workflow context floor
