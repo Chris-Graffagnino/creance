@@ -116,12 +116,22 @@ for f in "$@"; do
         next
       }
 
-      # Otherwise: a wrapped continuation line of the AC in progress.
-      if (have_ac) {
+      # An INDENTED non-blank line is a wrapped continuation of the AC in
+      # progress (the spec grammar indents continuations under the bullet;
+      # blank/whitespace-only lines were already consumed above, so a line
+      # reaching here with leading whitespace carries real continuation text).
+      if (have_ac && line ~ /^[ \t]/) {
         cont = line
         sub(/^[ \t]+/, "", cont)
         actext = actext " " cont
+        next
       }
+
+      # Any other column-0 (unindented) line — ordinary prose — is NOT a
+      # continuation: it ends the current AC, just like a blank line or a new
+      # bullet. This keeps an empty `- AC#:` followed by unindented prose
+      # caught as empty-ac instead of masked by the prose joining its text.
+      finalize_ac()
     }
     END { finalize_story(); exit (n > 0 ? 1 : 0) }
   ' "$f" || rc=1

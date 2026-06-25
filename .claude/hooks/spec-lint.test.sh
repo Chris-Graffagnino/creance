@@ -63,6 +63,40 @@ assert_rule    empty-ac "$F" "empty-ac -> named"
 assert_no_rule zero-acs "$F" "empty-ac story has ACs -> not zero-acs"
 assert_count   2        "$F" "two empty ACs -> two diagnostics"
 
+# --- empty-ac is NOT masked by unindented prose. The spec grammar indents AC
+#     continuations, so a column-0 line after a bare `- AC#:` ends the AC (it
+#     is ordinary prose, not continuation text) and the empty criterion still
+#     fires. Regression for the PR #153 craft finding: before the fix this
+#     prose was joined into the AC's text, hiding the empty criterion. ---
+F="$TMP/empty_masked.md"; cat > "$F" <<'SPEC'
+# Spec
+## User stories
+### US1 — empty AC followed by column-0 prose
+
+**Acceptance Criteria**
+- AC1:
+This is ordinary prose, not an indented AC continuation.
+SPEC
+assert_rc    1        "$F" "empty-ac + column-0 prose -> rc 1 (not masked)"
+assert_rule  empty-ac "$F" "empty-ac + column-0 prose -> named"
+assert_count 1        "$F" "masked empty AC -> one diagnostic"
+
+# --- the converse boundary: a bare `- AC#:` whose criterion text lives on an
+#     INDENTED continuation line below it is a real (non-empty) criterion and
+#     must NOT be flagged empty — the fix tightens continuations to indented
+#     lines without over-firing on this legitimate label-then-indented layout. ---
+F="$TMP/indented_below.md"; cat > "$F" <<'SPEC'
+# Spec
+## User stories
+### US1 — criterion text indented under the label
+
+**Acceptance Criteria**
+- AC1:
+      The real criterion text lives on this indented line.
+SPEC
+assert_rc      0        "$F" "indented text under label -> rc 0"
+assert_no_rule empty-ac "$F" "indented continuation is real text -> not empty"
+
 # --- zero-acs: a US with no AC bullets, and a US with only the marker ---
 F="$TMP/zero.md"; cat > "$F" <<'SPEC'
 # Spec
