@@ -284,7 +284,7 @@
       in. Ships matching cases in **both** `guard.test.sh` and `tests/test_guard.py`
       (#138; bug — done-when on issue) — strong: changes guard behavior across both
       implementations and adds the P2 regression coverage (constitution P2/P3)
-- [ ] T622 [strong] Stop the review-mode §7 gate-loop (`[orchestrated run]`) from
+- [x] T622 [strong] Stop the review-mode §7 gate-loop (`[orchestrated run]`) from
       relocating the **shared** working tree off the task branch: a read-only auditor's
       `git checkout`/`switch` in the shared tree must not silently move the maker's HEAD,
       while auditors retain correct read access to base state (`git diff main..HEAD` /

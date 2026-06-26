@@ -19,7 +19,21 @@ cycle, the non-convergence stop, and verbatim verdict retention. It does NOT own
 - §8 (attaching the verdicts to the PR) — the loop *returns* every verdict; posting them
   is the dispatcher's job, exactly as today;
 - appending the telemetry record — the loop *builds* the `gate-run` payload
-  (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below).
+  (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below);
+- **restoring the shared-tree task branch after the run** — a dispatched reviewer is
+  read-only only as to *file mutation*; it can still run `git`, so a stray
+  `git checkout`/`git switch` in an auditor step can relocate the maker's HEAD off the task
+  branch in the **shared** working tree (review mode runs the auditors there, not in an
+  isolated worktree). The dispatcher snapshots the task branch it cut and **restores it
+  after the run, on every outcome** — a deterministic backstop, run *before* it reads the
+  introducing-commit for telemetry so a drifted HEAD can neither strand the maker nor poison
+  the record. The **loop itself** closes the same gap *within* the run — it restores the
+  shared tree onto the task branch **before each fix-and-re-dispatch step** (review mode; see
+  "The loop"), so a fix round can neither commit onto nor re-audit a HEAD a parallel auditor
+  drifted. That in-loop restore is the loop's, the after-run restore is the dispatcher's, and
+  together they cover every path. (Under an engaged isolated autonomous run the work lives in
+  the ephemeral **[isolated workspace]** governed by the lifecycle, so this shared-tree restore
+  is review-mode only.)
 
 The loop runs against the task branch's **committed** diff versus the base branch — the
 reviewers see only commits, so commit before invoking it. Under an engaged isolated autonomous
@@ -49,6 +63,12 @@ The dispatcher passes every value the run must honor in the invocation itself:
   the **[isolated workspace]** whose committed diff the reviewers (and the fix step) audit,
   passed **explicitly** per the explicit-context rule. Absent → the main working tree (review
   mode, unchanged). The loop never infers this from a working directory or env.
+- **task-branch** — optional; **review mode only**. The branch the dispatcher cut for this task,
+  passed so the **fix step** can restore the shared working tree onto it before applying a fix or
+  re-dispatching (a parallel auditor in that shared tree can leave HEAD relocated off the task
+  branch; see "The loop" and "The fix step"). Under an engaged isolated autonomous run the work
+  lives in the ephemeral **[isolated workspace]**, so there is no shared tree to restore and this
+  is absent. Passed **explicitly** per the explicit-context rule, never inferred.
 
 A missing required input is a hard error before any dispatch — never guessed, never
 inherited from ambient state.
@@ -125,6 +145,17 @@ loop:
                  # non-convergence: stop and surface the disagreement in the PR body —
                  # the loop never overrides a reviewer (maker is not the checker)
 
+    if review mode and task-branch is given:       # past the PASS/stop returns: a fix and/or
+        restore the shared tree onto task-branch   #   re-dispatch is coming. A parallel auditor
+                                                   #   may have drifted HEAD; restore it FIRST so
+                                                   #   neither the fix (its commit would miss the
+                                                   #   branch) nor the re-dispatch (it would audit
+                                                   #   the wrong HEAD) runs against a drifted tree.
+                                                   #   Same deterministic, fail-loud restore the
+                                                   #   dispatcher runs after the run — a no-op when
+                                                   #   nothing drifted. (Isolated run → the work is
+                                                   #   in the workspace; no shared tree, so skip.)
+
     findings ← the FAIL reports among failing      # no-result reviewers have no findings
     if findings is not empty:
         fix(findings)                              # see "The fix step"
@@ -144,7 +175,9 @@ reviewers hold no edit capability). It receives the blocking verdict reports ver
 - **commits** the fix on the task branch, staging specific files — the re-dispatched
   reviewers audit the committed diff, so an uncommitted fix is invisible to them (under an
   isolated run this commit lands inside the **[isolated workspace]** the reviewers read, so
-  the fix and its re-audit stay in the same place);
+  the fix and its re-audit stay in the same place; in review mode the loop restored the shared
+  tree onto the task branch first — see "The loop" — so the commit lands on the task branch even
+  if a parallel auditor had drifted HEAD);
 - never touches the base branch;
 - when it judges a finding wrong or out of scope, it leaves the code unchanged for that
   finding and says why — it must not silently drop a finding, and it must not override
@@ -188,6 +221,16 @@ succeeded). One record per completed gate invocation, whatever the outcome.
 - Every dispatched reviewer still satisfies every **[reviewer]** constraint: separate
   context, no file-mutation capability, adversarial posture per its spec, parallel
   dispatch.
+- A reviewer reads base state by **non-switching** means only — `git diff main..HEAD`,
+  `git show main:<path>`, or a throwaway `git worktree`, **each scoped to the tree it audits**
+  (under an isolated run, the **[isolated workspace]** via an explicit `git -C <workspace>`; in
+  review mode, the shared tree) — and never a `git checkout`/`git switch` of that tree: in review
+  mode it is the maker's **shared** tree, so switching it would relocate the maker's HEAD off the
+  task branch. (A bare, un-scoped read under an isolated run would point a session-CWD reviewer at
+  the shared tree instead of the workspace and pass vacuously — the T612 trap.) This is the
+  prevention layer; the deterministic backstop is the restore — applied by the loop before each
+  fix/re-dispatch step (review mode) and by the dispatcher after the run — so a drifted HEAD is
+  healed on every path.
 - The constitution reviewer's **[strong tier]** floor applies to its dispatch parameter —
   strong-model is mandatory input precisely so the floor never depends on inherited
   session state.

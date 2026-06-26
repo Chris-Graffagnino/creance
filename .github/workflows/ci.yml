@@ -197,6 +197,24 @@ jobs:
       - name: Isolation falsification proof
         run: bash .claude/hooks/isolation-falsification.test.sh
 
+      # T622 review-mode gate branch-restore backstop (#140): in REVIEW mode the §7
+      # [orchestrated run] dispatches the read-only auditors in the SHARED working tree, and
+      # an auditor's Bash `git checkout`/`switch` can silently relocate the maker's HEAD off
+      # the task branch (the #139 reflog drift). The gate-loop runtime has no git access, so
+      # the deterministic restore lives in the dispatcher and is bound by restore-task-branch.sh
+      # — a no-op when nothing drifted, fail-LOUD when it cannot guarantee the branch (the
+      # inverse of the reconcile hooks' fail-open posture). The .test.sh is a real-git harness
+      # encoding the done-when criteria: DW1 (an auditor's switch DID drift HEAD — fail-before —
+      # and the helper restores it — pass-after, not a tautology), DW2 (after restore the
+      # auditors' NON-SWITCHING base reads still return correct base content — no over-restriction),
+      # and DW3 (the restore is exercised after BOTH a PASS-outcome and a FAIL-outcome branch
+      # state). It also asserts the dispatcher actually invokes the helper (next-task SKILL.md)
+      # and this CI wiring — the P2 "machinery proves it is live" discipline, same as
+      # guard.test.sh. Adapter-side (hooks/ is the Claude Code binding), so a CI change, not a
+      # workflow/** change — no constitution P1 concern.
+      - name: Gate branch-restore backstop tests
+        run: bash .claude/hooks/restore-task-branch.test.sh
+
       # AGENTS.md residency (#91): AGENTS.md is imported into every session
       # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
       # size is a per-turn token tax on every task (DESIGN-NOTES §11). This check

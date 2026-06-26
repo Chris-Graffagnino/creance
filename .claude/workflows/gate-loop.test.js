@@ -267,4 +267,138 @@ await test('no dispatchSpec: spec-quality-auditor is NOT dispatched (non-spec di
   assert.deepEqual(auditors, ['spec-auditor', 'constitution-auditor']);
 });
 
+// --- 12. reviewer prompt carries the non-switching base-read constraint (T622, #140) -------
+// The prevention layer for the shared-tree branch-switch bug: the auditors run in the maker's
+// shared working tree in review mode, so the reviewer prompt must forbid branch-switching git
+// and steer them to non-switching base reads. (The DETERMINISTIC backstop is the dispatcher's
+// restore-task-branch step, tested in restore-task-branch.test.sh; this pins the belt-and-
+// suspenders prevention so it cannot silently drop out of the prompt.)
+await test('reviewer prompt forbids branch-switching and steers to non-switching base reads', async () => {
+  const seen = [];
+  await runGateLoop(baseArgs, async (prompt, opts) => {
+    seen.push({ prompt, agentType: opts.agentType });
+    return { verdict: 'PASS', report: 'ok' };
+  });
+  const reviewerPrompts = seen.filter((s) => s.agentType); // reviewers carry agentType; the fixer does not
+  assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /non-switching/i, 'instructs non-switching base reads');
+    assert.match(prompt, /never run `git checkout`\/`git switch`/i, 'forbids branch-switching git');
+    assert.match(prompt, /git diff main\.\.HEAD/, 'names a non-switching base read');
+  }
+});
+
+// --- 13. workspacePath: the non-switching base-read EXAMPLES stay path-scoped (Codex P2 / craft, #174) -
+// It is not enough that the audit TARGET is path-scoped (test 6) — the prevention text's example reads
+// must be too. A bare `git diff main..HEAD` / `git show main:<path>` would steer workspace-mode
+// reviewers (who run from the session CWD) back to the shared tree and recreate the T612 vacuous-pass
+// risk. This pins the non-switching example reads — including `git show` — to the explicit git -C form.
+await test('workspacePath: non-switching base-read examples are path-scoped, not bare', async () => {
+  const seen = [];
+  await runGateLoop({ ...baseArgs, workspacePath: '/tmp/creance-ws-abc/wt' }, async (prompt, opts) => {
+    seen.push({ prompt, agentType: opts.agentType });
+    return { verdict: 'PASS', report: 'ok' };
+  });
+  const reviewerPrompts = seen.filter((s) => s.agentType);
+  assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'non-switching diff read is path-scoped');
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' show main:<path>/, 'non-switching show read is path-scoped');
+    assert.doesNotMatch(prompt, /`git diff main\.\.HEAD`/, 'no bare git diff example in workspace mode');
+    assert.doesNotMatch(prompt, /`git show main:<path>`/, 'no bare git show example in workspace mode');
+  }
+});
+
+// --- 14. review mode + taskBranch: the loop restores the shared tree BEFORE fixing (Codex P2, #174) ---
+// In review mode a parallel read-only auditor can drift the shared HEAD off the task branch; if the
+// loop then fixed/re-dispatched on that HEAD the fix would miss the branch and the re-audit would read
+// the wrong state. With taskBranch passed, a restore step runs the SAME tested hook before the fixer —
+// closing the fix-round gap, not only the post-run step.
+await test('review mode + taskBranch: a restore step runs the hook before the fixer', async () => {
+  const others = []; // no agentType: the restore step and the fixer
+  let specCalls = 0;
+  await runGateLoop(
+    { ...baseArgs, taskBranch: 'fix/140-gate-loop-restore', maxFixRounds: 1 },
+    async (prompt, opts) => {
+      if (!opts.agentType) {
+        others.push(prompt);
+        return { verdict: 'PASS', report: 'step ran' };
+      }
+      if (opts.agentType === 'spec-auditor') {
+        specCalls += 1;
+        return specCalls === 1
+          ? { verdict: 'FAIL', report: 'needs a fix' } // round-1 FAIL → triggers the fix stage
+          : { verdict: 'PASS', report: 'ok now' }; // round-2 PASS
+      }
+      return { verdict: 'PASS', report: 'ok' };
+    },
+  );
+  assert.ok(
+    others.some((p) => /restore-task-branch\.sh 'fix\/140-gate-loop-restore'/.test(p)),
+    'a restore step invokes the hook with the shell-quoted task branch',
+  );
+  assert.ok(
+    others.some((p) => /Apply the minimal scoped change/.test(p)),
+    'the fixer still runs after the restore',
+  );
+});
+
+// --- 15. workspace mode: NO shared-tree restore step (the work is isolated) -----------------------
+// The fix-round restore is review-mode only: autonomous work lives in the ephemeral isolated
+// workspace, so there is no shared tree to restore (WORKSPACE suppresses TASK_BRANCH even when both
+// are passed). The fixer runs, but no restore hook is invoked.
+await test('workspace mode: no shared-tree restore step even when taskBranch is also passed', async () => {
+  const others = [];
+  let specCalls = 0;
+  await runGateLoop(
+    { ...baseArgs, workspacePath: '/tmp/creance-ws-xyz/wt', taskBranch: 'fix/140-x', maxFixRounds: 1 },
+    async (prompt, opts) => {
+      if (!opts.agentType) {
+        others.push(prompt);
+        return { verdict: 'PASS', report: 'fixer ran' };
+      }
+      if (opts.agentType === 'spec-auditor') {
+        specCalls += 1;
+        return specCalls === 1 ? { verdict: 'FAIL', report: 'needs a fix' } : { verdict: 'PASS', report: 'ok now' };
+      }
+      return { verdict: 'PASS', report: 'ok' };
+    },
+  );
+  assert.ok(others.length >= 1, 'the fixer ran');
+  for (const p of others) assert.doesNotMatch(p, /restore-task-branch/, 'no shared-tree restore in workspace mode');
+});
+
+// --- 16. review mode + taskBranch: restore runs before a FIXER-LESS re-dispatch too (Codex P2, #174) -
+// When the failing reviewers are all NO-RESULT (returned nothing) there is no FAIL finding to fix, so
+// no fixer runs — but the shared tree may still have been drifted (e.g. by a sibling reviewer that
+// passed). The restore must still run before the re-dispatch, or the retried reviewer would audit a
+// drifted HEAD and could pass vacuously.
+await test('review mode + taskBranch: restore runs before a fixer-less (NO-RESULT) re-dispatch', async () => {
+  const others = [];
+  let specCalls = 0;
+  const result = await runGateLoop(
+    { ...baseArgs, taskBranch: 'fix/140-x', maxFixRounds: 1 },
+    async (prompt, opts) => {
+      if (!opts.agentType) {
+        others.push(prompt);
+        return { verdict: 'PASS', report: 'step ran' };
+      }
+      if (opts.agentType === 'spec-auditor') {
+        specCalls += 1;
+        return specCalls === 1 ? null : { verdict: 'PASS', report: 'ok now' }; // round-1 NO-RESULT → re-dispatch, no fixer
+      }
+      return { verdict: 'PASS', report: 'ok' };
+    },
+  );
+  assert.equal(result.gate, 'PASS');
+  assert.ok(
+    others.some((p) => /restore-task-branch\.sh 'fix\/140-x'/.test(p)),
+    'a restore step runs before the fixer-less re-dispatch',
+  );
+  assert.ok(
+    !others.some((p) => /Apply the minimal scoped change/.test(p)),
+    'no fixer runs when there are no FAIL findings',
+  );
+});
+
 console.log(`\n${testsRun} tests passed`);
