@@ -244,18 +244,30 @@ check "T606 DW3: note references the spec-auditor reviewer spec" "$INTAKE_FLAT" 
 check "T606 DW3: note frames the reviewer as the post-implementation backstop" "$INTAKE_FLAT" \
   "post-implementation"
 
-# ── #170 — maintenance rubric carried by the marked done-when comment ──────────
+# ── #170 — maintenance rubric carried by the marked §5 intake cross-link ───────
 # The acceptance reviewer grades a `done-when on issue` task against the marked
-# comment intake posts (the additive-write posture), not an edit to the
-# owner-authored body; a later edit reverting either doc to "body" fails these.
-check "#170: spec-auditor grades the rubric from the marked comment" "$SPEC_AUDITOR_FLAT" \
-  "the [comment marker]'d comment intake posts on that issue"
+# §5 intake cross-link comment for the task ID (the additive-write posture), NOT
+# any later marked bookkeeping that restates criteria (a §4.5 plan, §5 blockage,
+# §8 verdict — the maker-shadows-the-rubric hazard) and NOT an edit to the
+# owner-authored body; the rubric-less case stays a hard FAIL. A later edit that
+# broadens the selector, reverts either doc to "body", or drops the FAIL control
+# branch fails these.
+check "#170: spec-auditor grades from the marked intake cross-link for this task ID" "$SPEC_AUDITOR_FLAT" \
+  "the marked intake cross-link comment for this task ID"
+check "#170: spec-auditor excludes a later marked plan from shadowing the rubric" "$SPEC_AUDITOR_FLAT" \
+  "let a later maker-authored plan shadow the owner-ratified intake rubric"
+check "#170: spec-auditor ties resolve to the newest intake cross-link, not any marked comment" "$SPEC_AUDITOR_FLAT" \
+  "newest such cross-link"
+check "#170: spec-auditor keeps the rubric-less case a hard FAIL (control branch)" "$SPEC_AUDITOR_FLAT" \
+  "no rubric, and that gap is itself the blocking finding: verdict **FAIL**"
 check "#170: spec-auditor keeps the body only as a pre-convention fallback" "$SPEC_AUDITOR_FLAT" \
   "placed the criteria in the issue body instead is graded against that body"
 check "#170: intake §4 never edits the owner-authored body for the rubric" "$INTAKE_FLAT" \
   "never an edit to the owner-authored body"
 check "#170: intake §4 grades against the marked comment" "$INTAKE_FLAT" \
   "grades against that marked comment"
+check "#170: intake §4 ties the rubric to the §5 cross-link, not a later comment" "$INTAKE_FLAT" \
+  "the newest such cross-link governs"
 
 # ── Runtime-neutral boundary (constitution P1) ─────────────────────────────────
 # Intake is a neutral workflow doc, so it uses the same shared banned-token set as

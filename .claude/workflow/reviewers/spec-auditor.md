@@ -22,17 +22,29 @@ The **task ID** under review. If it was not provided, say so and stop — do not
 
 **Maintenance tasks (no `US#`):** a task line carrying no `US#` but marked as carrying
 its rubric on its issue (the intake convention, `workflow/intake.md` §4 — e.g.
-`(#<issue>; repo-maintenance — done-when on issue)`) is graded against the **done-when
-criteria carried in the [comment marker]'d comment intake posts on that issue** — the
-additive-write posture keeps the rubric in a marked comment, never an edit to the
-owner-authored body (`workflow/intake.md` §4); when several marked comments carry
-done-when criteria the **newest** governs (newest-comment provenance, `next-task.md`
-§2.5). A pre-convention conversion that placed the criteria in the issue body instead is
-graded against that body. Either way, grade exactly as you would a `US#`'s acceptance
-criteria (hard-FAIL rule intact). A task line with **neither** a `US#` **nor** any
-issue-carried done-when criteria — no marked done-when comment and no body rubric — has
-no rubric, and that gap is itself the blocking finding: verdict **FAIL**, minimal fix the
-missing criteria.
+`(#<issue>; repo-maintenance — done-when on issue)`) is graded against the done-when
+criteria carried in **the marked intake cross-link comment for this task ID** — the §5
+cross-link intake posts when it converts the issue (`workflow/intake.md` §4–§5): the
+**[comment marker]'d** comment that carries the assigned task ID, the drafted done-when
+criteria, and the conversion PR reference. The additive-write posture keeps the rubric in
+that marked comment, never an edit to the owner-authored body (`workflow/intake.md` §4).
+
+**Select the rubric carrier precisely — recency alone does not.** `next-task.md` §2.5
+makes *every* engine-posted comment marked, so the same thread also carries marked
+bookkeeping that is **not** the rubric: a §4.5 plan artifact (whose test plan names which
+tests encode which criteria), a §5 blockage record, an §8 verdict comment. None of these
+is the rubric even when it restates criteria — selecting the newest marked comment that
+merely carries criteria would let a later maker-authored plan shadow the owner-ratified
+intake rubric. Grade **only** the intake cross-link; if several **intake cross-links** for
+this task ID carry done-when criteria (a re-conversion), the **newest such cross-link**
+governs.
+
+A pre-convention conversion that placed the criteria in the issue body instead is graded
+against that body. Either way, grade exactly as you would a `US#`'s acceptance criteria
+(hard-FAIL rule intact). A task line with **neither** a `US#` **nor** any issue-carried
+done-when criteria — no marked intake cross-link and no body rubric — has no rubric, and
+that gap is itself the blocking finding: verdict **FAIL**, minimal fix the missing
+criteria.
 
 If `.claude/PROJECT.md` is missing, fall back to `specs/*/tasks.md` + `specs/*/spec.md` and
 say so.

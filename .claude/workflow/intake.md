@@ -107,8 +107,10 @@ valve: owner steering cannot relax engine invariants).
     to the owner-authored body; this is the criteria-bearing comment §5 cross-links — and
     mark the task line as maintenance with its rubric on the issue
     (e.g. `(#<issue>; repo-maintenance — done-when on issue)`). The gate's acceptance
-    [reviewer] then grades against that marked comment, exactly as it would a `US#`'s
-    (`reviewers/spec-auditor.md`; the newest governs when several carry criteria).
+    [reviewer] then grades against that marked comment — the §5 cross-link for this task
+    ID, not a later plan or other bookkeeping comment that restates criteria — exactly as
+    it would a `US#`'s (`reviewers/spec-auditor.md`; the newest such cross-link governs
+    when several carry criteria).
 
 ### Screen each drafted criterion for gameability (not just checkability)
 
