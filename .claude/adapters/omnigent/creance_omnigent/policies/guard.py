@@ -199,8 +199,72 @@ def _rule_edit_on_base(event, base, cwd, path_keys=DEFAULT_EDIT_PATH_KEYS):
 # string). Each takes a uniform (command, base, cwd) signature; unused args are ignored.
 # --------------------------------------------------------------------------------------
 
-# Rule 2 — staging the entire tree at once.
-_RE_ADD_ALL = re.compile(r"git\s+add\s+(?:--all|-A|\.)(?:\s|;|&|\||\"|$)")
+# Leading git GLOBAL-option run (issue #138): rules 2/3/4 must see through a run of
+# global options between `git` and the subcommand (`git -C <path> add --all`,
+# `git -c k=v commit`, `git --git-dir=… push`), which standard git accepts and which
+# would otherwise slip the subcommand anchor. CONSERVATIVE: only well-known globals
+# match, so an UNRECOGNIZED leading token ends the run — the rule then sees the
+# original token and may abstain (fail-open, the narrowly-scoped DW3 posture). Path
+# operands stop at shell separators and a quote. Mirrors guard.sh's `gitg`/`grun`.
+_GOPT = (
+    r'-C\s+[^\s;&|"]+|-c\s+[^\s;&|"]+'
+    r'|--git-dir=[^\s;&|"]*|--git-dir\s+[^\s;&|"]+'
+    r'|--work-tree=[^\s;&|"]*|--work-tree\s+[^\s;&|"]+'
+    r'|--namespace\s+[^\s;&|"]+'
+    r'|--paginate|--no-pager|--bare|--literal-pathspecs|--no-optional-locks|-p'
+)
+_GRUN = r"(?:\s+(?:" + _GOPT + r"))*"
+# The `git <globals> commit|push` invocation's prefix — the repo-locating globals are
+# read from the SAME invocation rule 3 matched (issue #138 / PR #173 Codex P2), not the
+# first `git` in the line, so `git -C <other> status && git commit` does not borrow <other>.
+# The trailing boundary lookahead mirrors _RE_COMMIT_PUSH so the locator latches onto the
+# EXACT invocation rule 3 matched (not a `git commitx` decoy that shares the prefix).
+_RE_COMMIT_PUSH_RUN = re.compile(r"git" + _GRUN + r"\s+(?:commit|push)(?=\s|;|&|\||\"|$)")
+_RE_CD = re.compile(r"^\s*cd\s+([^\s;&|\"]+)")
+_RE_C_OPT = re.compile(r"-C\s+([^\s;&|\"]+)")
+_RE_GITDIR_OPT = re.compile(r"--git-dir(?:=|\s+)([^\s;&|\"]+)")
+
+
+def _effective_branch(command, cwd):
+    """Branch of the repo ``command`` acts on. The repo-locating globals (`-C`,
+    `--git-dir`) are read from the SAME `git … commit|push` invocation rule 3 matched
+    (issue #138 / PR #173 Codex P2) — so an unrelated leading `git -C <other> status`
+    cannot lend its `-C` — and `--git-dir` is honored alongside `-C` (PR #173 craft H1).
+    They are replayed against `git … branch --show-current` run from the EVENT cwd, so a
+    relative path resolves against the event cwd, not the policy process cwd (PR #173 craft
+    H2; git applies repeated `-C` cumulatively, so `cd <a> && git -C <b>` nests for free).
+    Best-effort + fail-open: an unreadable target (bad path, non-repo, detached HEAD)
+    falls back to the event-cwd branch, so the change only ADDS DENY coverage and never
+    weakens the existing event-cwd check (e.g. `cd <gone> && git commit` on base DENYs)."""
+    m = _RE_CD.match(command)
+    cddir = m.group(1) if m else None
+    copt = gdir = None
+    run = _RE_COMMIT_PUSH_RUN.search(command)
+    if run:
+        seg = run.group(0)
+        cs = list(_RE_C_OPT.finditer(seg))
+        if cs:
+            copt = cs[-1].group(1)  # ONLY from the global run, so `git commit -C HEAD` is safe
+        gs = list(_RE_GITDIR_OPT.finditer(seg))
+        if gs:
+            gdir = gs[-1].group(1)
+    gargs = []
+    if cddir:
+        gargs += ["-C", cddir]
+    if copt:
+        gargs += ["-C", copt]
+    if gdir:
+        gargs += ["--git-dir", gdir]
+    if gargs:
+        out = _git(gargs + ["branch", "--show-current"], cwd)  # cwd = EVENT cwd (craft H2)
+        if out is not None and out.strip():
+            return out.strip()
+    return _branch(cwd)
+
+
+# Rule 2 — staging the entire tree at once. The leading-global run (#138 DW1) and the
+# trailing `\./?` dot-operand variant (#138 DW4) fold into the same pattern.
+_RE_ADD_ALL = re.compile(r"git" + _GRUN + r"\s+add\s+(?:--all|-A|\./?)(?:\s|;|&|\||\"|$)")
 
 
 def _rule_bulk_staging(command, base=None, cwd=None):
@@ -213,12 +277,14 @@ def _rule_bulk_staging(command, base=None, cwd=None):
     return None
 
 
-# Rule 3 — commit / push while on the base branch.
-_RE_COMMIT_PUSH = re.compile(r"git\s+(?:commit|push)(?:\s|;|&|\||\"|$)")
+# Rule 3 — commit / push while on the base branch. Allows a leading global run (#138
+# DW1) and resolves the EFFECTIVE repo (a -C / cd && target), not only the event cwd
+# (#138 DW2).
+_RE_COMMIT_PUSH = re.compile(r"git" + _GRUN + r"\s+(?:commit|push)(?:\s|;|&|\||\"|$)")
 
 
 def _rule_commit_push_base(command, base, cwd):
-    if _RE_COMMIT_PUSH.search(command) and _branch(cwd) == base:
+    if _RE_COMMIT_PUSH.search(command) and _effective_branch(command, cwd) == base:
         return _deny(
             "commit-push-on-base",
             "never commit or push while on the base branch '{}'. Work on a feature "
@@ -232,7 +298,7 @@ def _rule_commit_push_base(command, base, cwd):
 # is untouched); the destination ref is matched after a ':' or whitespace.
 def _rule_push_refspec_base(command, base, cwd=None):
     pat = (
-        r"git\s+push[^\";&|]*(?::|\s)(?:refs/heads/)?"
+        r"git" + _GRUN + r"\s+push[^\";&|]*(?::|\s)(?:refs/heads/)?"
         + re.escape(base)
         + r"(?:[^A-Za-z0-9_./-]|$)"
     )

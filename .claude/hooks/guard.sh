@@ -6,10 +6,16 @@
 # Pure Git-Bash: needs only cat/grep/sed/git/mktemp (no node, jq, awk, or pwsh).
 # PreToolUse — blocks (exit 2, message on stderr) before the action runs:
 #   1. Any file edit (Edit/Write/MultiEdit/NotebookEdit) while on branch `main`.
-#   2. `git add .` / `git add -A` / `git add --all` (stage specific files instead).
+#   2. `git add .` / `git add -A` / `git add --all` / `git add ./` (stage
+#      specific files instead).
 #   3. `git commit` / `git push` while on branch `main`.
 #   4. Any `git push` whose refspec targets `main` (e.g. `HEAD:main`, `:main`,
 #      or `main` as the destination), regardless of current branch.
+#   Rules 2-4 see through a leading git GLOBAL-option run (`git -C <path>`,
+#   `git -c k=v`, `git --git-dir=…`) so it can't slip the subcommand anchor, and
+#   the branch-gated rule 3 resolves the EFFECTIVE repo (an explicit `-C <path>`
+#   or `--git-dir <path>` from the commit/push invocation, or a leading
+#   `cd <path> &&`), not only the event cwd (issues #138, #173).
 #   5. Any Agent dispatch of a strong-floored reviewer — `constitution-auditor`
 #      or `spec-quality-auditor` — whose `model` parameter is absent or names a
 #      below-strong tier (the strong floor; issues #94, #147). Tier names are
@@ -43,6 +49,62 @@ set -u
 payload="$(cat)"
 
 branch() { git branch --show-current 2>/dev/null; }
+
+# Rules 2/3/4 must see through a leading run of git GLOBAL options placed between
+# `git` and the subcommand (`git -C <path> add --all`, `git -c k=v commit`,
+# `git --git-dir=… push`), which standard git accepts and which would otherwise
+# slip the subcommand anchor (issue #138). `gitg` is the alternation of recognized
+# globals; `grun` is a (possibly empty) run of them. CONSERVATIVE: only well-known
+# globals match, so an UNRECOGNIZED leading token ends the run — the rule then sees
+# the original token and may abstain (fail-open, the narrowly-scoped DW3 posture).
+# Path operands stop at shell separators and the JSON string's closing quote.
+gitg='-C[[:space:]]+[^[:space:];&|"]+|-c[[:space:]]+[^[:space:];&|"]+|--git-dir=[^[:space:];&|"]*|--git-dir[[:space:]]+[^[:space:];&|"]+|--work-tree=[^[:space:];&|"]*|--work-tree[[:space:]]+[^[:space:];&|"]+|--namespace[[:space:]]+[^[:space:];&|"]+|--paginate|--no-pager|--bare|--literal-pathspecs|--no-optional-locks|-p'
+grun="([[:space:]]+($gitg))*"
+
+# Effective-repo resolution for the branch-gated rule 3. A `git -C <path>`, a
+# `git --git-dir=<path>`, or a leading `cd <path> &&` makes a command act on a
+# DIFFERENT repo than the event cwd, so the branch must be resolved THERE, not only
+# in the hook cwd (issue #138 DW2). The repo-locating globals are taken from the SAME
+# `git … commit|push` invocation that rule 3 matched — NOT the first `git` token in the
+# line — so an unrelated leading run (`git -C <other> status && git commit`) does not
+# lend its `-C` to the commit's branch decision (PR #173, Codex P2); and `--git-dir`
+# is honored alongside `-C` (PR #173, craft H1). Best-effort + fail-open: when the
+# resolved target's branch is unreadable (a bad path, a non-repo, a detached HEAD),
+# fall back to the event-cwd branch — so the change only ADDS DENY coverage and never
+# weakens the existing event-cwd check.
+cd_dir() { # a leading `cd <path> &&` -> <path> (empty otherwise)
+  case "$1" in
+    cd[[:space:]]*) printf '%s' "$1" | sed -E 's/^cd[[:space:]]+([^[:space:];&|"]+).*/\1/' ;;
+  esac
+}
+commit_push_run() { # the `git <globals> commit|push` invocation's prefix -> string ('' if none)
+  # The trailing boundary (a shell separator, a quote, or end of string) makes the locator
+  # latch onto the EXACT invocation rule 3 matched, never a `git commitx` decoy sharing the
+  # `commit` prefix; -oE includes the boundary char, which is harmless to -C/--git-dir extraction.
+  printf '%s' "$1" | grep -oE "git${grun}[[:space:]]+(commit|push)([[:space:]]|;|&|\||\"|$)" | head -1
+}
+effective_branch() { # <command> -> branch of the repo the command acts on
+  local cmd="$1" run cddir copt gdir b
+  run="$(commit_push_run "$cmd")"
+  cddir="$(cd_dir "$cmd")"
+  # `-C` / `--git-dir` taken ONLY from that invocation's leading global run, so a
+  # non-global `git commit -C HEAD` (reuse-message) is never misread as a directory.
+  copt="$(printf '%s' "$run" | grep -oE '\-C[[:space:]]+[^[:space:];&|"]+' | tail -1 | sed -E 's/^-C[[:space:]]+//')"
+  gdir="$(printf '%s' "$run" | grep -oE '\-\-git-dir(=|[[:space:]]+)[^[:space:];&|"]+' | tail -1 | sed -E 's/^--git-dir(=|[[:space:]]+)//')"
+  # Replay the locator globals against `branch --show-current`, in the hook cwd (= event
+  # cwd) so relative paths resolve exactly as the real command would. git applies repeated
+  # `-C` cumulatively, so a `cd <a> && git -C <b>` nests <b> under <a> for free, and an
+  # absolute `-C`/`--git-dir` overrides it.
+  set --
+  [ -n "$cddir" ] && set -- "$@" -C "$cddir"
+  [ -n "$copt" ]  && set -- "$@" -C "$copt"
+  [ -n "$gdir" ]  && set -- "$@" --git-dir "$gdir"
+  if [ "$#" -gt 0 ]; then
+    b="$(git "$@" branch --show-current 2>/dev/null)"
+    [ -n "$b" ] && { printf '%s' "$b"; return 0; }
+  fi
+  branch
+}
 
 # Telemetry stream path, resolved in precedence order:
 #   1. GUARD_TELEMETRY_FILE — test/override seam (mirrors GUARD_MODELS_FILE);
@@ -225,18 +287,25 @@ case "$tool" in
     fi
     ;;
   Bash|PowerShell)
-    # Match against the raw payload; the command field carries these verbatim.
-    if printf '%s' "$payload" | grep -qE 'git[[:space:]]+add[[:space:]]+(--all|-A|\.)([[:space:]]|;|&|\\|")'; then
+    # Match against the raw payload; the command field carries these verbatim. Each
+    # rule allows a leading git global-option run (grun) before the subcommand, so a
+    # `-C <path>` / `-c k=v` / `--git-dir=…` prefix no longer slips the matcher (#138
+    # DW1). The trailing `\./?` folds in the `git add ./`-operand variant (#138 DW4).
+    cmd="$(jstr command)"
+    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+add[[:space:]]+(--all|-A|\./?)([[:space:]]|;|&|\\|")'; then
       block git-add-all "\`git add .\` / -A / --all is not allowed (AGENTS.md). Stage specific files:
    git add <path1> <path2>"
     fi
-    if printf '%s' "$payload" | grep -qE 'git[[:space:]]+(commit|push)([[:space:]]|\\|")' && [ "$(branch)" = "main" ]; then
+    # Branch-gated: resolve the EFFECTIVE repo (a `-C <path>` / `cd <path> &&` target),
+    # not just the event cwd, so a commit/push into a different on-base repo is caught
+    # (#138 DW2). effective_branch falls back to the event-cwd branch when unreadable.
+    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+(commit|push)([[:space:]]|\\|")' && [ "$(effective_branch "$cmd")" = "main" ]; then
       block commit-push-on-main "Never commit or push to 'main' (AGENTS.md). Work on a feature branch and open a PR."
     fi
     # Refspec rule: a push can target main from ANY branch (`git push origin HEAD:main`),
     # so match the destination ref, not just the current branch. [^";&|]* keeps the match
     # inside a single shell command, so `git push ... && gh pr create --base main` is allowed.
-    if printf '%s' "$payload" | grep -qE 'git[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
+    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
       block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
     fi
     # Rule 6: a self-colliding in-place sed substitution — the delimiter char also
