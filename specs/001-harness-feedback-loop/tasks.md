@@ -316,7 +316,7 @@
 > produces the worked-example set, and T627 is blocked by T626 because the onboarding
 > prompt points at that set as the target shape.
 
-- [ ] T624 [cheap] Add a short **"Finding things in this repo"** recipe block to
+- [x] T624 [cheap] Add a short **"Finding things in this repo"** recipe block to
       `.claude/PROJECT.template.md` — a bounded, known-cost lookup path for the adopted
       project's growing `specs/` tree (the engine mandates search-first but ships no recipe
       for mining its own artifact tree). The block carries at least the four lookup recipes
