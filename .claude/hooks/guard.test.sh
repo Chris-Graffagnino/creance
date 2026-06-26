@@ -78,6 +78,18 @@ check 0 "$MAIN" "r1 allow: Write outside repo, Windows path, on main" "$(edit Wr
 check 0 "$FEAT" "r1 allow: Edit in-repo on a feature branch" "$(edit Edit "$FEAT_ROOT/src/foo.ts")"
 check 0 "$MAIN" "r1 allow: non-edit tool (Read) on main" "$(edit Read "$MAIN_ROOT/src/foo.ts")"
 
+# --- rule 1 (#165 / T623): relative file_path normalized BEFORE the in_repo decision ---
+# The bypass: a relative in-repo path (e.g. "AGENTS.md") was read as outside the repo, so
+# the edit-on-main guard let it through. guard.sh now resolves a relative path against the
+# repo root and collapses '.'/'..' before the prefix test. Tests run with cwd = the repo,
+# so the relative path anchors there. Paired control: a relative path that ESCAPES the repo
+# ("../…") must still be ALLOWED — a "deny-everything-relative" shortcut fails the control.
+check 2 "$MAIN" "r1 #165 block: relative in-repo path on main" "$(edit Edit "AGENTS.md")"
+check 2 "$MAIN" "r1 #165 block: relative nested in-repo path on main" "$(edit Write "src/foo.ts")"
+check 2 "$MAIN" "r1 #165 block: relative dot-slash in-repo path on main" "$(edit Edit "./notes.md")"
+check 0 "$MAIN" "r1 #165 allow: relative path escaping the repo on main (control)" "$(edit Edit "../outside/notes.md")"
+check 0 "$FEAT" "r1 #165 allow: relative in-repo path on a feature branch" "$(edit Edit "AGENTS.md")"
+
 # --- rule 2: no blanket staging (run on the feature repo so rule 3 stays out) ---
 check 2 "$FEAT" "r2 block: git add ." "$(bashp 'git add .')"
 check 2 "$FEAT" "r2 block: git add -A" "$(bashp 'git add -A')"
@@ -301,6 +313,19 @@ check 0 "$ELR" "r7 allow: non-edit tool at PostToolUse ignored" "$(postedit Bash
 # hook_event_name) must NOT fire rule 7 — the edit has not happened yet.
 { printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf "yes '%s b' | head -n1\n" "$D"; } > "$EDITED"
 check 0 "$ELR" "r7 allow: edit-time lint does not fire at PreToolUse" "$(edit Edit "$EDITED")"
+
+# DW2 (#165 / T623): the PostToolUse edit-guard resolves a RELATIVE file_path too — the
+# in_repo gate AND the checker/baseline run on the normalized absolute path. Mirror the
+# PreToolUse pair: a relative in-repo .sh adding a diagnostic -> blocked; a relative path
+# escaping the repo -> fails open (control). The "no NEW diagnostic" case is the key pin:
+# if the baseline were taken on the raw relative path, norm_rel could not relativize it
+# (baseline 0) so a pre-existing-only diagnostic would wrongly block — it proves fp is
+# resolved before the checker/baseline, not only inside in_repo.
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf "yes '%s b' | head -n1\n" "$D"; } > "$EDITED"
+check 2 "$ELR" "r7 #165 block: relative in-repo .sh adds a diagnostic" "$(postedit Edit "sample.sh")"
+{ printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf '# touched, no new issue\n'; } > "$EDITED"
+check 0 "$ELR" "r7 #165 allow: relative in-repo .sh, no new diagnostic (baseline correct)" "$(postedit Edit "sample.sh")"
+check 0 "$ELR" "r7 #165 allow: relative .sh escaping the repo fails open (control)" "$(postedit Edit "../outside.sh")"
 unset GUARD_PROJECT_FILE
 
 # --- telemetry: block + evaluation records (workflow/telemetry.md, US1.AC3/AC4) ---
@@ -447,6 +472,20 @@ for t in Edit Write MultiEdit NotebookEdit; do
     printf 'FAIL %-55s PostToolUse matcher must route it (else rule 7 is dead)\n' "wiring: PostToolUse routes $t" >&2
   fi
 done
+
+# --- T623 (#165): default review mode pre-approves no `gh pr merge` (DW3) ---
+# Merge authorization is session-explicit (AGENTS.md "Autonomy and Merge Rules"). A
+# `gh pr merge` pre-approval in the allowlist would make the merge boundary
+# model-compliance-bound rather than deterministic, so NO allow rule (Bash or
+# PowerShell) may grant it in default review mode. Asserted statically against the
+# real settings.json (the same file the wiring assertions above read); a re-added
+# entry fails this.
+merge_allows="$(grep -cE '"(Bash|PowerShell)\(gh pr merge' "$SETTINGS" 2>/dev/null)"
+[ -n "$merge_allows" ] || merge_allows=0
+if [ "$merge_allows" -eq 0 ]; then pass=$((pass + 1)); else
+  fail=$((fail + 1))
+  printf 'FAIL %-55s settings.json must not pre-approve gh pr merge (found %s)\n' "settings #165: no gh pr merge pre-approval" "$merge_allows" >&2
+fi
 
 # --- fail-open posture for unrecognized input ---
 check 0 "$FEAT" "misc allow: garbage payload" 'not json'

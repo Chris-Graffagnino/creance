@@ -293,7 +293,7 @@
       auditor git usage it is a guard-behavior change shipping its matching test (#140;
       bug — done-when on issue) — strong: protects the gate-execution boundary against
       silent branch-state loss (constitution P2/P3)
-- [ ] T623 [strong] Close two enforcement-boundary bypasses found in the engineering-craft
+- [x] T623 [strong] Close two enforcement-boundary bypasses found in the engineering-craft
       audit: (a) normalize a relative edit `file_path` to absolute against the hook
       cwd/repo root **before** the `in_repo` decision in `.claude/hooks/guard.sh`, so an
       in-repo relative path on the base branch is DENIED while a genuinely-outside relative
