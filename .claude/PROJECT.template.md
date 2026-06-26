@@ -32,6 +32,15 @@ CI / merge gate, Architecture boundaries, Invariant checklist, Constitution watc
   (`records.jsonl` + a `packets/` subtree for per-task transcript review packets); or "none"
   if you do not run a maker eval>
 
+## Finding things in this repo
+The engine mandates search-first; these bounded `rg` recipes mine the growing `specs/` tree
+by the artifact you need. Each uses only a path convention from **Paths** above — no new
+convention invented. Fill the `<...>` for your lookup.
+- **A story's acceptance criteria** — `rg -n "US<n>" specs/*/spec.md`
+- **A task line by ID** — `rg -n "<task-id>" specs/*/tasks.md`
+- **A contract by capability / seam** — `rg -n "<capability or seam>" specs/*/contracts/`
+- **An invariant by keyword** — `rg -n "<keyword>" memory/constitution.md .claude/PROJECT.md`
+
 ## Task & branch conventions
 - **Task ID format:** <e.g. `T` + 3 digits; or "none — use issue numbers">
 - **Model tier tag:** <do task lines carry `[frontier]`/`[strong]`/`[cheap]`? The tag is
