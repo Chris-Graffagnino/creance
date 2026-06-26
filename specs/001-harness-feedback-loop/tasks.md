@@ -305,6 +305,75 @@
       (#165; bug — done-when on issue) — strong: base-branch-mutation and merge boundaries
       with their P2 regression coverage (constitution P2/P3/P4)
 
+## Phase 12 — Documentation & adapter-consistency intake (discovered work)
+
+> Four owner-filed issues surfaced by triage as unmapped tracker work, converted via
+> intake (`workflow/intake.md`): three docs gaps in the template/onboarding surface
+> (#11, #17, #16) plus one example-adapter roster-consistency gap (#150). Each is
+> repo-maintenance — no new `US#`; the acceptance reviewer grades each against the
+> done-when criteria carried in the issue's intake cross-link comment, exactly as it
+> would a `US#`. T626 (#17) and T627 (#16) are companions, but not unordered: T626
+> produces the worked-example set, and T627 is blocked by T626 because the onboarding
+> prompt points at that set as the target shape.
+
+- [ ] T624 [cheap] Add a short **"Finding things in this repo"** recipe block to
+      `.claude/PROJECT.template.md` — a bounded, known-cost lookup path for the adopted
+      project's growing `specs/` tree (the engine mandates search-first but ships no recipe
+      for mining its own artifact tree). The block carries at least the four lookup recipes
+      (story acceptance criteria, a task line by ID, a contract by capability/seam, an
+      invariant by keyword), each a runnable `rg` recipe in the file's existing `<...>`
+      placeholder style, and references **only** path conventions the engine already
+      documents (`specs/*/spec.md`, `specs/*/tasks.md`, `specs/*/contracts/`,
+      `memory/constitution.md`, `.claude/PROJECT.md`) — no new path convention invented.
+      Neutral layer (`workflow/**`) untouched (#11; repo-maintenance — done-when on issue)
+      — cheap: a docs-only addition to the profile template with no judgment over engine
+      invariants
+- [ ] T625 [strong] Mirror the neutral §7 reviewer roster's fourth member into the
+      **Omnigent example adapter**: add `.claude/adapters/omnigent/reviewers/spec-quality.yaml`
+      with `purpose: review`, a vendor different from the implementer (cross-vendor
+      isolation), read-only (no file-mutation `os_env`), and the `[strong tier]` floor
+      (strong-floored like the constitution reviewer); extend `tests/test_reviewers.py`'s
+      `REVIEWERS` set so the new YAML is covered by the cross-vendor / read-only / tier-pin
+      property checks; and wire it into the Omnigent orchestrator's `dispatch-spec`
+      condition (`config.yaml`, the gate-loop surface T620 lands) so a
+      spec-touching diff actually dispatches it. Full `verify` green, Python adapter tests
+      included; blocked by T620 (#150; repo-maintenance — done-when on issue) — strong:
+      example-adapter review-roster semantics and its cross-vendor/read-only/tier-floor
+      property surface
+- [ ] T626 [strong] Ship a **worked-example set** under `docs/examples/` for a clearly
+      labeled **fictional** project: a filled `PROJECT.md` (every required heading, an
+      invariant→enforcement mapping with ≥1 judgment-only row and ≥1 deterministic-backstop
+      row), a filled `memory/constitution.md` (3–4 enforceable failure-mode-hunting
+      principles), one `spec.md` + matching `tasks.md` slice (≥1 `US#.AC#` story, tier tags,
+      the criterion-ownership mapping) + one contract file for a swappable seam, and a
+      **macOS/Linux [environment block] example** explicitly labeled non-live (the
+      single-copy rule stands). Internally consistent (spec `US#`s match the tasks file;
+      the contract matches a seam named in the example `PROJECT.md`; the constitution's
+      principles appear in the invariant checklist); the fiction exercises the hard cases
+      (≥1 architecture boundary with a banned vendor, ≥1 blocked/owner-only task, ≥1
+      principle with a deterministic backstop); each template file gains a one-line pointer
+      to its example and the README names the set in the Quickstart/reading order;
+      `.claude/EXTRACTION.md` §5 greps still pass over the whole tree with the examples
+      added and no model name appears outside `MODELS.md`; `workflow/**` untouched (#17;
+      repo-maintenance — done-when on issue) — strong: judgment-heavy authoring that must
+      preserve the neutrality (P1) and single-[environment-block] invariants
+- [ ] T627 [strong] Ship **`docs/onboarding-prompt.md`** — a self-contained prompt an
+      adopter pastes into their agent (executable cold, no prior context), linked from the
+      README Quickstart. The prompt encodes as **explicit instructions** (not commentary)
+      the three constraints that fall out of the harness's own design: (1) **interview, do
+      not ghostwrite, the constitution** — elicit and transcribe principles, never draft
+      plausible ones, and warn the owner what is written is enforced as law; (2)
+      **onboarding obeys the harness it installs** — run setup as the project's first
+      issue + branch + PR, with probe/grep outputs as the PR's automatic evidence; (3) **end
+      on artifacts, not say-so** — the final steps run the probes
+      (`.claude/adapters/claude-code-probes.md`), the `.claude/EXTRACTION.md` §5 greps, and
+      a concrete residual-placeholder grep, reporting anything unanswerable as an open item.
+      The prompt states the fill order, agrees step-for-step with the Quickstart (same fills,
+      same order, same verification — a drift is a doc bug), points at the T626 worked-example
+      set as the target shape, and states the runtime caveat that verification assumes
+      `rg`/`bash`; blocked by T626 (#16; repo-maintenance — done-when on issue) — strong:
+      encodes harness-design constraints and must stay in lockstep with the Quickstart
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
