@@ -274,7 +274,7 @@
 > T623 both touch `.claude/hooks/guard.sh` + `guard.test.sh` — whichever lands second
 > rebases; no hard ordering dependency.
 
-- [ ] T621 [strong] Harden `[guard]` rules 2/3/4 against global-option / cwd evasions in
+- [x] T621 [strong] Harden `[guard]` rules 2/3/4 against global-option / cwd evasions in
       **both** guard implementations in parity (`.claude/hooks/guard.sh` and the Omnigent
       port `policies/guard.py`): a leading `git -C <path>` / `-c k=v` / `--git-dir` no
       longer slips past the bulk-staging and commit/push-on-base matchers, and the
