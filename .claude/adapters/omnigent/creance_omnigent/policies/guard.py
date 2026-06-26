@@ -214,43 +214,51 @@ _GOPT = (
     r'|--paginate|--no-pager|--bare|--literal-pathspecs|--no-optional-locks|-p'
 )
 _GRUN = r"(?:\s+(?:" + _GOPT + r"))*"
-_RE_GIT_PREFIX = re.compile(r"git" + _GRUN)
+# The `git <globals> commit|push` invocation's prefix — the repo-locating globals are
+# read from the SAME invocation rule 3 matched (issue #138 / PR #173 Codex P2), not the
+# first `git` in the line, so `git -C <other> status && git commit` does not borrow <other>.
+# The trailing boundary lookahead mirrors _RE_COMMIT_PUSH so the locator latches onto the
+# EXACT invocation rule 3 matched (not a `git commitx` decoy that shares the prefix).
+_RE_COMMIT_PUSH_RUN = re.compile(r"git" + _GRUN + r"\s+(?:commit|push)(?=\s|;|&|\||\"|$)")
 _RE_CD = re.compile(r"^\s*cd\s+([^\s;&|\"]+)")
 _RE_C_OPT = re.compile(r"-C\s+([^\s;&|\"]+)")
-
-
-def _effective_dir(command):
-    """The directory rule 3 resolves the branch in, when a `-C <path>` or a leading
-    `cd <path> &&` makes the command act on a different repo than the event cwd
-    (issue #138 DW2). The `-C` is taken ONLY from the leading global run (so a
-    non-global `git commit -C HEAD` is never misread as a directory). '' -> event cwd."""
-    m = _RE_CD.match(command)
-    cdir = m.group(1) if m else None
-    copt = None
-    pm = _RE_GIT_PREFIX.search(command)
-    if pm:
-        last = None
-        for last in _RE_C_OPT.finditer(pm.group(0)):
-            pass
-        if last:
-            copt = last.group(1)
-    if copt:
-        if os.path.isabs(copt) or copt.startswith("~"):
-            return copt
-        return os.path.join(cdir, copt) if cdir else copt
-    return cdir
+_RE_GITDIR_OPT = re.compile(r"--git-dir(?:=|\s+)([^\s;&|\"]+)")
 
 
 def _effective_branch(command, cwd):
-    """Branch of the repo ``command`` acts on. Best-effort + fail-open: when the
-    resolved target's branch is unreadable (a bad path / non-repo), fall back to the
-    event-cwd branch — so the change only ADDS DENY coverage, never weakening the
-    existing event-cwd check (e.g. `cd <gone> && git commit` on base still DENYs)."""
-    d = _effective_dir(command)
-    if d:
-        b = _branch(d)
-        if b:
-            return b
+    """Branch of the repo ``command`` acts on. The repo-locating globals (`-C`,
+    `--git-dir`) are read from the SAME `git … commit|push` invocation rule 3 matched
+    (issue #138 / PR #173 Codex P2) — so an unrelated leading `git -C <other> status`
+    cannot lend its `-C` — and `--git-dir` is honored alongside `-C` (PR #173 craft H1).
+    They are replayed against `git … branch --show-current` run from the EVENT cwd, so a
+    relative path resolves against the event cwd, not the policy process cwd (PR #173 craft
+    H2; git applies repeated `-C` cumulatively, so `cd <a> && git -C <b>` nests for free).
+    Best-effort + fail-open: an unreadable target (bad path, non-repo, detached HEAD)
+    falls back to the event-cwd branch, so the change only ADDS DENY coverage and never
+    weakens the existing event-cwd check (e.g. `cd <gone> && git commit` on base DENYs)."""
+    m = _RE_CD.match(command)
+    cddir = m.group(1) if m else None
+    copt = gdir = None
+    run = _RE_COMMIT_PUSH_RUN.search(command)
+    if run:
+        seg = run.group(0)
+        cs = list(_RE_C_OPT.finditer(seg))
+        if cs:
+            copt = cs[-1].group(1)  # ONLY from the global run, so `git commit -C HEAD` is safe
+        gs = list(_RE_GITDIR_OPT.finditer(seg))
+        if gs:
+            gdir = gs[-1].group(1)
+    gargs = []
+    if cddir:
+        gargs += ["-C", cddir]
+    if copt:
+        gargs += ["-C", copt]
+    if gdir:
+        gargs += ["--git-dir", gdir]
+    if gargs:
+        out = _git(gargs + ["branch", "--show-current"], cwd)  # cwd = EVENT cwd (craft H2)
+        if out is not None and out.strip():
+            return out.strip()
     return _branch(cwd)
 
 

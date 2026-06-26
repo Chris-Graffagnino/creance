@@ -14,7 +14,8 @@
 #   Rules 2-4 see through a leading git GLOBAL-option run (`git -C <path>`,
 #   `git -c k=v`, `git --git-dir=…`) so it can't slip the subcommand anchor, and
 #   the branch-gated rule 3 resolves the EFFECTIVE repo (an explicit `-C <path>`
-#   or a leading `cd <path> &&`), not only the event cwd (issue #138).
+#   or `--git-dir <path>` from the commit/push invocation, or a leading
+#   `cd <path> &&`), not only the event cwd (issues #138, #173).
 #   5. Any Agent dispatch of a strong-floored reviewer — `constitution-auditor`
 #      or `spec-quality-auditor` — whose `model` parameter is absent or names a
 #      below-strong tier (the strong floor; issues #94, #147). Tier names are
@@ -60,43 +61,46 @@ branch() { git branch --show-current 2>/dev/null; }
 gitg='-C[[:space:]]+[^[:space:];&|"]+|-c[[:space:]]+[^[:space:];&|"]+|--git-dir=[^[:space:];&|"]*|--git-dir[[:space:]]+[^[:space:];&|"]+|--work-tree=[^[:space:];&|"]*|--work-tree[[:space:]]+[^[:space:];&|"]+|--namespace[[:space:]]+[^[:space:];&|"]+|--paginate|--no-pager|--bare|--literal-pathspecs|--no-optional-locks|-p'
 grun="([[:space:]]+($gitg))*"
 
-# Effective-repo resolution for the branch-gated rule 3. A `git -C <path>` or a
-# leading `cd <path> &&` makes a command act on a DIFFERENT repo than the event
-# cwd, so the branch must be resolved THERE, not only in the hook cwd (issue #138
-# DW2). Best-effort + fail-open: when the resolved target's branch is unreadable
-# (a bad path, a non-repo), fall back to the event-cwd branch — so the change only
-# ADDS DENY coverage and never weakens the existing event-cwd check.
+# Effective-repo resolution for the branch-gated rule 3. A `git -C <path>`, a
+# `git --git-dir=<path>`, or a leading `cd <path> &&` makes a command act on a
+# DIFFERENT repo than the event cwd, so the branch must be resolved THERE, not only
+# in the hook cwd (issue #138 DW2). The repo-locating globals are taken from the SAME
+# `git … commit|push` invocation that rule 3 matched — NOT the first `git` token in the
+# line — so an unrelated leading run (`git -C <other> status && git commit`) does not
+# lend its `-C` to the commit's branch decision (PR #173, Codex P2); and `--git-dir`
+# is honored alongside `-C` (PR #173, craft H1). Best-effort + fail-open: when the
+# resolved target's branch is unreadable (a bad path, a non-repo, a detached HEAD),
+# fall back to the event-cwd branch — so the change only ADDS DENY coverage and never
+# weakens the existing event-cwd check.
 cd_dir() { # a leading `cd <path> &&` -> <path> (empty otherwise)
   case "$1" in
     cd[[:space:]]*) printf '%s' "$1" | sed -E 's/^cd[[:space:]]+([^[:space:];&|"]+).*/\1/' ;;
   esac
 }
-git_dir_opt() { # a `-C <path>` taken ONLY from the leading global run, so a
-                # non-global `git commit -C HEAD` (reuse-message) is never misread
-                # as a directory -> <path> (empty otherwise)
-  local prefix
-  prefix="$(printf '%s' "$1" | grep -oE "git${grun}" | head -1)"
-  printf '%s' "$prefix" | grep -oE '\-C[[:space:]]+[^[:space:];&|"]+' | tail -1 \
-    | sed -E 's/^-C[[:space:]]+//'
-}
-effective_dir() { # the directory rule 3 resolves the branch in ('' -> use event cwd)
-  local cmd="$1" cdir copt
-  cdir="$(cd_dir "$cmd")"
-  copt="$(git_dir_opt "$cmd")"
-  if [ -n "$copt" ]; then
-    case "$copt" in
-      /*|[a-zA-Z]:*|"~"*) printf '%s' "$copt" ;;
-      *) if [ -n "$cdir" ]; then printf '%s/%s' "$cdir" "$copt"; else printf '%s' "$copt"; fi ;;
-    esac
-  elif [ -n "$cdir" ]; then
-    printf '%s' "$cdir"
-  fi
+commit_push_run() { # the `git <globals> commit|push` invocation's prefix -> string ('' if none)
+  # The trailing boundary (a shell separator, a quote, or end of string) makes the locator
+  # latch onto the EXACT invocation rule 3 matched, never a `git commitx` decoy sharing the
+  # `commit` prefix; -oE includes the boundary char, which is harmless to -C/--git-dir extraction.
+  printf '%s' "$1" | grep -oE "git${grun}[[:space:]]+(commit|push)([[:space:]]|;|&|\||\"|$)" | head -1
 }
 effective_branch() { # <command> -> branch of the repo the command acts on
-  local dir b
-  dir="$(effective_dir "$1")"
-  if [ -n "$dir" ]; then
-    b="$(git -C "$dir" branch --show-current 2>/dev/null)"
+  local cmd="$1" run cddir copt gdir b
+  run="$(commit_push_run "$cmd")"
+  cddir="$(cd_dir "$cmd")"
+  # `-C` / `--git-dir` taken ONLY from that invocation's leading global run, so a
+  # non-global `git commit -C HEAD` (reuse-message) is never misread as a directory.
+  copt="$(printf '%s' "$run" | grep -oE '\-C[[:space:]]+[^[:space:];&|"]+' | tail -1 | sed -E 's/^-C[[:space:]]+//')"
+  gdir="$(printf '%s' "$run" | grep -oE '\-\-git-dir(=|[[:space:]]+)[^[:space:];&|"]+' | tail -1 | sed -E 's/^--git-dir(=|[[:space:]]+)//')"
+  # Replay the locator globals against `branch --show-current`, in the hook cwd (= event
+  # cwd) so relative paths resolve exactly as the real command would. git applies repeated
+  # `-C` cumulatively, so a `cd <a> && git -C <b>` nests <b> under <a> for free, and an
+  # absolute `-C`/`--git-dir` overrides it.
+  set --
+  [ -n "$cddir" ] && set -- "$@" -C "$cddir"
+  [ -n "$copt" ]  && set -- "$@" -C "$copt"
+  [ -n "$gdir" ]  && set -- "$@" --git-dir "$gdir"
+  if [ "$#" -gt 0 ]; then
+    b="$(git "$@" branch --show-current 2>/dev/null)"
     [ -n "$b" ] && { printf '%s' "$b"; return 0; }
   fi
   branch

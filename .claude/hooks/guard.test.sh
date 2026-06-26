@@ -142,6 +142,31 @@ check 0 "$MAIN" "DW3 allow: git --unknown-flag commit on main (ambiguous -> abst
 # (a specific file) stays ALLOWED (covered above at "r2 allow: git add ./path").
 check 2 "$FEAT" "DW4 block: git add ./ (dot-slash whole tree)" "$(bashp 'git add ./')"
 
+# --- PR #173: review hardening of rule 3's effective-repo resolution ---
+# P2 (Codex) — the repo-locating -C is taken from the SAME `git … commit` invocation, NOT
+# an unrelated leading `git -C <other> …`. Paired both directions so a "first -C in the
+# whole line" reader fails one and a "scope to the commit invocation" reader passes both:
+#   event cwd on main, leading -C points at the feature repo, the commit itself has no -C
+#   -> the commit lands on main -> DENY (the leading -C must be ignored).
+check 2 "$MAIN" "P2 block: git -C <feat> status && git commit (commit's repo = main)" "$(bashp "git -C $FEAT_ROOT status && git commit -m x")"
+#   event cwd on feature, leading -C points at the base repo -> the commit still acts on
+#   the feature repo -> ALLOW (an old whole-line -C borrow would over-block here).
+check 0 "$FEAT" "P2 allow: git -C <main> status && git commit (commit's repo = feature)" "$(bashp "git -C $MAIN_ROOT status && git commit -m x")"
+# A non-global reuse-message `git commit -C HEAD` is still not misread as a repo dir: the
+# -C is after the subcommand, outside the global run, so it never flips the branch read.
+check 0 "$FEAT" "P2 allow: git commit -C HEAD (reuse-msg, not a repo dir)" "$(bashp 'git commit -C HEAD')"
+
+# H1 (craft) — rule 3 resolves --git-dir / --work-tree for the branch, not only -C / cd.
+# Paired both directions, so it proves resolution rather than a "deny anything with
+# --git-dir" shortcut: event cwd on feature but --git-dir targets the base repo -> DENY.
+check 2 "$FEAT" "H1 block: git --git-dir=<main>/.git --work-tree=<main> commit (target main)" "$(bashp "git --git-dir=$MAIN_ROOT/.git --work-tree=$MAIN_ROOT commit -m x")"
+#   event cwd on base but --git-dir targets the feature repo -> ALLOW.
+check 0 "$MAIN" "H1 allow: git --git-dir=<feat>/.git commit (target feature)" "$(bashp "git --git-dir=$FEAT_ROOT/.git commit -m x")"
+# P2 boundary — a `git commitx` decoy sharing the `commit` prefix must NOT capture the
+# locator: the real `git -C <main> commit` still resolves to main -> DENY (a boundary-less
+# locator would latch onto the decoy, find no -C, and fall back to the feature event cwd).
+check 2 "$FEAT" "P2 block: decoy git commitx then real git -C <main> commit" "$(bashp "git commitx && git -C $MAIN_ROOT commit -m x")"
+
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
 # hook's test seam so these tests don't couple to the real table's model names.
