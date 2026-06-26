@@ -3,9 +3,11 @@
 # payloads to the hook on stdin and asserts exit codes for all six rules:
 #   1. file edits while on `main` (incl. the out-of-repo allowance and
 #      Windows JSON-escaped backslash paths)
-#   2. `git add .` / `-A` / `--all`
+#   2. `git add .` / `-A` / `--all` / `./`
 #   3. `git commit` / `git push` while on `main`
 #   4. any `git push` whose refspec targets `main`, from any branch
+#      (rules 2-4 also cover the #138 global-option `git -C`/`-c`/`--git-dir`
+#      and `cd <path> && git …` effective-repo evasions)
 #   5. strong-floored reviewer (constitution-auditor / spec-quality-auditor)
 #      Agent dispatch with a missing or below-strong `model`, while the
 #      un-floored acceptance/contract reviewers pass (tier names from a fixture
@@ -104,6 +106,41 @@ check 0 "$FEAT" "r4 allow: HEAD:main-backup refspec" "$(bashp 'git push origin H
 check 0 "$FEAT" "r4 allow: branch named maintenance" "$(bashp 'git push origin maintenance')"
 check 0 "$FEAT" "r4 allow: push && gh pr create --base main" "$(bashp 'git push -u origin feature/x && gh pr create --base main')"
 check 0 "$FEAT" "r4 allow: no push in the command" "$(bashp 'git status')"
+
+# --- #138 (T621): global-option / cwd evasions of rules 2/3/4 ---
+# DW1 — a leading git global option no longer slips the bulk-staging / commit-push
+# matchers (the bare-subcommand form already DENYs).
+check 2 "$FEAT" "DW1 block: git -C <path> add --all" "$(bashp "git -C $FEAT_ROOT add --all")"
+check 2 "$FEAT" "DW1 block: git -c k=v add --all"    "$(bashp 'git -c user.email=t@t.test add --all')"
+check 2 "$FEAT" "DW1 block: git -C <path> add ."     "$(bashp "git -C $FEAT_ROOT add .")"
+check 2 "$MAIN" "DW1 block: git --git-dir=<g> commit on main" "$(bashp "git --git-dir=$MAIN_ROOT/.git commit -m x")"
+check 2 "$MAIN" "DW1 block: git -c k=v commit on main"        "$(bashp 'git -c user.name=t commit -m x')"
+check 2 "$FEAT" "DW1 block: git -C <path> push HEAD:main (refspec)" "$(bashp "git -C $FEAT_ROOT push origin HEAD:main")"
+# DW1 control (penalizes over-block): a -C-prefixed single-file add is still ALLOWED —
+# a "deny anything containing -C" shortcut would fail here.
+check 0 "$FEAT" "DW1 allow: git -C <path> add one/file (control)" "$(bashp "git -C $FEAT_ROOT add src/one.ts")"
+
+# DW2 — branch-gated rule 3 resolves the EFFECTIVE repo (the -C / cd && target), not
+# only the event cwd. Paired (both directions), so neither "always deny" nor "always
+# allow" passes: event cwd off-base but the target on base -> DENY; event cwd on base
+# but the target off-base -> ALLOW.
+check 2 "$FEAT" "DW2 block: -C <main-repo> commit, event cwd on feature" "$(bashp "git -C $MAIN_ROOT commit -m x")"
+check 2 "$FEAT" "DW2 block: cd <main-repo> && git commit, event cwd on feature" "$(bashp "cd $MAIN_ROOT && git commit -m x")"
+check 0 "$MAIN" "DW2 allow: -C <feature-repo> commit, event cwd on base" "$(bashp "git -C $FEAT_ROOT commit -m x")"
+# DW2 fallback preserves strength: a `cd <gone>` target is unreadable, so resolution
+# falls back to the event-cwd branch (main) -> still DENY (no new false-ALLOW).
+check 2 "$MAIN" "DW2 block: cd <nonexistent> && git commit falls back to event cwd (main)" "$(bashp "cd $TMP/does-not-exist && git commit -m x")"
+
+# DW3 — fail-open preserved, narrowly scoped: a genuinely parse-ambiguous form (an
+# UNRECOGNIZED leading option that ends the global run) still abstains (ALLOW), while
+# the DW1/DW2 forms above still DENY in this same run — so "classify everything as
+# ambiguous -> ALLOW" fails DW1/DW2, and over-blocking fails this.
+check 0 "$FEAT" "DW3 allow: git --unknown-flag add --all (ambiguous -> abstain)" "$(bashp 'git --unknown-flag add --all')"
+check 0 "$MAIN" "DW3 allow: git --unknown-flag commit on main (ambiguous -> abstain)" "$(bashp 'git --unknown-flag commit -m x')"
+
+# DW4 — the trailing-slash `git add ./` dot-operand variant is a DENY; `git add ./path`
+# (a specific file) stays ALLOWED (covered above at "r2 allow: git add ./path").
+check 2 "$FEAT" "DW4 block: git add ./ (dot-slash whole tree)" "$(bashp 'git add ./')"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the

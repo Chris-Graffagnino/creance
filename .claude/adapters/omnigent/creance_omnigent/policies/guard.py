@@ -199,8 +199,64 @@ def _rule_edit_on_base(event, base, cwd, path_keys=DEFAULT_EDIT_PATH_KEYS):
 # string). Each takes a uniform (command, base, cwd) signature; unused args are ignored.
 # --------------------------------------------------------------------------------------
 
-# Rule 2 — staging the entire tree at once.
-_RE_ADD_ALL = re.compile(r"git\s+add\s+(?:--all|-A|\.)(?:\s|;|&|\||\"|$)")
+# Leading git GLOBAL-option run (issue #138): rules 2/3/4 must see through a run of
+# global options between `git` and the subcommand (`git -C <path> add --all`,
+# `git -c k=v commit`, `git --git-dir=… push`), which standard git accepts and which
+# would otherwise slip the subcommand anchor. CONSERVATIVE: only well-known globals
+# match, so an UNRECOGNIZED leading token ends the run — the rule then sees the
+# original token and may abstain (fail-open, the narrowly-scoped DW3 posture). Path
+# operands stop at shell separators and a quote. Mirrors guard.sh's `gitg`/`grun`.
+_GOPT = (
+    r'-C\s+[^\s;&|"]+|-c\s+[^\s;&|"]+'
+    r'|--git-dir=[^\s;&|"]*|--git-dir\s+[^\s;&|"]+'
+    r'|--work-tree=[^\s;&|"]*|--work-tree\s+[^\s;&|"]+'
+    r'|--namespace\s+[^\s;&|"]+'
+    r'|--paginate|--no-pager|--bare|--literal-pathspecs|--no-optional-locks|-p'
+)
+_GRUN = r"(?:\s+(?:" + _GOPT + r"))*"
+_RE_GIT_PREFIX = re.compile(r"git" + _GRUN)
+_RE_CD = re.compile(r"^\s*cd\s+([^\s;&|\"]+)")
+_RE_C_OPT = re.compile(r"-C\s+([^\s;&|\"]+)")
+
+
+def _effective_dir(command):
+    """The directory rule 3 resolves the branch in, when a `-C <path>` or a leading
+    `cd <path> &&` makes the command act on a different repo than the event cwd
+    (issue #138 DW2). The `-C` is taken ONLY from the leading global run (so a
+    non-global `git commit -C HEAD` is never misread as a directory). '' -> event cwd."""
+    m = _RE_CD.match(command)
+    cdir = m.group(1) if m else None
+    copt = None
+    pm = _RE_GIT_PREFIX.search(command)
+    if pm:
+        last = None
+        for last in _RE_C_OPT.finditer(pm.group(0)):
+            pass
+        if last:
+            copt = last.group(1)
+    if copt:
+        if os.path.isabs(copt) or copt.startswith("~"):
+            return copt
+        return os.path.join(cdir, copt) if cdir else copt
+    return cdir
+
+
+def _effective_branch(command, cwd):
+    """Branch of the repo ``command`` acts on. Best-effort + fail-open: when the
+    resolved target's branch is unreadable (a bad path / non-repo), fall back to the
+    event-cwd branch — so the change only ADDS DENY coverage, never weakening the
+    existing event-cwd check (e.g. `cd <gone> && git commit` on base still DENYs)."""
+    d = _effective_dir(command)
+    if d:
+        b = _branch(d)
+        if b:
+            return b
+    return _branch(cwd)
+
+
+# Rule 2 — staging the entire tree at once. The leading-global run (#138 DW1) and the
+# trailing `\./?` dot-operand variant (#138 DW4) fold into the same pattern.
+_RE_ADD_ALL = re.compile(r"git" + _GRUN + r"\s+add\s+(?:--all|-A|\./?)(?:\s|;|&|\||\"|$)")
 
 
 def _rule_bulk_staging(command, base=None, cwd=None):
@@ -213,12 +269,14 @@ def _rule_bulk_staging(command, base=None, cwd=None):
     return None
 
 
-# Rule 3 — commit / push while on the base branch.
-_RE_COMMIT_PUSH = re.compile(r"git\s+(?:commit|push)(?:\s|;|&|\||\"|$)")
+# Rule 3 — commit / push while on the base branch. Allows a leading global run (#138
+# DW1) and resolves the EFFECTIVE repo (a -C / cd && target), not only the event cwd
+# (#138 DW2).
+_RE_COMMIT_PUSH = re.compile(r"git" + _GRUN + r"\s+(?:commit|push)(?:\s|;|&|\||\"|$)")
 
 
 def _rule_commit_push_base(command, base, cwd):
-    if _RE_COMMIT_PUSH.search(command) and _branch(cwd) == base:
+    if _RE_COMMIT_PUSH.search(command) and _effective_branch(command, cwd) == base:
         return _deny(
             "commit-push-on-base",
             "never commit or push while on the base branch '{}'. Work on a feature "
@@ -232,7 +290,7 @@ def _rule_commit_push_base(command, base, cwd):
 # is untouched); the destination ref is matched after a ':' or whitespace.
 def _rule_push_refspec_base(command, base, cwd=None):
     pat = (
-        r"git\s+push[^\";&|]*(?::|\s)(?:refs/heads/)?"
+        r"git" + _GRUN + r"\s+push[^\";&|]*(?::|\s)(?:refs/heads/)?"
         + re.escape(base)
         + r"(?:[^A-Za-z0-9_./-]|$)"
     )

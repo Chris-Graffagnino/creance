@@ -195,6 +195,106 @@ class TestPushRefspecBase(GuardTestBase):
             _event("sys_os_shell", "git push origin HEAD:maintenance", cwd=self.cwd)))
 
 
+# ── #138 (T621) — global-option / cwd evasions of rules 2/3/4 ─────────────────────────
+
+class TestGlobalOptionAndCwdEvasions(GuardTestBase):
+    """Parity with guard.test.sh's "#138 (T621)" block — same DW1–DW4 behavior."""
+
+    def setUp(self):
+        super().setUp()
+        self.pol = guard.make_guard_tool_call(base_branch="main")
+
+    # DW1 — a leading git global option no longer slips the bulk-staging / commit-push
+    # matchers (the bare-subcommand form already DENYs).
+    def test_dw1_dash_C_add_all_denied(self):
+        cwd = self.repo("feature/x")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git -C %s add --all" % cwd, cwd=cwd)), "git-add-all")
+
+    def test_dw1_dash_c_config_add_all_denied(self):
+        cwd = self.repo("feature/x")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git -c user.email=t@t.test add --all", cwd=cwd)))
+
+    def test_dw1_dash_C_add_dot_denied(self):
+        cwd = self.repo("feature/x")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git -C %s add ." % cwd, cwd=cwd)))
+
+    def test_dw1_git_dir_commit_on_base_denied(self):
+        cwd = self.repo("main")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git --git-dir=%s/.git commit -m x" % cwd, cwd=cwd)), "commit-push-on-base")
+
+    def test_dw1_dash_c_commit_on_base_denied(self):
+        cwd = self.repo("main")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git -c user.name=t commit -m x", cwd=cwd)))
+
+    def test_dw1_dash_C_push_refspec_main_denied(self):
+        cwd = self.repo("feature/x")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git -C %s push origin HEAD:main" % cwd, cwd=cwd)), "push-refspec-base")
+
+    # DW1 control (penalizes over-block): a -C-prefixed single-file add is still ALLOWED —
+    # a "deny anything containing -C" shortcut would fail here.
+    def test_dw1_control_dash_C_single_file_allowed(self):
+        cwd = self.repo("feature/x")
+        self.assertAllow(self.pol(_event("sys_os_shell",
+            "git -C %s add src/one.py" % cwd, cwd=cwd)))
+
+    # DW2 — rule 3 resolves the EFFECTIVE repo (the -C / cd && target), not only the event
+    # cwd. Paired (both directions) so neither "always deny" nor "always allow" passes.
+    def test_dw2_dash_C_target_on_base_denied(self):
+        feature = self.repo("feature/x")
+        base = self.repo("main")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "git -C %s commit -m x" % base, cwd=feature)), "commit-push-on-base")
+
+    def test_dw2_cd_target_on_base_denied(self):
+        feature = self.repo("feature/x")
+        base = self.repo("main")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "cd %s && git commit -m x" % base, cwd=feature)))
+
+    def test_dw2_dash_C_target_off_base_allowed(self):
+        base = self.repo("main")
+        feature = self.repo("feature/x")
+        self.assertAllow(self.pol(_event("sys_os_shell",
+            "git -C %s commit -m x" % feature, cwd=base)))
+
+    # DW2 fallback preserves strength: an unreadable `cd <gone>` target falls back to the
+    # event-cwd branch (base) -> still DENY (no new false-ALLOW).
+    def test_dw2_cd_nonexistent_falls_back_to_event_cwd(self):
+        base = self.repo("main")
+        gone = os.path.join(self.tmpdir(), "does-not-exist")
+        self.assertDeny(self.pol(_event("sys_os_shell",
+            "cd %s && git commit -m x" % gone, cwd=base)))
+
+    # DW3 — a genuinely parse-ambiguous form (an unrecognized leading option that ends the
+    # global run) still abstains (ALLOW), while the DW1/DW2 forms above still DENY — so the
+    # "classify everything as ambiguous -> ALLOW" shortcut fails DW1/DW2.
+    def test_dw3_unknown_leading_option_add_abstains(self):
+        cwd = self.repo("feature/x")
+        self.assertAllow(self.pol(_event("sys_os_shell",
+            "git --unknown-flag add --all", cwd=cwd)))
+
+    def test_dw3_unknown_leading_option_commit_abstains(self):
+        cwd = self.repo("main")
+        self.assertAllow(self.pol(_event("sys_os_shell",
+            "git --unknown-flag commit -m x", cwd=cwd)))
+
+    # DW4 — the trailing-slash `git add ./` dot-operand variant DENYs; `git add ./path`
+    # (a specific file) stays ALLOWED.
+    def test_dw4_add_dot_slash_denied(self):
+        cwd = self.repo("feature/x")
+        self.assertDeny(self.pol(_event("sys_os_shell", "git add ./", cwd=cwd)))
+
+    def test_dw4_add_dot_slash_path_allowed(self):
+        cwd = self.repo("feature/x")
+        self.assertAllow(self.pol(_event("sys_os_shell", "git add ./src/a.py", cwd=cwd)))
+
+
 # ── Rule 1 — file edit while on the base branch ──────────────────────────────────────
 
 class TestEditOnBase(GuardTestBase):
