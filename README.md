@@ -70,7 +70,9 @@ Concretely, that includes:
    `.claude/settings.json` → `permissions.allow` (e.g. `Bash(npm test:*)`) and to
    `.github/workflows/ci.yml`.
 6. Rewrite the **[environment block]** in `.claude/skills/next-task/SKILL.md` for your
-   machine (the shipped one is the Windows PowerShell 5.1 worked example).
+   machine (the shipped one is the Windows PowerShell 5.1 worked example; a macOS/Linux
+   translation to copy from is
+   [`docs/examples/environment-block-macos-linux.md`](docs/examples/environment-block-macos-linux.md)).
 7. **Probe before you trust:** run the conformance probes
    (`.claude/adapters/claude-code-probes.md`) and the verification greps in
    `.claude/EXTRACTION.md` §5. Do not run the harness unattended until they pass.
@@ -85,6 +87,9 @@ Concretely, that includes:
   way; read it before deleting anything that looks like ceremony.
 - [`.claude/EXTRACTION.md`](.claude/EXTRACTION.md) — how this template was cut from its
   source project, and the verification that the cut is clean.
+- [`docs/examples/`](docs/examples/) — a filled, **fictional** worked example of every
+  adopter artifact (`PROJECT.md`, constitution, a spec/tasks/contract slice, and a
+  macOS/Linux `[environment block]`); copy the *shape* when filling your own.
 
 ## Provenance
 

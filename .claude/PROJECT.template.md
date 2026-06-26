@@ -10,6 +10,9 @@ apply to your project (e.g. drop "Invariant checklist" items you don't have), bu
 headings the engine looks for: **Identity, Paths, Task & branch conventions, Blocked tasks,
 CI / merge gate, Architecture boundaries, Invariant checklist, Constitution watch.**
 
+> **Worked example:** [`docs/examples/lantern/PROJECT.md`](../docs/examples/lantern/PROJECT.md)
+> is a fully filled version of this file (the fictional "Lantern" project).
+
 ## Identity
 - **Project:** <one-line description>
 - **Repo model:** <fork | direct>. If a fork, issues/PRs live on `origin`; derive the slug

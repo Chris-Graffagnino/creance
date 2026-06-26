@@ -11,6 +11,9 @@
 > resolved through `.claude/MODELS.md` at run time. Tag generously toward `[strong]` for
 > anything constitution-critical, foundational, or money/privacy/copy-adjacent;
 > `[cheap]` only for mechanical work. Untagged → the executor judges, leaning strong.
+>
+> **Worked example:** [`docs/examples/lantern/specs/001-guided-sessions/tasks.md`](../../docs/examples/lantern/specs/001-guided-sessions/tasks.md)
+> is a fully filled version of this file (the fictional "Lantern" project).
 
 ## Phase 1 — <name>
 
