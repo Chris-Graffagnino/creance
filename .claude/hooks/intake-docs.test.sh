@@ -244,6 +244,19 @@ check "T606 DW3: note references the spec-auditor reviewer spec" "$INTAKE_FLAT" 
 check "T606 DW3: note frames the reviewer as the post-implementation backstop" "$INTAKE_FLAT" \
   "post-implementation"
 
+# ── #170 — maintenance rubric carried by the marked done-when comment ──────────
+# The acceptance reviewer grades a `done-when on issue` task against the marked
+# comment intake posts (the additive-write posture), not an edit to the
+# owner-authored body; a later edit reverting either doc to "body" fails these.
+check "#170: spec-auditor grades the rubric from the marked comment" "$SPEC_AUDITOR_FLAT" \
+  "the [comment marker]'d comment intake posts on that issue"
+check "#170: spec-auditor keeps the body only as a pre-convention fallback" "$SPEC_AUDITOR_FLAT" \
+  "placed the criteria in the issue body instead is graded against that body"
+check "#170: intake §4 never edits the owner-authored body for the rubric" "$INTAKE_FLAT" \
+  "never an edit to the owner-authored body"
+check "#170: intake §4 grades against the marked comment" "$INTAKE_FLAT" \
+  "grades against that marked comment"
+
 # ── Runtime-neutral boundary (constitution P1) ─────────────────────────────────
 # Intake is a neutral workflow doc, so it uses the same shared banned-token set as
 # the other workflow-doc encoding tests (#122).

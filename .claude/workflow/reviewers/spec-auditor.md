@@ -23,10 +23,16 @@ The **task ID** under review. If it was not provided, say so and stop — do not
 **Maintenance tasks (no `US#`):** a task line carrying no `US#` but marked as carrying
 its rubric on its issue (the intake convention, `workflow/intake.md` §4 — e.g.
 `(#<issue>; repo-maintenance — done-when on issue)`) is graded against the **done-when
-criteria in that issue's body**, exactly as you would a `US#`'s acceptance criteria
-(hard-FAIL rule intact). A task line with **neither** a `US#` **nor** issue-carried
-done-when criteria has no rubric — that gap is itself the blocking finding: verdict
-**FAIL**, minimal fix the missing criteria.
+criteria carried in the [comment marker]'d comment intake posts on that issue** — the
+additive-write posture keeps the rubric in a marked comment, never an edit to the
+owner-authored body (`workflow/intake.md` §4); when several marked comments carry
+done-when criteria the **newest** governs (newest-comment provenance, `next-task.md`
+§2.5). A pre-convention conversion that placed the criteria in the issue body instead is
+graded against that body. Either way, grade exactly as you would a `US#`'s acceptance
+criteria (hard-FAIL rule intact). A task line with **neither** a `US#` **nor** any
+issue-carried done-when criteria — no marked done-when comment and no body rubric — has
+no rubric, and that gap is itself the blocking finding: verdict **FAIL**, minimal fix the
+missing criteria.
 
 If `.claude/PROJECT.md` is missing, fall back to `specs/*/tasks.md` + `specs/*/spec.md` and
 say so.

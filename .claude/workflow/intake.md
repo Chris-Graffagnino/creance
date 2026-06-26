@@ -101,11 +101,14 @@ valve: owner steering cannot relax engine invariants).
   implementation time. Resolve it one of two ways, stated in the marked comment:
   - **Map to a story when one fits** — extend an existing `US#` with the new criteria
     (it becomes a bucket-1-shaped conversion), or
-  - **Carry the rubric on the issue:** write explicit, independently checkable
-    **done-when criteria** into the converted issue's body (the §5 cross-link comment
-    quotes them), and mark the task line as maintenance with its rubric on the issue
+  - **Carry the rubric on the issue:** post the explicit, independently checkable
+    **done-when criteria** in a **[comment marker]'d** comment on the converted issue —
+    the additive write posture above keeps the rubric in a marked comment, never an edit
+    to the owner-authored body; this is the criteria-bearing comment §5 cross-links — and
+    mark the task line as maintenance with its rubric on the issue
     (e.g. `(#<issue>; repo-maintenance — done-when on issue)`). The gate's acceptance
-    [reviewer] then grades against those criteria, exactly as it would a `US#`'s.
+    [reviewer] then grades against that marked comment, exactly as it would a `US#`'s
+    (`reviewers/spec-auditor.md`; the newest governs when several carry criteria).
 
 ### Screen each drafted criterion for gameability (not just checkability)
 
