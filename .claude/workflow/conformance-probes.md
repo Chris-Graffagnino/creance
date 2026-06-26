@@ -359,6 +359,39 @@ state; record results alongside the adapter's spec).
   the register-consultation loop is demonstrated end-to-end, not assumed); (c) the working
   tree is byte-identical after the run — the read-only [reviewer] mutated nothing.
 
+### P-ME — maker-eval (`maker-eval.md`)
+The maker-eval [workflow] re-scores the maker on a frozen corpus and **appends observe-only
+records** through the eval channel. This probe pins the **deterministic conformance** US2.AC4
+names — that the binding's **observe-only record emission** fires on a real driver and **stays
+observe-only**: a record lands carrying the maker-behavior fingerprint, and no gate, tier,
+guard, or selection state is touched (spec 003 US2.AC4). It is deliberately **scoped to that
+record/fingerprint/boundary slice** — the model-driven maker **[headless run]** and the
+pinned-**[reviewer]** judging are exercised by live use and the §7 gate, **not** pinned here (a
+conformance probe is deterministic; a model generation + a judging pass are neither, and
+US2.AC4 asks only for the record + fingerprint + untouched-gate/tier claims, not the generation
+or scoring quality the corpus measures in a real run). It uses a **synthetic single-task
+corpus**, never the frozen corpus and never live state, and leaves the repo and the real eval
+channel as it found them.
+- **Setup:** a **synthetic single-task corpus** — one throwaway task with a minimal rubric —
+  and a **throwaway eval channel** (a disposable location, never the real out-of-repo channel).
+  Record the base branch's tree state and the real channel's contents before the run.
+- **Action:** drive the binding's **observe-only record emission** for the synthetic task at one
+  maker tier — the append step the [workflow] performs through the eval channel — directing the
+  record to the throwaway channel; recompute the current maker-behavior fingerprint through the
+  same single-source recipe the run stamps onto each record. (Driving the emission step directly,
+  rather than a full model-driven run, is what keeps this a deterministic conformance probe;
+  the generation + judging path is the live/gate path named above.)
+- **Expect:** (a) **exactly one** observe-only record is appended for the synthetic task,
+  carrying that **maker-behavior fingerprint**, the run id, and the maker tier it scored — the
+  record emission and the fingerprint stamp both fire on the real driver; (b) the run **touches no gate, tier, guard,
+  or selection state** — it writes only the throwaway channel and reads only the synthetic
+  single-task corpus, so the base branch's tree and the real eval channel are **byte-identical** after
+  (the observe-only boundary holds in practice, not only in the deterministic fence); (c) the
+  run **edits no instrument artifact** (corpus, rubric, judge, scoring schema) — it reads and
+  appends only.
+- **Fixtures, never live state:** the synthetic corpus, the throwaway channel, and every record
+  it holds are discarded after; the run leaves the real channel and the repo as found.
+
 ## Coverage map
 
 | Contract row | Probe |
@@ -382,5 +415,6 @@ state; record results alongside the adapter's spec).
 | next-task PR digest (`next-task.md` §8) | P-NT |
 | retrospective procedure (`retrospective.md`) | P-RT |
 | evasion register (`reviewers/evasion-register.md`) | P-EV |
+| maker-eval procedure (`maker-eval.md`) | P-ME |
 | model table property | P-MT |
 | explicit-context rule | P-EC |

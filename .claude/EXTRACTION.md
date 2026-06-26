@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 98 rows.
+Manifest source inventory: 99 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -113,8 +113,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/maker-eval-docs.test.sh` | KEEP | Encoding test for the maker-eval corpus, the doc's fingerprint/observe-only/PR-only contract, and CI wiring. Verbatim. |
 | `hooks/maker-eval-emit.sh` | KEEP | Adapter-side maker-eval record + transcript-packet emitter and triple-fingerprint capture (observe-only). Verbatim. |
 | `hooks/maker-eval-emit.test.sh` | KEEP | Behavioral tests for the maker-eval emitter — fingerprint independence, record/packet fencing, silent-write, partial-run completeness. Verbatim. |
-| `hooks/maker-eval-fence.sh` | KEEP | Deterministic P5 fence — asserts the maker-eval channel (records.jsonl + packets/) is referenced only by the eval writer and the triage reader, never a gate/tier/guard/selection path. Verbatim. |
-| `hooks/maker-eval-fence.test.sh` | KEEP | Paired plant/pass tests for the P5 fence — fires on a planted cross-reference to either path across the four danger classes, passes on the real tree. Verbatim. |
+| `hooks/maker-eval-fence.sh` | KEEP | Deterministic P5 fence — asserts the maker-eval channel (records.jsonl + packets/) is read/resolved only by the eval writer and the triage reader, never a gate/tier/guard/selection path. The run binding (`skills/maker-eval/SKILL.md`) is line-scoped: it may DRIVE the writer (`maker-eval-emit`) but a channel read/resolve inside it still fires (PR #164). Plus the non-control declaration/probe-doc/test surface. Verbatim. |
+| `hooks/maker-eval-fence.test.sh` | KEEP | Paired plant/pass tests for the P5 fence — fires on a planted cross-reference to either path across the four danger classes, passes on the real tree, and proves the run binding's line-scope (writer drive benign, channel read fires — PR #164). Verbatim. |
 | `hooks/neutrality-scan-coverage.test.sh` | KEEP | Global backstop that scans every tracked neutral workflow markdown doc through the shared scanner. Verbatim. |
 | `hooks/next-task-budget-check.sh` | KEEP | Line-budget check for the `next-task.md` accretion sink. Verbatim. |
 | `hooks/next-task-budget-check.test.sh` | KEEP | Regression + CI-wiring test for the next-task budget check. Verbatim. |
@@ -138,6 +138,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `skills/auditor-liveness/SKILL.md` | KEEP | Claude adapter binding for auditor-liveness runs. Verbatim. |
 | `skills/constitution-check/SKILL.md` | KEEP | Claude adapter binding for the constitution check. Verbatim. |
 | `skills/intake/SKILL.md` | KEEP | Claude adapter binding for intake. Verbatim. |
+| `skills/maker-eval/SKILL.md` | KEEP | Claude adapter binding for maker-eval runs — drives the writer (`maker-eval-emit.sh`) and the pinned judge, defines the two triggers (maker-behavior fingerprint change + weekly schedule), observe-only. Portable; verbatim. |
 | `skills/next-task/SKILL.md` | KEEP | Adapter binding + the single [environment block]. Verbatim, but see §3 note on the env block's bash+PowerShell assumption. |
 | `skills/pr-review/SKILL.md` | KEEP | Claude adapter binding for PR review. Verbatim. |
 | `skills/retrospective/SKILL.md` | KEEP | Claude adapter binding for retrospectives. Verbatim. |

@@ -59,7 +59,7 @@
       eval writer and the triage reader — and by no gate/tier/guard/selection path — +
       a `.test.sh` proving it fires on a planted cross-reference to either path and
       passes on the real tree (US2)
-- [ ] T805 [cheap] Claude skill binding (reuse [workflow]/[headless run]/[reviewer];
+- [x] T805 [cheap] Claude skill binding (reuse [workflow]/[headless run]/[reviewer];
       run on **maker-behavior** fingerprint change + schedule) + conformance probe
       (synthetic 1-task corpus; record appended with fingerprint, no gate/tier touched)
       added to the neutral checklist, instantiated for the active adapter, run live,

@@ -87,9 +87,10 @@ procedure is safe to run unattended because it cannot change the repo.
    feed the "Maker eval" section (§2). An absent or empty channel is not a read failure — it
    feeds that section's explicit "no data yet" state. Two reads:
    - **The two runs to difference.** Group the records by **run id**; find the **last
-     *complete* run** (every corpus task has a record under its run id — `maker-eval.md` →
-     "The record …") and the **prior complete run** before it. These two are the differential's
-     inputs (§2). An **incomplete** latest run is never a silent baseline. Records that fail to
+     *complete* run** (every corpus task has a record under its run id **at every maker tier** —
+     `maker-eval.md` → "The record …") and the **prior complete run** before it. These two are the
+     differential's inputs (§2). An **incomplete** latest run (including a single-tier run) is
+     never a silent baseline. Records that fail to
      parse are skipped and counted in the section's "skipped malformed lines" note, never
      repaired in place.
    - **The current maker-behavior fingerprint.** Recompute it from the live checkout using the

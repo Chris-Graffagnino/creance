@@ -68,16 +68,17 @@ triage **never** runs the eval or writes a record.
 - **The records + the packet link.** The channel is the profile → "Paths" → **Maker-eval
   records** (out-of-repo, beside the telemetry stream — the same path
   `.claude/hooks/maker-eval-emit.sh` resolves). Read `<channel>/records.jsonl` — one append-only
-  record per corpus task per run, each carrying `run_id`, `task_id`, the `fingerprint`
-  `{maker_behavior, judge_identity, eval_instrument}` object, the per-dimension `dimensions`
-  verdicts (each with its `lifecycle`), the `overall` verdict, and a relative `packet` path. A
-  flagged regression's packet link is that `packet` field, which resolves only **inside** the
+  record per (corpus task × maker tier) per run, each carrying `run_id`, `task_id`, `maker_tier`,
+  the `fingerprint` `{maker_behavior, judge_identity, eval_instrument}` object, the per-dimension
+  `dimensions` verdicts (each with its `lifecycle`), the `overall` verdict, and a relative `packet`
+  path. A flagged regression's packet link is that `packet` field, which resolves only **inside** the
   channel (the US2.AC3 fence, T804) — render it as the path, not a repo link.
 - **The two runs to difference.** Group `records.jsonl` by `run_id`; a run is **complete** iff
-  every corpus task has a record under it — the read-only completeness oracle is
-  `bash .claude/hooks/maker-eval-emit.sh complete --run-id <id>` (exit 0 = complete, exit 3 =
-  incomplete). The **last complete** run and the **prior complete** run are the differential's
-  two inputs; an incomplete latest run is never a silent baseline.
+  every corpus task has a record under it **at every maker tier** — the read-only completeness
+  oracle is `bash .claude/hooks/maker-eval-emit.sh complete --run-id <id>` (exit 0 = complete,
+  exit 3 = incomplete). The **last complete** run and the **prior complete** run are the
+  differential's two inputs; an incomplete latest run (including a single-tier run) is never a
+  silent baseline.
 - **Recompute the current maker-behavior fingerprint** with the single-source recipe
   `bash .claude/hooks/maker-eval-emit.sh fingerprint` → the `.maker_behavior` field of the
   printed triple-fingerprint object. **Reuse that recipe — never re-derive it here** — so what

@@ -225,8 +225,8 @@ check "DW4: recorded separately so a judge/instrument change is its own movement
   "three separately-recorded components"
 
 # ── DW5 — the record + transcript review packet stored in the eval channel's fenced path ──
-check "DW5: one append-only record per corpus task, sharing a run id" "$NEU_FLAT" \
-  "exactly one append-only record per corpus task"
+check "DW5: one append-only record per (corpus task × maker tier), sharing a run id" "$NEU_FLAT" \
+  "exactly one append-only record per (corpus task × maker tier)"
 check "DW5: a transcript review packet per task" "$NEU_FLAT" \
   "stores a transcript review packet"
 check "DW5: the packet carries the first-upstream-failure classification" "$NEU_FLAT" \
@@ -235,6 +235,8 @@ check "DW5: the packet link resolves only inside the eval channel's fenced path"
   "resolves **only inside that same fenced path**"
 check "DW5: a run is complete only when every corpus task has a record" "$NEU_FLAT" \
   "complete** only when **every** corpus task has a record"
+check "DW5: completeness spans every maker tier (PR #164 tier coverage)" "$NEU_FLAT" \
+  "a record under its run id **at every maker tier**"
 check "DW5: a failed or partial write changes nothing" "$NEU_FLAT" \
   "failed or partial write **changes nothing**"
 check "DW5: an incomplete run is never a comparable baseline" "$NEU_FLAT" \
@@ -267,6 +269,91 @@ check "DW7 (neutral): the frozen instrument changes only by a human-reviewed PR 
   "changed only by a human-reviewed PR"
 check "DW7 (neutral): a run only reads the instrument and appends observe-only records" "$NEU_FLAT" \
   "A run only *reads* the instrument and *appends* observe-only records"
+
+# ── T805 (#163 — spec 003 US2.AC1) — the skill binding reuses [workflow]/[headless run]/ ──
+# [reviewer], runs on a maker-behavior fingerprint change AND a schedule, and adds no new
+# binding-contract role. The encoding test for T805's criteria lives here (alongside T801's)
+# rather than in a second file, mirroring intake-docs.test.sh (skill `[ -r ]` + workflow-doc
+# reference) and evasion-register-docs.test.sh (probe in the neutral checklist + the adapter
+# table + a cell-scoped PASS). A later edit that drops the binding, a trigger, or the
+# observe-only claim fails the `verify` CI job, so the criterion is anchored, not assumed.
+SKILL="$DIR/skills/maker-eval/SKILL.md"
+if [ -r "$SKILL" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US2.AC1: skill binding file present\n     missing: %s\n' "$SKILL" >&2
+fi
+SKILL_FLAT="$(flat "$SKILL")"
+check "US2.AC1: binding executes the runtime-neutral workflow doc" "$SKILL_FLAT" \
+  "\`.claude/workflow/maker-eval.md\`"
+check "US2.AC1: binding declares the maker-behavior fingerprint-change trigger (MAKER-EVAL-STALE)" "$SKILL_FLAT" \
+  "MAKER-EVAL-STALE"
+check "US2.AC1: binding declares the weekly schedule trigger" "$SKILL_FLAT" \
+  "named minimum cadence is **weekly**"
+check "US2.AC1: binding composes existing roles only — no new binding-contract row" "$SKILL_FLAT" \
+  "no new binding-contract row"
+# PR #164 (Codex P2): the maker-behavior fingerprint spans all maker tiers, so a default run
+# must cover every tier (else clearing MAKER-EVAL-STALE certifies a tier it never scored), and
+# each record names the tier it scored (the second completeness axis, enforced by the emitter).
+check "US2.AC1: binding's default run covers every maker tier (PR #164)" "$SKILL_FLAT" \
+  "targets **every** maker tier"
+check "US2.AC1: binding records the maker tier on each result (--tier)" "$SKILL_FLAT" \
+  "--tier <maker-tier>"
+# Negative case: the binding-contract table in workflow/README.md must NOT gain a
+# [maker-eval] role row (the skill composes existing roles; it appears only in the Files
+# list) — mirrors intake-docs.test.sh's AC5 negative check.
+if printf '%s' "$README_FLAT" | grep -qF -- "| **[maker-eval]**"; then
+  fail=$((fail + 1))
+  printf 'FAIL US2.AC1: no [maker-eval] role row in the binding-contract table\n' >&2
+else
+  pass=$((pass + 1))
+fi
+
+# ── T805 (#163 — spec 003 US2.AC4) — the P-ME conformance probe ────────────────────────────
+# The probe must exist in the neutral checklist, be instantiated in the adapter table, and
+# carry a recorded live PASS. The result check is CELL-SCOPED (mirrors evasion-register's P-EV
+# guidance, PR #89): a bare `| P-ME (` row-prefix needle would let a flip to FAIL/DEGRADED
+# still pass CI, so it would NOT enforce the done-when (a live probe recorded a PASS). Assert
+# the P-ME *results* row's result cell is PASS.
+PROBES="$DIR/workflow/conformance-probes.md"
+PROBES_FLAT="$(flat "$PROBES")"
+ADAPTER="$DIR/adapters/claude-code-probes.md"
+for f in "$PROBES" "$ADAPTER"; do
+  if [ ! -f "$f" ]; then
+    echo "FAIL US2.AC4: required file missing: $f" >&2
+    exit 1
+  fi
+done
+ADAPTER_FLAT="$(flat "$ADAPTER")"
+check "US2.AC4: P-ME probe defined in the neutral checklist" "$PROBES_FLAT" \
+  "### P-ME — maker-eval (\`maker-eval.md\`)"
+check "US2.AC4: P-ME records carry the maker-behavior fingerprint" "$PROBES_FLAT" \
+  "carrying that **maker-behavior fingerprint**"
+check "US2.AC4: P-ME touches no gate/tier/guard/selection state" "$PROBES_FLAT" \
+  "touches no gate, tier, guard, or selection state"
+check "US2.AC4: P-ME edits no instrument artifact" "$PROBES_FLAT" \
+  "edits no instrument artifact"
+# The probe is scoped to the deterministic record/fingerprint/boundary conformance; the
+# model-driven maker run + judge are deferred to live use / the gate (PR #164 — the probe must
+# not over-claim that the whole binding "fires", since it drives only the record emission).
+check "US2.AC4: P-ME scopes to emitter conformance; the model-driven run is deferred to live use" "$PROBES_FLAT" \
+  "the pinned-**[reviewer]** judging are exercised by live use"
+check "US2.AC4: P-ME in the coverage map" "$PROBES_FLAT" \
+  "| maker-eval procedure (\`maker-eval.md\`) | P-ME |"
+check "US2.AC4: P-ME instantiated in the adapter probe table" "$ADAPTER_FLAT" \
+  "| P-ME |"
+# The results row begins `| P-ME (` (the dated run), distinct from the `| P-ME |`
+# instantiation row. awk field 3 is the result cell (the date cell carries no pipe) —
+# the same field layout as the P-EV row in evasion-register-docs.test.sh.
+pme_row="$(grep -E '^\| P-ME \(' "$ADAPTER" | head -1)"
+pme_cell="$(printf '%s\n' "$pme_row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3 }')"
+if [ "$pme_cell" = "PASS" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US2.AC4: P-ME results-row result cell is not PASS (got: %s)\n' "${pme_cell:-<no \`| P-ME (…)\` row>}" >&2
+fi
 
 # ── Discoverability — the workflow README files index lists the new docs ──────────────────
 check "README: files index names the maker-eval methodology doc" "$README_FLAT" \
