@@ -89,6 +89,14 @@ check 2 "$MAIN" "r1 #165 block: relative nested in-repo path on main" "$(edit Wr
 check 2 "$MAIN" "r1 #165 block: relative dot-slash in-repo path on main" "$(edit Edit "./notes.md")"
 check 0 "$MAIN" "r1 #165 allow: relative path escaping the repo on main (control)" "$(edit Edit "../outside/notes.md")"
 check 0 "$FEAT" "r1 #165 allow: relative in-repo path on a feature branch" "$(edit Edit "AGENTS.md")"
+# Path-form parity (#175 review): the in_repo decision must hold for Windows-serialized
+# (JSON-escaped backslash) relative paths too, not only POSIX '/'. abspath folds '\'->'/'
+# BEFORE the lexical collapse, so a backslash escape resolves OUTSIDE the repo (ALLOW),
+# exactly like its POSIX twin above — while a backslash in-repo path still resolves
+# inside (DENY on main). Without the fold the escape's '..\' survived the slash-only
+# collapse and norm() rewrote it to "<root>/../outside", wrongly read as in-repo (exit 2).
+check 2 "$MAIN" "r1 #175 block: relative Windows-backslash in-repo path on main" "$(edit Edit "src\\\\foo.ts")"
+check 0 "$MAIN" "r1 #175 allow: relative Windows-backslash escape on main (control)" "$(edit Edit "..\\\\outside\\\\notes.md")"
 
 # --- rule 2: no blanket staging (run on the feature repo so rule 3 stays out) ---
 check 2 "$FEAT" "r2 block: git add ." "$(bashp 'git add .')"
@@ -326,6 +334,10 @@ check 2 "$ELR" "r7 #165 block: relative in-repo .sh adds a diagnostic" "$(posted
 { printf '#!/usr/bin/env bash\n'; printf "yes '%s a' | head -n1\n" "$D"; printf '# touched, no new issue\n'; } > "$EDITED"
 check 0 "$ELR" "r7 #165 allow: relative in-repo .sh, no new diagnostic (baseline correct)" "$(postedit Edit "sample.sh")"
 check 0 "$ELR" "r7 #165 allow: relative .sh escaping the repo fails open (control)" "$(postedit Edit "../outside.sh")"
+# Path-form parity (#175 review): the same abspath fold applies on the PostToolUse path, so
+# a Windows-serialized backslash escape resolves OUTSIDE the repo and the in_repo gate fails
+# open — it is not treated as in-repo and re-linted.
+check 0 "$ELR" "r7 #175 allow: Windows-backslash .sh escaping the repo fails open (control)" "$(postedit Edit "..\\\\outside.sh")"
 unset GUARD_PROJECT_FILE
 
 # --- telemetry: block + evaluation records (workflow/telemetry.md, US1.AC3/AC4) ---
@@ -477,14 +489,36 @@ done
 # Merge authorization is session-explicit (AGENTS.md "Autonomy and Merge Rules"). A
 # `gh pr merge` pre-approval in the allowlist would make the merge boundary
 # model-compliance-bound rather than deterministic, so NO allow rule (Bash or
-# PowerShell) may grant it in default review mode. Asserted statically against the
-# real settings.json (the same file the wiring assertions above read); a re-added
-# entry fails this.
-merge_allows="$(grep -cE '"(Bash|PowerShell)\(gh pr merge' "$SETTINGS" 2>/dev/null)"
-[ -n "$merge_allows" ] || merge_allows=0
+# PowerShell) may grant it in default review mode. The allowlist is PREFIX-matched
+# (.claude/README.md), so a broad entry like `Bash(gh pr:*)` or `Bash(gh:*)` would
+# pre-approve merge just as surely as a literal `Bash(gh pr merge:*)` — grepping only
+# the literal token (the #175 review's craft finding) would miss those. So replay Claude
+# Code's prefix match against a representative merge command instead: extract every allow
+# spec from the real settings.json (the same file the wiring assertions above read) and
+# FAIL if any would authorize `gh pr merge …`. A literal re-add OR a future over-broad
+# prefix both flip it red.
+# approves_merge <spec-inside-parens> -> exit 0 if it authorizes some `gh pr merge …`.
+approves_merge() {
+  local spec="$1" pre
+  case "$spec" in
+    'gh pr merge'|'gh pr merge '*) return 0 ;;   # literal merge: exact, or with args/wildcard
+  esac
+  case "$spec" in
+    *':*')                                        # prefix wildcard: a token-prefix of `gh pr merge`?
+      pre="${spec%:\*}"
+      case 'gh pr merge' in "$pre"|"$pre "*) return 0 ;; esac ;;
+  esac
+  return 1
+}
+merge_allows=0
+while IFS= read -r spec; do
+  [ -n "$spec" ] || continue
+  approves_merge "$spec" && merge_allows=$((merge_allows + 1))
+done < <(grep -oE '"(Bash|PowerShell)\([^"]*\)"' "$SETTINGS" 2>/dev/null \
+           | sed -E 's/^"(Bash|PowerShell)\((.*)\)"$/\2/')
 if [ "$merge_allows" -eq 0 ]; then pass=$((pass + 1)); else
   fail=$((fail + 1))
-  printf 'FAIL %-55s settings.json must not pre-approve gh pr merge (found %s)\n' "settings #165: no gh pr merge pre-approval" "$merge_allows" >&2
+  printf 'FAIL %-55s settings.json must not pre-approve gh pr merge (matched %s)\n' "settings #165: no gh pr merge pre-approval" "$merge_allows" >&2
 fi
 
 # --- fail-open posture for unrecognized input ---

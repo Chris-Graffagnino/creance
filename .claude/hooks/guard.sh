@@ -178,19 +178,25 @@ norm() { printf '%s' "$1" | tr '\\' '/' 2>/dev/null | sed -E 's#/+#/#g; s#^/([a-
 # "AGENTS.md") must register as in-repo so the on-main rule DENIES it — the bare
 # string was previously read as outside-repo and slipped the guard — while a
 # relative path that ESCAPES the repo ("../outside") must still register as
-# outside (ALLOW). Relative inputs anchor on the repo root (= the hook cwd in
-# this runtime; resolved via git so its spelling matches the root in_repo
-# compares against), then '.'/'..' segments are collapsed LEXICALLY: a literal
-# prefix test on an un-collapsed "<root>/../x" would WRONGLY match the root
-# prefix (the over-capture the #165 control forbids). Pure lexical — no
+# outside (ALLOW). Backslash separators are folded to '/' FIRST (matching norm()
+# / norm_rel()) so the absolute-path test and the '.'/'..' collapse below treat a
+# Windows-serialized path identically to its POSIX twin — without the fold a
+# backslash escape ("..\outside") survives the slash-only collapse and norm()
+# later rewrites it to "<root>/../outside", which the literal prefix test WRONGLY
+# reads as in-repo (#175 review). Relative inputs then anchor on the repo root
+# (= the hook cwd in this runtime; resolved via git so its spelling matches the
+# root in_repo compares against), and '.'/'..' segments are collapsed LEXICALLY:
+# a literal prefix test on an un-collapsed "<root>/../x" would WRONGLY match the
+# root prefix (the over-capture the #165 control forbids). Pure lexical — no
 # realpath/symlink/filesystem lookup, so a not-yet-created edit target resolves
-# too. Already-absolute inputs (POSIX "/", Windows "C:\", UNC "\\") are left for
-# norm() to canonicalize. Fail-open: an unreadable repo root leaves the path
-# as-is (in_repo's own default still preserves the guard's strength).
+# too. Already-absolute inputs (POSIX "/", Windows "C:\" -> "C:/", UNC "\\" ->
+# "//") are left for norm() to canonicalize. Fail-open: an unreadable repo root
+# leaves the path as-is (in_repo's own default still preserves the guard's strength).
 abspath() {
   local p="$1" root='' prev=''
+  p="$(printf '%s' "$p" | tr '\\' '/')"   # fold Windows '\' before the tests below
   case "$p" in
-    /*|[a-zA-Z]:[/\\]*|\\\\*) ;;
+    /*|[a-zA-Z]:/*) ;;
     *) root="$(git rev-parse --show-toplevel 2>/dev/null)" \
          && [ -n "$root" ] && p="$root/$p" ;;
   esac
