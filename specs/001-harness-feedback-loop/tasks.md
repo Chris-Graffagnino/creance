@@ -340,7 +340,7 @@
       included; blocked by T620 (#150; repo-maintenance — done-when on issue) — strong:
       example-adapter review-roster semantics and its cross-vendor/read-only/tier-floor
       property surface
-- [ ] T626 [strong] Ship a **worked-example set** under `docs/examples/` for a clearly
+- [x] T626 [strong] Ship a **worked-example set** under `docs/examples/` for a clearly
       labeled **fictional** project: a filled `PROJECT.md` (every required heading, an
       invariant→enforcement mapping with ≥1 judgment-only row and ≥1 deterministic-backstop
       row), a filled `memory/constitution.md` (3–4 enforceable failure-mode-hunting
