@@ -19,7 +19,17 @@ cycle, the non-convergence stop, and verbatim verdict retention. It does NOT own
 - §8 (attaching the verdicts to the PR) — the loop *returns* every verdict; posting them
   is the dispatcher's job, exactly as today;
 - appending the telemetry record — the loop *builds* the `gate-run` payload
-  (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below).
+  (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below);
+- **restoring the shared-tree task branch after the run** — a dispatched reviewer is
+  read-only only as to *file mutation*; it can still run `git`, so a stray
+  `git checkout`/`git switch` in an auditor step can relocate the maker's HEAD off the task
+  branch in the **shared** working tree (review mode runs the auditors there, not in an
+  isolated worktree). The dispatcher snapshots the task branch it cut and **restores it
+  after the run, on every outcome** — a deterministic backstop, run *before* it reads the
+  introducing-commit for telemetry so a drifted HEAD can neither strand the maker nor poison
+  the record. (Under an engaged isolated autonomous run the work lives in the ephemeral
+  **[isolated workspace]** governed by the lifecycle, so this shared-tree restore is
+  review-mode only.)
 
 The loop runs against the task branch's **committed** diff versus the base branch — the
 reviewers see only commits, so commit before invoking it. Under an engaged isolated autonomous
@@ -188,6 +198,12 @@ succeeded). One record per completed gate invocation, whatever the outcome.
 - Every dispatched reviewer still satisfies every **[reviewer]** constraint: separate
   context, no file-mutation capability, adversarial posture per its spec, parallel
   dispatch.
+- A reviewer reads base state by **non-switching** means only — `git diff main..HEAD`,
+  `git show main:<path>`, or a throwaway `git worktree` — and never a
+  `git checkout`/`git switch` of the working tree it audits: in review mode that is the
+  maker's **shared** tree, so switching it would relocate the maker's HEAD off the task
+  branch. This is the prevention layer; the dispatcher's after-run restore above is the
+  deterministic backstop.
 - The constitution reviewer's **[strong tier]** floor applies to its dispatch parameter —
   strong-model is mandatory input precisely so the floor never depends on inherited
   session state.

@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 99 rows.
+Manifest source inventory: 101 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -125,6 +125,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/reconcile-inflight-selection.test.sh` | KEEP | Paired regression tests for in-flight selection reconciliation (`gh` mocked). Verbatim. |
 | `hooks/reconcile-task-selection.sh` | KEEP | Runtime live-state reconciliation precondition. Verbatim. |
 | `hooks/reconcile-task-selection.test.sh` | KEEP | Paired regression tests for selection reconciliation. Verbatim. |
+| `hooks/restore-task-branch.sh` | KEEP | Review-mode §7 gate backstop: restores the maker's HEAD if a shared-tree auditor switched it off the task branch. Verbatim. |
+| `hooks/restore-task-branch.test.sh` | KEEP | Paired real-git regression tests for the gate branch-restore backstop (DW1 fail-before/pass-after, DW2 base-read control, DW3 both outcomes, fail-loud, CI+dispatcher wiring). Verbatim. |
 | `hooks/retrospective-docs.test.sh` | KEEP | Encoding test for retrospective workflow/binding invariants. Verbatim. |
 | `hooks/reviewer-roster.test.sh` | KEEP | Drift backstop for the §7 reviewer roster and read-only agent bindings. Verbatim. |
 | `hooks/shell-lint.sh` | KEEP | Shell syntax/portability checker used by CI and the edit guard. Verbatim. |

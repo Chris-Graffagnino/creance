@@ -267,4 +267,25 @@ await test('no dispatchSpec: spec-quality-auditor is NOT dispatched (non-spec di
   assert.deepEqual(auditors, ['spec-auditor', 'constitution-auditor']);
 });
 
+// --- 12. reviewer prompt carries the non-switching base-read constraint (T622, #140) -------
+// The prevention layer for the shared-tree branch-switch bug: the auditors run in the maker's
+// shared working tree in review mode, so the reviewer prompt must forbid branch-switching git
+// and steer them to non-switching base reads. (The DETERMINISTIC backstop is the dispatcher's
+// restore-task-branch step, tested in restore-task-branch.test.sh; this pins the belt-and-
+// suspenders prevention so it cannot silently drop out of the prompt.)
+await test('reviewer prompt forbids branch-switching and steers to non-switching base reads', async () => {
+  const seen = [];
+  await runGateLoop(baseArgs, async (prompt, opts) => {
+    seen.push({ prompt, agentType: opts.agentType });
+    return { verdict: 'PASS', report: 'ok' };
+  });
+  const reviewerPrompts = seen.filter((s) => s.agentType); // reviewers carry agentType; the fixer does not
+  assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /non-switching/i, 'instructs non-switching base reads');
+    assert.match(prompt, /never run `git checkout`\/`git switch`/i, 'forbids branch-switching git');
+    assert.match(prompt, /git diff main\.\.HEAD/, 'names a non-switching base read');
+  }
+});
+
 console.log(`\n${testsRun} tests passed`);

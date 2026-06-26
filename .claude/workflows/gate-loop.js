@@ -110,7 +110,14 @@ const diffTarget = WORKSPACE
 
 const reviewerPrompt =
   `Task under review: ${input.taskId}. Audit ${diffTarget} per your spec. Set 'verdict' ` +
-  `to your overall verdict and put your full verdict report, verbatim, in 'report'.`;
+  `to your overall verdict and put your full verdict report, verbatim, in 'report'. ` +
+  // Prevention layer for #140/T622 (the deterministic backstop is the dispatcher's
+  // restore-task-branch step): in review mode you run in the maker's SHARED working tree, so
+  // a branch switch here silently relocates their HEAD off the task branch. Read base state by
+  // NON-SWITCHING means only.
+  `Read base state by NON-SWITCHING means only — \`git diff main..HEAD\`, \`git show main:<path>\`, ` +
+  `or a throwaway \`git worktree\` — and NEVER run \`git checkout\`/\`git switch\` against the ` +
+  `working tree you are auditing; switching it would relocate the maker's HEAD off the task branch.`;
 
 // DERIVED FROM the reviewer roster in workflow/gate-loop.md → "The reviewer roster" — the
 // single source of truth for gate membership, tier, and dispatch-condition. This array is
