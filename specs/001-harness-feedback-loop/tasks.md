@@ -263,6 +263,48 @@
       epic part d; create issue on demand; repo-maintenance — done-when on issue) — strong:
       live cross-vendor proof closing the adapter binding (P1/P2/P3/P4)
 
+## Phase 11 — Guard & gate hardening (discovered work)
+
+> Three correctness gaps in the deterministic-governance surface, surfaced *after* the
+> Phase 9 agent-framework deltas by later review/audit work: the guard's git-subcommand
+> matcher and relative-path handling (engineering-craft audit + the #137 Codex P1 review)
+> and the review-mode §7 gate-loop's shared-tree handling (the #139 gate run). Each
+> hardens an existing enforcement boundary; rubric is the done-when criteria carried on
+> its issue (the acceptance reviewer grades against those exactly as a `US#`). T621 and
+> T623 both touch `.claude/hooks/guard.sh` + `guard.test.sh` — whichever lands second
+> rebases; no hard ordering dependency.
+
+- [ ] T621 [strong] Harden `[guard]` rules 2/3/4 against global-option / cwd evasions in
+      **both** guard implementations in parity (`.claude/hooks/guard.sh` and the Omnigent
+      port `policies/guard.py`): a leading `git -C <path>` / `-c k=v` / `--git-dir` no
+      longer slips past the bulk-staging and commit/push-on-base matchers, and the
+      branch-gated rules resolve the **effective** repo (honoring `-C <path>`, best-effort
+      a leading `cd <path> &&`) rather than only the event cwd; fail-open posture and a
+      safe-control ALLOW preserved; the trailing-slash `git add ./`-operand variant folded
+      in. Ships matching cases in **both** `guard.test.sh` and `tests/test_guard.py`
+      (#138; bug — done-when on issue) — strong: changes guard behavior across both
+      implementations and adds the P2 regression coverage (constitution P2/P3)
+- [ ] T622 [strong] Stop the review-mode §7 gate-loop (`[orchestrated run]`) from
+      relocating the **shared** working tree off the task branch: a read-only auditor's
+      `git checkout`/`switch` in the shared tree must not silently move the maker's HEAD,
+      while auditors retain correct read access to base state (`git diff main..HEAD` /
+      `git show main:<path>` / a throwaway worktree). Encoded by an automated test that
+      fails against current behavior and passes after the fix; if the fix constrains
+      auditor git usage it is a guard-behavior change shipping its matching test (#140;
+      bug — done-when on issue) — strong: protects the gate-execution boundary against
+      silent branch-state loss (constitution P2/P3)
+- [ ] T623 [strong] Close two enforcement-boundary bypasses found in the engineering-craft
+      audit: (a) normalize a relative edit `file_path` to absolute against the hook
+      cwd/repo root **before** the `in_repo` decision in `.claude/hooks/guard.sh`, so an
+      in-repo relative path on the base branch is DENIED while a genuinely-outside relative
+      path stays ALLOWED; (b) stop pre-approving `gh pr merge` in default review mode —
+      remove the `gh pr merge:*` allow entries from `.claude/settings.json` or add a
+      deterministic guard veto gated on explicit session authorization. Ships relative-path
+      cases on **both** the PreToolUse edit-on-base and PostToolUse edit-guard paths plus a
+      settings/guard regression proving review mode does not pre-approve `gh pr merge`
+      (#165; bug — done-when on issue) — strong: base-branch-mutation and merge boundaries
+      with their P2 regression coverage (constitution P2/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
