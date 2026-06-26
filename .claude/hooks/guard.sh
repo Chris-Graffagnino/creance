@@ -173,6 +173,41 @@ tool="$(printf '%s' "$payload" \
 # writes (e.g. the user's ~/.claude memory dir, which the on-main rule must not block).
 norm() { printf '%s' "$1" | tr '\\' '/' 2>/dev/null | sed -E 's#/+#/#g; s#^/([a-zA-Z])/#\1:/#' | tr 'A-Z' 'a-z'; }
 
+# Resolve a possibly-relative edit path to an absolute, lexically-normalized form
+# BEFORE the in_repo decision (issue #165). A relative IN-repo path (e.g.
+# "AGENTS.md") must register as in-repo so the on-main rule DENIES it — the bare
+# string was previously read as outside-repo and slipped the guard — while a
+# relative path that ESCAPES the repo ("../outside") must still register as
+# outside (ALLOW). Backslash separators are folded to '/' FIRST (matching norm()
+# / norm_rel()) so the absolute-path test and the '.'/'..' collapse below treat a
+# Windows-serialized path identically to its POSIX twin — without the fold a
+# backslash escape ("..\outside") survives the slash-only collapse and norm()
+# later rewrites it to "<root>/../outside", which the literal prefix test WRONGLY
+# reads as in-repo (#175 review). Relative inputs then anchor on the repo root
+# (= the hook cwd in this runtime; resolved via git so its spelling matches the
+# root in_repo compares against), and '.'/'..' segments are collapsed LEXICALLY:
+# a literal prefix test on an un-collapsed "<root>/../x" would WRONGLY match the
+# root prefix (the over-capture the #165 control forbids). Pure lexical — no
+# realpath/symlink/filesystem lookup, so a not-yet-created edit target resolves
+# too. Already-absolute inputs (POSIX "/", Windows "C:\" -> "C:/", UNC "\\" ->
+# "//") are left for norm() to canonicalize. Fail-open: an unreadable repo root
+# leaves the path as-is (in_repo's own default still preserves the guard's strength).
+abspath() {
+  local p="$1" root='' prev=''
+  p="$(printf '%s' "$p" | tr '\\' '/')"   # fold Windows '\' before the tests below
+  case "$p" in
+    /*|[a-zA-Z]:/*) ;;
+    *) root="$(git rev-parse --show-toplevel 2>/dev/null)" \
+         && [ -n "$root" ] && p="$root/$p" ;;
+  esac
+  p="$(printf '%s' "$p" | sed -E 's#/\./#/#g; s#/\.$#/#')"
+  while [ "$p" != "$prev" ]; do
+    prev="$p"
+    p="$(printf '%s' "$p" | sed -E 's#/[^/]+/\.\.(/|$)#/#')"
+  done
+  printf '%s' "$p"
+}
+
 # Is the edit target inside this repo? Default YES so an unparseable/missing path
 # still blocks on main (preserve the guard's strength); only a path we can confirm
 # lies outside the repo root is allowed through.
@@ -183,6 +218,7 @@ in_repo() {
     | grep -oE '"file_path"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 \
     | sed -E 's/.*:[[:space:]]*"([^"]*)".*/\1/')"
   [ -n "$fp" ] || return 0
+  fp="$(abspath "$fp")"          # #165: relative -> absolute before the prefix test
   root="$(norm "$root")"; fp="$(norm "$fp")"
   case "$fp/" in "$root"/*) return 0 ;; *) return 1 ;; esac
 }
@@ -263,6 +299,7 @@ if [ "$(jstr hook_event_name)" = "PostToolUse" ]; then
   case "$tool" in Edit|Write|MultiEdit|NotebookEdit) ;; *) exit 0 ;; esac
   in_repo || exit 0
   fp="$(jstr file_path)"; [ -n "$fp" ] || exit 0
+  fp="$(abspath "$fp")"          # #165: resolve a relative path so the checker + baseline (norm_rel) stay consistent
   checker_rel="$(edit_checker "$fp")"; [ -n "$checker_rel" ] || exit 0
   adapter_root="$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)" || exit 0
   case "$checker_rel" in /*) checker="$checker_rel" ;; *) checker="$adapter_root/$checker_rel" ;; esac
