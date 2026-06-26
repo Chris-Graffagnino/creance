@@ -312,9 +312,9 @@
 > (#11, #17, #16) plus one example-adapter roster-consistency gap (#150). Each is
 > repo-maintenance — no new `US#`; the acceptance reviewer grades each against the
 > done-when criteria carried in the issue's intake cross-link comment, exactly as it
-> would a `US#`. T626 (#17) and T627 (#16) are companions (the onboarding prompt points
-> at the worked examples as the target shape) but carry **no hard ordering dependency** —
-> land in either order; whichever lands second keeps the other's cross-pointer accurate.
+> would a `US#`. T626 (#17) and T627 (#16) are companions, but not unordered: T626
+> produces the worked-example set, and T627 is blocked by T626 because the onboarding
+> prompt points at that set as the target shape.
 
 - [ ] T624 [cheap] Add a short **"Finding things in this repo"** recipe block to
       `.claude/PROJECT.template.md` — a bounded, known-cost lookup path for the adopted
@@ -335,10 +335,11 @@
       (strong-floored like the constitution reviewer); extend `tests/test_reviewers.py`'s
       `REVIEWERS` set so the new YAML is covered by the cross-vendor / read-only / tier-pin
       property checks; and wire it into the Omnigent orchestrator's `dispatch-spec`
-      condition (`config.yaml`, where T620's gate-loop control flow lives) so a
+      condition (`config.yaml`, the gate-loop surface T620 lands) so a
       spec-touching diff actually dispatches it. Full `verify` green, Python adapter tests
-      included (#150; repo-maintenance — done-when on issue) — strong: example-adapter
-      review-roster semantics and its cross-vendor/read-only/tier-floor property surface
+      included; blocked by T620 (#150; repo-maintenance — done-when on issue) — strong:
+      example-adapter review-roster semantics and its cross-vendor/read-only/tier-floor
+      property surface
 - [ ] T626 [strong] Ship a **worked-example set** under `docs/examples/` for a clearly
       labeled **fictional** project: a filled `PROJECT.md` (every required heading, an
       invariant→enforcement mapping with ≥1 judgment-only row and ≥1 deterministic-backstop
@@ -352,10 +353,10 @@
       (≥1 architecture boundary with a banned vendor, ≥1 blocked/owner-only task, ≥1
       principle with a deterministic backstop); each template file gains a one-line pointer
       to its example and the README names the set in the Quickstart/reading order;
-      `EXTRACTION.md` §5 greps still pass over the whole tree with the examples added and no
-      model name appears outside `MODELS.md`; `workflow/**` untouched (#17; repo-maintenance
-      — done-when on issue) — strong: judgment-heavy authoring that must preserve the
-      neutrality (P1) and single-[environment-block] invariants
+      `.claude/EXTRACTION.md` §5 greps still pass over the whole tree with the examples
+      added and no model name appears outside `MODELS.md`; `workflow/**` untouched (#17;
+      repo-maintenance — done-when on issue) — strong: judgment-heavy authoring that must
+      preserve the neutrality (P1) and single-[environment-block] invariants
 - [ ] T627 [strong] Ship **`docs/onboarding-prompt.md`** — a self-contained prompt an
       adopter pastes into their agent (executable cold, no prior context), linked from the
       README Quickstart. The prompt encodes as **explicit instructions** (not commentary)
@@ -365,13 +366,13 @@
       **onboarding obeys the harness it installs** — run setup as the project's first
       issue + branch + PR, with probe/grep outputs as the PR's automatic evidence; (3) **end
       on artifacts, not say-so** — the final steps run the probes
-      (`.claude/adapters/claude-code-probes.md`), the `EXTRACTION.md` §5 greps, and a
-      concrete residual-placeholder grep, reporting anything unanswerable as an open item.
+      (`.claude/adapters/claude-code-probes.md`), the `.claude/EXTRACTION.md` §5 greps, and
+      a concrete residual-placeholder grep, reporting anything unanswerable as an open item.
       The prompt states the fill order, agrees step-for-step with the Quickstart (same fills,
       same order, same verification — a drift is a doc bug), points at the T626 worked-example
       set as the target shape, and states the runtime caveat that verification assumes
-      `rg`/`bash` (#16; repo-maintenance — done-when on issue) — strong: encodes harness-design
-      constraints and must stay in lockstep with the Quickstart
+      `rg`/`bash`; blocked by T626 (#16; repo-maintenance — done-when on issue) — strong:
+      encodes harness-design constraints and must stay in lockstep with the Quickstart
 
 ## Criterion ownership (multi-task user stories)
 
