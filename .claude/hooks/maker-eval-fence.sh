@@ -76,7 +76,10 @@ CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
 # drive — exactly the read the binding may not do (the triage reader's job, spec 003 US2.AC3).
 # The whole-emitter line-scope this replaces let `complete` pass because it carries no explicit
 # CHANNEL_READ token (PR #164 Codex P2). `complete` is the emitter's ONLY channel-reading
-# subcommand today; a new read subcommand must be added here with a paired test. Portable ERE.
+# subcommand today; a new read subcommand must be added here with a paired test. Matched over
+# LOGICAL lines: the run-binding scan folds shell backslash-continuations first
+# (fold_continuations below), so a `maker-eval-emit.sh \<newline> complete` wrap is one line
+# here too — not a writer drive split from a tokenless `complete` (PR #164 craft). Portable ERE.
 EMITTER_READ_SUBCOMMAND='maker-eval-emit(\.sh)?[[:space:]]+complete'
 
 # Files permitted to carry the channel tokens. Tier 1 is the AC's "eval writer and
@@ -148,6 +151,23 @@ list_files() {
   fi
 }
 
+# Fold shell line-continuations into ONE logical line for the run-binding scan, emitted as
+# `grep -n`-style "<start-lineno>:<text>" (the number is where the logical line BEGINS). A
+# trailing backslash joins the next physical line exactly as the shell would, so a
+# `maker-eval-emit.sh \<newline> complete` wrap becomes one line that matches
+# EMITTER_READ_SUBCOMMAND — instead of a benign writer drive on line 1 split from a tokenless
+# `complete` on line 2, which the per-physical-line scan cleared (PR #164 craft). POSIX awk
+# (no {n} interval, no `awk` token on a continuation line — shell-lint.sh, #97).
+fold_continuations() {
+  awk '
+    { buf = buf $0 }
+    start == 0 { start = NR }
+    /\\$/ { sub(/\\$/, "", buf); next }
+    { print start ":" buf; buf = ""; start = 0 }
+    END { if (start != 0) print start ":" buf }
+  ' "$1"
+}
+
 files="$(list_files | LC_ALL=C sort)"
 if [ -z "$files" ]; then
   printf 'maker-eval-fence: no files to scan under %s — cannot enforce the P5 fence (failing closed).\n' "$ROOT" >&2
@@ -158,7 +178,18 @@ violations=0
 while IFS= read -r rel; do
   [ -n "$rel" ] || continue
   allowed "$rel" && continue
-  hits="$(grep -I -nE "$CHANNEL_TOKENS" "$ROOT/$rel" 2>/dev/null)"
+  # Extract the channel-token hits as `grep -n`-style "<lineno>:<text>". The run binding is
+  # scanned over LOGICAL lines (shell backslash-continuations folded into one) so a
+  # `maker-eval-emit.sh \<newline> complete` wrap cannot split the writer-drive token from its
+  # channel-reading `complete` subcommand across two physical lines and clear both in the
+  # line-scope below (PR #164 craft). Every other file keeps the binary-safe per-physical-line
+  # grep -I scan: there, ANY channel token is already a violation, so folding would not change
+  # a verdict (and only the line-scoped run binding benign-filters a `complete` invocation).
+  if [ "$rel" = "$SKILL_BINDING" ]; then
+    hits="$(fold_continuations "$ROOT/$rel" | grep -E "$CHANNEL_TOKENS")"
+  else
+    hits="$(grep -I -nE "$CHANNEL_TOKENS" "$ROOT/$rel" 2>/dev/null)"
+  fi
   [ -n "$hits" ] || continue
   # CI is scanned, not wholly allowlisted (it is a gate surface): drop the benign lines
   # (comment / sanctioned *.test.sh wiring) and treat only what survives as a violation.

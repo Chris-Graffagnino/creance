@@ -10,7 +10,8 @@
 # proves the run binding (skills/maker-eval/SKILL.md) is LINE-SCOPED — a writer drive (case n)
 # or fingerprint recompute (case t) is benign, but a channel READ/RESOLVE in it still fires:
 # a record-path/packet/seam token (cases p/q/r) OR the emitter's channel-reading `complete`
-# subcommand (case s), closing the whole-file-allowlist gap PR #164 found. Bash + git only, <1s; wired into the
+# subcommand, one-line (case s) or WRAPPED across a shell line-continuation (case s2), closing the
+# whole-file-allowlist gap PR #164 found. Bash + git only, <1s; wired into the
 # `verify` CI job (.github/workflows/ci.yml).
 # Run: bash .claude/hooks/maker-eval-fence.test.sh
 set -u
@@ -143,7 +144,8 @@ run_fence 0 "$O" "no false fire: tokens in the allowlisted P-ME probe instantiat
 # ── the RUN binding is LINE-SCOPED, not whole-file trusted: it may DRIVE the writer (case n)
 #    or recompute the fingerprint (case t) but a channel READ/RESOLVE inside it still FIRES —
 #    reading the record path or the packet store, resolving the channel seam, or invoking the
-#    emitter's `complete` READ subcommand, is the triage reader's/writer's job, never the run
+#    emitter's `complete` READ subcommand (one-line or wrapped across a line-continuation), is
+#    the triage reader's/writer's job, never the run
 #    binding's (spec 003 US2.AC3). The old whole-file allowlist let any of these pass, so a
 #    future edit reading eval records "to choose a tier" from the binding bypassed the P5 fence
 #    (PR #164 craft/Codex). These are the negative fixtures proving the line-scope closes it. ──
@@ -169,6 +171,17 @@ run_fence 1 "$R_SEAM" "FIRES: MAKER_EVAL_DIR seam planted in the run binding"
 #     (PR #164 Codex P2). The run binding emits records; the completeness READ is the triage reader's.
 S_DONE="$TMP/binding-invokes-complete"; mkfix "$S_DONE" ".claude/skills/maker-eval/SKILL.md" 'Then `bash .claude/hooks/maker-eval-emit.sh complete --run-id "$id"` to check the run.  # planted channel read'
 run_fence 1 "$S_DONE" "FIRES: maker-eval-emit complete (channel read) planted in the run binding"
+
+# (s2) the SAME channel-reading `complete` invocation, but WRAPPED across a shell line-
+#      continuation (`maker-eval-emit.sh \<newline> complete`), still FIRES — the real evasion
+#      shape (P3). The per-physical-line scan saw a benign writer drive on the first line and a
+#      tokenless `complete` on the next, so the wrap cleared the line-scope (PR #164 craft). The
+#      fence now folds backslash-continuations into one logical line before scoping the binding,
+#      so the wrapped read matches EMITTER_READ_SUBCOMMAND exactly as the one-line case (s).
+S_WRAP="$TMP/binding-wraps-complete"
+S_WRAP_LINE=$'bash .claude/hooks/maker-eval-emit.sh \\\n  complete --run-id "$id"  # planted wrapped channel read'
+mkfix "$S_WRAP" ".claude/skills/maker-eval/SKILL.md" "$S_WRAP_LINE"
+run_fence 1 "$S_WRAP" "FIRES: maker-eval-emit + complete WRAPPED across a line-continuation in the run binding"
 
 # (t) recomputing the fingerprint (`maker-eval-emit fingerprint`) reads only the model table +
 #     the maker surfaces, never the channel, so it is benign in the run binding (the binding's
