@@ -32,6 +32,9 @@
 //   workspacePath    (optional) the [isolated workspace] path whose committed diff the
 //                    reviewers + fixer audit (gate-in-place under autonomous mode, T612);
 //                    absent → the main working tree (review mode, unchanged)
+//   taskBranch       (optional; review mode) the task branch the dispatcher cut — passed so the
+//                    fix step restores the SHARED working tree onto it before each fix/re-dispatch
+//                    round (#140/T622); absent under autonomous mode (the work is isolated)
 
 export const meta = {
   name: 'gate-loop',
@@ -102,7 +105,13 @@ const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 // reviewer subagents audit the workspace's diff even though they run from the session CWD.
 // The path is shell-quoted in the runnable command so a space/metacharacter cannot malform it.
 const WORKSPACE = input.workspacePath;
+const TASK_BRANCH = input.taskBranch; // review-mode fix-round restore target (#140/T622); absent under autonomous mode
 const diffCmd = WORKSPACE ? `git -C ${shellQuote(WORKSPACE)} diff main..HEAD` : `git diff main..HEAD`;
+// The non-switching base READ for `git show` — same tree-scoping as diffCmd. The auditors are told
+// to read base state by non-switching means; those example commands must point at the SAME tree they
+// audit, so under an isolated run they carry the explicit `git -C <workspace>` and a session-CWD
+// reviewer is never steered back to the shared tree (Codex P2 / craft, PR #174).
+const showCmd = WORKSPACE ? `git -C ${shellQuote(WORKSPACE)} show main:<path>` : `git show main:<path>`;
 const diffTarget = WORKSPACE
   ? `the committed diff of the ISOLATED WORKSPACE at ${WORKSPACE} (run \`${diffCmd}\` — ` +
     `that worktree holds the autonomous run's branch; do NOT audit the main working tree)`
@@ -111,11 +120,14 @@ const diffTarget = WORKSPACE
 const reviewerPrompt =
   `Task under review: ${input.taskId}. Audit ${diffTarget} per your spec. Set 'verdict' ` +
   `to your overall verdict and put your full verdict report, verbatim, in 'report'. ` +
-  // Prevention layer for #140/T622 (the deterministic backstop is the dispatcher's
-  // restore-task-branch step): in review mode you run in the maker's SHARED working tree, so
-  // a branch switch here silently relocates their HEAD off the task branch. Read base state by
-  // NON-SWITCHING means only.
-  `Read base state by NON-SWITCHING means only — \`git diff main..HEAD\`, \`git show main:<path>\`, ` +
+  // Prevention layer for #140/T622 (the deterministic backstop is the restore-task-branch step —
+  // run by the loop before each fix/re-dispatch and by the dispatcher after the run): in review
+  // mode you run in the maker's SHARED working tree, so a branch switch here silently relocates
+  // their HEAD off the task branch. Read base state by NON-SWITCHING means only — and the example
+  // reads reuse diffCmd/showCmd, so under an isolated run they carry the explicit `git -C <workspace>`
+  // target; a bare `git diff main..HEAD` would steer a session-CWD reviewer back to the shared tree
+  // and recreate the T612 vacuous pass (Codex P2 / craft, PR #174).
+  `Read base state by NON-SWITCHING means only — \`${diffCmd}\`, \`${showCmd}\`, ` +
   `or a throwaway \`git worktree\` — and NEVER run \`git checkout\`/\`git switch\` against the ` +
   `working tree you are auditing; switching it would relocate the maker's HEAD off the task branch.`;
 
@@ -231,6 +243,31 @@ while (true) {
       fixRoundsUsed,
       telemetry: telemetry(outcome),
     };
+  }
+
+  // Review-mode fix-round restore (#140/T622; Codex P2, PR #174). We are past the PASS/stop
+  // returns, so the loop is about to apply a fix and/or re-dispatch. BEFORE either, put the SHARED
+  // working tree's HEAD back on the task branch: a parallel read-only auditor (read-only as to file
+  // mutation, but it holds Bash) can leave HEAD relocated off the task branch, and then the fixer
+  // would commit onto the wrong branch and the re-dispatched reviewers would audit the wrong HEAD.
+  // This is the SAME deterministic, fail-loud restore the dispatcher runs after the loop — applied
+  // here at the fix boundary so the gap is closed on every fix/re-dispatch path, not only the
+  // terminal post-run step. The loop's runtime has no git, so the restore is performed by a
+  // dispatched agent (the only actor here with VCS access); it makes no code change. Workspace mode
+  // isolates the work in the ephemeral [isolated workspace], so there is no shared tree to restore
+  // (TASK_BRANCH is absent there).
+  if (!WORKSPACE && TASK_BRANCH) {
+    await agent(
+      `Before the pre-PR gate for task ${input.taskId} applies any fix or re-dispatches its ` +
+        `reviewers, restore the shared working tree to its task branch — a parallel read-only ` +
+        `auditor in this same tree may have left HEAD relocated onto another branch. Run exactly ` +
+        `this from the repo root, and nothing else (make NO code change):\n\n` +
+        `    bash .claude/hooks/restore-task-branch.sh ${shellQuote(TASK_BRANCH)}\n\n` +
+        `It is a no-op when nothing drifted. If it exits non-zero it could not guarantee the ` +
+        `branch — STOP and report that in your final message; do not let the gate fix or re-audit ` +
+        `a drifted HEAD.`,
+      { label: `restore-round-${fixRoundsUsed + 1}`, phase: 'Fix' },
+    );
   }
 
   const findings = failing.filter((r) => verdicts[r.key] && verdicts[r.key].verdict === 'FAIL');
