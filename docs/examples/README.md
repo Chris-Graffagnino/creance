@@ -37,6 +37,7 @@ cross-references the auditors check:
 ## A note on neutrality
 
 The set carries **no `MODELS.md`** and names **no concrete model** — it refers to capability
-tiers as **roles** (`[strong]`, `[cheap]`) only, exactly as the real profile does. That keeps
-the single-source-of-models property intact: across the whole repo, model names live only in
-`.claude/MODELS.md`.
+tiers as **roles** (`[strong]`, `[cheap]`) only, exactly as the real profile does. That mirrors
+the single-source-of-models property: tier→model resolution lives in one model table per adapter
+(`.claude/MODELS.md` for the live Claude Code adapter), so specs, tasks, and contracts never name
+a model and a model swap is a one-line edit there.
