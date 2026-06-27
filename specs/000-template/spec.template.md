@@ -8,6 +8,9 @@
 > (`spec-auditor`) grades each task against the `US#` acceptance criteria below — bullets
 > are addressable as `US1.AC1`, `US1.AC2`, … (the nth bullet under that story), so write
 > them as independently checkable statements.
+>
+> **Worked example:** [`docs/examples/lantern/specs/001-guided-sessions/spec.md`](../../docs/examples/lantern/specs/001-guided-sessions/spec.md)
+> is a fully filled version of this file (the fictional "Lantern" project).
 
 ## Overview
 

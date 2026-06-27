@@ -56,8 +56,9 @@ never append the footer to the quoted text itself.
 instantiation, shipped as a worked example. On macOS/Linux, replace them with your forms
 (e.g. heredocs are UTF-8 by default, so the `Out-File -Encoding utf8` rule becomes "write
 the temp `.md` with a plain heredoc"; `gh` falls back to `/opt/homebrew/bin/gh` or
-`/usr/local/bin/gh` instead of a `Program Files` path). Keep this section the single
-[environment block] either way.
+`/usr/local/bin/gh` instead of a `Program Files` path). A fully worked macOS/Linux
+translation to copy from is `docs/examples/environment-block-macos-linux.md` (illustrative,
+**not** a second live block). Keep this section the single [environment block] either way.
 - `gh` invocation — use it from PATH; in a headless run it may be absent, so fall back to
   the absolute install path (`C:\Program Files\GitHub CLI\gh.exe`). `gh repo set-default`
   is set to the fork locally, so a bare `gh` targets the right repo — no slug-derivation

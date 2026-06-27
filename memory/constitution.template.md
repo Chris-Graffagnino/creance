@@ -6,6 +6,9 @@
 > a diff that violates a principle is FAILED in the pre-PR gate, not negotiated. Each
 > principle should be concrete enough that a reviewer can hunt for its *failure mode*;
 > mirror each one as a checkable rule in `.claude/PROJECT.md` → "Invariant checklist".
+>
+> **Worked example:** [`docs/examples/lantern/constitution.md`](../docs/examples/lantern/constitution.md)
+> is a fully filled version of this file (the fictional "Lantern" project).
 
 The non-negotiable principles for this project. If any feature, growth tactic, or
 stakeholder request violates one of these, the default answer is **no**. These break

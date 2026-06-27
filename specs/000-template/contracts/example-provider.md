@@ -5,6 +5,9 @@
 > (`.claude/workflow/reviewers/contract-auditor.md`) enforces it: a vendor SDK/API
 > called outside this interface, or a vendor-specific type/error/option leaking through
 > a public surface, is a **FAIL** (it breaks provider-swappability).
+>
+> **Worked example:** [`docs/examples/lantern/specs/001-guided-sessions/contracts/audio-synthesis-provider.md`](../../../docs/examples/lantern/specs/001-guided-sessions/contracts/audio-synthesis-provider.md)
+> is a fully filled version of this file (the fictional "Lantern" project).
 
 ## Purpose
 
