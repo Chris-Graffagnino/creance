@@ -3,7 +3,7 @@
 > **Illustrative example — not live config.** Part of the *fictional* Lantern worked-example
 > set (a filled counterpart to [`specs/000-template/spec.template.md`](../../../../../specs/000-template/spec.template.md)).
 > The acceptance reviewer (`spec-auditor`) grades each task against the `US#` criteria below —
-> bullets are addressable as `US1.AC1`, `US1.AC2`, … (the nth bullet under that story). See
+> each criterion is addressable by its `AC#:` label (`US1.AC1`, `US1.AC2`, …). See
 > [`docs/examples/README.md`](../../../README.md).
 
 ## Overview
@@ -29,18 +29,22 @@ As a listener, I want a guided meditation with spoken narration, so that I can f
 with my eyes closed.
 
 **Acceptance Criteria**
-- All narration audio is produced through the `AudioSynthesisProvider` interface — no screen or
-  component calls a vendor TTS SDK directly.
-- Replaying a session whose narration text is unchanged serves audio from the content-hash
-  cache: no re-synthesis and no re-billing for identical text.
-- The session player screen is fully VoiceOver/TalkBack labeled and meets WCAG AA contrast.
+- AC1: All narration audio is produced through the `AudioSynthesisProvider` interface — no
+  screen or component calls a vendor TTS SDK directly.
+- AC2: Replaying a session whose narration text is unchanged serves audio from the
+  content-hash cache: no re-synthesis and no re-billing for identical text.
+- AC3: Every interactive control on the session player screen carries a non-empty
+  accessibility label, and the screen meets WCAG AA contrast — the mechanical floor the
+  `a11y-lint` backstop checks.
+- AC4: The accessibility labels are *meaningful* and the player is fully navigable in order by
+  VoiceOver/TalkBack — the label-quality judgment the lint cannot make.
 
 ### US2 — Gentle, non-shaming reminders
 As a returning user, I want optional reminders to practice, so that I remember Lantern without
 being made to feel guilty.
 
 **Acceptance Criteria**
-- Reminder copy contains no guilt, shame, or manufactured-urgency framing, and no
+- AC1: Reminder copy contains no guilt, shame, or manufactured-urgency framing, and no
   zero-resetting streak language.
-- A missed session never triggers a "streak broken" or "you failed" notification — the next
-  reminder is as warm as the first.
+- AC2: A missed session never triggers a "streak broken" or "you failed" notification — the
+  next reminder is as warm as the first.

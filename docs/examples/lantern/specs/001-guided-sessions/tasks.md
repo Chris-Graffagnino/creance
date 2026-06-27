@@ -10,8 +10,10 @@
 
 - [ ] T101 [strong] Implement the `AudioSynthesisProvider` interface and a content-hash
       narration cache so identical text is never re-synthesized or re-billed (US1)
-- [ ] T102 [cheap] Add complete VoiceOver/TalkBack labels and verify WCAG AA contrast on the
-      session player screen (US1)
+- [ ] T102 [cheap] Add accessibility labels to every session-player control and pass the
+      `a11y-lint` WCAG AA contrast + missing-label check — the mechanical floor (US1)
+- [ ] T104 [strong] Verify the accessibility labels are *meaningful* and the player is fully
+      navigable in order by VoiceOver/TalkBack — the judgment `a11y-lint` can't make (US1)
 
 ## Phase 2 — Reminders
 
@@ -28,6 +30,7 @@
 | US1.AC1 | T101 |
 | US1.AC2 | T101 |
 | US1.AC3 | T102 |
+| US1.AC4 | T104 |
 | US2.AC1 | T201 |
 | US2.AC2 | T201 |
 

@@ -20,9 +20,17 @@ auditable in one place (no behavioral data rides the synthesis call — Principl
 ```ts
 export interface AudioSynthesisProvider {
   /**
+   * The cache key for a request: the canonical content hash of (text, voice, speedPct).
+   * Pure and deterministic — identical inputs always return the same key, with no vendor
+   * call — so the caller can resolve the cache BEFORE paying for synthesis. The returned
+   * `AudioClip.contentHash` always equals `cacheKey(input)`.
+   */
+  cacheKey(input: NarrationRequest): string;
+
+  /**
    * Synthesize narration for one session segment.
-   * - Implementations MUST be pure with respect to `text` + `voice`: identical inputs
-   *   return byte-identical audio, so the caller can cache by content hash.
+   * - Implementations MUST be pure with respect to `text`, `voice`, and `speedPct`:
+   *   identical inputs return byte-identical audio, so `cacheKey` is a sound cache key.
    * - MUST NOT attach analytics, device, or user identifiers to the request.
    * Throws `SynthesisError` (a neutral, vendor-agnostic error) on failure.
    */
@@ -37,7 +45,7 @@ export interface NarrationRequest {
 
 export interface AudioClip {
   bytes: Uint8Array;     // encoded audio
-  contentHash: string;   // hash of (text, voice, speedPct) — the cache key
+  contentHash: string;   // hash of (text, voice, speedPct); equals cacheKey(input)
 }
 ```
 
@@ -47,10 +55,12 @@ export interface AudioClip {
   file's types. A concrete implementation adapts the vendor's response to `AudioClip` and maps
   vendor failures to `SynthesisError`.
 - **Error contract:** failures surface as a typed `SynthesisError` (e.g. `rate_limited`,
-  `unavailable`, `bad_request`); callers retry only `rate_limited`/`unavailable`, with backoff.
-- **Cost/quota invariants:** the caller resolves `contentHash` against the cache *before*
-  calling `synthesize`; a cache hit never re-bills. Synthesis happens only on an explicit user
-  play/preload action — never speculatively.
+  `unavailable`, `bad_request`). Callers retry only `rate_limited`/`unavailable`, under a
+  bounded policy — exponential backoff with a fixed ceiling (3 attempts); past the ceiling the
+  `SynthesisError` propagates and the play action fails cleanly. `bad_request` is never retried.
+- **Cost/quota invariants:** the caller resolves the cache key via `cacheKey(input)` and checks
+  the cache *before* calling `synthesize`; a cache hit never re-bills. Synthesis happens only on
+  an explicit user play/preload action — never speculatively.
 - **Banned vendors/sources:** **TrackKit Analytics** or any SDK that derives behavioral
   signals from the request — banned (privacy; Principle 2). The request carries no identifiers,
   so a conformant implementation has nothing to leak.
@@ -58,7 +68,8 @@ export interface AudioClip {
 ## Conformance
 
 An implementation proves it satisfies this contract by passing the shared provider test suite:
-the purity/cache test (identical `NarrationRequest` ⇒ identical `contentHash`, second call
-served from cache with no vendor call), the error-mapping test (each vendor failure maps to the
-right `SynthesisError`), and the import-scope check (no vendor TTS symbol imported outside the
-provider adapter). Lantern's `verify` job runs all three before any screen may build on the seam.
+the purity/cache test (identical `NarrationRequest` ⇒ identical `cacheKey` and `contentHash`,
+second call served from cache with no vendor call), the error-mapping test (each vendor failure
+maps to the right `SynthesisError`), and the import-scope check (no vendor TTS symbol imported
+outside the provider adapter). Lantern's `verify` job runs all three before any screen builds
+on the seam.
