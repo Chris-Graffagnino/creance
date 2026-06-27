@@ -357,7 +357,7 @@
       added and no model name appears outside `MODELS.md`; `workflow/**` untouched (#17;
       repo-maintenance — done-when on issue) — strong: judgment-heavy authoring that must
       preserve the neutrality (P1) and single-[environment-block] invariants
-- [ ] T627 [strong] Ship **`docs/onboarding-prompt.md`** — a self-contained prompt an
+- [x] T627 [strong] Ship **`docs/onboarding-prompt.md`** — a self-contained prompt an
       adopter pastes into their agent (executable cold, no prior context), linked from the
       README Quickstart. The prompt encodes as **explicit instructions** (not commentary)
       the three constraints that fall out of the harness's own design: (1) **interview, do
