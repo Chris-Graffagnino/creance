@@ -55,6 +55,10 @@ Concretely, that includes:
 
 ### Steps
 
+> **Driving this with a coding agent?** Paste
+> [`docs/onboarding-prompt.md`](docs/onboarding-prompt.md) into it instead — the same steps
+> below, rendered as agent instructions, run as your repo's first issue → branch → PR.
+
 1. **Use this template** (GitHub) or clone it.
 2. `cp .claude/PROJECT.template.md .claude/PROJECT.md` and fill every `<...>` — it is the
    single source of project facts the engine reads.
@@ -74,8 +78,12 @@ Concretely, that includes:
    translation to copy from is
    [`docs/examples/environment-block-macos-linux.md`](docs/examples/environment-block-macos-linux.md)).
 7. **Probe before you trust:** run the conformance probes
-   (`.claude/adapters/claude-code-probes.md`) and the verification greps in
-   `.claude/EXTRACTION.md` §5. Do not run the harness unattended until they pass.
+   (`.claude/adapters/claude-code-probes.md`), the verification greps in
+   `.claude/EXTRACTION.md` §5, and a residual-placeholder grep —
+   `rg -n '<\.\.\.>|<PROJECT NAME>' AGENTS.md .claude/PROJECT.md memory/constitution.md specs/ -g '!*.template.md' -g '!specs/000-template/**'`
+   (a clean run means the `<...>`/`<PROJECT NAME>` fill markers are gone from the artifacts
+   you filled; the skeleton templates keep theirs by design and are excluded). Do not run the
+   harness unattended until they pass.
 
 ## Reading order
 
