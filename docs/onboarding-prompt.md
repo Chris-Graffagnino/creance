@@ -87,7 +87,9 @@ Do them in this order — **profile facts → constitution → specs → adapter
 (it matches the Quickstart, and later fills reference earlier ones).
 
 ### Prepare (read-only — safe on the base branch)
-- Confirm the prerequisites are present: `git`, `gh auth status`, `bash`, `rg`.
+- Confirm the prerequisites are present: `git`, `gh auth status`, `bash`, `rg`. **The step-7
+  verification assumes `rg` and `bash`** — on a runtime without them, install them first or run
+  the equivalent checks by hand; do not skip verification.
 - Confirm this is a fresh template checkout (the artifacts below still hold `<...>`
   placeholders).
 - Read `README.md` and the worked example in `docs/examples/` for the target shape.
@@ -157,9 +159,17 @@ Run all of these and capture their output:
   pattern does not catch. Format notation that legitimately stays — `<task-id>`, `<type>`,
   `<triage inbox dir>` — is expected and is not a residual.
 
-Then open the PR against the base branch:
+Then commit your work and open the PR against the base branch:
+- **Commit the filled artifacts first.** `git add` the specific files you filled (the profile,
+  constitution, specs tree, `AGENTS.md`, `.claude/settings.json`, the CI workflow, the
+  environment block) and commit them on your onboarding branch — use `git add <files>`, never
+  `git add .`. Without commits the branch has nothing to open a PR from, and you are left with
+  an orphaned onboarding issue.
 - Title it per your filled convention (e.g. `chore: onboard <project> …`); pass the body via a
-  file.
+  file or heredoc, never literal `\n`.
+- The body **must** carry the fields `AGENTS.md` requires: `Closes #<issue-number>` for the
+  onboarding issue you opened above, and a **`Discovered work`** line naming any issues you
+  filed (or "none").
 - Put the probe results and the grep / `guard.test.sh` output under **"verified
   automatically."**
 - List **anything** that could not be run, did not pass, or you could not answer (an
