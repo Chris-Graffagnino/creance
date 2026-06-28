@@ -39,6 +39,24 @@
       conformance probe for the spec-touch dispatch added to the neutral checklist,
       instantiated for the active adapter, run live, results recorded (US2)
 
+## Phase 3 — Liveness coupling (follow-on)
+
+- [ ] T707 [cheap] Auditor-liveness runner coupling for the spec-quality auditor
+      (**blocked by T706** — needs the `spec-quality-auditor` agent; the dispatch row
+      can't point at an agent that does not exist): wire the auditor-liveness `[reviewer]`
+      dispatch row + frontmatter (`.claude/skills/auditor-liveness/SKILL.md`) to dispatch
+      spec-quality against the materialized `AL-SQ-*` plants **at or above the [strong
+      tier]** (guard rule 5 vetoes a below-strong `spec-quality-auditor` dispatch, same as
+      constitution), add `reviewers/spec-quality-auditor.md` to the reviewer-spec
+      fingerprint recipe so editing it raises CORPUS-STALE, extend
+      `auditor-liveness-docs.test.sh` to assert both (mechanize — P3), and retire the
+      corpus's declared-ahead-of-binding Lifecycle marker once a full run exercises
+      spec-quality. Follow-on to T702 (the US1.AC4 owner), which shipped the liveness
+      fixtures observe-only: T707 wires the runner but owns no criterion — US1.AC4
+      ownership stays with T702, and T707 is graded against the issue's done-when
+      criteria (the T605 maintenance pattern), not a new AC. Discovered while
+      working #180 → #182. (US1)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
