@@ -224,6 +224,16 @@ check "P4: new fixtures travel the propose-via-PR flow, never a silent write" "$
   "never an automatic or silent write"
 check "seed: corpus is seeded from the evasion register / retrospective incidents" "$NEU_FLAT" \
   "Seeded from known escapes"
+# Seeding contract admits the bootstrap exception for a brand-new reviewer with no logged
+# escape yet (PR #181 craft review: the top-level contract — not just the fixture detail —
+# must say so, so it stays consistent with the bootstrap-seeded AL-SQ-FAIL-01).
+check "seed: corpus contract documents the brand-new-reviewer bootstrap exception" "$CORPUS_FLAT" \
+  "explicit bootstrap seed for a brand-new reviewer"
+# A declared-ahead-of-binding dimension carries an explicit lifecycle marker, so a full run is
+# never read as already covering it (PR #181 — Codex P2 + craft #2: spec-quality is declared
+# here before the runner binding/fingerprint cover it; that wiring is the agent-binding task).
+check "lifecycle: corpus marks a declared-ahead-of-binding dimension explicitly" "$CORPUS_FLAT" \
+  "declared-but-not-yet-dispatched"
 
 # ── CI wiring — this test is actually run by the required `verify` check ──────────────
 check "CI: verify runs this encoding test" "$(flat "$CI")" \

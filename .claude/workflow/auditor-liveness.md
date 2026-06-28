@@ -55,7 +55,9 @@ and that the profile's deterministic backstop enforces:
   plants, and — for a FAIL — the **evidence anchor** the catch must name, so "caught it for
   the right reason" is distinguishable from an unrelated FAIL.
 - **Seeded from known escapes** — the evasion-register exhibits and the retrospective's
-  incidents (below).
+  incidents (below) — with one exception: a **newly added reviewer with no logged escape
+  yet** may bootstrap its first FAIL fixture from the case its spec mandates, until a real
+  escape is logged.
 
 ## The run (read-only, report-only — composes existing roles)
 
@@ -127,9 +129,12 @@ the convenience.
 
 The corpus is **seeded** from violations an auditor has already been shown to own: the
 evasion-register exhibits (`reviewers/evasion-register.md`) and the retrospective's own
-incidents. Every **WOULD-HAVE-CAUGHT** and **INCONSISTENT-CATCH** escape the retrospective
-classifies (`retrospective.md` → §4) is, by construction, a violation that *should* be a
-standing fixture — a known-bad the auditor must keep catching.
+incidents. A **newly added reviewer is the one exception**: with no logged escape yet, its
+first FAIL fixture is bootstrap-seeded from the case its spec mandates, and is superseded by a
+real exhibit once the first such escape reaches the register through the retrospective. Every
+**WOULD-HAVE-CAUGHT** and **INCONSISTENT-CATCH** escape the retrospective classifies
+(`retrospective.md` → §4) is, by construction, a violation that *should* be a standing
+fixture — a known-bad the auditor must keep catching.
 
 Adding or changing a fixture is a change to verification machinery, so it travels the
 **standard issue → branch → §7 gate → PR flow** like any rule change, and the owner merges
