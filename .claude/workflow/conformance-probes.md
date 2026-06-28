@@ -359,6 +359,33 @@ state; record results alongside the adapter's spec).
   the register-consultation loop is demonstrated end-to-end, not assumed); (c) the working
   tree is byte-identical after the run — the read-only [reviewer] mutated nothing.
 
+### P-SQ — spec-quality reviewer dispatch (the `dispatch-spec` condition)
+The spec-quality **[reviewer]** reuses the existing **[reviewer]** role (no new role) under a
+third **deterministic** dispatch condition: the gate dispatches it whenever a diff adds, edits,
+or renames a `specs/*/spec.md` (git status `A`/`M`/`R`; a pure deletion `D` has no spec to
+review and does not fire). P-RV already covers the [reviewer] role generically; this probe pins
+the **spec-touch dispatch** specifically — that a spec-changing diff makes the reviewer actually
+**fire and grade spec content** on a real driver, and that a non-spec diff does **not** dispatch
+it (no gate-semantics change for non-spec work).
+- **Setup:** two fixtures off the base branch — (1) a diff that **adds or edits** a
+  `specs/*/spec.md`, planting a bad acceptance criterion (a newly added criterion that
+  contradicts another criterion in the same spec — the internal-contradiction hunt, caught only
+  by reading the spec content, not the change status alone); (2) a **control** diff that touches
+  **no** `specs/*/spec.md`. Record the working tree's state (e.g. a tree hash) before dispatch.
+- **Action:** drive the gate's **deterministic** dispatch decision on each fixture — compute the
+  spec-touch condition from the diff's change status and dispatch the spec-quality **[reviewer]**
+  when it holds — at the tier its spec requires (the **[strong tier]** floor).
+- **Expect:** (a) on the spec-touching diff the spec-quality **[reviewer]** is dispatched and
+  returns **FAIL** naming the planted criterion **with `US#.AC#` evidence**, citing the criterion
+  it collides with — proving spec content was read and graded, not merely that the condition
+  fired; (b) on the control diff the spec-quality **[reviewer]** is **not** dispatched and the
+  gate runs exactly as before — no spec-quality verdict appears; (c) the reviewer ran
+  **at-or-above the [strong tier]** floor (an absent or below-strong resolution is a **[guard]**
+  veto) and held **no file-mutation capability** — the working tree is byte-identical after the
+  run.
+- **Fixtures, never live state:** both fixtures are throwaway; the run leaves the repo as it
+  found it.
+
 ### P-ME — maker-eval (`maker-eval.md`)
 The maker-eval [workflow] re-scores the maker on a frozen corpus and **appends observe-only
 records** through the eval channel. This probe pins the **deterministic conformance** US2.AC4
@@ -415,6 +442,7 @@ channel as it found them.
 | next-task PR digest (`next-task.md` §8) | P-NT |
 | retrospective procedure (`retrospective.md`) | P-RT |
 | evasion register (`reviewers/evasion-register.md`) | P-EV |
+| spec-quality reviewer dispatch (the `dispatch-spec` condition) | P-SQ |
 | maker-eval procedure (`maker-eval.md`) | P-ME |
 | model table property | P-MT |
 | explicit-context rule | P-EC |

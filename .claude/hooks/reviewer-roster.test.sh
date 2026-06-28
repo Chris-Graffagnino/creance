@@ -25,9 +25,9 @@
 #       gated on their input flag)
 #   AC3 next-task.md §7 references the same paths + conditions      → prose_ok
 #   AC4 each roster reviewer has a workflow/reviewers/<name>.md spec → AC4 loop (all four)
-#   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (the three
-#       excludes edit tools (the spec-quality agent binding is           with a Claude agent;
-#       T706/US2.AC5, so it is not yet in this list)                     spec-quality → T706)
+#   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (all four;
+#       excludes edit tools (the spec-quality agent binding landed       each with a Claude
+#       in T706/US2.AC5)                                                  agent)
 #   AC6 drift in any one site (drop a reviewer / flip a tier or      → AC6 block: temp-copy
 #       condition) FAILs the check — incl. the spec-quality              mutations re-run the
 #       reviewer on every site                                           site checks and assert
@@ -179,12 +179,11 @@ done
 
 # AC5 — each ADAPTER-BOUND reviewer has an agent file that excludes edit tools
 #       (maker≠checker's "no edit tools by construction" as a CI invariant). The
-#       spec-quality reviewer's Claude agent binding lands in T706 (US2.AC5); until then it
-#       is a roster member with a spec but no agent file, so it is intentionally absent from
-#       this list — T706 adds its agent row here together with the binding. (Its gate-loop.js
-#       dispatch is gated on dispatchSpec, which T706 wires the dispatcher to pass; the
-#       conditional push and the strong tier are proven now by js_ok + gate-loop.test.js.)
-for key in spec-auditor constitution-auditor contract-auditor; do
+#       spec-quality reviewer's Claude agent binding landed in T706 (US2.AC5), so it joins
+#       the original three here: all four roster reviewers now have a read-only agent file.
+#       (Its gate-loop.js dispatch is gated on dispatchSpec; the conditional push and the
+#       strong tier are proven by js_ok + gate-loop.test.js.)
+for key in spec-auditor constitution-auditor contract-auditor spec-quality-auditor; do
   af="$AGENTDIR/$key.md"
   if [ ! -f "$af" ]; then
     bad "AC5 agent: missing agent file $af"

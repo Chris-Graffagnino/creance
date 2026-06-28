@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 101 rows.
+Manifest source inventory: 102 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -90,6 +90,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `agents/constitution-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/contract-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |
+| `agents/spec-quality-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `hooks/agents-residency-check.sh` | KEEP | Deterministic residency budget for the always-resident `AGENTS.md`. Verbatim. |
 | `hooks/agents-residency-check.test.sh` | KEEP | Regression + CI-wiring test for the residency check. Verbatim. |
 | `hooks/announce-task-selection.sh` | KEEP | Runtime [selection announce-and-confirm] decision (announce/confirm/announce-only) for /next-task. Verbatim. |

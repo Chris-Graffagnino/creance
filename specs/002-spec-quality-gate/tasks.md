@@ -35,7 +35,7 @@
       `verify` (US2)
 - [ ] T705 [strong] Intake §4 gameability screen delegates to the shared reviewer
       check (de-fork) + a test so a re-fork FAILs CI (US2)
-- [ ] T706 [cheap] Claude skill/agent binding (reuse the [reviewer] role) +
+- [x] T706 [cheap] Claude skill/agent binding (reuse the [reviewer] role) +
       conformance probe for the spec-touch dispatch added to the neutral checklist,
       instantiated for the active adapter, run live, results recorded (US2)
 
