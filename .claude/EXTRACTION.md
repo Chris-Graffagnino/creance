@@ -249,11 +249,14 @@ A binding that *reads* correctly can still be dead on a real driver — this har
 that the hard way (two live failures on the "production-trusted" adapter; DESIGN-NOTES
 §"probe before you trust"). So don't ship on inspection alone:
 
-1. **The split holds — grep tests.** Four files must quote the grep needles to do their
+1. **The split holds — grep tests.** Seven files must quote the grep needles to do their
    jobs, so the commands exclude them by name: this manifest (it states the commands),
    `adapters/claude-code-probes.md` (its instantiation table names the tokens it greps
-   for), `hooks/guard.test.sh` (sealed fixture table — the recorded P-MT caveat), and
-   `hooks/retrospective-docs.test.sh` (sealed P-RT telemetry fixture). The original
+   for), `hooks/guard.test.sh` (sealed fixture table — the recorded P-MT caveat),
+   `hooks/retrospective-docs.test.sh` (sealed P-RT telemetry fixture), and the neutrality
+   scanner `hooks/lib-neutrality-scan.sh` with its tests
+   `hooks/lib-neutrality-scan.test.sh` and `hooks/omnigent-neutral-core.test.sh` (the
+   banned-token denylist names the model needles by design — it exists to *find* them). The original
    probe run excluded the needle-quoting files implicitly; the commands below make that explicit. They
    use `git grep` so only *tracked* files are scanned (a gitignored `settings.local.json`
    can't false-match), and `-w` instead of `\b` (a GNU extension — under BSD/macOS regex it
@@ -263,8 +266,10 @@ that the hard way (two live failures on the "production-trusted" adapter; DESIGN
      layer names no models). Use the model-table vocabulary only — a bare `claude` would
      false-match every `.claude/` *path* reference, which is why probe P-MT greps model
      names, not vendor strings.
-   - `git grep -Eilw 'fable|opus|sonnet|haiku' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md' ':(exclude).claude/hooks/guard.test.sh' ':(exclude).claude/hooks/retrospective-docs.test.sh'`
-     → exactly **one** file: `MODELS.md`. (Probe P-MT.)
+   - `git grep -Eilw 'fable|opus|sonnet|haiku' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md' ':(exclude).claude/hooks/guard.test.sh' ':(exclude).claude/hooks/retrospective-docs.test.sh' ':(exclude).claude/hooks/lib-neutrality-scan.sh' ':(exclude).claude/hooks/lib-neutrality-scan.test.sh' ':(exclude).claude/hooks/omnigent-neutral-core.test.sh'`
+     → the model tables only — `MODELS.md` and the Omnigent adapter's
+     `adapters/omnigent/MODELS.md` (two files on the current tree; a match anywhere else is
+     a model-name leak in the engine). (Probe P-MT.)
    - `git grep -Fil -e 'Out-File' -e '-Encoding utf8' -- .claude ':(exclude).claude/EXTRACTION.md' ':(exclude).claude/adapters/claude-code-probes.md'`
      → exactly **one** file: `skills/next-task/SKILL.md` (the [environment block]).
      (Probe P-EB.)
