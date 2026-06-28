@@ -15,7 +15,7 @@
       rule 5 (today constitution-auditor-specific, `.claude/hooks/guard.sh`) to the
       spec-quality reviewer's dispatch, shipping with a matching `guard.test.sh` case
       (guard-behavior change ships with its test — P2) (US1)
-- [ ] T702 [cheap] Auditor-liveness fixture pair for the spec-quality reviewer in
+- [x] T702 [cheap] Auditor-liveness fixture pair for the spec-quality reviewer in
       `reviewers/auditor-liveness-corpus.md` (≥1 expected-FAIL including an added AC
       that contradicts an unchanged AC elsewhere in the same spec — proving the
       reviewer reads the full spec, not just the diff; ≥1 expected-PASS); liveness

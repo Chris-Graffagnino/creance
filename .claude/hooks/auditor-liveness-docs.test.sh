@@ -69,7 +69,7 @@ PROBES_FLAT="$(flat "$PROBES")"
 # '|': $2=id $3=auditor $4=expected $6=evidence-anchor. The trim idiom is the same one
 # evasion-register-docs.test.sh uses (BSD+GNU awk safe). No associative arrays — plain
 # counters keep this bash-3.2 portable (issue #97 territory).
-acc_f=0; acc_p=0; con_f=0; con_p=0; ctr_f=0; ctr_p=0
+acc_f=0; acc_p=0; con_f=0; con_p=0; ctr_f=0; ctr_p=0; sq_f=0; sq_p=0
 rows=0; malformed=0
 while IFS= read -r row; do
   rows=$((rows + 1))
@@ -78,7 +78,7 @@ while IFS= read -r row; do
   exp="$(printf '%s' "$row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $4); print $4 }')"
   anc="$(printf '%s' "$row" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $6); print $6 }')"
   case "$aud" in
-    acceptance|constitution|contract) ;;
+    acceptance|constitution|contract|spec-quality) ;;
     *) printf 'FAIL DW1: fixture %s has unknown auditor "%s"\n' "$id" "$aud" >&2; malformed=1; continue ;;
   esac
   case "$exp" in
@@ -87,6 +87,7 @@ while IFS= read -r row; do
         acceptance) acc_f=$((acc_f + 1)) ;;
         constitution) con_f=$((con_f + 1)) ;;
         contract) ctr_f=$((ctr_f + 1)) ;;
+        spec-quality) sq_f=$((sq_f + 1)) ;;
       esac
       # A FAIL fixture without an expected evidence anchor cannot tell "caught it for the
       # right reason" from an unrelated FAIL — the anchor is mandatory (real content, not
@@ -100,6 +101,7 @@ while IFS= read -r row; do
         acceptance) acc_p=$((acc_p + 1)) ;;
         constitution) con_p=$((con_p + 1)) ;;
         contract) ctr_p=$((ctr_p + 1)) ;;
+        spec-quality) sq_p=$((sq_p + 1)) ;;
       esac ;;
     *) printf 'FAIL DW1: fixture %s has invalid expected verdict "%s"\n' "$id" "$exp" >&2; malformed=1 ;;
   esac
@@ -107,14 +109,14 @@ done < <(grep -E '^\| AL-' "$CORPUS")
 
 # Guard against the table format silently changing so no rows parse (counters would all
 # read 0 and the per-auditor checks below would fail anyway, but this names the cause).
-if [ "$rows" -ge 6 ]; then
+if [ "$rows" -ge 8 ]; then
   pass=$((pass + 1))
 else
   fail=$((fail + 1))
-  printf 'FAIL DW1: parsed only %s fixture rows (expected ≥6: a FAIL+PASS pair per auditor)\n' "$rows" >&2
+  printf 'FAIL DW1: parsed only %s fixture rows (expected ≥8: a FAIL+PASS pair per auditor)\n' "$rows" >&2
 fi
 
-for who in "acceptance:$acc_f:$acc_p" "constitution:$con_f:$con_p" "contract:$ctr_f:$ctr_p"; do
+for who in "acceptance:$acc_f:$acc_p" "constitution:$con_f:$con_p" "contract:$ctr_f:$ctr_p" "spec-quality:$sq_f:$sq_p"; do
   a="${who%%:*}"; rest="${who#*:}"; nf="${rest%%:*}"; np="${rest#*:}"
   if [ "$nf" -ge 1 ] && [ "$np" -ge 1 ]; then
     pass=$((pass + 1))
@@ -222,6 +224,16 @@ check "P4: new fixtures travel the propose-via-PR flow, never a silent write" "$
   "never an automatic or silent write"
 check "seed: corpus is seeded from the evasion register / retrospective incidents" "$NEU_FLAT" \
   "Seeded from known escapes"
+# Seeding contract admits the bootstrap exception for a brand-new reviewer with no logged
+# escape yet (PR #181 craft review: the top-level contract — not just the fixture detail —
+# must say so, so it stays consistent with the bootstrap-seeded AL-SQ-FAIL-01).
+check "seed: corpus contract documents the brand-new-reviewer bootstrap exception" "$CORPUS_FLAT" \
+  "explicit bootstrap seed for a brand-new reviewer"
+# A declared-ahead-of-binding dimension carries an explicit lifecycle marker, so a full run is
+# never read as already covering it (PR #181 — Codex P2 + craft #2: spec-quality is declared
+# here before the runner binding/fingerprint cover it; that wiring is the agent-binding task).
+check "lifecycle: corpus marks a declared-ahead-of-binding dimension explicitly" "$CORPUS_FLAT" \
+  "declared-but-not-yet-dispatched"
 
 # ── CI wiring — this test is actually run by the required `verify` check ──────────────
 check "CI: verify runs this encoding test" "$(flat "$CI")" \
