@@ -206,3 +206,69 @@ thread.
 - AC4: The section references the [comment marker] role only — never a concrete
   marker string, tool, vendor, or model name — preserving the `workflow/**`
   grep discipline.
+
+### US8 — Configurable review-pass set
+As a Creance user, I want to change which review passes run during `pr-review`
+(and the §7 gate's advisory layer) by editing a declarative list in
+`.claude/PROJECT.md`, so that I can add, disable, or re-scope a skill-backed pass
+without editing the runtime-neutral engine and without any enabled pass silently
+falling out.
+
+**Scope & recorded trade-off calls** (documented here so the calls are explicit, not
+silent). The configurable surface is the **skill-backed review passes only** — the
+`[code-review pass]`, `[security-review pass]`, and `[craft-review pass]` roles. The
+**law-bearing auditors** — the acceptance / constitution / contract `[reviewer]`s —
+are **out of scope**: they stay governed by the §7 reviewer roster (`gate-loop.md`)
+and its ratchet, preserving maker≠checker and constitution-as-law. A profile list that
+could disable the constitution auditor would hand a convenience surface veto authority
+over law (constitution P4), so AC5 forbids it. This configures the **advisory**
+skill-backed passes only; it **changes no gate semantics** — round limits, veto
+authority, and tier floors are unchanged (epic Non-goals), and the gating roster
+reviewers remain non-configurable. Two further v1 calls are recorded: (1) registering
+an **arbitrary new skill** as a pass — adding a new `[pass]` role plus its adapter
+mapping — is **out of v1 scope** (deferred to a later phase); v1 makes the three
+existing passes configurable. (2) A pass's `applies-to` defaults to **both** the §7
+gate and `pr-review`, honoring "pr-review reuses the gate's passes."
+
+**Acceptance Criteria**
+- AC1: `PROJECT.template.md` gains a `## Review passes` section documenting the column
+  schema (`pass (role) | enabled | condition | applies-to`) and the closed enum of legal
+  `condition` values; the active `.claude/PROJECT.md` carries one well-formed row per
+  currently-shipped skill-backed pass (`[code-review pass]`, `[security-review pass]`,
+  `[craft-review pass]`) with its real `enabled` / `condition` / `applies-to` values
+  (a placeholder or empty section does not satisfy this — the rows must be the real,
+  consistent set the roster test in AC4 validates).
+- AC2: `pr-review.md` and the review standard (`workflow/README.md`) select which passes
+  run **by reference to "the profile's review-pass set"** ([roles] only) and carry **no
+  hardcoded enumeration** of the specific passes. Both directions are required and
+  separately checkable: the reference is present **and** the hardcoded pass list is gone,
+  with the `workflow/**` neutrality grep (no skill / vendor / mechanism names) passing
+  over both files.
+- AC3: `pr-review` runs exactly the enabled passes whose `condition` holds, and its §5
+  output enumerates each enabled pass with its outcome. The two not-run cases are
+  **distinguished**, penalizing both directions: a **disabled** pass produces **no**
+  output line (silent — a project choice), while an **enabled** pass whose backing
+  mechanism is **absent** is reported **loudly** (named in the PR body as unavailable),
+  never silently dropped. Treating the two cases identically (all silent, or all loud)
+  does not satisfy this.
+- AC4: A deterministic `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`),
+  wired into CI `verify`, **FAILs on each of three planted defects** — an `enabled` pass
+  with no adapter mapping, a pass a workflow runs but the list omits, and a row whose
+  `condition` is off-enum — **and PASSes on the real, consistent roster**. The paired
+  flag-the-defect / pass-the-clean-control shape is required: a test that only ever FAILs
+  (one-sided) does not satisfy this.
+- AC5: The configurable list governs **only** skill-backed passes. A `## Review passes`
+  row that names or disables a law-bearing auditor (acceptance / constitution / contract)
+  is **rejected** by `review-pass-roster.test.sh`, while a list containing only
+  skill-backed passes is **accepted** — both directions checkable — so the
+  maker≠checker / constitution-as-law boundary cannot be edited away through the profile
+  (constitution P4).
+- AC6: A per-enabled-pass conformance probe (the existing `P-CRAFT` probe generalized to
+  every enabled pass) is added to the neutral conformance-probe checklist, instantiated
+  for the Claude Code adapter, and **run on the live adapter**, with results recorded in
+  the adapter probe-results table. Each recorded result must **cite an independently
+  readable artifact** — a log excerpt, an invocation record, or dated output a cold-start
+  reviewer can read and confirm shows the pass was **actually dispatched**; a bare
+  `dispatched: yes` / `PASS` self-assertion with no supporting artifact does **not**
+  satisfy this (closing the self-certification gap in both directions — a real dispatch
+  is evidenced, a vacuous or fabricated one cannot pass).

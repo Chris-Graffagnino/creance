@@ -374,6 +374,36 @@
       `rg`/`bash`; blocked by T626 (#16; repo-maintenance — done-when on issue) — strong:
       encodes harness-design constraints and must stay in lockstep with the Quickstart
 
+## Phase 13 — Configurable review passes (US8)
+
+> Owner-filed #187, converted via intake (`workflow/intake.md`): a new capability — the
+> **skill-backed** review passes (`[code-review]` / `[security-review]` / `[craft-review]`)
+> become an owner-editable declarative set in the profile, while the **law-bearing roster
+> reviewers stay engine-governed** (US8.AC5; constitution P4). Extends the Phase 6 PR-review
+> surface; graded against **US8** in `spec.md`. T629/T630/T631 carry the blockers on their
+> lines.
+
+- [ ] T628 [strong] `## Review passes` schema in `PROJECT.template.md` (column schema +
+      closed `condition` enum) plus one well-formed row per currently-shipped skill-backed
+      pass in `.claude/PROJECT.md`; repoint `pr-review.md` + the review standard
+      (`workflow/README.md`) at "the profile's review-pass set" ([roles] only), removing the
+      hardcoded pass enumeration, `workflow/**` neutrality grep green (US8) — strong: edits
+      the runtime-neutral workflow boundary + the profile schema (constitution P1/P3)
+- [ ] T629 [strong] `pr-review` honors the enabled set whose `condition` holds; its §5
+      output distinguishes **disabled → silent** from **enabled-but-mechanism-absent → loud**
+      (named in the PR body, never silently dropped); blocked by T628 (US8) — strong: a
+      runtime-neutral workflow-output contract (constitution P1/P3)
+- [ ] T630 [strong] `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`,
+      wired into CI `verify`): FAILs on enabled-but-unmapped, workflow-run-but-unlisted, and
+      off-enum `condition`, **and** rejects a row naming/disabling a law-bearing auditor,
+      while PASSing on the real skill-only roster (paired flag-defect / pass-control); blocked
+      by T628, T629 (US8) — strong: a P2/P3 deterministic backstop guarding the maker≠checker
+      boundary (constitution P2/P3/P4)
+- [ ] T631 [cheap] Generalize the `P-CRAFT` conformance probe to a per-enabled-pass probe in
+      the neutral checklist, instantiate for the Claude Code adapter, run live, and record
+      per-enabled-pass dispatch in the adapter probe-results table; blocked by T629 (US8) —
+      cheap: a mechanical probe instantiation + recorded live run
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -409,6 +439,12 @@
 | US7.AC2 | T204 |
 | US7.AC3 | T204 |
 | US7.AC4 | T204 |
+| US8.AC1 | T628 |
+| US8.AC2 | T628 |
+| US8.AC3 | T629 |
+| US8.AC4 | T630 |
+| US8.AC5 | T630 |
+| US8.AC6 | T631 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
