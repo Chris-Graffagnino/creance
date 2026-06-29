@@ -229,15 +229,22 @@ reviewers remain non-configurable. Two further v1 calls are recorded: (1) regist
 an **arbitrary new skill** as a pass — adding a new `[pass]` role plus its adapter
 mapping — is **out of v1 scope** (deferred to a later phase); v1 makes the three
 existing passes configurable. (2) A pass's `applies-to` defaults to **both** the §7
-gate and `pr-review`, honoring "pr-review reuses the gate's passes."
+gate and `pr-review`, honoring "pr-review reuses the gate's passes." (3) The v1 `condition`
+vocabulary is the closed two-value enum `always` / `sensitive-diff` — the run-conditions
+the three shipped passes actually use (code-review / craft = `always`; security-review =
+`sensitive-diff`); adding further `condition` values is **out of v1 scope**, like the
+arbitrary-new-skill registration deferred above.
 
 **Acceptance Criteria**
 - AC1: `PROJECT.template.md` gains a `## Review passes` section documenting the column
   schema (`pass (role) | enabled | condition | applies-to`) with **every column's domain
   closed and typed**: `pass` is one of the closed set of legal skill-backed pass roles
   (`[code-review pass]`, `[security-review pass]`, `[craft-review pass]`), `enabled` is a
-  boolean, `condition` is one of a closed enum of legal values, and `applies-to` is one of
-  the closed enum `gate` / `pr-review` / `both`; each pass role appears **at most once**
+  boolean, `condition` is one of the closed enum `always` (the pass runs on every
+  invocation of its applicable surface) / `sensitive-diff` (the pass runs only when the
+  diff touches the privacy / credentials / payments surface named in the profile's
+  invariant checklist), and `applies-to` is one of the closed enum `gate` / `pr-review` /
+  `both`; each pass role appears **at most once**
   (duplicate rows are illegal). The active `.claude/PROJECT.md` carries one well-formed row
   per currently-shipped skill-backed pass with its real `enabled` / `condition` /
   `applies-to` values (a placeholder or empty section does not satisfy this — the rows must
