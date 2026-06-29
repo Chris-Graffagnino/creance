@@ -232,7 +232,10 @@ existing passes configurable. (2) A pass's `applies-to` defaults to **both** the
 gate and `pr-review`, honoring "pr-review reuses the gate's passes." (3) The v1 `condition`
 vocabulary is the closed two-value enum `always` / `sensitive-diff` — the run-conditions
 the three shipped passes actually use (code-review / craft = `always`; security-review =
-`sensitive-diff`); adding further `condition` values is **out of v1 scope**, like the
+`sensitive-diff`). `sensitive-diff` **reuses the existing `[security-review pass]` trigger
+surface** from the review standard (the profile's privacy / location / payment invariants)
+rather than defining a new sensitivity surface, so v1 introduces no parallel source of
+truth; adding further `condition` values is **out of v1 scope**, like the
 arbitrary-new-skill registration deferred above.
 
 **Acceptance Criteria**
@@ -241,9 +244,14 @@ arbitrary-new-skill registration deferred above.
   closed and typed**: `pass` is one of the closed set of legal skill-backed pass roles
   (`[code-review pass]`, `[security-review pass]`, `[craft-review pass]`), `enabled` is a
   boolean, `condition` is one of the closed enum `always` (the pass runs on every
-  invocation of its applicable surface) / `sensitive-diff` (the pass runs only when the
-  diff touches the privacy / credentials / payments surface named in the profile's
-  invariant checklist), and `applies-to` is one of the closed enum `gate` / `pr-review` /
+  invocation of its applicable surface) / `sensitive-diff` (the pass runs only on a diff
+  touching the **same security-sensitive surface the `[security-review pass]` already
+  guards** — the profile's privacy / location / payment invariants, defined once in the
+  review standard (`workflow/README.md`, `[security-review pass]` row); `sensitive-diff`
+  **reuses that single definition** rather than introducing a parallel surface, so the
+  condition resolves through one canonical anchor — the review-standard row — with no
+  parallel definition added here), and `applies-to` is one of the
+  closed enum `gate` / `pr-review` /
   `both`; each pass role appears **at most once**
   (duplicate rows are illegal). The active `.claude/PROJECT.md` carries one well-formed row
   per currently-shipped skill-backed pass with its real `enabled` / `condition` /
@@ -268,8 +276,13 @@ arbitrary-new-skill registration deferred above.
   The two not-run cases are **distinguished**, penalizing both directions: a **disabled**
   pass produces **no** output line (silent — a project choice), while an **enabled** pass
   whose backing mechanism is **absent** is reported **loudly** (named in the PR body as
-  unavailable), never silently dropped. Treating the two cases identically (all silent, or
-  all loud) does not satisfy this.
+  unavailable — the review standard's existing "Note the degradation in the PR" rule,
+  `workflow/README.md`), never silently dropped. Treating the two cases identically (all
+  silent, or all loud) does not satisfy this. Because this enabled-but-absent → loud path
+  is the silent-drop case the whole story exists to prevent, it is **pinned by a planted
+  negative check, not left to runtime discretion**: the per-enabled-pass conformance probe
+  in AC6 carries it (an absent-mechanism fixture asserting the loud unavailable line is
+  emitted, not a silent drop).
 - AC4: A deterministic `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`),
   wired into CI `verify`, **pins the profile rows against the adapter-mapped, currently-
   shipped skill-backed pass set** — the same parity discipline `reviewer-roster.test.sh`
@@ -298,4 +311,11 @@ arbitrary-new-skill registration deferred above.
   reviewer can read and confirm shows the pass was **actually dispatched**; a bare
   `dispatched: yes` / `PASS` self-assertion with no supporting artifact does **not**
   satisfy this (closing the self-certification gap in both directions — a real dispatch
-  is evidenced, a vacuous or fabricated one cannot pass).
+  is evidenced, a vacuous or fabricated one cannot pass). The probe is additionally
+  **two-sided on availability**: beyond evidencing dispatch of an enabled, *available*
+  pass, it must exercise the **enabled-but-mechanism-absent** branch from AC3 — a fixture
+  in which an enabled pass's backing mechanism is made absent must show the run going
+  **loud** (the pass named unavailable / degraded, per the review standard's "Note the
+  degradation in the PR" rule), never silently dropped, that outcome likewise evidenced by
+  a recorded artifact. A probe that only ever exercises the available path does not satisfy
+  this.

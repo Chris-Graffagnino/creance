@@ -385,8 +385,11 @@
 
 - [ ] T628 [strong] `## Review passes` schema in `PROJECT.template.md` (column schema with
       **every column domain closed/typed** — legal `pass` roles, boolean `enabled`, closed
-      `condition` enum, closed `applies-to` enum `gate`/`pr-review`/`both`, at-most-one-row-
-      per-pass) plus one well-formed row per currently-shipped skill-backed pass in
+      `condition` enum (`sensitive-diff` bound to the existing `[security-review pass]`
+      trigger in the review standard — the profile's privacy/location/payment invariants —
+      not a new surface), closed `applies-to` enum `gate`/`pr-review`/`both`,
+      at-most-one-row-per-pass) plus one well-formed row per currently-shipped skill-backed
+      pass in
       `.claude/PROJECT.md`; repoint **all three selection surfaces** — `pr-review.md`, the
       review standard (`workflow/README.md`), and the §7 gate's advisory-pass step
       (`next-task.md` §7 step 3) — at "the profile's review-pass set" ([roles] only),
@@ -409,8 +412,11 @@
       deterministic backstop guarding the maker≠checker boundary (constitution P2/P3/P4)
 - [ ] T631 [cheap] Generalize the `P-CRAFT` conformance probe to a per-enabled-pass probe in
       the neutral checklist, instantiate for the Claude Code adapter, run live, and record
-      per-enabled-pass dispatch in the adapter probe-results table; blocked by T629 (US8) —
-      cheap: a mechanical probe instantiation + recorded live run
+      per-enabled-pass dispatch in the adapter probe-results table; the probe is **two-sided
+      on availability** — it also pins AC3's **enabled-but-mechanism-absent → loud** branch
+      with an absent-mechanism fixture, recording the loud "unavailable/degraded" outcome
+      with an artifact; blocked by T629 (US8) — cheap: a mechanical probe instantiation +
+      recorded live run (two fixtures: available + absent)
 
 ## Criterion ownership (multi-task user stories)
 
