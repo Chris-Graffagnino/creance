@@ -10,28 +10,34 @@
 # risk into a deterministic check (constitution P2/P3; the same same-diff discipline
 # `guard.test.sh` follows — the backstop ships with the change it guards).
 #
-# The test is an INDEPENDENT oracle: it pins all three sites to a hardcoded canonical
+# The test is an INDEPENDENT oracle: it pins every site to a hardcoded canonical
 # set (below), not to whatever the roster currently says. A backstop that derived its
 # expectation from the very table it checks could not catch a coordinated drift, so the
 # canonical set lives here; adding/removing a reviewer is an intentional edit to the
 # roster, its two mirror sites, AND this set (the ratchet that proves the change was
-# deliberate). gate-loop.md's runtime-neutrality (no model IDs in the roster) is covered
+# deliberate). The adapter's manual-fallback [reviewer]→agent map (next-task SKILL.md) is
+# pinned too (AC7), on membership — it is a fourth site that enumerates the reviewer set,
+# and it drifted exactly once (PR #186) before being pinned here.
+# gate-loop.md's runtime-neutrality (no model IDs in the roster) is covered
 # globally by telemetry-docs.test.sh's mech scan and bound here implicitly: a model ID in
 # the tier column would break the canonical-set match.
 #
-# Encodes issue #64 done-when AC1–AC6 (extended for the spec-quality reviewer, T703):
+# Encodes issue #64 done-when AC1–AC6 (extended for the spec-quality reviewer, T703);
+# AC7 adds the adapter map as a fourth pinned site (PR #186 review):
 #   AC1 roster is exactly the canonical set (no extra rows)        → roster_ok
 #   AC2 gate-loop.js mirrors it (keys, tiers, both conditionals     → js_ok
 #       gated on their input flag)
 #   AC3 next-task.md §7 references the same paths + conditions      → prose_ok
 #   AC4 each roster reviewer has a workflow/reviewers/<name>.md spec → AC4 loop (all four)
-#   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (the three
-#       excludes edit tools (the spec-quality agent binding is           with a Claude agent;
-#       T706/US2.AC5, so it is not yet in this list)                     spec-quality → T706)
+#   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (all four;
+#       excludes edit tools (the spec-quality agent binding landed       each with a Claude
+#       in T706/US2.AC5)                                                  agent)
 #   AC6 drift in any one site (drop a reviewer / flip a tier or      → AC6 block: temp-copy
 #       condition) FAILs the check — incl. the spec-quality              mutations re-run the
 #       reviewer on every site                                           site checks and assert
 #                                                                         each one trips
+#   AC7 the adapter [reviewer]→agent map (next-task SKILL.md) names  → skill_ok (+ an AC6
+#       every roster reviewer, so the manual fallback can't omit one     drop mutation)
 #
 # Run: bash .claude/hooks/reviewer-roster.test.sh
 set -u
@@ -42,11 +48,12 @@ JS="$DIR/workflows/gate-loop.js"       # orchestrated-run mirror
 NT="$DIR/workflow/next-task.md"        # prose mirror
 REVDIR="$DIR/workflow/reviewers"       # reviewer specs (AC4)
 AGENTDIR="$DIR/agents"                 # adapter agent files (AC5)
+SK="$DIR/skills/next-task/SKILL.md"    # adapter [reviewer]→agent map (AC7)
 
 pass=0
 fail=0
 
-for f in "$GL" "$JS" "$NT"; do
+for f in "$GL" "$JS" "$NT" "$SK"; do
   if [ ! -f "$f" ]; then
     echo "FAIL: required file missing: $f" >&2
     exit 1
@@ -60,6 +67,11 @@ EXPECTED="$(printf '%s\n' \
   'constitution-auditor|strong|always' \
   'contract-auditor|cheap|dispatch-contract' \
   'spec-quality-auditor|strong|dispatch-spec' | sort)"
+
+# The reviewer KEYS alone, derived from the canonical set above (one source, never a second
+# hardcoded list) — for the membership-only sites that carry no tier/condition column: the
+# AC5 agent files and the AC7 adapter [reviewer]→agent map.
+EXPECTED_KEYS="$(printf '%s\n' "$EXPECTED" | cut -d'|' -f1 | sort -u)"
 
 ok()   { pass=$((pass + 1)); }
 bad() { # bad <message>
@@ -146,6 +158,18 @@ prose_ok() {
   return $r
 }
 
+# AC7 — the adapter's [reviewer]→agent map (next-task SKILL.md) names every roster
+#       reviewer's agent. In the documented fallback (Workflow tool absent → the operator
+#       dispatches reviewers via the Agent tool, following this map + §7), a map missing a
+#       reviewer silently under-dispatches the gate — the same "a reviewer fell out" drift
+#       class the three gate sites are pinned against, on the FALLBACK path. The map drifted
+#       exactly this way once: it still listed only the original three after the spec-quality
+#       reviewer landed (PR #186 review). The map carries agent NAMES only; tier and
+#       condition stay single-sourced in the roster + §7 (which the fallback also follows),
+#       so this site is pinned on MEMBERSHIP alone (EXPECTED_KEYS), not tier/condition.
+skill_map() { grep -F '**[reviewer]**' "$1" | grep -oE '[a-z-]+-auditor' | sort -u; }
+skill_ok()  { [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ]; }
+
 # ── Run the four site checks against the live tree ──────────────────────────────────
 roster_ok "$GL" \
   && ok \
@@ -167,6 +191,15 @@ prose_ok "$NT" \
      with conditions always / always / contract-conditional / spec-conditional, or omits
      the roster pointer"
 
+skill_ok "$SK" \
+  && ok \
+  || bad "AC7 skill-map: next-task SKILL.md [reviewer] map does not name exactly the roster
+     reviewers (a reviewer would silently drop off the manual-fallback dispatch)
+     expected:
+$(printf '%s\n' "$EXPECTED_KEYS" | sed 's/^/       /')
+     got:
+$(skill_map "$SK" | sed 's/^/       /')"
+
 # AC4 — every canonical reviewer has a workflow/reviewers/<name>.md spec. The spec-quality
 #       reviewer's spec landed in T701, so it is checked here alongside the original three.
 for key in spec-auditor constitution-auditor contract-auditor spec-quality-auditor; do
@@ -177,14 +210,18 @@ for key in spec-auditor constitution-auditor contract-auditor spec-quality-audit
   fi
 done
 
-# AC5 — each ADAPTER-BOUND reviewer has an agent file that excludes edit tools
-#       (maker≠checker's "no edit tools by construction" as a CI invariant). The
-#       spec-quality reviewer's Claude agent binding lands in T706 (US2.AC5); until then it
-#       is a roster member with a spec but no agent file, so it is intentionally absent from
-#       this list — T706 adds its agent row here together with the binding. (Its gate-loop.js
-#       dispatch is gated on dispatchSpec, which T706 wires the dispatcher to pass; the
-#       conditional push and the strong tier are proven now by js_ok + gate-loop.test.js.)
-for key in spec-auditor constitution-auditor contract-auditor; do
+# AC5 — each ADAPTER-BOUND reviewer has an agent file that excludes the EDIT tools
+#       (Edit/Write/MultiEdit/NotebookEdit) — the STRUCTURAL half of maker≠checker, as a CI
+#       invariant. NOTE: this does NOT prove full read-only — reviewers also grant `Bash` (for
+#       read-only `git` inspection), which CAN write; that read-only posture is a behavioral
+#       contract enforced by the workflow's verdict-only dispatch + a separate fixer
+#       (gate-loop.js / gate-loop.test.js) and spot-checked by the P-RV mutation lure, NOT by
+#       this check (PR #186 craft finding). The spec-quality reviewer's Claude agent binding
+#       landed in T706 (US2.AC5), so it joins the original three here: all four roster reviewers
+#       now ship an agent file with no edit tools. (Its gate-loop.js dispatch is gated on
+#       dispatchSpec; the conditional push and the strong tier are proven by js_ok +
+#       gate-loop.test.js.)
+for key in spec-auditor constitution-auditor contract-auditor spec-quality-auditor; do
   af="$AGENTDIR/$key.md"
   if [ ! -f "$af" ]; then
     bad "AC5 agent: missing agent file $af"
@@ -194,7 +231,7 @@ for key in spec-auditor constitution-auditor contract-auditor; do
   if [ -z "$tools_line" ]; then
     bad "AC5 agent: $af has no 'tools:' line to constrain"
   elif printf '%s' "$tools_line" | grep -Eq 'Edit|Write|NotebookEdit'; then
-    bad "AC5 agent: $af grants an edit tool (a reviewer must be read-only): $tools_line"
+    bad "AC5 agent: $af grants an edit tool (a reviewer must carry no edit tools): $tools_line"
   else
     ok
   fi
@@ -252,6 +289,12 @@ mut_fail "js drop-spec-quality" js_ok "$TMP/js-drop-sq.js"
 # Prose site — drop the spec-quality reviewer reference.
 grep -vF 'reviewers/spec-quality-auditor.md' "$NT" > "$TMP/nt-drop-sq.md"
 mut_fail "prose drop-spec-quality" prose_ok "$TMP/nt-drop-sq.md"
+
+# Skill-map site (next-task SKILL.md) — drop the spec-quality agent from the [reviewer]
+# map (the exact PR #186 drift: the map listed only the original three). Removing the name
+# leaves the map enumerating three reviewers, so skill_ok must trip.
+sed 's/spec-quality-auditor//g' "$SK" > "$TMP/sk-drop-sq.md"
+mut_fail "skill drop-spec-quality" skill_ok "$TMP/sk-drop-sq.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
