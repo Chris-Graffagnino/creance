@@ -210,12 +210,17 @@ for key in spec-auditor constitution-auditor contract-auditor spec-quality-audit
   fi
 done
 
-# AC5 — each ADAPTER-BOUND reviewer has an agent file that excludes edit tools
-#       (maker≠checker's "no edit tools by construction" as a CI invariant). The
-#       spec-quality reviewer's Claude agent binding landed in T706 (US2.AC5), so it joins
-#       the original three here: all four roster reviewers now have a read-only agent file.
-#       (Its gate-loop.js dispatch is gated on dispatchSpec; the conditional push and the
-#       strong tier are proven by js_ok + gate-loop.test.js.)
+# AC5 — each ADAPTER-BOUND reviewer has an agent file that excludes the EDIT tools
+#       (Edit/Write/MultiEdit/NotebookEdit) — the STRUCTURAL half of maker≠checker, as a CI
+#       invariant. NOTE: this does NOT prove full read-only — reviewers also grant `Bash` (for
+#       read-only `git` inspection), which CAN write; that read-only posture is a behavioral
+#       contract enforced by the workflow's verdict-only dispatch + a separate fixer
+#       (gate-loop.js / gate-loop.test.js) and spot-checked by the P-RV mutation lure, NOT by
+#       this check (PR #186 craft finding). The spec-quality reviewer's Claude agent binding
+#       landed in T706 (US2.AC5), so it joins the original three here: all four roster reviewers
+#       now ship an agent file with no edit tools. (Its gate-loop.js dispatch is gated on
+#       dispatchSpec; the conditional push and the strong tier are proven by js_ok +
+#       gate-loop.test.js.)
 for key in spec-auditor constitution-auditor contract-auditor spec-quality-auditor; do
   af="$AGENTDIR/$key.md"
   if [ ! -f "$af" ]; then
@@ -226,7 +231,7 @@ for key in spec-auditor constitution-auditor contract-auditor spec-quality-audit
   if [ -z "$tools_line" ]; then
     bad "AC5 agent: $af has no 'tools:' line to constrain"
   elif printf '%s' "$tools_line" | grep -Eq 'Edit|Write|NotebookEdit'; then
-    bad "AC5 agent: $af grants an edit tool (a reviewer must be read-only): $tools_line"
+    bad "AC5 agent: $af grants an edit tool (a reviewer must carry no edit tools): $tools_line"
   else
     ok
   fi
