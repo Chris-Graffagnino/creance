@@ -65,6 +65,30 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Coverage policy:** none (the repo is mostly prose + bash; `guard.test.sh` must cover
   every guard behavior change).
 
+## Review passes
+The skill-backed advisory passes that run during the §7 gate's advisory layer and `pr-review`,
+as an owner-editable set the engine reads by [role] reference ("the profile's review-pass
+set"). The schema and the closed column domains live in `.claude/PROJECT.template.md` →
+"Review passes". This list governs **skill-backed passes only** — the §7 roster `[reviewer]`s
+(acceptance / constitution / contract / spec-quality) are engine-governed
+(`.claude/workflow/gate-loop.md`) and are **not** configurable here.
+
+| pass (role) | enabled | condition | applies-to |
+|---|---|---|---|
+| `[code-review pass]` | true | always | both |
+| `[security-review pass]` | true | sensitive-diff | both |
+| `[craft-review pass]` | true | always | both |
+
+- `[code-review pass]` and `[craft-review pass]` run on every review (`always`). The
+  `[craft-review pass]` is advisory (the external craft-review skill); when its backing
+  mechanism is absent it degrades **loudly** in the PR per the review standard — never a
+  silent drop.
+- `[security-review pass]` runs only on a `sensitive-diff` — a change touching this repo's
+  privacy / location / payment surface (no such capability ships here today, so it rarely
+  fires), the single surface the review standard's `[security-review pass]` row defines.
+- `applies-to: both` for all three: each runs at the §7 gate's advisory step **and** in
+  `pr-review` (which reuses the gate's passes).
+
 ## Autonomy (isolated autonomous mode — the [isolated workspace] activation fact)
 The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated workspace]` role +
 "Isolation and the guard's fail-open posture". This section is the **project opt-in fact** the

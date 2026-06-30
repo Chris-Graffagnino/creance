@@ -117,6 +117,18 @@ Any review of PR-bound work — a [reviewer] dispatch, a [code-review pass], or 
 same-context pass — must inspect the linked issue, the task ID, the relevant
 contracts/specs, the constitution, the PR diff, and the test plan/results.
 
+**Which skill-backed passes run is the profile's review-pass set — not a fixed list.** The
+active set of skill-backed review passes — and, per pass, whether it is `enabled`, the
+`condition` it runs under, and the surfaces it `applies-to` — is declared in the profile
+(its "Review passes" list) as binding-contract **[role]**s. Both review moments select from
+that set **by reference**: the §7 gate's advisory step runs the enabled passes whose
+`applies-to` includes `gate` (`gate`/`both`), the `pr-review` ritual those including
+`pr-review` (`pr-review`/`both`), each gated on its `condition` (`sensitive-diff` resolving to
+the privacy / location / payment surface the `[security-review pass]` row defines). The role
+definitions and the per-role degradation rules below ("How an adapter degrades gracefully")
+are the **vocabulary** that set draws from — they define each role; the profile decides which
+run.
+
 Prioritize findings in this order:
 1. **Constitution compliance**
 2. Correctness against acceptance criteria
