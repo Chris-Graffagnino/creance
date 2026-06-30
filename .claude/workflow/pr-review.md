@@ -50,8 +50,9 @@ and not a replacement.
   silently grades the wrong change (the reviewer's current branch, or an empty diff) while
   the review adjudicates the PR's comments. The skill-backed passes this ritual applies are
   the **enabled** entries in the **profile's review-pass set** whose `applies-to` includes
-  `pr-review` (`pr-review`/`both`), each run on its `condition` (a disabled row produces no
-  output) — selected by reference, never a list hardcoded here.
+  `pr-review` (`pr-review`/`both`), each run on its `condition` — selected by reference, never
+  a list hardcoded here. Which passes actually ran, and how a not-run pass is reported, is the
+  §5 output contract below.
 - **Findings are grounded in current source, never asserted.** Every finding this workflow
   emits or endorses cites a current `file:line` the reviewer has actually read — not the
   diff snapshot alone, not recall. The grounding gate (§4) is a hard bound, not a courtesy.
@@ -132,6 +133,15 @@ be one more surface to drift). The comment carries:
 - **Checks run** — the commands from §3 and their outcome (the review standard's evidence
   rule: an approval names the checks run, the constitution/contract alignment, and any
   intentional follow-up scope; a bare "looks good" is not an approval).
+- **Review passes run** — each **enabled** pass from the **profile's review-pass set** whose
+  `applies-to` includes `pr-review` and whose `condition` held, **named with its outcome** (its
+  findings fold into the severity-ranked list above; a clean pass is recorded as run with no
+  findings). The two not-run cases are **distinguished**: a **disabled** pass — or an enabled
+  one whose `condition` did not hold — produces **no** line (silent, a project choice), while
+  an **enabled** pass whose backing mechanism is **absent** is named here **loudly** as
+  **unavailable/degraded** (the review standard's "Note the degradation in the PR" rule,
+  `README.md`), never silently dropped. Listing both cases the same way — all silent, or all
+  loud — does not satisfy this.
 - The **[comment marker]** as its final line — provenance under a shared login.
 
 Post it to the PR thread, then **stop**. This workflow opens no merge and closes nothing.
@@ -139,5 +149,6 @@ Post it to the PR thread, then **stop**. This workflow opens no merge and closes
 ## 6. Report
 
 The PR reviewed, the finding count by severity, the inline-comment ledger total
-(adjudicated / of total), the checks run, and where the review comment was posted. If the
-run stopped early (no PR reference, no open PR, empty diff), say why.
+(adjudicated / of total), the checks run, the **review passes run** (and any named
+unavailable/degraded), and where the review comment was posted. If the run stopped early
+(no PR reference, no open PR, empty diff), say why.

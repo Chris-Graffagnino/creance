@@ -19,6 +19,12 @@
 # vs a `chatgpt-codex-connector` filter) can never silently yield "no findings" —
 # the fetch mechanism the neutral doc's grounding-gate policy depends on.
 #
+# Extended by T629 (#192, US8.AC3): pr-review's §5 output enumerates the enabled review
+# passes that ran and DISTINGUISHES the two not-run cases — a disabled (or condition-not-
+# met) pass is silent, an enabled-but-mechanism-absent pass is loud (named unavailable),
+# never silently dropped. AC3's runtime pin is the AC6 probe (T631); these encode the doc
+# contract so flattening the two cases back together fails `verify` (constitution P3).
+#
 # Run: bash .claude/hooks/pr-review-docs.test.sh
 set -u
 
@@ -170,6 +176,31 @@ check "posture: opens no merge and closes nothing" "$WF_FLAT" \
   "closes nothing"
 check "posture (binding): never merge/close the PR" "$SK_FLAT" \
   "\`gh pr merge\`, never \`gh pr close\`"
+
+# ── US8.AC3 (T629) — pr-review honors the enabled review-pass set, and its §5 output
+#    ENUMERATES the passes that ran while DISTINGUISHING the two not-run cases: a
+#    disabled (or condition-not-met) pass is silent (no line), an enabled-but-mechanism-
+#    absent pass is loud (named unavailable/degraded), never silently dropped. AC3's
+#    *runtime* pin is the AC6 per-enabled-pass conformance probe (T631); these encode the
+#    *doc contract* so a later edit that flattens the two not-run cases back together (all
+#    silent, or all loud) fails `verify` (constitution P3: a rule a deterministic check
+#    can enforce must have that check). ────────────────────────────────────────────────
+check "US8.AC3 select: pr-review filters the set by applies-to + condition" "$WF_FLAT" \
+  'whose `applies-to` includes `pr-review` (`pr-review`/`both`), each run on its `condition`'
+check "US8.AC3 select: intro defers the output contract to §5" "$WF_FLAT" \
+  'is the §5 output contract below'
+check "US8.AC3 §5: a Review-passes-run element exists" "$WF_FLAT" \
+  '**Review passes run** — each **enabled** pass'
+check "US8.AC3 §5: enumerates each enabled pass run with its outcome" "$WF_FLAT" \
+  'whose `applies-to` includes `pr-review` and whose `condition` held, **named with its outcome**'
+check "US8.AC3 §5: disabled / condition-not-met pass is silent (no line)" "$WF_FLAT" \
+  'a **disabled** pass — or an enabled one whose `condition` did not hold — produces **no** line (silent, a project choice)'
+check "US8.AC3 §5: enabled-but-mechanism-absent pass is named loudly" "$WF_FLAT" \
+  'an **enabled** pass whose backing mechanism is **absent** is named here **loudly** as **unavailable/degraded**'
+check "US8.AC3 §5: cites the degradation rule (loud, never silently dropped)" "$WF_FLAT" \
+  '"Note the degradation in the PR" rule'
+check "US8.AC3 §5: flattening the two not-run cases together is rejected" "$WF_FLAT" \
+  'Listing both cases the same way — all silent, or all loud — does not satisfy this'
 
 echo "pr-review docs encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

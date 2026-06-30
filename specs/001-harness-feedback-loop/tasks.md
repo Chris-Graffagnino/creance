@@ -396,7 +396,7 @@
       removing the hardcoded pass enumeration, `workflow/**` neutrality grep green (US8) —
       strong: edits the runtime-neutral workflow boundary + the profile schema (constitution
       P1/P3)
-- [ ] T629 [strong] Both surfaces honor the enabled set whose `condition` holds, filtered by
+- [x] T629 [strong] Both surfaces honor the enabled set whose `condition` holds, filtered by
       `applies-to` (`pr-review` runs `pr-review`/`both`; the §7 gate's advisory step runs
       `gate`/`both`); `pr-review`'s §5 output distinguishes **disabled → silent** from
       **enabled-but-mechanism-absent → loud** (named in the PR body, never silently dropped);
