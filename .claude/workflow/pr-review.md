@@ -49,8 +49,9 @@ and not a replacement.
   first make that tree the PR's head (check it out) or be handed the PR's patch, or it
   silently grades the wrong change (the reviewer's current branch, or an empty diff) while
   the review adjudicates the PR's comments. The skill-backed passes this ritual applies are
-  the **profile's review-pass set** whose `applies-to` includes `pr-review` (`pr-review`/`both`),
-  each run on its `condition` — selected by reference, never a list hardcoded here.
+  the **enabled** entries in the **profile's review-pass set** whose `applies-to` includes
+  `pr-review` (`pr-review`/`both`), each run on its `condition` (a disabled row produces no
+  output) — selected by reference, never a list hardcoded here.
 - **Findings are grounded in current source, never asserted.** Every finding this workflow
   emits or endorses cites a current `file:line` the reviewer has actually read — not the
   diff snapshot alone, not recall. The grounding gate (§4) is a hard bound, not a courtesy.

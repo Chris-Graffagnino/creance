@@ -8,7 +8,7 @@ their own — they read them from here and from `memory/constitution.md`.
 Copy this file to `.claude/PROJECT.md` and fill every `<...>`. Delete sections that don't
 apply to your project (e.g. drop "Invariant checklist" items you don't have), but keep the
 headings the engine looks for: **Identity, Paths, Task & branch conventions, Blocked tasks,
-CI / merge gate, Architecture boundaries, Invariant checklist, Constitution watch.**
+CI / merge gate, Review passes, Architecture boundaries, Invariant checklist, Constitution watch.**
 
 > **Worked example:** [`docs/examples/lantern/PROJECT.md`](../docs/examples/lantern/PROJECT.md)
 > is a fully filled version of this file (the fictional "Lantern" project).
