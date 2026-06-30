@@ -8,7 +8,7 @@ their own — they read them from here and from `memory/constitution.md`.
 Copy this file to `.claude/PROJECT.md` and fill every `<...>`. Delete sections that don't
 apply to your project (e.g. drop "Invariant checklist" items you don't have), but keep the
 headings the engine looks for: **Identity, Paths, Task & branch conventions, Blocked tasks,
-CI / merge gate, Architecture boundaries, Invariant checklist, Constitution watch.**
+CI / merge gate, Review passes, Architecture boundaries, Invariant checklist, Constitution watch.**
 
 > **Worked example:** [`docs/examples/lantern/PROJECT.md`](../docs/examples/lantern/PROJECT.md)
 > is a fully filled version of this file (the fictional "Lantern" project).
@@ -66,6 +66,44 @@ convention invented. Fill the `<...>` for your lookup.
 - **Reviewer profile:** <e.g. "owner is NOT a developer — separate engineering vs.
   product in the PR body" | "standard engineering review">
 - **Coverage policy:** <e.g. per-path threshold for critical files; or "none">
+
+## Review passes
+The **skill-backed** review passes — the `[code-review pass]`, `[security-review pass]`, and
+`[craft-review pass]` [role]s — that run during the §7 gate's advisory layer and the
+`pr-review` ritual are an **owner-editable declarative set** the engine reads by [role]
+reference ("the profile's review-pass set"). Edit a row to enable/disable a pass, change the
+`condition` it runs under, or re-scope which surfaces it `applies-to` — **without** touching
+the runtime-neutral `workflow/**`. This list governs the **skill-backed advisory passes
+only**: the law-bearing §7 roster `[reviewer]`s (acceptance / constitution / contract /
+spec-quality) are **not** configurable here — they stay governed by the §7 reviewer roster
+(`.claude/workflow/gate-loop.md`), so the maker≠checker / constitution-as-law boundary cannot
+be edited away through this profile.
+
+| pass (role) | enabled | condition | applies-to |
+|---|---|---|---|
+| <a legal pass role> | <true\|false> | <always\|sensitive-diff> | <gate\|pr-review\|both> |
+
+**Every column's domain is closed and typed** (an off-enum value is a defect the
+review-pass roster test rejects):
+- **`pass (role)`** — one of the closed set of legal skill-backed pass roles:
+  `[code-review pass]`, `[security-review pass]`, `[craft-review pass]`. Each role appears in
+  **at most one** row (a duplicate row is illegal). A row naming a §7 roster `[reviewer]`
+  (acceptance / constitution / contract / spec-quality) is rejected — those are not
+  configurable here.
+- **`enabled`** — boolean (`true` / `false`).
+- **`condition`** — one of the closed enum:
+  - `always` — the pass runs on every invocation of its applicable surface.
+  - `sensitive-diff` — the pass runs only on a diff touching the **same security-sensitive
+    surface the `[security-review pass]` already guards**: the profile's privacy / location /
+    payment invariants, **defined once** in the review standard
+    (`.claude/workflow/README.md`, the `[security-review pass]` row). `sensitive-diff` reuses
+    that single definition — it adds no parallel sensitivity surface here.
+- **`applies-to`** — one of the closed enum `gate` (the §7 gate's advisory step only) /
+  `pr-review` (the `pr-review` ritual only) / `both`. A surface runs a pass only when its
+  `applies-to` includes that surface.
+
+Carry **one row per skill-backed pass your adapter maps** (the adapter's role→skill table),
+with that pass's real `enabled` / `condition` / `applies-to` values — not a placeholder.
 
 ## Architecture boundaries (the only allowed seams)
 All access to these capabilities must go through the named interface — never a vendor SDK

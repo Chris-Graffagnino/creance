@@ -383,7 +383,7 @@
 > surface; graded against **US8** in `spec.md`. T629/T630/T631 carry the blockers on their
 > lines.
 
-- [ ] T628 [strong] `## Review passes` schema in `PROJECT.template.md` (column schema with
+- [x] T628 [strong] `## Review passes` schema in `PROJECT.template.md` (column schema with
       **every column domain closed/typed** — legal `pass` roles, boolean `enabled`, closed
       `condition` enum (`sensitive-diff` bound to the existing `[security-review pass]`
       trigger in the review standard — the profile's privacy/location/payment invariants —
