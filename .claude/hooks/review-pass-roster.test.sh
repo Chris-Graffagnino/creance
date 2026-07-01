@@ -24,12 +24,17 @@
 #   - the profile review-pass rows       .claude/PROJECT.md            (US8.AC1)
 #   - the §7 reviewer roster             .claude/workflow/gate-loop.md (AC5 fence source)
 #
-# Encodes US8.AC4 (four planted defects FAIL + clean roster PASS) and US8.AC5 (a row
+# Encodes US8.AC4 (five planted defects FAIL + clean roster PASS) and US8.AC5 (a row
 # naming/disabling any roster auditor REJECTED + a skill-only list ACCEPTED):
 #   AC4(1) enabled profile row with no adapter mapping  -> parity_no_orphan_ok trips
 #   AC4(2) adapter-mapped pass with no profile row      -> parity_no_drop_ok trips
 #   AC4(3) duplicate row for a pass role                -> dups_ok trips
 #   AC4(4) off-enum condition / applies-to              -> enums_ok trips
+#   AC4(5) off-domain pass (role): a bogus or disabled  -> roles_closed_ok trips (closes the
+#          row not naming a canonical pass role             `pass (role)` column domain, so a
+#                                                           disabled or non-pass-shaped row is
+#                                                           visible too — parity_no_orphan_ok
+#                                                           inspects ENABLED rows only)
 #   AC5    a profile row naming a roster [reviewer]      -> fence_ok trips (rejected set
 #          (acceptance/constitution/contract/spec-quality)   derived from the roster, so a
 #                                                             future reviewer is fenced too)
@@ -157,6 +162,26 @@ enums_ok() {
     END { exit (bad ? 1 : 0) }'
 }
 
+# roles_closed_ok <profile> — every `## Review passes` data row names a canonical pass role
+# (US8.AC4: the `pass (role)` column is a CLOSED domain — spec.md AC1 / PROJECT.template.md,
+# "an off-enum value is a defect the review-pass roster test rejects"). Iterates EVERY row (not
+# just the pass-shaped ones enums_ok inspects), so it catches a disabled off-domain pass
+# (`[perf-review pass]`, which evades the enabled-only parity_no_orphan_ok) and a non-pass
+# token (`[not-a-pass]`, which the `[<stem> pass]` filters skip entirely). A roster `[reviewer]`
+# row is off-domain here too, and separately rejected by fence_ok (AC5).
+roles_closed_ok() {
+  local cell role
+  while IFS= read -r cell; do
+    [ -n "$cell" ] || continue
+    role="$(printf '%s\n' "$cell" | grep -oE '\[[a-z-]+ pass\]' | sed -E 's/\[([a-z-]+) pass\]/\1/')"
+    [ -n "$role" ] || return 1                                       # not a `[<stem> pass]` token
+    printf '%s\n' "$EXPECTED_PASSES" | grep -qxF "$role" || return 1 # off the canonical set
+  done <<EOF
+$(profile_rows "$1" | awk -F'|' '{print $2}')
+EOF
+  return 0
+}
+
 # fence_ok <profile> <roster> — no profile row names a §7 roster auditor. The rejected set is
 # DERIVED from the roster (US8.AC5: the maker≠checker / constitution-as-law boundary cannot be
 # edited away through the profile, and a future reviewer is fenced too).
@@ -183,6 +208,7 @@ parity_no_drop_ok   "$PROFILE" "$ADAPTER" && ok || bad "AC4(2) parity: an adapte
 parity_no_orphan_ok "$PROFILE" "$ADAPTER" && ok || bad "AC4(1) parity: an enabled profile row's pass has no adapter mapping"
 dups_ok             "$PROFILE"            && ok || bad "AC4(3) dups: a pass role appears in more than one profile row"
 enums_ok            "$PROFILE"            && ok || bad "AC4(4) enums: a profile row has an off-enum enabled/condition/applies-to"
+roles_closed_ok     "$PROFILE"            && ok || bad "AC4(5) role domain: a profile row names a non-canonical pass (role)"
 fence_ok            "$PROFILE" "$ROSTER"  && ok || bad "AC5 fence: a profile row names a §7 roster auditor (not configurable here)"
 
 # ── mutations: each planted defect must flip exactly its site check OK -> drift, on a temp
@@ -228,6 +254,16 @@ mut_trips "AC4(4) off-enum condition" enums_ok "$TMP/d4a.md"
 # AC4 defect 4b — an off-enum applies-to value.
 sed -E '/^\|.*\[code-review pass\]/ s/\| both \|$/| everywhere |/' "$PROFILE" > "$TMP/d4b.md"
 mut_trips "AC4(4) off-enum applies-to" enums_ok "$TMP/d4b.md"
+
+# AC4 defect 5a — an off-domain but pass-shaped role (perf-review is not a shipped pass),
+# DISABLED so it slips past the enabled-only parity_no_orphan_ok; roles_closed_ok is the check
+# that makes it visible.
+insert_after_craft "$PROFILE" '| `[perf-review pass]` | false | always | both |' "$TMP/d5a.md"
+mut_trips "AC4(5) off-domain disabled pass role" roles_closed_ok "$TMP/d5a.md"
+
+# AC4 defect 5b — a row whose pass column is not even `[<stem> pass]`-shaped.
+insert_after_craft "$PROFILE" '| `[not-a-pass]` | false | always | both |' "$TMP/d5b.md"
+mut_trips "AC4(5) non-pass-shaped row" roles_closed_ok "$TMP/d5b.md"
 
 # AC5 — a profile row naming/disabling a roster auditor (constitution-auditor).
 insert_after_craft "$PROFILE" '| `[constitution-auditor]` | false | always | both |' "$TMP/ac5.md"
