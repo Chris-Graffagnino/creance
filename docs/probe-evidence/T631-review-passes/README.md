@@ -149,6 +149,7 @@ git worktree add -b fix/probe-t631-avail <tmp> main
 # add probe_fixture.py: nonce in the docstring + the three plants; commit in the worktree
 ( cd <tmp> && claude -p "/code-review. Also quote the Probe marker verbatim."      --model sonnet </dev/null ) > code-review.raw    2>&1
 ( cd <tmp> && claude -p "/security-review. Also quote the Probe marker verbatim."  --model sonnet </dev/null ) > security-review.raw 2>&1
+# craft DEGRADES under this headless recipe — its reference material is permission-gated, so this capture is a degraded pass, NOT a clean dispatch; a clean craft dispatch needs an interactive / permission-granted context (see "Degradation disclosure" above)
 ( cd <tmp> && claude -p "Run an engineering-craft review … quote the Probe marker" --model sonnet </dev/null ) > craft-review.raw    2>&1
 git worktree remove --force <tmp> && git branch -D fix/probe-t631-avail
 # absent side: a non-sensitive fixture on fix/probe-t631-absent, engineering-craft treated as absent
