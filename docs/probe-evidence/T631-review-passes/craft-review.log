@@ -1,100 +1,134 @@
-== P-RP available-side dispatch — [craft-review pass] (enabled / always, external engineering-craft skill) ==
+== P-RP available-side dispatch — [craft-review pass] (enabled / always, external engineering-craft skill) — DEGRADED: skill reference material unavailable under the headless driver ==
 capture: raw stdout+stderr of a real headless dispatch, tee-redirected (2>&1) — not a composed narrative
 driver: claude-sonnet (claude -p, headless; stdin at EOF)
-fixture: fix/probe-t631-avail @ 448b6691932614bde307466b8a4a36da4c8f7ae8 (probe_fixture.py — new public behavior, no covering test)
+fixture: probe-t631-avail-r2 @ 448b6691932614bde307466b8a4a36da4c8f7ae8 (probe_fixture.py — new public behavior, no covering test; same fixture tree as round 1)
 probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at dispatch; the tool echoes it below — a narrated log could not know it)
-command: claude -p "Run an engineering-craft review of the diff on this branch … Also, quote the 'Probe marker' value …" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-avail)
-started_utc: 2026-07-01T15:36:29Z   ended_utc: 2026-07-01T15:37:44Z
+command: claude -p "Run an engineering-craft review of the diff on this branch … Also, quote the 'Probe marker' value …" --model sonnet   (cwd = throwaway worktree on probe-t631-avail-r2)
+started_utc: 2026-07-01T15:52:58Z   ended_utc: 2026-07-01T15:54:07Z
+
+*** DEGRADED DISPATCH — READ BEFORE TRUSTING THIS ARTIFACT ***
+The `engineering-craft` skill is a genuinely installed external skill on this machine
+(`~/.claude/skills/engineering-craft` is a real symlink), BUT under the headless
+`claude -p … </dev/null` driver its REFERENCE FILES cannot be loaded — they sit behind a
+permission grant the non-interactive invocation is not given. The capture's own FIRST LINE
+records this verbatim: "The reference files are behind a permission gate I can't resolve
+right now. I'll proceed with the review using the principles embedded in the skill
+definition …". So the skill's full mechanism did NOT engage: what ran is the skill BODY's
+embedded principles from memory, not a review backed by the skill's reference corpus.
+This is REPRODUCIBLE — round 1 (commit 0a90b9e) hit the identical "locked behind a
+permission prompt" wall, and this round-2 re-run hit it again. It is therefore a standing
+driver limitation for this external pass under headless, NOT a transient miss (contrast
+code-review.log, where re-running fixed a transient non-dispatch).
+
+Per the review standard's "No [craft-review pass] mechanism" rule
+(`.claude/workflow/README.md` → "skip the craft layer … Note the skip in the PR. Do NOT
+fake it as a same-context self-pass"), this outcome is recorded LOUDLY as degraded here,
+in the evidence README, and in the adapter P-RP results row — it is NOT presented as a
+clean craft dispatch. AC6's available-side "actually dispatched" requirement is carried by
+the two built-in passes that DO dispatch cleanly under headless (code-review.log,
+security-review.log); the external craft pass's full-mechanism dispatch is the one the
+headless driver cannot evidence, and that is stated plainly rather than papered over.
+
+WHAT THIS CAPTURE STILL EVIDENCES (a genuine, non-forgeable fact): the run-time nonce
+`PROBE-00DA47F7556C` is echoed verbatim and all three plants are cited at their fixture
+lines — proof the dispatch really READ THE DIFF (the channel opened, the diff reached the
+model). WHAT IT DOES NOT EVIDENCE: a full `engineering-craft` skill dispatch with its
+reference material loaded. Treat the findings below as a degraded/advisory craft pass, not
+a clean one.
 redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
 ----- raw capture (verbatim below this line) -----
-The reference files are locked behind a permission prompt I haven't been granted. I'll conduct the review from the loaded principles in the skill instructions (P0–P12 as described in the skill body, which was fully loaded). Let me write the review now.
+The reference files are behind a permission gate I can't resolve right now. I'll proceed with the review using the principles embedded in the skill definition (P0–P12, the convergence-validated core). The diff is already in hand.
 
 ---
 
-## Engineering-Craft Review — `probe_fixture.py` (branch `fix/probe-t631-avail`)
+## Engineering-Craft Review — `probe_fixture.py` (`git diff main..HEAD`)
 
-**Probe marker (confirmed read):** `PROBE-00DA47F7556C`
-
-**Change set:** single new file, `probe_fixture.py`, 36 lines. The file self-documents as a throwaway conformance probe (T631, US8.AC6).
+**Probe marker (verbatim):** `PROBE-00DA47F7556C`
 
 ---
 
-### Dimension map
+### Scope
 
-| Dimension | Touched? | Notes |
-|---|---|---|
-| Testing / invariant discipline (P1–P4) | **Yes** | `running_max` ships untested |
-| Implementation simplicity (P5–P6) | **Yes** | Off-by-one in `sum_first_n` |
-| Operational robustness (P7–P9) | No | No I/O, no resource management |
-| Extensibility / contract surfaces (P10–P12) | No | No plugin/extension seam |
-| Security (out-of-band from P0–P12, but standard) | **Yes** | Credential-shaped string in source |
+The diff adds a single new file: `probe_fixture.py` — described in its own docstring as a "throwaway, deleted after the run" conformance probe for T631, US8.AC6. It intentionally plants one defect per review lens.
+
+Dimensions touched: **Testing / correctness (P1–P4)**, **Implementation simplicity (P5–P6)**, **Operational robustness / security (P7–P9)**. Extensibility (P10–P12) is not touched.
 
 ---
 
-### Findings, ordered by severity
+### Dimension 1 — Testing / Correctness (P1–P4)
 
-#### CRITICAL — Credential committed to source (`probe_fixture.py:12`)
+#### Finding 1 — Off-by-one in `sum_first_n` (correctness defect, intentional per probe design)
 
+`probe_fixture.py:22` — `range(n + 1)` iterates indices `0..n` inclusive, but `items` only guarantees indices `0..n-1` for an `n`-element prefix. `sum_first_n([1, 2, 3], 3)` raises `IndexError`. The correct bound is `range(n)`.
+
+**Principle:** P2 (invariant discipline) — a function's contract (return the sum of the first `n` elements) should be statically enforceable by reading the loop bounds. The off-by-one violates the stated contract, and there is no assertion or guard to surface it at call-time rather than crash-time.
+
+**Boundary condition:** If `n` is guaranteed strictly less than `len(items)` by the caller, the out-of-bounds case never fires — but the *off-by-one on the return value* (summing `n+1` elements instead of `n`) would still silently corrupt results. The defect is present regardless of caller discipline.
+
+**Evidence class:** *Verified* — the defect is directly readable from `range(n + 1)` at line 22.
+
+---
+
+#### Finding 2 — `running_max` is public but has no covering test (test-adequacy gap, intentional per probe design)
+
+`probe_fixture.py:29–35` — `running_max` is a module-level public function with a docstring that explicitly calls out it is "untested." No test is added anywhere in the diff.
+
+**Principle:** P1 (every public function has a test that encodes its contract) — a function that ships to reviewers or CI without a test makes its behavior unverifiable without reading the implementation. The gap is especially notable here because `running_max` has a non-trivial edge: the first element's `best = None` path is exercised only by a non-empty list; an empty-list case is entirely dark.
+
+**Boundary condition:** For a throwaway probe explicitly intended to demonstrate a coverage gap, this is the point — but the absence of the empty-list case (`running_max([])`) means even a reviewer who *does* write a test might miss the boundary. A well-formed probe should make the edge explorable, not just the happy path.
+
+**Evidence class:** *Verified* — no test file appears anywhere in the diff.
+
+---
+
+### Dimension 2 — Implementation Simplicity (P5–P6)
+
+#### Finding 3 — Probe logic is correct; clarity of the probe itself is high
+
+The overall structure — module docstring, one defect per function, inline comment labeling each lens — is clean and purposeful. The docstring's self-describing nonce design (the probe marker) is a deliberate, elegant mechanism: it is unforgeable in a replayed log. No simplicity concerns at the implementation level.
+
+**Principle:** P5 (API honesty / understandability budget) — the module's API surface is small, each function has a single stated purpose, and the defects are visibly labeled. The understandability budget is not spent unnecessarily.
+
+**Evidence class:** *Inferred* from direct reading.
+
+---
+
+### Dimension 3 — Operational Robustness / Security (P7–P9)
+
+#### Finding 4 — Hardcoded credential-shaped string in source (HIGH — will trip secret-scanning, intentional per probe design)
+
+`probe_fixture.py:12`:
 ```python
 API_TOKEN = "sk_live_REDACTED_SYNTHETIC_PLACEHOLDER"
 ```
 
-**Finding:** A Stripe-format live API key (`sk_live_…`) is hard-coded in a committed file. Secret scanners (GitHub, truffleHog, gitleaks) treat `sk_live_` as a high-confidence Stripe credential and will flag this in CI — or worse, in a public repo scan.
+The string has a `sk_live_` prefix and a length consistent with a live Stripe secret key. Most secret-scanning tools (GitHub Advanced Security, `detect-secrets`, `trufflehog`) will flag this regardless of the surrounding comment labeling it a probe.
 
-**Craft principle:** This is outside P0–P12 (those cover testing, simplicity, robustness, extensibility) but violates the basic security invariant that credentials — even dummy ones — must never appear in committed source. The risk is that a real key with the same prefix silently replaces the fixture value and is committed before anyone notices.
+**Principle:** P7 (fail-closed on security boundaries) — even intentional probe fixtures should not require suppression annotations or pre-commit hook bypasses to land. If this file is committed to a repo with secret-scanning enabled, the PR will be blocked unless the scanner recognizes the `ExAmPlE` suffix as a placeholder or a suppression comment is added.
 
-**Boundary condition that would flip it:** The value is clearly inert (`DoNotUseExAmPlEExAmPlE` embedded in the string) and the file is explicitly throwaway per its docstring. If your secret scanner is configured to allowlist this exact file/pattern, the blast radius drops to near zero. Absent that allowlist, the finding stands.
+**Recommendation (boundary-conditional):** If secret-scanning is disabled on this repo or the fixture is never committed to a branch that reaches the scanner, the risk is contained. Otherwise, either (a) add a `# pragma: allowlist secret` annotation, (b) deform the key so it fails the scanner's entropy/pattern check, or (c) use a clearly non-secret format (`fake_sk_live_probe_only`). The defect being "intentional" does not insulate the CI pipeline from acting on it.
 
-**Recommendation:** Either suffix the token with `_TEST_FIXTURE_NOT_A_REAL_KEY` and add a scanner-exclusion annotation, or replace the prefix with a non-matching sentinel like `tok_probe_…`.
-
----
-
-#### HIGH — Off-by-one reads past the array boundary (`probe_fixture.py:22`)
-
-```python
-for i in range(n + 1):   # range(n) is the correct bound
-    total += items[i]
-```
-
-**Finding (Inferred from code):** `range(n + 1)` produces indices `0…n` inclusive, so `items[n]` is accessed. For a caller passing a list of exactly `n` elements, this raises `IndexError`. The docstring on the function correctly documents the bug, which means the author *knows* the loop bound is wrong — it was planted deliberately. In a non-probe context this would be a correctness defect, not a craft concern, but the craft observation is that **a function whose docstring describes its own defect is unmergeable**: the comment is a confession that the implementation is wrong and no one corrected it before the diff landed.
-
-**Principle P1 (Inferred from testing-correctness dimension — SQLite/FoundationDB lineage):** Every public function's observable behavior must be covered by at least one test that would catch this exact failure mode. A test for `sum_first_n([1, 2, 3], 3)` would raise `IndexError` immediately, preventing the merge.
-
-**Boundary condition:** If this is intentionally wrong to exercise a bug-hunt pass (which the file says it is), the finding is the *absence of a test that would block the wrong code*, not the bug itself.
+**Evidence class:** *Inferred* — no CI config visible in the diff; scanner behavior is environment-dependent.
 
 ---
 
-#### MEDIUM — Public function ships with no test (`probe_fixture.py:29–36`)
+### What this diff does NOT touch
 
-```python
-def running_max(values):
-    """Return a list of running maxima over values (public, untested)."""
-    ...
-```
-
-**Finding (Verified by diff — no test file in the change set):** `running_max` is a new public function. The diff contains zero test additions. The docstring explicitly marks it `(public, untested)`.
-
-**Principle P1/P2 (Testing-correctness dimension):** Every new public API surface must ship with tests that encode its contract and would catch regressions. SQLite and FoundationDB both treat an untested public function as an incomplete change — the function's existence without a test means no one can confidently refactor, optimize, or integrate it.
-
-**Boundary condition that would flip it:** If this file is truly throwaway and deleted immediately after the probe run (as the docstring says), the test gap has zero long-term blast radius. In that case the finding is **valid but survivable** given the stated lifecycle, provided the deletion is automated and auditable.
+- **Extensibility / boundaries (P10–P12):** no module interface, plugin surface, or contract change.
+- **Backpressure / resource limits (P8):** single-file script with no I/O.
+- **Observability / logging (P9):** not applicable to a pure-computation fixture.
 
 ---
 
-### Dimensions not touched
+### Summary table
 
-- **Operational robustness (P7–P9):** No I/O, no retries, no resource management, no observability hooks. N/A for this file.
-- **Extensibility / contract surfaces (P10–P12):** No plugin seam or public API contract beyond the two functions. N/A.
+| Finding | Dimension | Principle | Intentional? | Severity |
+|---|---|---|---|---|
+| Off-by-one in `sum_first_n` | Testing/correctness | P2 | Yes (code lens) | Medium (probe) |
+| `running_max` untested | Testing/correctness | P1 | Yes (craft lens) | Medium (probe) |
+| Hardcoded `sk_live_` string | Robustness/security | P7 | Yes (security lens) | **High** — CI impact environment-dependent |
+| `running_max` empty-list dark | Testing/correctness | P1 | No — over-dark | Low |
 
----
-
-### Summary
-
-| Finding | Severity | Principle / basis | Flip condition |
-|---|---|---|---|
-| `sk_live_…` credential string in source | **Critical** | Security invariant (out-of-band P0–P12) | Scanner exclusion for this exact file |
-| `range(n + 1)` off-by-one, no test blocking it | **High** | P1 (test every public API's observable behavior) | Intentional probe + deletion is automated |
-| `running_max` public, no test | **Medium** | P1/P2 (new public surface → covering test) | Throwaway lifecycle, deletion auditable |
-
-The diff does exactly what its docstring promises — it plants one defect per review lens. In a non-probe context, all three findings would be blocking. Given the stated throwaway lifecycle, the credential string is the only finding that warrants action before the file is committed to any repo with a live secret scanner, because scanners don't read docstrings.
+The three intentional defects land correctly against their target lenses. The one unintentional craft gap is the empty-list edge case in `running_max` being dark without any callout — a probe that fully covers the boundary of its own "untested" claim would at least mention it.
 ----- end raw capture -----
 EXIT=0
