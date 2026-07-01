@@ -1,0 +1,14 @@
+== P-RP absent-side (two-sided) — [craft-review pass] mechanism made absent ==
+date_utc: 2026-07-01T15:15:39Z
+driver: claude-sonnet (headless: claude -p)
+fixture: non-sensitive PR diff; engineering-craft skill treated as NOT installed
+command: claude -p "<absent-prompt>" --model sonnet   (cwd = throwaway worktree)
+expected: code-review = run(no findings); security-review = SILENT (sensitive-diff not met); craft-review = LOUD unavailable/degraded
+----- run output -----
+## Review passes run
+
+- **`[code-review pass]`** — run; no findings.
+- **`[craft-review pass]`** — ⚠️ **UNAVAILABLE (degraded):** the external `engineering-craft` skill that backs this pass is not installed in this environment. The craft layer (dimensions 6–7: test adequacy, maintainability, clarity) was not reviewed. Per the review standard's degradation rule (`README.md` → "How an adapter degrades gracefully"), the craft pass is skipped and noted here — no same-context self-pass was substituted, as maker self-grading carries no maker≠checker value.
+
+*(The `[security-review pass]` is enabled but its `sensitive-diff` condition did not hold — this diff touches no privacy / location / payment surface — so it produces no line.)*
+EXIT=0

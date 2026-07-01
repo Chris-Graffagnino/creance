@@ -1,0 +1,33 @@
+== P-RP available-side dispatch — [security-review pass] ==
+date_utc: 2026-07-01T15:11:02Z
+driver: claude-sonnet (headless: claude -p)
+fixture: fix/probe-t631-avail @ bb3f4b1 (probe_fixture.py — hardcoded credential = sensitive-diff)
+command: claude -p "/security-review" --model sonnet   (cwd = throwaway worktree)
+----- findings -----
+Both findings were excluded with confidence ≥ 8. After applying the confidence threshold filter (< 8 → drop), zero findings remain.
+
+---
+
+# Security Review — `fix/probe-t631-avail`
+
+**Branch:** `fix/probe-t631-avail`
+**Files reviewed:** `probe_fixture.py`
+**Commit:** `bb3f4b1` — *fixture: T631 review-pass probe plants (throwaway)*
+
+---
+
+## Summary
+
+**No actionable security findings.**
+
+Two candidates were identified and both were excluded after false-positive filtering:
+
+| # | Location | Category | Exclusion reason | Filter confidence |
+|---|----------|----------|-----------------|-------------------|
+| 1 | `probe_fixture.py:8` | Hardcoded credential (Stripe key format) | (a) Test fixture file (Rule 11); (b) Value is a synthetic placeholder — `sk_live_REDACTED_SYNTHETIC_PLACEHOLDER**ExAmPlE**...` — not a live credential, so no attack path exists | 9/10 |
+| 2 | `probe_fixture.py:12–17` | Off-by-one / unchecked array index | (a) Primary exploit is DoS — explicitly excluded (Rule 1); (b) Test fixture file (Rule 11); (c) Exploit path is theoretical and file-context-dependent (Rule 5) | 9/10 |
+
+Both are intentionally planted defects documented in the file's own docstring and commit message, exist only on this throwaway fixture branch, and are not shipped to production.
+
+**Result: PASS — no security issues to address before merge.**
+EXIT=0

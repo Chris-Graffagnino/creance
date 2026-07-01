@@ -1,0 +1,78 @@
+== P-RP available-side dispatch — [craft-review pass] ==
+date_utc: 2026-07-01T15:11:06Z
+driver: claude-sonnet (headless: claude -p)
+fixture: fix/probe-t631-avail @ bb3f4b1 (probe_fixture.py — new public behavior, no covering test)
+command: claude -p "/engineering-craft review" --model sonnet   (cwd = throwaway worktree)
+----- findings -----
+The reference files are locked in this worktree context. I have enough from the skill definition to proceed — the principles index (P0–P12) is described inline in the skill.
+
+---
+
+## Engineering-Craft Review — `fix/probe-t631-avail`
+
+**Change set:** one new file, `probe_fixture.py` — a throwaway fixture that deliberately plants three defects so review-pass lenses each have something to surface.
+
+---
+
+### What this review judges
+
+The planted defects (off-by-one, hardcoded credential, untested public function) are *intentional* — flagging them as bugs misses the point. The craft question is: **how well is the fixture itself built?** Does it serve its purpose clearly, safely, and with honest lifecycle claims?
+
+---
+
+### Dimension: Implementation Simplicity (P5 / P6)
+
+**Finding 1 — jargon leaks in a comment that must be self-contained.** `"dimension-6 test-adequacy gap"` in the craft-lens comment is internal vocabulary; a reviewer running the probe cold won't know what "dimension-6" refers to. Because the comment is the specification of what the plant is supposed to prove, ambiguity here means the probe's pass/fail oracle is underspecified.
+
+Boundary: internal vocabulary is fine in documents the reader is expected to study; in an inline comment that doubles as a probe spec, it is not.
+
+*Severity: low — the intent is still clear enough from context, but a plain-English restatement would make the fixture stand alone.*
+
+---
+
+### Dimension: Operational Robustness (P7 / P9 — lifecycle claim without enforcement)
+
+**Finding 2 — "Deleted after the probe runs" is an honor-system lifecycle assertion.** The docstring makes a strong lifecycle promise but there is no mechanism that enforces it: no branch protection naming convention, no CI guard that rejects a merge of this fixture to `main`, no comment directing the reader to do the deletion explicitly. If the branch is ever accidentally proposed or merged to `main`, the planted Stripe-format credential (`sk_live_REDACTED_SYNTHETIC_PLACEHOLDER...`) lands in git history and will trigger every secret-scanner in the repo.
+
+The docstring says *not shipped* but the merge guard is purely social.
+
+Boundary: for short-lived test fixtures that carry fake credentials, "delete when done" is an acceptable convention in teams with strong branch discipline; it is fragile when the fixture lives on a branch that CI can touch without manual gating.
+
+*Severity: medium — the fictional credential is not exploitable, but it will generate scanner noise in any repo that ingests this history, and it normalizes committing `sk_live_` strings.*
+
+Concrete mitigation options (pick one, cost-ordered):
+1. Rename the credential value to something that can't parse as a Stripe key — e.g. `sk_FAKE_plant_not_a_real_credential` — so scanners don't trigger, while the security-lens plant still demonstrates "credential in source."
+2. Add a CI step or a `git notes` marker that fails the merge pipeline when this file is present on `main`.
+3. Add a `# DO NOT MERGE: delete this branch after probe run` comment at the top of the file.
+
+---
+
+### Dimension: Testing Correctness (P1 — oracle honesty)
+
+**Finding 3 — the fixture defines plants but not the expected probe outcome.** A well-crafted defect fixture should make its expected pass/fail result verifiable independently of the probe: "this file should cause lens X to emit at least finding Y." The current file specifies the plants clearly but leaves the oracle implicit — whoever runs the probe must know externally what a *passing* probe run looks like on this fixture.
+
+This isn't always required of a fixture (the probe itself may own the oracle), but worth confirming that the companion test/probe file encodes explicit assertions against these three plants, not just a "does it find anything" check.
+
+Boundary: if the probe has explicit assertions like `assert "sk_live_" in security_findings`, this concern is already handled there and can be closed.
+
+*Severity: low / informational — flag if the probe side is also under review.*
+
+---
+
+### Dimensions not touched by this diff
+
+- Extensibility / contract surfaces (P10–P12): not applicable — no extension points or public API.
+- Backpressure / resource control (P8): not applicable.
+
+---
+
+### Summary
+
+| Finding | Severity | Actionable? |
+|---|---|---|
+| `dimension-6` jargon in a self-contained probe spec comment | Low | Yes — replace with plain English |
+| Fake-but-scannable credential in a branch that could reach `main` | Medium | Yes — pick one of the three mitigations above |
+| No explicit oracle for what a passing probe run looks like | Low / informational | Verify probe side has assertions |
+
+The fixture is otherwise clean: concise, clearly labeled, and the planted defects map cleanly to the three lens types they're meant to exercise.
+EXIT=0
