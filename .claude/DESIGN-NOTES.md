@@ -38,7 +38,10 @@ The §7 pre-PR gate dispatches the reviewers (`spec`/`constitution`/`contract` a
 maker may not override a FAIL. Rationale: self-critique is weak — the agent that wrote the
 code shares its blind spots — and independent-context verifiers measurably outperform a
 second self-review pass. The reviewers have no edit tools by construction, so "the checker
-quietly fixed it" is impossible. Verdicts are saved verbatim and posted to the PR, so the gate
+quietly fixed it" is impossible — under the active Claude Code binding they also hold **no shell**
+(Read/Grep/Glob only, #188), so there is no write-capable tool at all, while the sandboxed-shell
+adapters (Codex's OS-read-only sandbox, Omnigent's `write_paths: []`) get the same read-only
+guarantee from the sandbox. Verdicts are saved verbatim and posted to the PR, so the gate
 outcome is durable and a human review can shrink to "read the verdicts, spot-check, merge."
 
 ## 3. The explicit-context rule (born from a production failure)

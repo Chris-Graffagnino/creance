@@ -17,6 +17,12 @@ const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'gate-loo
 // Strip the ESM export so the body is plain statements inside a function.
 const body = src.replace(/^export const meta/m, 'const meta');
 
+// NOTE (#188): the reviewers are read-only with NO shell, so gate-loop dispatches a git-capable
+// "diff-provider" helper (label `diff-provider-round-N`, no agentType) once per dispatch round and
+// embeds its returned diff STRING in each reviewer prompt. Stubs that collect non-reviewer
+// (`!opts.agentType`) prompts must special-case the diff-provider and return a diff string for it,
+// or it would be miscounted as the fixer/restore step (it also carries no agentType).
+
 function runGateLoop(args, agentStub) {
   const parallel = async (fns) => Promise.all(fns.map((fn) => fn()));
   const log = () => {};
@@ -173,8 +179,9 @@ await test('workspacePath: the fixer is directed into the workspace', async () =
   await runGateLoop(
     { ...baseArgs, workspacePath: '/tmp/creance-ws-xyz/wt', maxFixRounds: 1 },
     async (_prompt, opts) => {
+      if (opts.label && opts.label.startsWith('diff-provider')) return 'DIFF'; // read-only diff helper (#188)
       if (!opts.agentType) {
-        fixerPrompts.push(_prompt); // the fix-stage maker agent has no agentType
+        fixerPrompts.push(_prompt); // the fix-stage maker agent has no agentType (and isn't the diff helper)
         return { verdict: 'PASS', report: 'fixer ran' };
       }
       if (opts.agentType === 'spec-auditor') {
@@ -267,45 +274,60 @@ await test('no dispatchSpec: spec-quality-auditor is NOT dispatched (non-spec di
   assert.deepEqual(auditors, ['spec-auditor', 'constitution-auditor']);
 });
 
-// --- 12. reviewer prompt carries the non-switching base-read constraint (T622, #140) -------
-// The prevention layer for the shared-tree branch-switch bug: the auditors run in the maker's
-// shared working tree in review mode, so the reviewer prompt must forbid branch-switching git
-// and steer them to non-switching base reads. (The DETERMINISTIC backstop is the dispatcher's
-// restore-task-branch step, tested in restore-task-branch.test.sh; this pins the belt-and-
-// suspenders prevention so it cannot silently drop out of the prompt.)
-await test('reviewer prompt forbids branch-switching and steers to non-switching base reads', async () => {
+// --- 12. reviewer prompt is read-only-by-construction: the diff is PROVIDED, not fetched (#188) --
+// Reviewers hold no shell (Read/Grep/Glob only), so the loop embeds the committed diff in the prompt
+// and tells them so — there is no "run git / never git checkout" instruction to hand a shell-less
+// agent (that branch-switch prevention layer is moot once the reviewer cannot run git at all; the
+// shared-tree restore backstop still runs for the loop's remaining shell actors, tests 14/16). This
+// pins the provided-diff contract so it cannot silently regress to telling the reviewer to fetch it.
+await test('reviewer prompt provides the committed diff to a read-only (no-shell) reviewer', async () => {
   const seen = [];
   await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (opts.label && opts.label.startsWith('diff-provider')) return 'PROVIDED-DIFF-BODY'; // read-only diff helper
     seen.push({ prompt, agentType: opts.agentType });
     return { verdict: 'PASS', report: 'ok' };
   });
   const reviewerPrompts = seen.filter((s) => s.agentType); // reviewers carry agentType; the fixer does not
   assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
   for (const { prompt } of reviewerPrompts) {
-    assert.match(prompt, /non-switching/i, 'instructs non-switching base reads');
-    assert.match(prompt, /never run `git checkout`\/`git switch`/i, 'forbids branch-switching git');
-    assert.match(prompt, /git diff main\.\.HEAD/, 'names a non-switching base read');
+    assert.match(prompt, /read-only\s+tools only/i, 'tells the reviewer it is read-only');
+    assert.match(prompt, /NO shell/i, 'states the no-shell constraint');
+    assert.match(prompt, /BEGIN COMMITTED DIFF/, 'embeds the committed diff block');
+    assert.match(prompt, /PROVIDED-DIFF-BODY/, 'the provided diff body is embedded verbatim');
+    assert.match(prompt, /git diff main\.\.HEAD/, 'names the diff provenance command');
+    assert.doesNotMatch(prompt, /never run `git checkout`/i, 'no shell-git instruction to a shell-less reviewer');
   }
 });
 
-// --- 13. workspacePath: the non-switching base-read EXAMPLES stay path-scoped (Codex P2 / craft, #174) -
-// It is not enough that the audit TARGET is path-scoped (test 6) — the prevention text's example reads
-// must be too. A bare `git diff main..HEAD` / `git show main:<path>` would steer workspace-mode
-// reviewers (who run from the session CWD) back to the shared tree and recreate the T612 vacuous-pass
-// risk. This pins the non-switching example reads — including `git show` — to the explicit git -C form.
-await test('workspacePath: non-switching base-read examples are path-scoped, not bare', async () => {
+// --- 13. workspacePath: the diff provenance is workspace-scoped, not bare (T612; Codex P2 #174) ---
+// It is not enough that `workspacePath` is accepted — the diff handed to the reviewers must be the
+// WORKSPACE's diff. The command the diff helper runs (and the provenance named in the reviewer
+// prompt) must carry the explicit `git -C <workspace>`, never a bare `git diff` that would read the
+// shared main tree and recreate the T612 vacuous-pass risk.
+await test('workspacePath: the diff provenance is workspace-scoped (explicit git -C), not bare', async () => {
   const seen = [];
   await runGateLoop({ ...baseArgs, workspacePath: '/tmp/creance-ws-abc/wt' }, async (prompt, opts) => {
+    if (opts.label && opts.label.startsWith('diff-provider')) {
+      seen.push({ prompt, kind: 'diff-provider' });
+      return 'WS-DIFF';
+    }
     seen.push({ prompt, agentType: opts.agentType });
     return { verdict: 'PASS', report: 'ok' };
   });
   const reviewerPrompts = seen.filter((s) => s.agentType);
+  const diffProviderPrompts = seen.filter((s) => s.kind === 'diff-provider');
   assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
+  assert.ok(diffProviderPrompts.length >= 1, 'the diff helper was dispatched');
+  // The diff helper runs the workspace-scoped, shell-quoted command.
+  for (const { prompt } of diffProviderPrompts) {
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'diff helper reads the workspace diff');
+    assert.doesNotMatch(prompt, /git -C \/tmp\/creance-ws-abc/, 'the git -C path is shell-quoted (no unquoted split form)');
+  }
+  // The reviewer prompt names that same workspace-scoped provenance and never a bare git diff.
   for (const { prompt } of reviewerPrompts) {
-    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'non-switching diff read is path-scoped');
-    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' show main:<path>/, 'non-switching show read is path-scoped');
-    assert.doesNotMatch(prompt, /`git diff main\.\.HEAD`/, 'no bare git diff example in workspace mode');
-    assert.doesNotMatch(prompt, /`git show main:<path>`/, 'no bare git show example in workspace mode');
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'provenance is workspace-scoped');
+    assert.match(prompt, /ISOLATED WORKSPACE/, 'names the isolated workspace target');
+    assert.doesNotMatch(prompt, /`git diff main\.\.HEAD`/, 'no bare git diff provenance in workspace mode');
   }
 });
 
@@ -320,6 +342,7 @@ await test('review mode + taskBranch: a restore step runs the hook before the fi
   await runGateLoop(
     { ...baseArgs, taskBranch: 'fix/140-gate-loop-restore', maxFixRounds: 1 },
     async (prompt, opts) => {
+      if (opts.label && opts.label.startsWith('diff-provider')) return 'DIFF'; // read-only diff helper (#188)
       if (!opts.agentType) {
         others.push(prompt);
         return { verdict: 'PASS', report: 'step ran' };
@@ -353,6 +376,7 @@ await test('workspace mode: no shared-tree restore step even when taskBranch is 
   await runGateLoop(
     { ...baseArgs, workspacePath: '/tmp/creance-ws-xyz/wt', taskBranch: 'fix/140-x', maxFixRounds: 1 },
     async (prompt, opts) => {
+      if (opts.label && opts.label.startsWith('diff-provider')) return 'DIFF'; // read-only diff helper (#188)
       if (!opts.agentType) {
         others.push(prompt);
         return { verdict: 'PASS', report: 'fixer ran' };
@@ -379,6 +403,7 @@ await test('review mode + taskBranch: restore runs before a fixer-less (NO-RESUL
   const result = await runGateLoop(
     { ...baseArgs, taskBranch: 'fix/140-x', maxFixRounds: 1 },
     async (prompt, opts) => {
+      if (opts.label && opts.label.startsWith('diff-provider')) return 'DIFF'; // read-only diff helper (#188)
       if (!opts.agentType) {
         others.push(prompt);
         return { verdict: 'PASS', report: 'step ran' };

@@ -29,8 +29,8 @@ Apply the criteria-quality rubric below exactly; do not soften, re-derive, or re
 `.claude/PROJECT.md` is missing, locate the spec under `specs/*/spec.md` and say so.
 
 ## What you are reviewing
-Run `git diff main..HEAD`. Your review target is the spec content the diff **adds, edits, or
-renames** in a `specs/*/spec.md`. Read the full current spec around every touched criterion — a
+Review the change's committed diff (`git diff main..HEAD`). Your review target is the spec content
+the diff **adds, edits, or renames** in a `specs/*/spec.md`. Read the full current spec around every touched criterion — a
 contradiction or duplicate usually lives in the unchanged neighbour the new criterion now
 collides with. If the diff touches no `specs/*/spec.md`, say so and stop: there is no spec
 content to grade (a pure spec deletion leaves nothing to review and is out of scope here).

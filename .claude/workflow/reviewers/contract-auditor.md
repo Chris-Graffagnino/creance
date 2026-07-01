@@ -21,7 +21,7 @@ vendor across an interface or breaks swappability, and try to prove it.
 If `.claude/PROJECT.md` is missing, say so and grade against the contracts dir alone.
 
 ## What you are reviewing
-Run `git diff main..HEAD`. Read the surrounding code for every file touched.
+Review the change's committed diff (`git diff main..HEAD`). Read the surrounding code for every file touched.
 
 ## How to hunt
 **Consult the evasion register first.** Before hunting, read
