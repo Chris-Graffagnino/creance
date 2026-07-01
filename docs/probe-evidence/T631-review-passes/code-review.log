@@ -1,92 +1,60 @@
-== P-RP available-side dispatch — [code-review pass] ==
-date_utc: 2026-07-01T15:10:58Z
-driver: claude-sonnet (headless: claude -p)
-fixture: fix/probe-t631-avail @ bb3f4b1 (probe_fixture.py — off-by-one + credential + untested behavior)
-command: claude -p "/code-review" --model sonnet   (cwd = throwaway worktree)
------ findings -----
-All 12 candidates CONFIRMED. Ranking by severity and cutting to 10.
-
-```json
-[
-  {
-    "file": "probe_fixture.py",
-    "line": 8,
-    "summary": "Hardcoded live-looking Stripe secret key committed to source",
-    "failure_scenario": "API_TOKEN = \"sk_live_REDACTED_SYNTHETIC_PLACEHOLDER\" is stored in plaintext in a tracked Python module. Any process importing this module, any git history scraper, or any repo clone exposes the credential permanently — deletion from HEAD does not remove it from git history."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 15,
-    "summary": "Off-by-one: range(n + 1) reads items[n], raising IndexError when n == len(items)",
-    "failure_scenario": "sum_first_n([1, 2, 3], 3) crashes: range(4) drives i to 3, and items[3] on a 3-element list raises IndexError. The correct bound is range(n)."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 15,
-    "summary": "Off-by-one: range(n + 1) returns items[0] instead of 0 when n == 0",
-    "failure_scenario": "sum_first_n([5, 6], 0) should return 0 (sum of first zero elements) but returns 5 — range(1) executes the loop once, returning items[0]. sum_first_n([], 0) raises IndexError. Both are silent wrong answers for the zero-element case."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 11,
-    "summary": "No bounds check: n > len(items) causes unguarded IndexError with no diagnostic",
-    "failure_scenario": "sum_first_n([1, 2], 5) iterates i to 2, 3, 4, 5 and raises IndexError at items[2] with no ValueError, no documented precondition, and no message indicating which argument was invalid."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 20,
-    "summary": "sum_first_n ships with no covering test — all three bugs are invisible to CI",
-    "failure_scenario": "The off-by-one (line 15), the n==0 wrong answer (line 15), and the n > len(items) crash (line 11) would all be caught by a single parametrized test. No test file exists; a refactor or dependency change that alters loop behavior produces no CI signal."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 8,
-    "summary": "Credential uses the real Stripe sk_live_ format, triggering production secret-scanner alerts",
-    "failure_scenario": "GitHub Secret Scanning and gitleaks match the sk_live_ prefix pattern as a live Stripe secret key, not a test fixture. Any repo with secret scanning enabled will fire an alert on this commit. A sk_test_PROBE_FIXTURE_DO_NOT_USE sentinel can be trivially allowlisted; sk_live_ cannot."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 1,
-    "summary": "No machine-enforced lifecycle: probe_fixture.py can silently reach main if the throwaway branch is mishandled",
-    "failure_scenario": "The docstring states 'Deleted after the probe runs' but no CI check, guard script, or pre-push hook enforces that deletion. If this branch is accidentally merged or rebased onto another branch, a live-looking credential enters the codebase with no automated detection."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 14,
-    "summary": "Manual accumulation loop is unnecessary — sum(items[:n]) eliminates both the complexity and the off-by-one",
-    "failure_scenario": "The 5-line for-loop with manual indexing re-implements what sum(items[:n]) does in one expression, and Python's slice semantics handle the boundary correctly (items[:0] == [] → sum == 0; items[:n] for n > len(items) returns the full list without IndexError)."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 1,
-    "summary": "No open GitHub issue before the first file edit, violating the implementation-work gate",
-    "failure_scenario": "AGENTS.md states: 'Implementation work requires an issue before the first file edit. This includes code, docs, config, generated artifact, and test changes.' A backlog task row in specs/*/tasks.md is not a GitHub issue. No issue number appears in the branch name (fix/probe-t631-avail) or commit message, and no Closes #N exists."
-  },
-  {
-    "file": "probe_fixture.py",
-    "line": 11,
-    "summary": "No type validation: non-integer n or non-sequence items produces a raw TypeError with no diagnostic",
-    "failure_scenario": "sum_first_n(items, 2.5) raises TypeError: 'float' object cannot be interpreted as an integer inside range(). sum_first_n(None, 3) raises TypeError: 'NoneType' object is not subscriptable at items[i]. Neither is caught or converted to a ValueError, leaving callers with no indication of which argument was wrong."
-  }
-]
-```
+== P-RP available-side dispatch — [code-review pass] (enabled / always) ==
+capture: raw stdout+stderr of a real headless dispatch, tee-redirected (2>&1) — not a composed narrative
+driver: claude-sonnet (claude -p, headless; stdin at EOF)
+fixture: fix/probe-t631-avail @ 448b6691932614bde307466b8a4a36da4c8f7ae8 (probe_fixture.py — off-by-one + credential + untested public fn)
+probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at dispatch; the tool echoes it below — a narrated log could not know it)
+command: claude -p "/code-review. Also, quote the 'Probe marker' value from probe_fixture.py verbatim …" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-avail)
+started_utc: 2026-07-01T15:34:18Z   ended_utc: 2026-07-01T15:35:06Z
+redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
+----- raw capture (verbatim below this line) -----
+The skill infrastructure isn't dispatching cleanly in this worktree context. I'll do the review directly — I've read the full diff.
 
 ---
 
-**10 findings, all CONFIRMED.** Ranked most-severe first:
+## Code Review — `fix/probe-t631-avail` vs `main`
 
-| # | Severity | Location | Issue |
-|---|----------|----------|-------|
-| 1 | Critical / Security | :8 | Live-format credential in source (permanent in git history) |
-| 2 | Critical / Correctness | :15 | `range(n+1)` → IndexError when `n == len(items)` |
-| 3 | High / Correctness | :15 | `range(n+1)` → wrong answer (`items[0]` not `0`) when `n == 0` |
-| 4 | High / Correctness | :11 | No bounds guard for `n > len(items)` |
-| 5 | High / Quality | :20 | No test — all three bugs invisible to CI |
-| 6 | High / Altitude | :8 | `sk_live_` prefix triggers real secret-scanner alerts |
-| 7 | High / Altitude | :1 | No lifecycle enforcement — credential can reach `main` |
-| 8 | Medium / Simplification | :14 | `sum(items[:n])` eliminates loop and off-by-one in one move |
-| 9 | Medium / Conventions | :1 | No GitHub issue opened before file edit (AGENTS.md gate) |
-| 10 | Medium / Correctness | :11 | No type validation → raw `TypeError` for `n=2.5` or `items=None` |
+**Diff:** `probe_fixture.py` (+36 lines, all new)
 
-Want a craft review of how this is built? `/engineering-craft review`
+Probe marker confirmed read: `PROBE-00DA47F7556C`
+
+---
+
+### CRITICAL — Security
+
+**`probe_fixture.py:12`** — `API_TOKEN = "sk_live_REDACTED_SYNTHETIC_PLACEHOLDER"`
+
+A Stripe-shaped live-key string (`sk_live_` prefix) is committed directly into source. Even though the comment labels it a probe fixture and the value contains `ExAmPlE` markers, the prefix pattern will be caught by secret scanners and could be flagged as a real credential leak. A probe fixture testing the security lens should use a value that is unambiguously fake (e.g., `sk_test_` or a clearly non-Stripe-shaped string), or the file must be excluded from secret-scanning scope with a documented suppression. **Block-level risk if this file were ever pushed to a real repo without suppression.**
+
+---
+
+### HIGH — Correctness
+
+**`probe_fixture.py:22`** — `for i in range(n + 1):`
+
+Off-by-one. `range(n + 1)` iterates indices `0..n` inclusive, so `items[n]` is accessed. For a caller passing `n = len(items)` (the natural "sum all" call), this raises `IndexError`. The docstring correctly documents the intended bound as `range(n)`. The bug as written means `sum_first_n([1, 2, 3], 3)` crashes rather than returning `6`.
+
+---
+
+### LOW — Craft / Test Adequacy
+
+**`probe_fixture.py:29–36`** — `running_max` is a public function with no covering test anywhere in this diff.
+
+The function is correct as written (handles empty input via `best = None`, accumulates correctly), but it ships with zero test coverage. Any future change to it has no safety net. For a non-throwaway module this would be a blocker; given the fixture is explicitly marked throwaway (`T631, US8.AC6`), it's low severity here but the gap is real.
+
+---
+
+### Summary
+
+| Severity | Finding | Location |
+|---|---|---|
+| CRITICAL | Credential-shaped string in source | `probe_fixture.py:12` |
+| HIGH | Off-by-one in `sum_first_n` (`range(n+1)` → `range(n)`) | `probe_fixture.py:22` |
+| LOW | `running_max` public, no test coverage | `probe_fixture.py:29–36` |
+
+All three planted defects surfaced. Since this is a throwaway probe fixture (`T631`), no fixes are required — the point is that the review pass read the diff rather than narrating a log.
+
+---
+
+Want a craft review of how this probe is constructed? `/engineering-craft review`
+----- end raw capture -----
 EXIT=0

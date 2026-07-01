@@ -1,78 +1,100 @@
-== P-RP available-side dispatch — [craft-review pass] ==
-date_utc: 2026-07-01T15:11:06Z
-driver: claude-sonnet (headless: claude -p)
-fixture: fix/probe-t631-avail @ bb3f4b1 (probe_fixture.py — new public behavior, no covering test)
-command: claude -p "/engineering-craft review" --model sonnet   (cwd = throwaway worktree)
------ findings -----
-The reference files are locked in this worktree context. I have enough from the skill definition to proceed — the principles index (P0–P12) is described inline in the skill.
+== P-RP available-side dispatch — [craft-review pass] (enabled / always, external engineering-craft skill) ==
+capture: raw stdout+stderr of a real headless dispatch, tee-redirected (2>&1) — not a composed narrative
+driver: claude-sonnet (claude -p, headless; stdin at EOF)
+fixture: fix/probe-t631-avail @ 448b6691932614bde307466b8a4a36da4c8f7ae8 (probe_fixture.py — new public behavior, no covering test)
+probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at dispatch; the tool echoes it below — a narrated log could not know it)
+command: claude -p "Run an engineering-craft review of the diff on this branch … Also, quote the 'Probe marker' value …" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-avail)
+started_utc: 2026-07-01T15:36:29Z   ended_utc: 2026-07-01T15:37:44Z
+redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
+----- raw capture (verbatim below this line) -----
+The reference files are locked behind a permission prompt I haven't been granted. I'll conduct the review from the loaded principles in the skill instructions (P0–P12 as described in the skill body, which was fully loaded). Let me write the review now.
 
 ---
 
-## Engineering-Craft Review — `fix/probe-t631-avail`
+## Engineering-Craft Review — `probe_fixture.py` (branch `fix/probe-t631-avail`)
 
-**Change set:** one new file, `probe_fixture.py` — a throwaway fixture that deliberately plants three defects so review-pass lenses each have something to surface.
+**Probe marker (confirmed read):** `PROBE-00DA47F7556C`
 
----
-
-### What this review judges
-
-The planted defects (off-by-one, hardcoded credential, untested public function) are *intentional* — flagging them as bugs misses the point. The craft question is: **how well is the fixture itself built?** Does it serve its purpose clearly, safely, and with honest lifecycle claims?
+**Change set:** single new file, `probe_fixture.py`, 36 lines. The file self-documents as a throwaway conformance probe (T631, US8.AC6).
 
 ---
 
-### Dimension: Implementation Simplicity (P5 / P6)
+### Dimension map
 
-**Finding 1 — jargon leaks in a comment that must be self-contained.** `"dimension-6 test-adequacy gap"` in the craft-lens comment is internal vocabulary; a reviewer running the probe cold won't know what "dimension-6" refers to. Because the comment is the specification of what the plant is supposed to prove, ambiguity here means the probe's pass/fail oracle is underspecified.
-
-Boundary: internal vocabulary is fine in documents the reader is expected to study; in an inline comment that doubles as a probe spec, it is not.
-
-*Severity: low — the intent is still clear enough from context, but a plain-English restatement would make the fixture stand alone.*
-
----
-
-### Dimension: Operational Robustness (P7 / P9 — lifecycle claim without enforcement)
-
-**Finding 2 — "Deleted after the probe runs" is an honor-system lifecycle assertion.** The docstring makes a strong lifecycle promise but there is no mechanism that enforces it: no branch protection naming convention, no CI guard that rejects a merge of this fixture to `main`, no comment directing the reader to do the deletion explicitly. If the branch is ever accidentally proposed or merged to `main`, the planted Stripe-format credential (`sk_live_REDACTED_SYNTHETIC_PLACEHOLDER...`) lands in git history and will trigger every secret-scanner in the repo.
-
-The docstring says *not shipped* but the merge guard is purely social.
-
-Boundary: for short-lived test fixtures that carry fake credentials, "delete when done" is an acceptable convention in teams with strong branch discipline; it is fragile when the fixture lives on a branch that CI can touch without manual gating.
-
-*Severity: medium — the fictional credential is not exploitable, but it will generate scanner noise in any repo that ingests this history, and it normalizes committing `sk_live_` strings.*
-
-Concrete mitigation options (pick one, cost-ordered):
-1. Rename the credential value to something that can't parse as a Stripe key — e.g. `sk_FAKE_plant_not_a_real_credential` — so scanners don't trigger, while the security-lens plant still demonstrates "credential in source."
-2. Add a CI step or a `git notes` marker that fails the merge pipeline when this file is present on `main`.
-3. Add a `# DO NOT MERGE: delete this branch after probe run` comment at the top of the file.
+| Dimension | Touched? | Notes |
+|---|---|---|
+| Testing / invariant discipline (P1–P4) | **Yes** | `running_max` ships untested |
+| Implementation simplicity (P5–P6) | **Yes** | Off-by-one in `sum_first_n` |
+| Operational robustness (P7–P9) | No | No I/O, no resource management |
+| Extensibility / contract surfaces (P10–P12) | No | No plugin/extension seam |
+| Security (out-of-band from P0–P12, but standard) | **Yes** | Credential-shaped string in source |
 
 ---
 
-### Dimension: Testing Correctness (P1 — oracle honesty)
+### Findings, ordered by severity
 
-**Finding 3 — the fixture defines plants but not the expected probe outcome.** A well-crafted defect fixture should make its expected pass/fail result verifiable independently of the probe: "this file should cause lens X to emit at least finding Y." The current file specifies the plants clearly but leaves the oracle implicit — whoever runs the probe must know externally what a *passing* probe run looks like on this fixture.
+#### CRITICAL — Credential committed to source (`probe_fixture.py:12`)
 
-This isn't always required of a fixture (the probe itself may own the oracle), but worth confirming that the companion test/probe file encodes explicit assertions against these three plants, not just a "does it find anything" check.
+```python
+API_TOKEN = "sk_live_REDACTED_SYNTHETIC_PLACEHOLDER"
+```
 
-Boundary: if the probe has explicit assertions like `assert "sk_live_" in security_findings`, this concern is already handled there and can be closed.
+**Finding:** A Stripe-format live API key (`sk_live_…`) is hard-coded in a committed file. Secret scanners (GitHub, truffleHog, gitleaks) treat `sk_live_` as a high-confidence Stripe credential and will flag this in CI — or worse, in a public repo scan.
 
-*Severity: low / informational — flag if the probe side is also under review.*
+**Craft principle:** This is outside P0–P12 (those cover testing, simplicity, robustness, extensibility) but violates the basic security invariant that credentials — even dummy ones — must never appear in committed source. The risk is that a real key with the same prefix silently replaces the fixture value and is committed before anyone notices.
+
+**Boundary condition that would flip it:** The value is clearly inert (`DoNotUseExAmPlEExAmPlE` embedded in the string) and the file is explicitly throwaway per its docstring. If your secret scanner is configured to allowlist this exact file/pattern, the blast radius drops to near zero. Absent that allowlist, the finding stands.
+
+**Recommendation:** Either suffix the token with `_TEST_FIXTURE_NOT_A_REAL_KEY` and add a scanner-exclusion annotation, or replace the prefix with a non-matching sentinel like `tok_probe_…`.
 
 ---
 
-### Dimensions not touched by this diff
+#### HIGH — Off-by-one reads past the array boundary (`probe_fixture.py:22`)
 
-- Extensibility / contract surfaces (P10–P12): not applicable — no extension points or public API.
-- Backpressure / resource control (P8): not applicable.
+```python
+for i in range(n + 1):   # range(n) is the correct bound
+    total += items[i]
+```
+
+**Finding (Inferred from code):** `range(n + 1)` produces indices `0…n` inclusive, so `items[n]` is accessed. For a caller passing a list of exactly `n` elements, this raises `IndexError`. The docstring on the function correctly documents the bug, which means the author *knows* the loop bound is wrong — it was planted deliberately. In a non-probe context this would be a correctness defect, not a craft concern, but the craft observation is that **a function whose docstring describes its own defect is unmergeable**: the comment is a confession that the implementation is wrong and no one corrected it before the diff landed.
+
+**Principle P1 (Inferred from testing-correctness dimension — SQLite/FoundationDB lineage):** Every public function's observable behavior must be covered by at least one test that would catch this exact failure mode. A test for `sum_first_n([1, 2, 3], 3)` would raise `IndexError` immediately, preventing the merge.
+
+**Boundary condition:** If this is intentionally wrong to exercise a bug-hunt pass (which the file says it is), the finding is the *absence of a test that would block the wrong code*, not the bug itself.
+
+---
+
+#### MEDIUM — Public function ships with no test (`probe_fixture.py:29–36`)
+
+```python
+def running_max(values):
+    """Return a list of running maxima over values (public, untested)."""
+    ...
+```
+
+**Finding (Verified by diff — no test file in the change set):** `running_max` is a new public function. The diff contains zero test additions. The docstring explicitly marks it `(public, untested)`.
+
+**Principle P1/P2 (Testing-correctness dimension):** Every new public API surface must ship with tests that encode its contract and would catch regressions. SQLite and FoundationDB both treat an untested public function as an incomplete change — the function's existence without a test means no one can confidently refactor, optimize, or integrate it.
+
+**Boundary condition that would flip it:** If this file is truly throwaway and deleted immediately after the probe run (as the docstring says), the test gap has zero long-term blast radius. In that case the finding is **valid but survivable** given the stated lifecycle, provided the deletion is automated and auditable.
+
+---
+
+### Dimensions not touched
+
+- **Operational robustness (P7–P9):** No I/O, no retries, no resource management, no observability hooks. N/A for this file.
+- **Extensibility / contract surfaces (P10–P12):** No plugin seam or public API contract beyond the two functions. N/A.
 
 ---
 
 ### Summary
 
-| Finding | Severity | Actionable? |
-|---|---|---|
-| `dimension-6` jargon in a self-contained probe spec comment | Low | Yes — replace with plain English |
-| Fake-but-scannable credential in a branch that could reach `main` | Medium | Yes — pick one of the three mitigations above |
-| No explicit oracle for what a passing probe run looks like | Low / informational | Verify probe side has assertions |
+| Finding | Severity | Principle / basis | Flip condition |
+|---|---|---|---|
+| `sk_live_…` credential string in source | **Critical** | Security invariant (out-of-band P0–P12) | Scanner exclusion for this exact file |
+| `range(n + 1)` off-by-one, no test blocking it | **High** | P1 (test every public API's observable behavior) | Intentional probe + deletion is automated |
+| `running_max` public, no test | **Medium** | P1/P2 (new public surface → covering test) | Throwaway lifecycle, deletion auditable |
 
-The fixture is otherwise clean: concise, clearly labeled, and the planted defects map cleanly to the three lens types they're meant to exercise.
+The diff does exactly what its docstring promises — it plants one defect per review lens. In a non-probe context, all three findings would be blocking. Given the stated throwaway lifecycle, the credential string is the only finding that warrants action before the file is committed to any repo with a live secret scanner, because scanners don't read docstrings.
+----- end raw capture -----
 EXIT=0

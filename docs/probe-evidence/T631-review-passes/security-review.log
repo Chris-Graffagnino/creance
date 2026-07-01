@@ -1,33 +1,41 @@
-== P-RP available-side dispatch — [security-review pass] ==
-date_utc: 2026-07-01T15:11:02Z
-driver: claude-sonnet (headless: claude -p)
-fixture: fix/probe-t631-avail @ bb3f4b1 (probe_fixture.py — hardcoded credential = sensitive-diff)
-command: claude -p "/security-review" --model sonnet   (cwd = throwaway worktree)
------ findings -----
-Both findings were excluded with confidence ≥ 8. After applying the confidence threshold filter (< 8 → drop), zero findings remain.
+== P-RP available-side dispatch — [security-review pass] (enabled / sensitive-diff) ==
+capture: raw stdout+stderr of a real headless dispatch, tee-redirected (2>&1) — not a composed narrative
+driver: claude-sonnet (claude -p, headless; stdin at EOF)
+fixture: fix/probe-t631-avail @ 448b6691932614bde307466b8a4a36da4c8f7ae8 (probe_fixture.py — the credential plant is the sensitive surface)
+probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at dispatch; the tool echoes it below — a narrated log could not know it)
+command: claude -p "/security-review. Also, quote the 'Probe marker' value from probe_fixture.py verbatim …" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-avail)
+started_utc: 2026-07-01T15:35:26Z   ended_utc: 2026-07-01T15:36:10Z
+redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
+----- raw capture (verbatim below this line) -----
+Probe marker (verbatim, from file read):
+
+`PROBE-00DA47F7556C`
 
 ---
 
 # Security Review — `fix/probe-t631-avail`
 
 **Branch:** `fix/probe-t631-avail`
-**Files reviewed:** `probe_fixture.py`
-**Commit:** `bb3f4b1` — *fixture: T631 review-pass probe plants (throwaway)*
+**Files reviewed:** `probe_fixture.py` (new file, 36 lines)
 
 ---
 
 ## Summary
 
-**No actionable security findings.**
+No findings meeting the confidence threshold (≥ 0.8) after false-positive filtering.
 
-Two candidates were identified and both were excluded after false-positive filtering:
+### Candidates evaluated
 
-| # | Location | Category | Exclusion reason | Filter confidence |
-|---|----------|----------|-----------------|-------------------|
-| 1 | `probe_fixture.py:8` | Hardcoded credential (Stripe key format) | (a) Test fixture file (Rule 11); (b) Value is a synthetic placeholder — `sk_live_REDACTED_SYNTHETIC_PLACEHOLDER**ExAmPlE**...` — not a live credential, so no attack path exists | 9/10 |
-| 2 | `probe_fixture.py:12–17` | Off-by-one / unchecked array index | (a) Primary exploit is DoS — explicitly excluded (Rule 1); (b) Test fixture file (Rule 11); (c) Exploit path is theoretical and file-context-dependent (Rule 5) | 9/10 |
+| Candidate | Category | Disposition |
+|---|---|---|
+| `API_TOKEN = "sk_live_REDACTED_SYNTHETIC_PLACEHOLDER"` (line 12) | Hardcoded credential-shaped string | **Excluded** — hard exclusion #2: "Secrets or sensitive data stored on disk (these are handled by other processes)." Additionally, the value is explicitly labeled a probe fixture and embeds `ProbeFixture`, `DoNotUse`, and `ExAmPlE` markers confirming it is synthetic. |
+| `range(n + 1)` off-by-one in `sum_first_n` (line 22) | Index out-of-bounds / crash | **Excluded** — results in `IndexError` (a crash/process abort), which falls under the hard exclusion for Denial of Service / service disruption. No credential access, data exfiltration, or privilege boundary crossed. |
+| `running_max` untested (lines 29–36) | Missing test coverage | **Not a security issue** — test adequacy is a craft/code-quality concern, not a vulnerability category. |
 
-Both are intentionally planted defects documented in the file's own docstring and commit message, exist only on this throwaway fixture branch, and are not shipped to production.
+---
 
-**Result: PASS — no security issues to address before merge.**
+## No reportable security findings.
+
+The single commit on this branch adds a throwaway conformance-probe fixture. None of the intentionally planted defects survive the mandatory false-positive filter as exploitable security vulnerabilities.
+----- end raw capture -----
 EXIT=0

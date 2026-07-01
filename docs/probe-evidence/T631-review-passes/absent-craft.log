@@ -1,14 +1,35 @@
 == P-RP absent-side (two-sided) — [craft-review pass] mechanism made absent ==
-date_utc: 2026-07-01T15:15:39Z
-driver: claude-sonnet (headless: claude -p)
-fixture: non-sensitive PR diff; engineering-craft skill treated as NOT installed
-command: claude -p "<absent-prompt>" --model sonnet   (cwd = throwaway worktree)
-expected: code-review = run(no findings); security-review = SILENT (sensitive-diff not met); craft-review = LOUD unavailable/degraded
------ run output -----
+capture: raw stdout+stderr of a real headless dispatch, tee-redirected (2>&1) — not a composed narrative
+driver: claude-sonnet (claude -p, headless; stdin at EOF)
+fixture: fix/probe-t631-absent @ 8eae1b2fb5e461272880eb8ad5b707dade0e83f3 (non-sensitive diff — no credential/privacy/payment surface)
+probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at dispatch; the tool echoes it below — a narrated log could not know it)
+command: claude -p "<review-pass ritual; engineering-craft skill treated as NOT installed; two-sided outcome per pass>" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-absent)
+started_utc: 2026-07-01T15:38:24Z   ended_utc: 2026-07-01T15:38:44Z
+redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
+----- raw capture (verbatim below this line) -----
+Probe marker (verbatim from diff):
+
+```
+PROBE-00DA47F7556C
+```
+
+---
+
 ## Review passes run
 
-- **`[code-review pass]`** — run; no findings.
-- **`[craft-review pass]`** — ⚠️ **UNAVAILABLE (degraded):** the external `engineering-craft` skill that backs this pass is not installed in this environment. The craft layer (dimensions 6–7: test adequacy, maintainability, clarity) was not reviewed. Per the review standard's degradation rule (`README.md` → "How an adapter degrades gracefully"), the craft pass is skipped and noted here — no same-context self-pass was substituted, as maker self-grading carries no maker≠checker value.
+### [code-review pass] — PASS
 
-*(The `[security-review pass]` is enabled but its `sensitive-diff` condition did not hold — this diff touches no privacy / location / payment surface — so it produces no line.)*
+Diff adds `probe_absent_fixture.py`: a 13-line throwaway fixture with a single `add(a, b)` function and a module-level docstring.
+
+- **Correctness:** No bugs. `return a + b` is correct for the stated contract.
+- **Tests:** None added — fixture is explicitly labelled "throwaway" and carries no production behaviour to guard.
+- **Scope:** Change is surgical; nothing outside this new file is touched.
+- **No findings.**
+
+---
+
+### [craft-review pass] — ⚠️ UNAVAILABLE / DEGRADED
+
+**The `engineering-craft` skill is the required backing mechanism for this pass and it cannot be resolved in this environment. The craft-review pass has NOT been performed — it was not silently dropped, and no same-context self-pass has been substituted. A genuine craft review requires re-running this ritual in an environment where the `engineering-craft` skill is installed.**
+----- end raw capture -----
 EXIT=0
