@@ -232,7 +232,16 @@ succeeded). One record per completed gate invocation, whatever the outcome.
   the maker's HEAD. (A bare, un-scoped read under an isolated run would point a session-CWD reviewer
   at the shared tree instead of the workspace and pass vacuously — the T612 trap.) Or a binding may
   grant the reviewer **no shell** and **provide** the committed diff in the dispatch prompt — then the
-  reviewer runs no `git` at all and has no branch-switch vector (read-only **by construction**). The
+  reviewer runs no `git` at all and has no branch-switch vector (read-only **by construction**). A
+  providing binding must not trust its diff-obtaining step blindly: what that step returns is what
+  the reviewers audit, so the provided output must satisfy a **checked, fail-closed contract** — a
+  completion marker emitted only when the diff command succeeded, and non-empty diff-shaped content
+  preceding it. Anything else (no output, a failure message, a summary, a truncated patch, an empty
+  diff) **aborts the round as unverified** — gate FAIL, no reviewer dispatched, the classification
+  recorded in the telemetry `fail_reports` keyed to the diff-providing step and round — rather than
+  being embedded, so the gate can never pass on reviewers that audited something other than the real
+  committed diff (the T612 vacuous-pass class, closed structurally rather than by asking a reviewer
+  to notice). The
   non-switching rule is the prevention layer for the shell-holding case; the deterministic backstop —
   the restore, applied by the loop before each fix/re-dispatch step (review mode) and by the dispatcher
   after the run — heals a drifted HEAD on every path in both cases, since a shell-holding fixer or diff

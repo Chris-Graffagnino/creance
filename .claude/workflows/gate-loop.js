@@ -7,7 +7,9 @@
 // stay with the invoker. Invoke it on a task branch with the work COMMITTED — the
 // reviewers audit the committed diff (`git diff main..HEAD`), which the loop obtains and
 // hands to them in the dispatch prompt because their bindings grant no shell to run `git`
-// themselves (read-only by construction, #188). Under an engaged isolated autonomous run
+// themselves (read-only by construction, #188); the obtained diff must pass a checked,
+// fail-closed contract before any reviewer sees it (`classifyProvidedDiff` — PR #200 review).
+// Under an engaged isolated autonomous run
 // (next-task §0.5/§4), pass `workspacePath` so the reviewers and the fixer audit the
 // committed diff of the [isolated workspace] at that path instead of the main working
 // tree (gate-in-place, T612) — the path is passed EXPLICITLY, never inferred from CWD
@@ -123,19 +125,65 @@ const diffTarget = WORKSPACE
 // (The reviewers therefore never touch the working tree's branch, closing the #140/T622
 // reviewer-drift vector by construction; the restore step below now guards only the loop's
 // remaining shell-holding agents — this helper and the fixer — see "The loop".)
+//
+// The helper's output is NOT trusted blindly (PR #200 review): what it returns is what the
+// reviewers audit, so a failure message, summary, or truncated patch fed through as "the diff"
+// would let the gate pass without the reviewers ever seeing the real change. The provider runs
+// `diffCmd && echo <marker>` — the marker prints ONLY when the diff command exits 0 — and
+// `classifyProvidedDiff` below enforces the checked, fail-closed contract on what comes back.
+const DIFF_COMPLETE_MARKER = '-----GATE-DIFF-COMPLETE-----';
 const provideDiff = (round) =>
   agent(
     `Output the committed diff under review for the pre-PR gate, and NOTHING else. Run exactly ` +
       `this and return its complete output verbatim as your final message — no summary, no ` +
-      `commentary, no code fence:\n\n    ${diffCmd}\n\n` +
-      `Make NO change to any file or branch — this is a read-only step.`,
+      `commentary, no code fence:\n\n    ${diffCmd} && echo '${DIFF_COMPLETE_MARKER}'\n\n` +
+      `The last line of your message must be the ${DIFF_COMPLETE_MARKER} line the command ` +
+      `prints on success. If the command fails, return its error output instead, WITHOUT that ` +
+      `line. Make NO change to any file or branch — this is a read-only step.`,
     { label: `diff-provider-round-${round}`, phase: 'Dispatch' },
   );
+
+// The checked contract on the provider's output (fail-closed; PR #200 review). Only output that
+// is verifiably the committed diff may reach a reviewer prompt: it must END with the completion
+// marker (the command prints it only after the diff command exits 0 — a failed run, a truncated
+// relay, or trailing commentary loses it; only the LAST line is checked, so a diff that itself
+// contains the marker text cannot confuse it), and what precedes the marker must be a non-empty
+// git diff (`diff --git ` opens every non-empty patch). Anything else — no output, an error
+// message, a summary, a non-diff payload, or an empty diff (nothing to audit: wrong branch or
+// worktree, the T612 vacuous-pass class) — classifies as unverified.
+const classifyProvidedDiff = (raw) => {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return { ok: false, why: 'no output — the diff-provider returned nothing usable' };
+  }
+  const lines = raw.trim().split('\n');
+  if (lines[lines.length - 1].trim() !== DIFF_COMPLETE_MARKER) {
+    return {
+      ok: false,
+      why:
+        'missing completion marker — the diff command failed, or its output was truncated ' +
+        'or followed by commentary',
+    };
+  }
+  const diff = lines.slice(0, -1).join('\n').trim();
+  if (diff === '') {
+    return {
+      ok: false,
+      why: 'empty committed diff — nothing to audit (wrong branch or worktree?); a PASS would be vacuous',
+    };
+  }
+  if (!diff.startsWith('diff --git ')) {
+    return { ok: false, why: 'output is not a git diff' };
+  }
+  return { ok: true, diff };
+};
 
 // A reviewer's dispatch prompt, built around the provided diff. The reviewer audits the embedded
 // diff (it has no shell to produce one) and uses Read/Grep/Glob for the current files it touches.
 // `diffCmd` is named as provenance so the audited tree (main vs the isolated workspace) is explicit.
-// An empty diff is called out loudly so a reviewer cannot PASS vacuously (the T612 class).
+// The diff has already passed `classifyProvidedDiff` — non-empty, diff-shaped, marker-verified —
+// so an invalid or empty provider payload can never reach this template: the loop fails closed
+// without dispatching first (the T612 vacuous-pass class is closed structurally, not by asking
+// the reviewer to notice).
 const reviewerPromptFor = (diff) =>
   `Task under review: ${input.taskId}. Audit ${diffTarget} per your spec. You have read-only ` +
   `tools only (Read/Grep/Glob) and NO shell, so the committed diff under review is provided below ` +
@@ -143,8 +191,7 @@ const reviewerPromptFor = (diff) =>
   `surrounding code. Set 'verdict' to your overall verdict and put your full verdict report, ` +
   `verbatim, in 'report'.\n\n` +
   `----- BEGIN COMMITTED DIFF (${diffCmd}) -----\n` +
-  `${diff && String(diff).trim() ? diff : '(empty — no committed diff was produced; treat the ' +
-    'change as UNVERIFIABLE and do NOT return PASS)'}\n` +
+  `${diff}\n` +
   `----- END COMMITTED DIFF -----`;
 
 // DERIVED FROM the reviewer roster in workflow/gate-loop.md → "The reviewer roster" — the
@@ -197,9 +244,25 @@ while (true) {
     `Gate dispatch ${fixRoundsUsed + 1}/${MAX_FIX_ROUNDS + 1}: ${pending.map((r) => r.key).join(', ')}`,
   );
   // Obtain the committed diff for THIS round (it changes after a fix commit) and hand it to the
-  // read-only reviewers, which cannot fetch it themselves (#188).
-  const diff = await provideDiff(fixRoundsUsed + 1);
-  const reviewerPrompt = reviewerPromptFor(diff);
+  // read-only reviewers, which cannot fetch it themselves (#188). The provider's output must pass
+  // the checked contract first: an unverified payload is never embedded — the gate FAILs closed
+  // WITHOUT dispatching, rather than let reviewers grade a failure message, a summary, or a
+  // truncated patch as if it were the real committed diff (PR #200 review).
+  const provided = classifyProvidedDiff(await provideDiff(fixRoundsUsed + 1));
+  if (!provided.ok) {
+    failReports[`diff-provider:round-${fixRoundsUsed + 1}`] = provided.why;
+    return {
+      gate: 'FAIL',
+      diffUnverified: provided.why,
+      // Never dispatched this round — they hold no verdict, and an undispatched reviewer is
+      // never a pass (the same no-verdict-is-not-a-pass rule as NO-RESULT).
+      notDispatched: pending.map((r) => r.key),
+      verdicts,
+      fixRoundsUsed,
+      telemetry: telemetry('fail'),
+    };
+  }
+  const reviewerPrompt = reviewerPromptFor(provided.diff);
   const results = await parallel(
     pending.map(
       (r) => () =>

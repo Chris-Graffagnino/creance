@@ -223,18 +223,23 @@ done
 #       gate-loop.js dispatch is gated on dispatchSpec; the conditional push and the strong tier
 #       are proven by js_ok + gate-loop.test.js.)
 #
-# Predicate — an agent file's `tools:` line is read-only by construction: no edit tool AND no
-# shell. Returns 0 (read-only) / nonzero (grants a write-capable tool, or has no tools: line to
-# constrain). Substring match, matching the file's existing style — "Edit" also catches
-# "MultiEdit", "Shell" also catches "PowerShell"; no read tool (Read/Grep/Glob) is a substring of
-# any banned token, so there is no false positive. Reused by the AC6 drift cases below.
+# Predicate — an agent file's `tools:` line grants EXACTLY the read-only set {Read, Grep, Glob}.
+# An ALLOWLIST, not a denylist (PR #200 review): the invariant is "Read/Grep/Glob only", so the
+# check parses the tools line into a token set and compares it to the exact allowed set — a
+# future write-capable tool whose name matches no denylist pattern (or a lost read tool) fails
+# the same way a re-granted Bash/Edit does. Returns 0 (exactly the read-only set) / nonzero
+# (any other set, or no tools: line to constrain — fail closed). Reused by the AC6 drift cases.
 agent_readonly_ok() { # <agent-file>
-  local tl
+  local tl got
   tl="$(grep -E '^tools:' "$1" 2>/dev/null || true)"
-  [ -n "$tl" ] || return 1                                     # no tools: line → not provably read-only
-  printf '%s' "$tl" | grep -Eq 'Edit|Write|NotebookEdit' && return 1   # an edit tool
-  printf '%s' "$tl" | grep -Eq 'Bash|Shell'              && return 1   # a shell tool (Bash / PowerShell / *Shell)
-  return 0
+  [ -n "$tl" ] || return 1                       # no tools: line → not provably read-only
+  got="$(printf '%s\n' "$tl" \
+    | sed 's/^tools:[[:space:]]*//' \
+    | tr ',' '\n' \
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+    | grep -v '^$' \
+    | sort -u)"
+  [ "$got" = "$(printf 'Glob\nGrep\nRead')" ]
 }
 for key in spec-auditor constitution-auditor contract-auditor spec-quality-auditor; do
   af="$AGENTDIR/$key.md"
@@ -338,6 +343,19 @@ mut_fail "agent add-bash (shell-write vector, #188)" agent_readonly_ok "$TMP/age
 sed 's/^tools: Read, Grep, Glob$/tools: Read, Grep, Glob, Edit/' \
   "$AGENTDIR/constitution-auditor.md" > "$TMP/agent-add-edit.md"
 mut_fail "agent add-edit-tool" agent_readonly_ok "$TMP/agent-add-edit.md"
+
+# A reviewer that grants ANY tool beyond the exact read-only set must trip the check, even one
+# no edit/shell denylist pattern would match — this is the allowlist property (PR #200 review):
+# the invariant is "Read/Grep/Glob only", not "nothing that looks like a write tool".
+sed 's/^tools: Read, Grep, Glob$/tools: Read, Grep, Glob, WebFetch/' \
+  "$AGENTDIR/contract-auditor.md" > "$TMP/agent-add-unlisted.md"
+mut_fail "agent add-unlisted-tool (allowlist, not denylist)" agent_readonly_ok "$TMP/agent-add-unlisted.md"
+
+# A reviewer that LOSES a read tool must trip too — the exact-set claim cuts both ways, so a
+# silently narrowed binding (a reviewer that can no longer Grep) is surfaced as drift as well.
+sed 's/^tools: Read, Grep, Glob$/tools: Read, Glob/' \
+  "$AGENTDIR/spec-quality-auditor.md" > "$TMP/agent-drop-grep.md"
+mut_fail "agent drop-read-tool (exact set, not superset)" agent_readonly_ok "$TMP/agent-drop-grep.md"
 
 echo "reviewer-roster encoding tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
