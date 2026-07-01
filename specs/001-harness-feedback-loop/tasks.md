@@ -410,7 +410,7 @@
       constitution / contract / spec-quality)**, while PASSing on the real skill-only roster
       (paired flag-defect / pass-control); blocked by T628, T629 (US8) — strong: a P2/P3
       deterministic backstop guarding the maker≠checker boundary (constitution P2/P3/P4)
-- [ ] T631 [cheap] Generalize the `P-CRAFT` conformance probe to a per-enabled-pass probe in
+- [x] T631 [cheap] Generalize the `P-CRAFT` conformance probe to a per-enabled-pass probe in
       the neutral checklist, instantiate for the Claude Code adapter, run live, and record
       per-enabled-pass dispatch in the adapter probe-results table; the probe is **two-sided
       on availability** — it also pins AC3's **enabled-but-mechanism-absent → loud** branch

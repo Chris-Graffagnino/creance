@@ -1,0 +1,42 @@
+== P-RP available-side dispatch — [security-review pass] (enabled / sensitive-diff) ==
+capture: raw stdout+stderr of a real headless dispatch, tee-redirected (2>&1) — not a composed narrative
+driver: claude-sonnet (claude -p, headless; stdin at EOF)
+fixture: fix/probe-t631-avail @ 448b6691932614bde307466b8a4a36da4c8f7ae8 (probe_fixture.py — the credential plant is the sensitive surface)
+probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at dispatch; the tool echoes it below — a narrated log could not know it)
+command: claude -p "/security-review. Also, quote the 'Probe marker' value from probe_fixture.py verbatim …" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-avail)
+started_utc: 2026-07-01T15:35:26Z   ended_utc: 2026-07-01T15:36:10Z
+redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
+evidences: DISPATCH + CANDIDATE-EVALUATION, not a surviving finding. The pass dispatched, read the diff (nonce echoed below), surfaced the credential candidate at probe_fixture.py:12 and adjudicated it, then correctly EXCLUDED it as a synthetic fixture placeholder (verdict "No findings" below). AC6 requires the pass to actually DISPATCH on the diff — evidenced here by the candidate being raised and evaluated on the diff — independent of whether a finding survives the false-positive filter. A *surviving* security finding is deliberately not exercised here (that would need a non-synthetic plant, which must never be committed).
+----- raw capture (verbatim below this line) -----
+Probe marker (verbatim, from file read):
+
+`PROBE-00DA47F7556C`
+
+---
+
+# Security Review — `fix/probe-t631-avail`
+
+**Branch:** `fix/probe-t631-avail`
+**Files reviewed:** `probe_fixture.py` (new file, 36 lines)
+
+---
+
+## Summary
+
+No findings meeting the confidence threshold (≥ 0.8) after false-positive filtering.
+
+### Candidates evaluated
+
+| Candidate | Category | Disposition |
+|---|---|---|
+| `API_TOKEN = "sk_live_REDACTED_SYNTHETIC_PLACEHOLDER"` (line 12) | Hardcoded credential-shaped string | **Excluded** — hard exclusion #2: "Secrets or sensitive data stored on disk (these are handled by other processes)." Additionally, the value is explicitly labeled a probe fixture and embeds `ProbeFixture`, `DoNotUse`, and `ExAmPlE` markers confirming it is synthetic. |
+| `range(n + 1)` off-by-one in `sum_first_n` (line 22) | Index out-of-bounds / crash | **Excluded** — results in `IndexError` (a crash/process abort), which falls under the hard exclusion for Denial of Service / service disruption. No credential access, data exfiltration, or privilege boundary crossed. |
+| `running_max` untested (lines 29–36) | Missing test coverage | **Not a security issue** — test adequacy is a craft/code-quality concern, not a vulnerability category. |
+
+---
+
+## No reportable security findings.
+
+The single commit on this branch adds a throwaway conformance-probe fixture. None of the intentionally planted defects survive the mandatory false-positive filter as exploitable security vulnerabilities.
+----- end raw capture -----
+EXIT=0

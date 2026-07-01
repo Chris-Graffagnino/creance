@@ -105,21 +105,72 @@ appears). The same checklist therefore grades **every** adapter, present and fut
 - **Action:** run the adapter's security-review mechanism on the branch.
 - **Expect:** the planted smell appears in the findings, security-framed.
 
-### P-CRAFT — [craft-review pass] *(optional role)*
-- **Setup:** a fixture diff planting one unambiguous gap the craft lens owns — e.g. a
-  behavior change shipped with no covering test (a dimension-6 test-adequacy gap), or a
-  public signature changed with no back-compat note.
-- **Action:** run the adapter's craft-review mechanism on the branch, alongside the
-  [code-review pass].
-- **Expect:** the planted gap appears in the findings, framed against craft practice
-  (testing, failure handling, boundaries, resource control, observability, API &
-  back-compat, simplicity) rather than the fixed acceptance/constitution/contract rubric.
-  (The probe checks the channel works — findings come back and reference the diff — not the
-  reviewer's taste.) The findings are **advisory**: they surface in the PR body, never as a
-  PASS/FAIL gate.
-- **If the role is unbound:** the adapter's spec must state the degradation (skip the craft
-  layer + note the skip in the PR, per `README.md` → "How an adapter degrades gracefully")
-  explicitly — that statement is the expected observation. A silent skip fails the probe.
+### P-RP — the profile's review-pass set (per-enabled-pass; generalizes the former P-CRAFT)
+The **[code-review pass]** / **[security-review pass]** / **[craft-review pass]** are an
+owner-editable declarative set in the profile (its "Review passes" list): each carries an
+`enabled` flag, a `condition`, and an `applies-to` surface. This probe pins that the set
+actually drives dispatch on a real driver — **each enabled pass whose `condition` holds and
+whose `applies-to` includes the surface fires: cleanly, or — where its backing mechanism is
+present but cannot fully engage under the driver — loudly-and-disclosed as degraded, never as
+a bare clean pass** — and, two-sided, that an **enabled pass whose backing mechanism is absent
+is surfaced loudly**, never silently dropped. It generalizes
+the former craft-only probe: the optional **[craft-review pass]** is one member of the set
+and, being the externally-supplied pass, the natural absent-mechanism exemplar. The per-role
+**P-CR** / **P-SR** remain the focused binding probes for the two built-in review roles;
+**P-RP** adds the *set-driven dispatch* and *availability* discipline the configurable list
+introduces.
+- **Setup:** two fixtures.
+  - *(available)* a fixture diff planting one unambiguous gap **each enabled, available pass
+    owns in its own lens** — e.g. a correctness defect for the code lens, a credential-shaped
+    string (a `sensitive-diff`) for the security lens, and a behavior change shipped with no
+    covering test (a dimension-6 test-adequacy gap) or a signature changed with no back-compat
+    note for the craft lens.
+  - *(absent)* a scratch review-pass set in which an **enabled** pass's backing mechanism is
+    **made absent** — pointed at a mechanism the adapter cannot resolve.
+- **Action:** on the available fixture, run **each enabled pass whose `condition` holds and
+  whose `applies-to` includes the surface**, as the gate / PR-review ritual would. On the
+  absent fixture, drive the same pass-selection and dispatch with the chosen pass's mechanism
+  unavailable.
+- **Expect (available):** each dispatched pass's output **comes back referencing the diff**,
+  framed against that pass's own lens (the probe checks the *channel* works — the pass ran and
+  its output reaches the diff — not the reviewer's taste). A pass may legitimately **surface
+  and evaluate** its planted candidate and then report **no surviving finding** — e.g. a
+  false-positive filter correctly excludes a synthetic fixture plant; the evidence the probe
+  needs is that the pass **dispatched and read the diff** (the candidate was raised and
+  adjudicated), not that a finding survived. An advisory pass's findings are surfaced in the PR
+  body, never as a PASS/FAIL gate. Each recorded result **cites an independently readable
+  artifact** — a log excerpt, an invocation record, or dated output a cold-start reviewer can
+  confirm shows the pass was **actually dispatched**; a bare "dispatched" self-assertion with
+  no artifact does not satisfy the probe.
+- **Expect (available, degraded — the third outcome, distinct from clean and from absent):** an
+  enabled pass whose backing mechanism is **present but cannot fully engage under the driver**
+  (e.g. an externally-supplied pass whose reference material the non-interactive driver cannot
+  load) is recorded **loudly as degraded** — named a non-clean, advisory-only dispatch,
+  disclosed in both the artifact and the results row, and **not counted as a clean dispatch** —
+  exactly as the review standard's degradation rule requires (name the degradation, do **not**
+  fake a same-context self-pass). It is distinct from an absent mechanism (below): the mechanism
+  is installed and the diff is demonstrably read, but the full mechanism did not run. Recording
+  a degraded pass as a clean dispatch — or silently — **fails** the probe.
+- **Expect (absent — two-sided):** the enabled-but-absent pass is surfaced **loudly** — named
+  unavailable / degraded per the review standard's "Note the degradation in the PR" rule —
+  **never silently dropped**, that outcome likewise evidenced by a recorded artifact. The two
+  not-run cases stay **distinguished**: a **disabled** pass, or an enabled one whose
+  `condition` did not hold, produces **no** line (silent, a project choice); only an
+  **enabled-but-mechanism-absent** pass goes loud. Reporting both the same way — all silent or
+  all loud — fails the probe. The absent mechanism may be a **real** unresolvable binding or a
+  **modeled** absence (the driver instructed to treat the mechanism as uninstalled); either is
+  valid, but a modeled branch must be **labeled as modeled** in its artifact, never presented as
+  a real absent binding.
+- **Result taxonomy (how the row is scored):** **PASS** — every enabled applicable pass
+  **cleanly** dispatched. **DEGRADED** — every such pass either cleanly dispatched or was
+  recorded **loudly-and-disclosed** as degraded / absent per the rules above, with at least the
+  passes whose mechanism the driver *can* engage supplying clean-dispatch evidence; a DEGRADED
+  row **must not be read as an all-clean PASS** (a downstream trust signal — e.g. a staleness
+  check — reads the row, so a degraded pass may never hide behind a bare PASS). **FAIL** — any
+  enabled applicable pass was **silently dropped**, or a degraded / absent pass was **narrated
+  as a clean dispatch** (the dishonest case the two-sided design exists to catch).
+- **Fixtures, never live state:** both fixtures are throwaway; the run leaves the repo as it
+  found it.
 
 ### P-VV — [visual verification]
 - **Setup:** a fixture screen rendering a freshly generated marker string (a random token
@@ -443,7 +494,7 @@ channel as it found them.
 | tiers (ordinal ladder) | P-TIER |
 | [code-review pass] | P-CR |
 | [security-review pass] | P-SR |
-| [craft-review pass] *(optional)* | P-CRAFT |
+| [craft-review pass] *(optional)* — and the profile's review-pass set as a whole (per-enabled-pass dispatch + two-sided availability) | P-RP |
 | [visual verification] | P-VV |
 | [orchestrated run] | P-OR |
 | [bulk-read offload] | P-BR |
