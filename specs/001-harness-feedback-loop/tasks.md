@@ -402,7 +402,7 @@
       **enabled-but-mechanism-absent → loud** (named in the PR body, never silently dropped);
       blocked by T628 (US8) — strong: a runtime-neutral workflow-output contract (constitution
       P1/P3)
-- [ ] T630 [strong] `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`,
+- [x] T630 [strong] `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`,
       wired into CI `verify`) pins the profile rows against the adapter-mapped shipped pass
       set: FAILs on enabled-but-unmapped, **adapter-mapped-shipped-pass-missing-from-profile**
       (the silent-drop parity gap), duplicate row, and off-enum `condition`/`applies-to`,

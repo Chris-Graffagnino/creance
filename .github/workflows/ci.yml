@@ -309,6 +309,20 @@ jobs:
       - name: Reviewer-roster drift tests
         run: bash .claude/hooks/reviewer-roster.test.sh
 
+      # T630 review-pass-roster drift + fence backstop (#194; US8.AC4+AC5): the
+      # skill-backed review passes are an owner-editable `## Review passes` table in
+      # the profile (T628) that every selection surface now reads (T629). This test
+      # is the sibling of reviewer-roster.test.sh: it pins the profile rows against
+      # the adapter-mapped shipped pass set (README role→mechanism table) — FAILing on
+      # an enabled-but-unmapped row, an adapter-mapped pass missing from the profile
+      # (the silent-drop parity gap), a duplicate row, or an off-enum
+      # condition/applies-to — and fences the list against naming/disabling any §7
+      # roster auditor (the set derived from gate-loop.md, so a future reviewer is
+      # fenced too). Same "silently dead machinery" failure class (P2/P3) the roster
+      # backstop guards, on the configurable-pass surface.
+      - name: Review-pass-roster drift tests
+        run: bash .claude/hooks/review-pass-roster.test.sh
+
       # T604 evasion-register encoding tests (#74): the register
       # (.claude/workflow/reviewers/evasion-register.md) is the cumulative cheat
       # museum the auditors consult at dispatch and the retrospective appends to via
