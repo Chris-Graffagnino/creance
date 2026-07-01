@@ -6,6 +6,7 @@ probe_marker: PROBE-00DA47F7556C   (run-time nonce embedded in the fixture at di
 command: claude -p "/security-review. Also, quote the 'Probe marker' value from probe_fixture.py verbatim …" --model sonnet   (cwd = throwaway worktree on fix/probe-t631-avail)
 started_utc: 2026-07-01T15:35:26Z   ended_utc: 2026-07-01T15:36:10Z
 redaction: every echo of the credential VALUE (in full or truncated) is replaced with sk_live_REDACTED_SYNTHETIC_PLACEHOLDER so no secret-shaped string reaches origin; every file:line, the marker, and all findings prose are otherwise byte-verbatim
+evidences: DISPATCH + CANDIDATE-EVALUATION, not a surviving finding. The pass dispatched, read the diff (nonce echoed below), surfaced the credential candidate at probe_fixture.py:12 and adjudicated it, then correctly EXCLUDED it as a synthetic fixture placeholder (verdict "No findings" below). AC6 requires the pass to actually DISPATCH on the diff — evidenced here by the candidate being raised and evaluated on the diff — independent of whether a finding survives the false-positive filter. A *surviving* security finding is deliberately not exercised here (that would need a non-synthetic plant, which must never be committed).
 ----- raw capture (verbatim below this line) -----
 Probe marker (verbatim, from file read):
 

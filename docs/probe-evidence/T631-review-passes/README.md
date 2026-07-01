@@ -65,9 +65,20 @@ defects, one per lens:
 
 A second throwaway worktree on `fix/probe-t631-absent` (off `main`) adding a **non-sensitive**
 `probe_absent_fixture.py` (a pure `add(a, b)` — no credential/privacy/payment surface), so the
-`[security-review pass]`'s `sensitive-diff` condition does **not** hold. The run is driven with
-the external `engineering-craft` skill treated as **not installed**, exercising the two-sided
-availability branch.
+`[security-review pass]`'s `sensitive-diff` condition does **not** hold. The run exercises the
+two-sided availability branch with the external `engineering-craft` skill absent.
+
+> **Modeled absence (read before crediting `absent-craft.log`).** This absent side is a
+> **modeled** branch, not a real uninstall: the skill symlink is genuinely present on the
+> machine, and the mechanism was made absent by **instructing the driver to treat
+> `engineering-craft` as not installed** in the dispatch prompt — the log header labels it as
+> such. The artifact proves the driver *emits the loud UNAVAILABLE/DEGRADED outcome* when told
+> the mechanism is gone (and keeps a condition-unmet pass silent), which is the AC3 branch under
+> test; it does **not** prove the adapter's resolver hit a real missing binding. A concrete,
+> non-modeled reproduction is to move the `~/.claude/skills/engineering-craft` symlink aside
+> before the run so the resolver genuinely fails to find it; the modeled branch is used here
+> because the loud-vs-silent *reporting* behavior is what AC3/AC6 pin, and it is identical
+> either way.
 
 Both worktrees + fixture branches are **deleted after the run** (fixtures, never live state —
 the probe leaves the repo as found; `git worktree list` shows only the main tree afterward).
@@ -86,9 +97,9 @@ Neither fixture reached `origin` or `main`.
 | Log | Pass | Enabled / condition | What the capture evidences |
 |---|---|---|---|
 | `code-review.log` | `[code-review pass]` | enabled / `always` | **Clean dispatch.** `/code-review` (built-in) dispatched on the fixture diff — nonce echoed; all three plants cited (`:12`, `:22`, `:29–36`). Round-2 re-run: the round-1 non-dispatch was transient and is gone (capture opens straight into the review). |
-| `security-review.log` | `[security-review pass]` | enabled / `sensitive-diff` | **Clean dispatch.** `/security-review` (built-in) dispatched — nonce echoed; reviewed the credential candidate at `probe_fixture.py:12` (then correctly excluded it as a synthetic fixture placeholder — **dispatch** is what AC6 requires, independent of the post-filter verdict) |
+| `security-review.log` | `[security-review pass]` | enabled / `sensitive-diff` | **Clean dispatch — evidenced by candidate-evaluation, not a surviving finding.** `/security-review` (built-in) dispatched — nonce echoed; **surfaced and evaluated** the credential candidate at `probe_fixture.py:12`, then correctly excluded it as a synthetic fixture placeholder (returning "No findings"). Dispatch — what AC6 requires — is evidenced by the candidate being **raised and adjudicated on the diff**, independent of the post-filter verdict; a *surviving* security finding is deliberately not exercised here (a non-synthetic plant would be needed, and must never be committed) |
 | `craft-review.log` | `[craft-review pass]` | enabled / `always` | **DEGRADED — full mechanism did not engage.** `engineering-craft` is genuinely installed, but under the headless driver its reference material is permission-gated and does not load; the capture's own first line says so ("The reference files are behind a permission gate …"). Nonce echoed + all plants cited, so the **diff was read**, but this is the skill body's embedded principles, not a reference-backed dispatch — **reproducible** across round 1 and round 2. Recorded loudly per the review standard's "skip the craft layer / Note the skip" rule; **not** counted as a clean available-side dispatch. |
-| `absent-craft.log` | `[craft-review pass]` (mechanism **absent**) | two-sided | nonce echoed; with the `engineering-craft` skill treated as **not installed**, the run names craft **loudly** as "⚠️ UNAVAILABLE / DEGRADED" (refusing a same-context self-pass) while the `[security-review pass]`, enabled but with `sensitive-diff` unmet, stays **silent** (no line) — the AC3 enabled-but-absent → loud branch, with the two not-run cases distinguished |
+| `absent-craft.log` | `[craft-review pass]` (mechanism **absent** — **modeled**) | two-sided | nonce echoed; with the `engineering-craft` skill **modeled as not installed** (instructed in the prompt, not a real uninstall — see the absent-side fixture note above), the run names craft **loudly** as "⚠️ UNAVAILABLE / DEGRADED" (refusing a same-context self-pass) while the `[security-review pass]`, enabled but with `sensitive-diff` unmet, stays **silent** (no line) — the AC3 enabled-but-absent → loud branch, with the two not-run cases distinguished |
 
 ### Degradation disclosure — `[craft-review pass]` under the headless driver
 
@@ -105,14 +116,26 @@ claim contradicted its own first line):
   re-run hit the identical "locked behind a permission prompt" / "reference files are behind a
   permission gate" wall. Contrast `/code-review`, where a round-1 non-dispatch cleared on
   re-run — that one was transient, so its log is now a clean mechanism dispatch.
-- **How AC6 is still met:** AC6's available-side requirement is that an enabled, *available*
-  pass be evidenced as **actually dispatched**. The two **built-in** passes (`/code-review`,
-  `/security-review`) satisfy that — both dispatch cleanly headless (see their logs). The
-  external craft pass's full-mechanism dispatch is the one this driver cannot evidence, and the
-  review standard's own rule for that case (`.claude/workflow/README.md` → "No [craft-review
-  pass] mechanism → skip the craft layer … Note the skip in the PR. Do **not** fake it as a
-  same-context self-pass") is to name the degradation loudly — which is what the craft log's
-  header, this section, and the adapter's P-RP results row all now do.
+- **The probe headline is `DEGRADED`, not a bare `PASS`.** Per the neutral contract's Result
+  taxonomy (`conformance-probes.md` → "P-RP" → "Result taxonomy"), a run in which an enabled
+  applicable pass is present-but-can't-fully-engage is scored **DEGRADED** — clean-dispatched
+  where the driver can engage the mechanism, loud-and-disclosed where it can't — precisely so
+  the results row can **never** certify an all-clean configuration while an enabled pass didn't
+  cleanly fire (the risk a bare `PASS` would carry into a downstream staleness / trust read).
+  The adapter's P-RP row records `DEGRADED` for exactly this reason. The headless craft
+  degradation is the contract's **documented, expected** degraded-available-side outcome, not an
+  unverified branch.
+- **AC6 is still satisfied by that honest DEGRADED recording.** AC6's available-side requirement
+  is that an enabled, *available* pass be evidenced as **actually dispatched**, and that the run
+  **record per-pass dispatch honestly** (including the two-sided availability distinction). The
+  two **built-in** passes (`/code-review`, `/security-review`) supply the actually-dispatched
+  evidence — both dispatch cleanly headless (see their logs). The external craft pass's
+  full-mechanism dispatch is the one this driver cannot evidence, and the review standard's own
+  rule for that case (`.claude/workflow/README.md` → "No [craft-review pass] mechanism → skip
+  the craft layer … Note the skip in the PR. Do **not** fake it as a same-context self-pass") is
+  to name the degradation loudly — which is what the craft log's header, this section, and the
+  adapter's P-RP results row all now do. A DEGRADED-but-honest recording is the discipline AC6
+  asks for, not a shortfall against it.
 - **What the craft capture still contributes:** the nonce echo + fixture-line citations are a
   non-forgeable record that the **diff reached the model** on that dispatch; it is kept as a
   degraded/advisory craft artifact, clearly labeled, not as a clean pass.
