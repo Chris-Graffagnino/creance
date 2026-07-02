@@ -224,6 +224,12 @@ context loss because it lives on the issue). **[cheap tier]** tasks skip it.
   named interface (never a vendor SDK from UI/component code), and never use a banned
   vendor/source listed there.
 - For behavior changes, add/update meaningful tests incl. negative/edge cases.
+- **Falsify every new/changed test:** it counts only if shown to **fail on incorrect
+  output** (mutate or withhold the behavior and confirm it goes red) AND it asserts
+  **per-instance / per-row behavior, never a single match anywhere in the artifact** —
+  forbidden vacuous shapes: a **prefix-only match**, a **single-fingerprint-anywhere
+  match**. Maker-side only; the acceptance **[reviewer]**'s §7 hard-FAIL on vacuous
+  assertions (`workflow/reviewers/spec-auditor.md`) is the unchanged backstop.
 - **Blocked by an external dependency? Mock it behind the seam — never abort.** When
   progress is blocked by something outside the repo (a provider API key, an unprovisioned
   service, an owner-only credential, an unreleased upstream), do all four:
