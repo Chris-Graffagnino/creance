@@ -50,18 +50,18 @@ ratifiable PRs instead of one — with every safety invariant of the single-task
 across iterations.
 
 **Acceptance Criteria**
-- The loop is specified as a runtime-neutral `[backlog-loop]` in `.claude/workflow/**`
+- AC1: The loop is specified as a runtime-neutral `[backlog-loop]` in `.claude/workflow/**`
   (capabilities named as bracketed [roles] only — no runtime tool, CLI flag, vendor, or model
   ID; the `workflow/**` neutrality scan stays green), and each iteration is a complete,
   unmodified `next-task` cycle — `[live-state reconciliation]` → implement in the
   `[isolated workspace]` → §7 gate → PASS→PR / FAIL→discard — reusing those roles verbatim; the
   diff introduces no change to gate semantics (round limits, veto authority, tier floors,
   reviewer roster) as shown by the roster/gate-loop sources being unchanged.
-- The loop is reachable **only** through the existing `[autonomy activation]` check: a
+- AC2: The loop is reachable **only** through the existing `[autonomy activation]` check: a
   deterministic test proves (a) an entry path that starts iterations without the activation
   check FAILS, and (b) with the profile opt-in absent and no session authorization, the loop
   resolves to review (does not run) — the fail-closed posture is preserved, not relaxed.
-- Stop conditions are **deterministic** and evaluated only *between* iterations, never
+- AC3: Stop conditions are **deterministic** and evaluated only *between* iterations, never
   mid-task: (a) a configured **max-N** tasks per run, N resolved from configuration/invocation
   and never hardcoded in the loop body — **N=0 is a valid no-op run that stops immediately for
   condition (a) with no iteration attempted**; (b) no unblocked candidate remains; (c) the same
@@ -73,16 +73,16 @@ across iterations.
   run halts at N (cannot exceed N iterations) **and** that with M < N eligible unblocked tasks
   the run completes M and stops for condition (b) (it does not stop early while eligible work
   and budget remain), **plus the first-FAIL-advances-to-next-candidate and N=0-no-op behaviors**.
-- The run **never merges and never writes the base branch**: each iteration terminates at a PR
+- AC4: The run **never merges and never writes the base branch**: each iteration terminates at a PR
   via the existing T612 promotion path (merge stays session-explicit). A falsification test
   proves that across N iterations no merge and no base-branch write occurs, and that an
   un-gated change from any iteration is unreachable from base (extends the T613 proof to the
   multi-iteration case).
-- Between-iteration state — the run report and any iteration counters — is **observe-only**:
+- AC5: Between-iteration state — the run report and any iteration counters — is **observe-only**:
   a deterministic fence proves that no gate-outcome, model-tier-assignment, or task-selection
   code path reads the run report or the counters (constitution P5), **paired** with a control
   proving the writer/reader (reporting) path *does* resolve them, so the fence is not vacuous.
-- The run report is written to the out-of-repo triage-inbox channel (the existing triage
+- AC6: The run report is written to the out-of-repo triage-inbox channel (the existing triage
   default; no new path convention invented), one line per iteration recording the task ID, the
   gate verdict, and the resulting PR reference or discard, **each field matching that
   iteration's actual outcome** — a deterministic test asserts the recorded verdict and
@@ -91,6 +91,7 @@ across iterations.
   iteration or blocks promotion (consistent with the observe-only posture of the run report),
   and a **partially completed run is a valid outcome, not an error baseline** — still
   observable *as partial* in the report so it is not mistaken for a clean drain. `/triage`
-  surfaces the batch in its snapshot. A conformance probe records **one real multi-task
-  unattended run** on the live adapter with dated fingerprints (the T303/P-IW pattern),
-  including the observed stop condition.
+  surfaces the batch in its snapshot.
+- AC7: A conformance probe records **one real multi-task unattended run** on the live
+  adapter with dated fingerprints (the T303/P-IW pattern), including the observed stop
+  condition.

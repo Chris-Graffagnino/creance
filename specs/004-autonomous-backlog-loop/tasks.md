@@ -56,7 +56,8 @@
 | US1.AC3 | T902 |
 | US1.AC4 | T903 |
 | US1.AC5 | T904 |
-| US1.AC6 | T905 |
+| US1.AC6 | T904 |
+| US1.AC7 | T905 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
