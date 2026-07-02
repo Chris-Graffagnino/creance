@@ -442,16 +442,20 @@
       (#201; repo-maintenance — done-when on issue) — strong: edits the runtime-neutral
       workflow boundary and must not drift reviewer/gate semantics (constitution P1/P3)
 - [ ] T633 [strong] Add a **local pre-commit tasks-consistency check** as a `[guard]` rule
-      (or equivalent deterministic pre-commit path) that runs the existing
-      done-but-unchecked drift logic **before** a commit lands, **sharing**
-      `lib-tasks-drift.sh` (never a forked copy — a fork is itself a FAIL, P2) and **failing
-      open** when live state is unavailable; catches checkbox drift introduced *during* a
-      task before it reaches CI, while CI's `check-tasks-consistency.sh` in `verify` stays
-      the authoritative backstop (no gate-semantics change, P5). Guard-behavior change, so it
-      ships matching `guard.test.sh` case(s) — a paired fires-on-drift / passes-clean plus
-      the fail-open case and the wiring assertion — in the same diff (#202;
-      repo-maintenance — done-when on issue) — strong: changes `[guard]` behavior and adds
-      its P2 regression coverage (constitution P2/P3)
+      (or equivalent deterministic pre-commit path) that catches done-but-unchecked drift for
+      the **commit being attempted** — it must read the pending commit's `[T###]` from the
+      guard `command` payload (the un-landed commit is *not* yet in `git log`, so a bare
+      re-run of the `git log`-based check would miss the core case), while **sharing**
+      `lib-tasks-drift.sh` for the unchecked-box half (`tasks_drift_unchecked_ids`; never a
+      forked drift definition — a fork is itself a FAIL, P2) and **failing open** when live
+      state is unavailable; catches checkbox drift introduced *during* a task before it
+      reaches CI, while CI's `check-tasks-consistency.sh` in `verify` stays the authoritative
+      backstop (no gate-semantics change, P5). Guard-behavior change, so it ships matching
+      `guard.test.sh` case(s) in the same diff: a **fires-on-drift fixture where the pending
+      `git commit` message carries `[T###]` and that box is still `- [ ]`** (not merely
+      planted history), a **passes-clean control where the box is checked**, the fail-open
+      case, and the wiring assertion (#202; repo-maintenance — done-when on issue) — strong:
+      changes `[guard]` behavior and adds its P2 regression coverage (constitution P2/P3)
 
 ## Criterion ownership (multi-task user stories)
 
