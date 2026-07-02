@@ -14,6 +14,13 @@
 #      table via GUARD_MODELS_FILE)
 #   6. self-colliding in-place sed edits — an `s#`/`s/` delimiter colliding with
 #      a URL in the operand (the silent PR-body-blank class, issue #95)
+#   8. pending-commit tasks-drift — a `git commit` whose message carries [T<nnn>]
+#      while that task's box is still `- [ ]` in a live tasks file (issue #202;
+#      the pending id is read from the command payload, the unchecked-box half
+#      from the shared lib-tasks-drift.sh; the boxes are read from the repo the
+#      commit TARGETS and the view it LANDS — index vs worktree — per the
+#      PR #208 review; rule 7 below is the PostToolUse [edit guard], numbered
+#      before this rule landed)
 # plus the telemetry logging paths (workflow/telemetry.md): block records,
 # evaluation records, and the failure-stays-silent case (GUARD_TELEMETRY_FILE
 # is the stream's test seam).
@@ -268,6 +275,69 @@ check 0 "$FEAT" "r6 allow: URL upstream of sed in a pipe" "$(bashp 'curl https:/
 check 0 "$FEAT" "r6 allow: URL in a separate command after the sed" "$(bashp 'sed -i '\''s/a/b/'\'' f ; echo https://x')"
 check 0 "$FEAT" "r6 allow: s/-suffixed path + URL but no sed" "$(bashp 'ls tools/ && curl https://x')"
 
+# --- rule 8: pending-commit tasks-drift check (issue #202 / T633) ---
+# The commit being ATTEMPTED is not yet reachable from `git log`, so the rule must
+# read the pending [T###] from the command payload itself — a fixture that only
+# plants an already-landed [T###] commit would re-test the CI case and pass
+# vacuously (#202 DW2). Fixture: an unchecked box in a live tasks file plus a
+# commit payload carrying that id, with the id in NO planted history. The
+# unchecked-box half is the shared lib-tasks-drift.sh (tasks_drift_unchecked_ids);
+# CI's check-tasks-consistency.sh stays the authoritative backstop (DW5).
+DRIFT="$TMP/drift-repo"
+git init -q -b feature/drift "$DRIFT"
+DRIFT_ROOT="$(git -C "$DRIFT" rev-parse --show-toplevel)"
+mkdir -p "$DRIFT/specs/010-fixture"
+printf -- '- [ ] T987 fixture task\n- [ ] T901 other fixture task\n' > "$DRIFT/specs/010-fixture/tasks.md"
+git -C "$DRIFT" add specs/010-fixture/tasks.md
+git -C "$DRIFT" -c user.email=t@t.test -c user.name=t commit -qm 'seed fixture tasks file'
+# DW2 recall: the pending commit's [T987] + a still-unchecked box -> DENY before it lands.
+check 2 "$DRIFT" "r8 block: pending commit id with unchecked box (DW2)" "$(bashp 'git commit -m \"feat: [T987] do the thing\"')"
+check 2 "$DRIFT" "r8 block: pending drift via PowerShell" "$(pwshp 'git commit -m \"feat: [T987] do the thing\"')"
+# per-id, not first-only: a multi-id message where ONE id is drifted still fires
+# ([T988] is in no tasks file, so only [T987] carries the drift).
+check 2 "$DRIFT" "r8 block: multi-id message, one id drifted" "$(bashp 'git commit -m \"feat: [T988] follow-up to [T987]\"')"
+# PR #208 P2 (view): the boxes must come from the view the commit LANDS. A tick
+# left only in the working tree still commits `- [ ]` (a plain commit lands the
+# INDEX) -> DENY; the same worktree tick under `-a` (which stages it), or under a
+# pathspec commit naming the tasks file (which lands its worktree content), ->
+# ALLOW. Then the inverse pair: the tick STAGED but reverted in the worktree — a
+# plain commit lands the staged tick -> ALLOW (the old worktree read over-blocked
+# here), while `-a` lands the reverted box -> DENY. Together these pin "read the
+# landing view", not either file state alone.
+printf -- '- [x] T987 fixture task\n- [ ] T901 other fixture task\n' > "$DRIFT/specs/010-fixture/tasks.md"
+check 2 "$DRIFT" "r8 #208 block: tick in worktree only, not staged" "$(bashp 'git commit -m \"feat: [T987] do the thing\"')"
+check 0 "$DRIFT" "r8 #208 allow: -a commit stages the worktree tick" "$(bashp 'git commit -am \"feat: [T987] do the thing\"')"
+check 0 "$DRIFT" "r8 #208 allow: pathspec commit of the tasks file lands the tick" "$(bashp 'git commit specs/010-fixture/tasks.md -m \"feat: [T987] do the thing\"')"
+git -C "$DRIFT" add specs/010-fixture/tasks.md
+printf -- '- [ ] T987 fixture task\n- [ ] T901 other fixture task\n' > "$DRIFT/specs/010-fixture/tasks.md"
+check 0 "$DRIFT" "r8 #208 allow: staged tick lands despite reverted worktree" "$(bashp 'git commit -m \"feat: [T987] do the thing\"')"
+check 2 "$DRIFT" "r8 #208 block: -a commit lands the reverted worktree box" "$(bashp 'git commit -am \"feat: [T987] do the thing\"')"
+git -C "$DRIFT" reset -q -- specs/010-fixture/tasks.md   # index back to unchecked for the tests below
+# whole-id anchoring: a pending [T90] must not trip the unchecked T901.
+check 0 "$DRIFT" "r8 allow: [T90] does not match unchecked T901" "$(bashp 'git commit -m \"feat: [T90] unrelated\"')"
+# PR #208 P2 (repo): a cross-repo commit reads the TARGET repo's tasks state, not
+# the event cwd's — resolved via the same effective-repo replay as rule 3. Paired
+# both directions: clean cwd + drifted target -> DENY (the old event-cwd read
+# missed it); drifted cwd + clean target -> ALLOW (the old read falsely blocked
+# it). FEAT has no tasks files at all, so it doubles as the clean side.
+check 2 "$FEAT" "r8 #208 block: git -C <drifted-repo> commit from clean cwd" "$(bashp "git -C $DRIFT_ROOT commit -m \\\"feat: [T987] x\\\"")"
+check 0 "$DRIFT" "r8 #208 allow: git -C <clean-repo> commit from drifted cwd" "$(bashp "git -C $FEAT_ROOT commit -m \\\"feat: [T987] x\\\"")"
+# scope: only `git commit` consults the tasks state — a non-commit command carrying
+# the id, and a commit whose message has no id, are both left alone (fail open).
+printf -- '- [ ] T987 fixture task\n' > "$DRIFT/specs/010-fixture/tasks.md"
+check 0 "$DRIFT" "r8 allow: non-commit command mentioning the id" "$(bashp 'grep -rn \"[T987]\" specs/')"
+check 0 "$DRIFT" "r8 allow: commit message without a task id" "$(bashp 'git commit -m \"chore: tidy the fixture\"')"
+# DW3 fail-open: no live tasks files at all (the FEAT repo has none) -> ALLOW.
+check 0 "$FEAT" "r8 allow: no tasks files -> fail open (DW3)" "$(bashp 'git commit -m \"feat: [T987] x\"')"
+# DW1 no-fork pin (same shape as reconcile/announce's share assertions): the guard
+# consumes the SHARED unchecked-box definition, never a forked copy.
+if grep -qE 'lib-tasks-drift\.sh' "$HOOK" && grep -qE 'tasks_drift_unchecked_ids' "$HOOK"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL %-55s guard.sh must source lib-tasks-drift.sh + call tasks_drift_unchecked_ids (forked drift logic?)\n' "r8 share: guard sources the shared drift lib" >&2
+fi
+
 # --- rule 7: the [edit guard] (PostToolUse) — delta-based lint reject (#79) ---
 # A committed .sh baseline carrying ONE pre-existing portability failure; each
 # "edit" rewrites the working-tree file before its payload. The checker is the
@@ -366,6 +436,12 @@ tcount 1 '"timestamp":"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z"' "tele: block reco
 : > "$TELE"
 check 2 "$FEAT" "tele: rule-6 block still exits 2" "$(bashp 'sed -e \"s#a#https://x#frag#g\" f')"
 tcount 1 '"record":"block".*"rule":"sed-url-delimiter-collision".*"tool":"Bash"' "tele: rule-6 block record carries rule + tool"
+
+# Rule 8 takes the same block path — its record names the commit-tasks-drift rule.
+: > "$TELE"
+printf -- '- [ ] T987 fixture task\n' > "$DRIFT/specs/010-fixture/tasks.md"
+check 2 "$DRIFT" "tele: rule-8 block still exits 2" "$(bashp 'git commit -m \"feat: [T987] x\"')"
+tcount 1 '"record":"block".*"rule":"commit-tasks-drift".*"tool":"Bash"' "tele: rule-8 block record carries rule + tool"
 
 # Evaluation path: every constitution-auditor dispatch logs liveness, allowed or blocked.
 : > "$TELE"
