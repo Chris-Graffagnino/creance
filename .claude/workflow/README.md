@@ -75,8 +75,11 @@ The deterministic gate blocks, before execution:
    speed-up, never a gate-semantics change). The attempted commit is not yet reachable
    from the repo history, so the task ID is read from the **imminent command itself**;
    the unchecked-box detection is the **same shared drift definition** the CI check and
-   the selection precondition consume — one definition, never a fork. Fails open when
-   the message carries no task ID or the live tasks state is unavailable.
+   the selection precondition consume — one definition, never a fork. The boxes are
+   read from the **repo the commit targets** (resolved like rule 3's effective repo)
+   and from the **state the commit will land** — for a plain commit the staged
+   content, not a working-tree edit left unstaged. Fails open when the message
+   carries no task ID or the landing tasks state is unavailable.
 It **fails open**: any uncertainty → allow. These rules are normative; each adapter
 supplies its own implementation (the active adapter's is named in `.claude/README.md`).
 

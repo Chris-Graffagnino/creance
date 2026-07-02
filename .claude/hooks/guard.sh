@@ -32,10 +32,14 @@
 #      caught at commit time, before CI (issue #202). The pending id is read
 #      from the command payload (the un-landed commit is not in `git log`); the
 #      unchecked-box half is shared from lib-tasks-drift.sh, never a forked
-#      drift definition. CI's check-tasks-consistency.sh stays the
-#      authoritative backstop. Fails open: no id in the command, a missing lib,
-#      an unreadable repo root, or no live tasks files. (Numbered 8 because
-#      rule 7 below — the PostToolUse [edit guard] — landed first.)
+#      drift definition. The boxes are read from the repo the commit TARGETS
+#      (the invocation's `-C`/`--git-dir` or a leading `cd … &&`, like rule 3)
+#      and from the view the commit will LAND — the index for a plain commit,
+#      the working tree for `-a`/`--all`-style forms (PR #208 review). CI's
+#      check-tasks-consistency.sh stays the authoritative backstop. Fails
+#      open: no id in the command, a missing lib, an unreadable repo root, or
+#      no live tasks files. (Numbered 8 because rule 7 below — the PostToolUse
+#      [edit guard] — landed first.)
 # PostToolUse — fix-forward feedback (exit 2) AFTER the write, since PreToolUse
 # cannot see an edit's result and PostToolUse cannot revert (issue #79):
 #   7. An edit to a checked file that ADDS a diagnostic from the project's
@@ -70,16 +74,17 @@ branch() { git branch --show-current 2>/dev/null; }
 gitg='-C[[:space:]]+[^[:space:];&|"]+|-c[[:space:]]+[^[:space:];&|"]+|--git-dir=[^[:space:];&|"]*|--git-dir[[:space:]]+[^[:space:];&|"]+|--work-tree=[^[:space:];&|"]*|--work-tree[[:space:]]+[^[:space:];&|"]+|--namespace[[:space:]]+[^[:space:];&|"]+|--paginate|--no-pager|--bare|--literal-pathspecs|--no-optional-locks|-p'
 grun="([[:space:]]+($gitg))*"
 
-# Effective-repo resolution for the branch-gated rule 3. A `git -C <path>`, a
+# Effective-repo resolution for the repo-state rules (the branch-gated rule 3, and
+# rule 8's tasks-state read — PR #208 review). A `git -C <path>`, a
 # `git --git-dir=<path>`, or a leading `cd <path> &&` makes a command act on a
-# DIFFERENT repo than the event cwd, so the branch must be resolved THERE, not only
+# DIFFERENT repo than the event cwd, so the repo state must be resolved THERE, not only
 # in the hook cwd (issue #138 DW2). The repo-locating globals are taken from the SAME
-# `git … commit|push` invocation that rule 3 matched — NOT the first `git` token in the
+# `git … commit|push` invocation that the rule matched — NOT the first `git` token in the
 # line — so an unrelated leading run (`git -C <other> status && git commit`) does not
-# lend its `-C` to the commit's branch decision (PR #173, Codex P2); and `--git-dir`
+# lend its `-C` to the commit's repo decision (PR #173, Codex P2); and `--git-dir`
 # is honored alongside `-C` (PR #173, craft H1). Best-effort + fail-open: when the
-# resolved target's branch is unreadable (a bad path, a non-repo, a detached HEAD),
-# fall back to the event-cwd branch — so the change only ADDS DENY coverage and never
+# resolved target is unreadable (a bad path, a non-repo, a detached HEAD), each caller
+# falls back to its event-cwd read — so the resolution only ADDS coverage and never
 # weakens the existing event-cwd check.
 cd_dir() { # a leading `cd <path> &&` -> <path> (empty otherwise)
   case "$1" in
@@ -92,26 +97,30 @@ commit_push_run() { # the `git <globals> commit|push` invocation's prefix -> str
   # `commit` prefix; -oE includes the boundary char, which is harmless to -C/--git-dir extraction.
   printf '%s' "$1" | grep -oE "git${grun}[[:space:]]+(commit|push)([[:space:]]|;|&|\||\"|$)" | head -1
 }
-effective_branch() { # <command> -> branch of the repo the command acts on
-  local cmd="$1" run cddir copt gdir b
+effective_git() { # effective_git <command> <git-args...> -> git output against the
+  # repo the command acts on; rc 1 / no output when the command carries no locators
+  # or the target is unreadable (the caller supplies its event-cwd fallback).
+  local cmd="$1" run cddir copt gdir; shift
   run="$(commit_push_run "$cmd")"
   cddir="$(cd_dir "$cmd")"
   # `-C` / `--git-dir` taken ONLY from that invocation's leading global run, so a
   # non-global `git commit -C HEAD` (reuse-message) is never misread as a directory.
   copt="$(printf '%s' "$run" | grep -oE '\-C[[:space:]]+[^[:space:];&|"]+' | tail -1 | sed -E 's/^-C[[:space:]]+//')"
   gdir="$(printf '%s' "$run" | grep -oE '\-\-git-dir(=|[[:space:]]+)[^[:space:];&|"]+' | tail -1 | sed -E 's/^--git-dir(=|[[:space:]]+)//')"
-  # Replay the locator globals against `branch --show-current`, in the hook cwd (= event
+  [ -n "$cddir$copt$gdir" ] || return 1
+  # Replay the locator globals ahead of the caller's git args, in the hook cwd (= event
   # cwd) so relative paths resolve exactly as the real command would. git applies repeated
   # `-C` cumulatively, so a `cd <a> && git -C <b>` nests <b> under <a> for free, and an
   # absolute `-C`/`--git-dir` overrides it.
-  set --
-  [ -n "$cddir" ] && set -- "$@" -C "$cddir"
-  [ -n "$copt" ]  && set -- "$@" -C "$copt"
-  [ -n "$gdir" ]  && set -- "$@" --git-dir "$gdir"
-  if [ "$#" -gt 0 ]; then
-    b="$(git "$@" branch --show-current 2>/dev/null)"
-    [ -n "$b" ] && { printf '%s' "$b"; return 0; }
-  fi
+  [ -n "$gdir" ]  && set -- --git-dir "$gdir" "$@"
+  [ -n "$copt" ]  && set -- -C "$copt" "$@"
+  [ -n "$cddir" ] && set -- -C "$cddir" "$@"
+  git "$@" 2>/dev/null
+}
+effective_branch() { # <command> -> branch of the repo the command acts on
+  local b
+  b="$(effective_git "$1" branch --show-current)"
+  [ -n "$b" ] && { printf '%s' "$b"; return 0; }
   branch
 }
 
@@ -386,25 +395,52 @@ case "$tool" in
     # — extracted escape-aware, since the [T###] lives inside the JSON string's
     # \"…\" message where jstr's [^"]* would truncate. The unchecked-box half is
     # SHARED from lib-tasks-drift.sh (tasks_drift_unchecked_ids) — one drift
-    # definition, never a fork (P2). Fail-open: no [T###] in the command, a
-    # missing lib, an unreadable repo root, or no live tasks files all allow.
-    # Scoped to `git commit`; the tasks state is read from the event-cwd repo
-    # (a cross-repo `-C` commit falls back to this repo's state — best-effort,
-    # and still fail-open when the id is unknown here).
+    # definition, never a fork (P2). Two resolution rules (PR #208 review, both P2):
+    #   • REPO: the tasks state is read from the repo the commit TARGETS — the
+    #     invocation's own `-C`/`--git-dir`, or a leading `cd … &&`, resolved
+    #     via effective_git exactly like rule 3 — falling back to the event-cwd
+    #     repo when no locator resolves.
+    #   • VIEW: a plain `git commit` lands the INDEX, so the boxes are read from
+    #     the STAGED tasks files (materialized via `git show :<path>` into a
+    #     temp dir the shared lib greps, keeping the one drift definition) — a
+    #     tick left only in the working tree still lands `- [ ]` and is drift.
+    #     A worktree-landing form (`-a`/`--all`/`--include`, or a pathspec
+    #     naming a tasks file) reads the working tree instead; the form
+    #     detection is textual and fail-open — a false worktree read only
+    #     weakens back to the pre-#208 read, never a false block. (A pathspec
+    #     commit that EXCLUDES a staged tasks fix lands HEAD's boxes — residual
+    #     miss, accepted: CI stays authoritative.)
+    # Fail-open: no [T###] in the command, a missing lib, an unreadable repo
+    # root, no live tasks files, or an unmaterializable index view all allow.
     if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+commit([[:space:]]|\\|")'; then
-      pend="$(printf '%s' "$payload" \
-        | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
-        | grep -oE '\[T[0-9]+\]' | tr -d '[]' | sort -u)"
+      cmdq="$(printf '%s' "$payload" \
+        | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1)"
+      pend="$(printf '%s' "$cmdq" | grep -oE '\[T[0-9]+\]' | tr -d '[]' | sort -u)"
       drift_lib="$(cd "$(dirname "$0")" && pwd)/lib-tasks-drift.sh"
-      root="$(git rev-parse --show-toplevel 2>/dev/null)"
+      root="$(effective_git "$cmd" rev-parse --show-toplevel)"
+      [ -n "$root" ] || root="$(git rev-parse --show-toplevel 2>/dev/null)"
       if [ -n "$pend" ] && [ -f "$drift_lib" ] && [ -n "$root" ]; then
-        unchecked="$( (cd "$root" && . "$drift_lib" && tasks_drift_unchecked_ids) 2>/dev/null )"
+        view="$root"; staged=''
+        if ! printf '%s' "$cmdq" | grep -qE 'tasks\.md|[[:space:]]--(all|include)([[:space:]=]|\\|"|$)|[[:space:]]-[a-zA-Z]*a[a-zA-Z]*([[:space:]]|\\|"|$)'; then
+          staged="$(mktemp -d 2>/dev/null)" || staged=''
+          if [ -n "$staged" ]; then
+            git -C "$root" ls-files -- 'specs/*/tasks.md' 2>/dev/null \
+            | while IFS= read -r tf; do
+                [ -n "$tf" ] || continue
+                mkdir -p "$staged/${tf%/*}" 2>/dev/null || continue
+                git -C "$root" show ":$tf" > "$staged/$tf" 2>/dev/null
+              done
+            view="$staged"
+          fi
+        fi
+        unchecked="$( (cd "$view" && . "$drift_lib" && tasks_drift_unchecked_ids) 2>/dev/null )"
+        [ -n "$staged" ] && rm -rf "$staged"
         drifted=''
         for id in $pend; do
           printf '%s\n' "$unchecked" | grep -qxF "$id" && drifted="$drifted $id"
         done
         if [ -n "$drifted" ]; then
-          block commit-tasks-drift "This commit's message references$(printf ' [%s]' $drifted) but that task's box in specs/*/tasks.md is still '- [ ]' — done-but-unchecked drift the CI consistency check will fail after push. Tick the box (- [x]) in the tasks file and stage it in this commit, or drop the id if the work is not that task's. (Advisory local copy of check-tasks-consistency.sh rule 3; CI stays authoritative.)"
+          block commit-tasks-drift "This commit's message references$(printf ' [%s]' $drifted) but that task's box in specs/*/tasks.md is still '- [ ]' in what this commit will land — done-but-unchecked drift the CI consistency check will fail after push. Tick the box (- [x]) in the tasks file AND stage it in this commit (git add <tasks-file>), or drop the id if the work is not that task's. (Advisory local copy of check-tasks-consistency.sh rule 3; CI stays authoritative.)"
         fi
       fi
     fi
