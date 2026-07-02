@@ -418,6 +418,45 @@
       with an artifact; blocked by T629 (US8) — cheap: a mechanical probe instantiation +
       recorded live run (two fixtures: available + absent)
 
+## Phase 14 — Test-authoring & pre-commit hygiene (usage-insights intake)
+
+> Two owner-filed issues surfaced by the 2026-07-01 usage-insights report as recurring
+> friction, converted via intake (`workflow/intake.md`): a maker-side test-authoring rule
+> that left-shifts the acceptance reviewer's existing anti-vacuous-assertion FAIL to
+> authoring time (#201), and a local pre-commit run of the existing tasks-consistency
+> check so checkbox drift is caught before CI, not after (#202). Each is repo-maintenance —
+> no new `US#`; the acceptance reviewer grades each against the done-when criteria carried
+> in the issue's intake cross-link comment, exactly as it would a `US#`. T633 changes
+> `[guard]` behavior, so it ships its matching `guard.test.sh` case in the same diff
+> (constitution P2). Independent — no ordering dependency between the two.
+
+- [ ] T632 [strong] Add a **maker-side falsification rule for tests** to
+      `.claude/workflow/next-task.md` §5 (and mirror one line into `AGENTS.md` only if the
+      residency ceiling allows — else a pointer): a new/changed test counts only if it is
+      shown to **fail on incorrect output** (mutate or withhold the behavior and confirm it
+      goes red) and asserts **per-instance / per-row** behavior, never a single match
+      anywhere in the artifact — naming the vacuous shapes it forbids (prefix-only match,
+      single-fingerprint-anywhere). Maker-side only: the acceptance reviewer already
+      hard-FAILs vacuous assertions (`reviewers/spec-auditor.md`), whose grading semantics
+      this must leave unchanged; `workflow/**` neutrality scan stays green
+      (#201; repo-maintenance — done-when on issue) — strong: edits the runtime-neutral
+      workflow boundary and must not drift reviewer/gate semantics (constitution P1/P3)
+- [ ] T633 [strong] Add a **local pre-commit tasks-consistency check** as a `[guard]` rule
+      (or equivalent deterministic pre-commit path) that catches done-but-unchecked drift for
+      the **commit being attempted** — it must read the pending commit's `[T###]` from the
+      guard `command` payload (the un-landed commit is *not* yet in `git log`, so a bare
+      re-run of the `git log`-based check would miss the core case), while **sharing**
+      `lib-tasks-drift.sh` for the unchecked-box half (`tasks_drift_unchecked_ids`; never a
+      forked drift definition — a fork is itself a FAIL, P2) and **failing open** when live
+      state is unavailable; catches checkbox drift introduced *during* a task before it
+      reaches CI, while CI's `check-tasks-consistency.sh` in `verify` stays the authoritative
+      backstop (no gate-semantics change, P5). Guard-behavior change, so it ships matching
+      `guard.test.sh` case(s) in the same diff: a **fires-on-drift fixture where the pending
+      `git commit` message carries `[T###]` and that box is still `- [ ]`** (not merely
+      planted history), a **passes-clean control where the box is checked**, the fail-open
+      case, and the wiring assertion (#202; repo-maintenance — done-when on issue) — strong:
+      changes `[guard]` behavior and adds its P2 regression coverage (constitution P2/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
