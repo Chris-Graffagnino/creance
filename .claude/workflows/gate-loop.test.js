@@ -17,6 +17,16 @@ const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'gate-loo
 // Strip the ESM export so the body is plain statements inside a function.
 const body = src.replace(/^export const meta/m, 'const meta');
 
+// NOTE (#188): the reviewers are read-only with NO shell, so gate-loop dispatches a git-capable
+// "diff-provider" helper (label `diff-provider-round-N`, no agentType) once per dispatch round,
+// validates its output against a checked, fail-closed contract (marker-terminated, non-empty
+// `diff --git` patch — PR #200 review), and only then embeds the diff in each reviewer prompt.
+// Stubs must therefore return a CONTRACT-VALID payload for the diff-provider (see `providedDiff`)
+// or the run aborts closed before any reviewer dispatch — that requirement is itself the proof
+// the contract is enforced (the provider can no longer be satisfied by a reviewer-style object
+// or a bare placeholder string). It also carries no agentType, so a stub that does not
+// special-case it would miscount it as the fixer/restore step. Tests 17–21 pin the abort path.
+
 function runGateLoop(args, agentStub) {
   const parallel = async (fns) => Promise.all(fns.map((fn) => fn()));
   const log = () => {};
@@ -32,6 +42,13 @@ function runGateLoop(args, agentStub) {
 }
 
 const baseArgs = { taskId: 'T102', strongModel: 'strong-row', cheapModel: 'cheap-row' };
+
+// The diff-provider's checked contract (mirrors gate-loop.js): output ends with the completion
+// marker and what precedes it is a non-empty `diff --git` patch.
+const DIFF_MARKER = '-----GATE-DIFF-COMPLETE-----';
+const providedDiff = (diffBody = 'diff --git a/file b/file\n+change') =>
+  `${diffBody}\n${DIFF_MARKER}`;
+const isDiffProvider = (opts) => opts.label && opts.label.startsWith('diff-provider');
 
 function assertPayloadShape(t) {
   assert.equal(t.record, 'gate-run');
@@ -50,10 +67,11 @@ async function test(name, fn) {
 
 // --- 1. PASS path carries the payload with outcome 'pass' -----------------------
 await test('pass path: telemetry present, outcome=pass, one entry per auditor', async () => {
-  const result = await runGateLoop(baseArgs, async (_p, opts) => ({
-    verdict: 'PASS',
-    report: `${opts.agentType} pass report`,
-  }));
+  const result = await runGateLoop(baseArgs, async (_p, opts) =>
+    isDiffProvider(opts)
+      ? providedDiff()
+      : { verdict: 'PASS', report: `${opts.agentType} pass report` },
+  );
   assert.equal(result.gate, 'PASS');
   assertPayloadShape(result.telemetry);
   assert.equal(result.telemetry.outcome, 'pass');
@@ -71,11 +89,12 @@ await test('pass path: telemetry present, outcome=pass, one entry per auditor', 
 
 // --- 2. Report-only FAIL path: outcome 'fail', verbatim FAIL reports ------------
 await test('fail path (fix:false): telemetry present, outcome=fail, verbatim reports', async () => {
-  const result = await runGateLoop({ ...baseArgs, fix: false }, async (_p, opts) =>
-    opts.agentType === 'spec-auditor'
+  const result = await runGateLoop({ ...baseArgs, fix: false }, async (_p, opts) => {
+    if (isDiffProvider(opts)) return providedDiff();
+    return opts.agentType === 'spec-auditor'
       ? { verdict: 'FAIL', report: 'VERBATIM-FAIL-REPORT-XYZ' }
-      : { verdict: 'PASS', report: 'fine' },
-  );
+      : { verdict: 'PASS', report: 'fine' };
+  });
   assert.equal(result.gate, 'FAIL');
   assertPayloadShape(result.telemetry);
   assert.equal(result.telemetry.outcome, 'fail');
@@ -84,11 +103,12 @@ await test('fail path (fix:false): telemetry present, outcome=fail, verbatim rep
 
 // --- 3. Non-convergence path: outcome 'non-convergence' -------------------------
 await test('non-convergence path: telemetry present, outcome=non-convergence', async () => {
-  const result = await runGateLoop({ ...baseArgs, maxFixRounds: 0 }, async (_p, opts) =>
-    opts.agentType
+  const result = await runGateLoop({ ...baseArgs, maxFixRounds: 0 }, async (_p, opts) => {
+    if (isDiffProvider(opts)) return providedDiff();
+    return opts.agentType
       ? { verdict: 'FAIL', report: `${opts.agentType} still failing` }
-      : { verdict: 'PASS', report: 'fixer ran' }, // the fix-stage agent has no agentType
-  );
+      : { verdict: 'PASS', report: 'fixer ran' }; // the fix-stage agent has no agentType
+  });
   assert.equal(result.gate, 'FAIL');
   assertPayloadShape(result.telemetry);
   assert.equal(result.telemetry.outcome, 'non-convergence');
@@ -96,9 +116,10 @@ await test('non-convergence path: telemetry present, outcome=non-convergence', a
 
 // --- 4. NO-RESULT dispatch carries the literal marker ----------------------------
 await test('no-result dispatch: fail_reports carries literal NO-RESULT marker', async () => {
-  const result = await runGateLoop({ ...baseArgs, fix: false }, async (_p, opts) =>
-    opts.agentType === 'constitution-auditor' ? null : { verdict: 'PASS', report: 'fine' },
-  );
+  const result = await runGateLoop({ ...baseArgs, fix: false }, async (_p, opts) => {
+    if (isDiffProvider(opts)) return providedDiff();
+    return opts.agentType === 'constitution-auditor' ? null : { verdict: 'PASS', report: 'fine' };
+  });
   assert.equal(result.gate, 'FAIL');
   assert.equal(result.telemetry.outcome, 'fail');
   assert.equal(result.telemetry.fail_reports['constitution-auditor:round-1'], 'NO-RESULT');
@@ -110,7 +131,9 @@ await test('no-result dispatch: fail_reports carries literal NO-RESULT marker', 
 
 // --- 5. A failed append cannot alter the gate result -----------------------------
 await test('failed telemetry write never alters the gate outcome', async () => {
-  const result = await runGateLoop(baseArgs, async () => ({ verdict: 'PASS', report: 'ok' }));
+  const result = await runGateLoop(baseArgs, async (_p, opts) =>
+    isDiffProvider(opts) ? providedDiff() : { verdict: 'PASS', report: 'ok' },
+  );
   const before = JSON.stringify(result);
   // The dispatcher appends AFTER the run returns — simulate the append failing.
   const failingAppend = () => {
@@ -136,6 +159,7 @@ await test('workspacePath: reviewer prompt targets the workspace diff via explic
   const result = await runGateLoop(
     { ...baseArgs, workspacePath: '/tmp/creance-ws-abc/wt' },
     async (prompt, opts) => {
+      if (isDiffProvider(opts)) return providedDiff();
       seen.push({ prompt, agentType: opts.agentType });
       return { verdict: 'PASS', report: 'ok' };
     },
@@ -153,6 +177,7 @@ await test('workspacePath: reviewer prompt targets the workspace diff via explic
 await test('no workspacePath: reviewer prompt is the unchanged main-tree diff', async () => {
   const seen = [];
   await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) return providedDiff();
     seen.push({ prompt, agentType: opts.agentType });
     return { verdict: 'PASS', report: 'ok' };
   });
@@ -173,8 +198,9 @@ await test('workspacePath: the fixer is directed into the workspace', async () =
   await runGateLoop(
     { ...baseArgs, workspacePath: '/tmp/creance-ws-xyz/wt', maxFixRounds: 1 },
     async (_prompt, opts) => {
+      if (isDiffProvider(opts)) return providedDiff(); // read-only diff helper (#188)
       if (!opts.agentType) {
-        fixerPrompts.push(_prompt); // the fix-stage maker agent has no agentType
+        fixerPrompts.push(_prompt); // the fix-stage maker agent has no agentType (and isn't the diff helper)
         return { verdict: 'PASS', report: 'fixer ran' };
       }
       if (opts.agentType === 'spec-auditor') {
@@ -204,6 +230,7 @@ await test('workspacePath with a space: git -C path is shell-quoted into one arg
     { ...baseArgs, workspacePath: '/tmp/with space/creance-ws-abc/wt', maxFixRounds: 1 },
     async (prompt, opts) => {
       seen.push({ prompt, agentType: opts.agentType });
+      if (isDiffProvider(opts)) return providedDiff();
       if (!opts.agentType) return { verdict: 'PASS', report: 'fixer ran' }; // fixer has no agentType
       if (opts.agentType === 'spec-auditor') {
         specCalls += 1;
@@ -237,10 +264,11 @@ await test('workspacePath with a space: git -C path is shell-quoted into one arg
 // tier (its [strong tier] floor — the spec is the cheapest place to lose a project). The
 // agentType is stubbed, so this proves the wiring independent of T706's agent binding.
 await test('dispatchSpec: spec-quality-auditor dispatched at strong on a spec-touching diff', async () => {
-  const result = await runGateLoop({ ...baseArgs, dispatchSpec: true }, async (_p, opts) => ({
-    verdict: 'PASS',
-    report: `${opts.agentType} pass report`,
-  }));
+  const result = await runGateLoop({ ...baseArgs, dispatchSpec: true }, async (_p, opts) =>
+    isDiffProvider(opts)
+      ? providedDiff()
+      : { verdict: 'PASS', report: `${opts.agentType} pass report` },
+  );
   assert.equal(result.gate, 'PASS');
   assert.deepEqual(
     result.telemetry.rounds[0].map((e) => [e.auditor, e.tier]),
@@ -257,55 +285,72 @@ await test('dispatchSpec: spec-quality-auditor dispatched at strong on a spec-to
 // unchanged two-member always-set. The exact-array assertion (cf. test 1) is the one-sided-
 // test guard: it proves the spec-quality push is genuinely gated, not unconditionally present.
 await test('no dispatchSpec: spec-quality-auditor is NOT dispatched (non-spec diff)', async () => {
-  const result = await runGateLoop(baseArgs, async (_p, opts) => ({
-    verdict: 'PASS',
-    report: `${opts.agentType} pass report`,
-  }));
+  const result = await runGateLoop(baseArgs, async (_p, opts) =>
+    isDiffProvider(opts)
+      ? providedDiff()
+      : { verdict: 'PASS', report: `${opts.agentType} pass report` },
+  );
   assert.equal(result.gate, 'PASS');
   const auditors = result.telemetry.rounds[0].map((e) => e.auditor);
   assert.ok(!auditors.includes('spec-quality-auditor'), 'spec-quality not dispatched without dispatchSpec');
   assert.deepEqual(auditors, ['spec-auditor', 'constitution-auditor']);
 });
 
-// --- 12. reviewer prompt carries the non-switching base-read constraint (T622, #140) -------
-// The prevention layer for the shared-tree branch-switch bug: the auditors run in the maker's
-// shared working tree in review mode, so the reviewer prompt must forbid branch-switching git
-// and steer them to non-switching base reads. (The DETERMINISTIC backstop is the dispatcher's
-// restore-task-branch step, tested in restore-task-branch.test.sh; this pins the belt-and-
-// suspenders prevention so it cannot silently drop out of the prompt.)
-await test('reviewer prompt forbids branch-switching and steers to non-switching base reads', async () => {
+// --- 12. reviewer prompt is read-only-by-construction: the diff is PROVIDED, not fetched (#188) --
+// Reviewers hold no shell (Read/Grep/Glob only), so the loop embeds the committed diff in the prompt
+// and tells them so — there is no "run git / never git checkout" instruction to hand a shell-less
+// agent (that branch-switch prevention layer is moot once the reviewer cannot run git at all; the
+// shared-tree restore backstop still runs for the loop's remaining shell actors, tests 14/16). This
+// pins the provided-diff contract so it cannot silently regress to telling the reviewer to fetch it.
+await test('reviewer prompt provides the committed diff to a read-only (no-shell) reviewer', async () => {
   const seen = [];
   await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) return providedDiff('diff --git a/f b/f\n+PROVIDED-DIFF-BODY');
     seen.push({ prompt, agentType: opts.agentType });
     return { verdict: 'PASS', report: 'ok' };
   });
   const reviewerPrompts = seen.filter((s) => s.agentType); // reviewers carry agentType; the fixer does not
   assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
   for (const { prompt } of reviewerPrompts) {
-    assert.match(prompt, /non-switching/i, 'instructs non-switching base reads');
-    assert.match(prompt, /never run `git checkout`\/`git switch`/i, 'forbids branch-switching git');
-    assert.match(prompt, /git diff main\.\.HEAD/, 'names a non-switching base read');
+    assert.match(prompt, /read-only\s+tools only/i, 'tells the reviewer it is read-only');
+    assert.match(prompt, /NO shell/i, 'states the no-shell constraint');
+    assert.match(prompt, /BEGIN COMMITTED DIFF/, 'embeds the committed diff block');
+    assert.match(prompt, /PROVIDED-DIFF-BODY/, 'the provided diff body is embedded verbatim');
+    assert.match(prompt, /git diff main\.\.HEAD/, 'names the diff provenance command');
+    assert.doesNotMatch(prompt, /GATE-DIFF-COMPLETE/, 'the completion marker is stripped, not embedded');
+    assert.doesNotMatch(prompt, /never run `git checkout`/i, 'no shell-git instruction to a shell-less reviewer');
   }
 });
 
-// --- 13. workspacePath: the non-switching base-read EXAMPLES stay path-scoped (Codex P2 / craft, #174) -
-// It is not enough that the audit TARGET is path-scoped (test 6) — the prevention text's example reads
-// must be too. A bare `git diff main..HEAD` / `git show main:<path>` would steer workspace-mode
-// reviewers (who run from the session CWD) back to the shared tree and recreate the T612 vacuous-pass
-// risk. This pins the non-switching example reads — including `git show` — to the explicit git -C form.
-await test('workspacePath: non-switching base-read examples are path-scoped, not bare', async () => {
+// --- 13. workspacePath: the diff provenance is workspace-scoped, not bare (T612; Codex P2 #174) ---
+// It is not enough that `workspacePath` is accepted — the diff handed to the reviewers must be the
+// WORKSPACE's diff. The command the diff helper runs (and the provenance named in the reviewer
+// prompt) must carry the explicit `git -C <workspace>`, never a bare `git diff` that would read the
+// shared main tree and recreate the T612 vacuous-pass risk.
+await test('workspacePath: the diff provenance is workspace-scoped (explicit git -C), not bare', async () => {
   const seen = [];
   await runGateLoop({ ...baseArgs, workspacePath: '/tmp/creance-ws-abc/wt' }, async (prompt, opts) => {
+    if (isDiffProvider(opts)) {
+      seen.push({ prompt, kind: 'diff-provider' });
+      return providedDiff('diff --git a/f b/f\n+WS-DIFF');
+    }
     seen.push({ prompt, agentType: opts.agentType });
     return { verdict: 'PASS', report: 'ok' };
   });
   const reviewerPrompts = seen.filter((s) => s.agentType);
+  const diffProviderPrompts = seen.filter((s) => s.kind === 'diff-provider');
   assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers dispatched');
+  assert.ok(diffProviderPrompts.length >= 1, 'the diff helper was dispatched');
+  // The diff helper runs the workspace-scoped, shell-quoted command.
+  for (const { prompt } of diffProviderPrompts) {
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'diff helper reads the workspace diff');
+    assert.doesNotMatch(prompt, /git -C \/tmp\/creance-ws-abc/, 'the git -C path is shell-quoted (no unquoted split form)');
+  }
+  // The reviewer prompt names that same workspace-scoped provenance and never a bare git diff.
   for (const { prompt } of reviewerPrompts) {
-    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'non-switching diff read is path-scoped');
-    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' show main:<path>/, 'non-switching show read is path-scoped');
-    assert.doesNotMatch(prompt, /`git diff main\.\.HEAD`/, 'no bare git diff example in workspace mode');
-    assert.doesNotMatch(prompt, /`git show main:<path>`/, 'no bare git show example in workspace mode');
+    assert.match(prompt, /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD/, 'provenance is workspace-scoped');
+    assert.match(prompt, /ISOLATED WORKSPACE/, 'names the isolated workspace target');
+    assert.doesNotMatch(prompt, /`git diff main\.\.HEAD`/, 'no bare git diff provenance in workspace mode');
   }
 });
 
@@ -320,6 +365,7 @@ await test('review mode + taskBranch: a restore step runs the hook before the fi
   await runGateLoop(
     { ...baseArgs, taskBranch: 'fix/140-gate-loop-restore', maxFixRounds: 1 },
     async (prompt, opts) => {
+      if (isDiffProvider(opts)) return providedDiff(); // read-only diff helper (#188)
       if (!opts.agentType) {
         others.push(prompt);
         return { verdict: 'PASS', report: 'step ran' };
@@ -353,6 +399,7 @@ await test('workspace mode: no shared-tree restore step even when taskBranch is 
   await runGateLoop(
     { ...baseArgs, workspacePath: '/tmp/creance-ws-xyz/wt', taskBranch: 'fix/140-x', maxFixRounds: 1 },
     async (prompt, opts) => {
+      if (isDiffProvider(opts)) return providedDiff(); // read-only diff helper (#188)
       if (!opts.agentType) {
         others.push(prompt);
         return { verdict: 'PASS', report: 'fixer ran' };
@@ -379,6 +426,7 @@ await test('review mode + taskBranch: restore runs before a fixer-less (NO-RESUL
   const result = await runGateLoop(
     { ...baseArgs, taskBranch: 'fix/140-x', maxFixRounds: 1 },
     async (prompt, opts) => {
+      if (isDiffProvider(opts)) return providedDiff(); // read-only diff helper (#188)
       if (!opts.agentType) {
         others.push(prompt);
         return { verdict: 'PASS', report: 'step ran' };
@@ -399,6 +447,92 @@ await test('review mode + taskBranch: restore runs before a fixer-less (NO-RESUL
     !others.some((p) => /Apply the minimal scoped change/.test(p)),
     'no fixer runs when there are no FAIL findings',
   );
+});
+
+// --- 17. diff-provider contract: NO output fails the gate closed, nothing dispatched (PR #200) ---
+// The provider is an agent like any other — it can be skipped or die (null). The gate must not
+// dispatch reviewers against a missing diff and must not count on them noticing: it aborts before
+// any reviewer runs, outcome 'fail', with the fail-closed classification recorded for the PR body.
+await test('diff-provider contract: null provider output → gate fails closed, no reviewer dispatched', async () => {
+  const dispatched = [];
+  const result = await runGateLoop(baseArgs, async (_p, opts) => {
+    if (isDiffProvider(opts)) return null;
+    dispatched.push(opts.agentType || opts.label);
+    return { verdict: 'PASS', report: 'should never run' };
+  });
+  assert.equal(result.gate, 'FAIL');
+  assert.equal(dispatched.length, 0, 'no reviewer (or fixer) ran on an unverified diff');
+  assert.ok(result.diffUnverified, 'the return names the diff as unverified');
+  assert.deepEqual(result.notDispatched, ['spec-auditor', 'constitution-auditor']);
+  assertPayloadShape(result.telemetry);
+  assert.equal(result.telemetry.outcome, 'fail');
+  assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /no output/);
+});
+
+// --- 18. diff-provider contract: failed or truncated output (no marker) fails closed --------------
+// The completion marker prints only when the diff command exits 0, and it must be the LAST line —
+// so a git error message, a truncated relay (even one that starts diff-shaped), or trailing
+// commentary all classify as unverified. They must never be embedded as "the diff".
+await test('diff-provider contract: marker-less output (failed / truncated) → gate fails closed', async () => {
+  for (const bad of [
+    'fatal: not a git repository (or any of the parent directories): .git',
+    'diff --git a/f b/f\n+truncated mid-hunk', // diff-shaped but no completion marker
+    `${providedDiff()}\nIn summary, the change looks reasonable.`, // commentary after the marker
+  ]) {
+    const dispatched = [];
+    const result = await runGateLoop(baseArgs, async (_p, opts) => {
+      if (isDiffProvider(opts)) return bad;
+      dispatched.push(opts.agentType || opts.label);
+      return { verdict: 'PASS', report: 'should never run' };
+    });
+    assert.equal(result.gate, 'FAIL');
+    assert.equal(dispatched.length, 0, 'no reviewer ran');
+    assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /missing completion marker/);
+  }
+});
+
+// --- 19. diff-provider contract: marker-terminated NON-diff output fails closed -------------------
+// A summary or prose answer that happens to end with the marker is still not a git diff.
+await test('diff-provider contract: non-diff payload with marker → gate fails closed', async () => {
+  const result = await runGateLoop(baseArgs, async (_p, opts) =>
+    isDiffProvider(opts)
+      ? providedDiff('Here is a summary of the changes: gate-loop.js was refactored.')
+      : { verdict: 'PASS', report: 'should never run' },
+  );
+  assert.equal(result.gate, 'FAIL');
+  assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /not a git diff/);
+});
+
+// --- 20. diff-provider contract: an EMPTY diff fails closed (the T612 vacuous-pass class) ---------
+// Before PR #200 an empty diff reached the reviewers with a "treat as UNVERIFIABLE, do NOT PASS"
+// instruction — a behavioral contract. Now the loop itself refuses it structurally: an empty
+// committed diff (wrong branch/worktree, nothing committed) aborts without any reviewer prompt.
+await test('diff-provider contract: empty committed diff → gate fails closed, not reviewer-instructed', async () => {
+  const seen = [];
+  const result = await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) return `\n${DIFF_MARKER}\n`; // command succeeded, diff is empty
+    seen.push(prompt);
+    return { verdict: 'PASS', report: 'should never run' };
+  });
+  assert.equal(result.gate, 'FAIL');
+  assert.equal(seen.length, 0, 'no reviewer saw an "empty diff" prompt');
+  assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /empty committed diff/);
+});
+
+// --- 21. diff-provider contract: a reviewer-style OBJECT return fails closed (PR #200 review) -----
+// The exact test-quality gap the review named: earlier stubs let the provider return a
+// `{ verdict, report }` object that was stringified into the reviewer prompt and still passed.
+// A non-string provider return must abort — nothing stringified ever reaches a reviewer.
+await test('diff-provider contract: object (reviewer-shaped) provider return → gate fails closed', async () => {
+  const seen = [];
+  const result = await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) return { verdict: 'PASS', report: 'not a diff' };
+    seen.push(prompt);
+    return { verdict: 'PASS', report: 'should never run' };
+  });
+  assert.equal(result.gate, 'FAIL');
+  assert.equal(seen.length, 0, 'no reviewer prompt was built from a stringified object');
+  assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /no output/);
 });
 
 console.log(`\n${testsRun} tests passed`);

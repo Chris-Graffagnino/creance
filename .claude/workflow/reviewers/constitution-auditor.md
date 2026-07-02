@@ -21,7 +21,7 @@ Apply the written invariants exactly; do not soften, re-derive, or reinterpret t
 `.claude/PROJECT.md` is missing, say so and grade against the constitution alone.
 
 ## What you are reviewing
-Run `git diff main..HEAD` and review the resulting change. Read the surrounding code for any
+Review the change's committed diff (`git diff main..HEAD`). Read the surrounding code for any
 file the diff touches — a violation often lives in the unchanged neighbour the diff now calls.
 If the diff is empty, say so and stop.
 

@@ -5,7 +5,11 @@
 // re-dispatch, the non-convergence stop, verbatim verdict retention. The maker's
 // self-review (§7.1), /code-review (§7.3), and posting the verdicts to the PR (§8)
 // stay with the invoker. Invoke it on a task branch with the work COMMITTED — the
-// reviewers audit `git diff main..HEAD`. Under an engaged isolated autonomous run
+// reviewers audit the committed diff (`git diff main..HEAD`), which the loop obtains and
+// hands to them in the dispatch prompt because their bindings grant no shell to run `git`
+// themselves (read-only by construction, #188); the obtained diff must pass a checked,
+// fail-closed contract before any reviewer sees it (`classifyProvidedDiff` — PR #200 review).
+// Under an engaged isolated autonomous run
 // (next-task §0.5/§4), pass `workspacePath` so the reviewers and the fixer audit the
 // committed diff of the [isolated workspace] at that path instead of the main working
 // tree (gate-in-place, T612) — the path is passed EXPLICITLY, never inferred from CWD
@@ -93,43 +97,102 @@ const VERDICT_SCHEMA = {
 
 // Single-quote a path for safe embedding in a generated shell command. A valid workspace temp
 // path may legitimately contain spaces or shell metacharacters; embedded unquoted it would split
-// into multiple args and malform the `git -C <path>` command the reviewers/fixer are told to run
+// into multiple args and malform the `git -C <path>` command the diff-provider and fixer are told to run
 // (Codex P2, PR #114). POSIX single-quoting: wrap in '…', and close/escape/reopen each embedded
 // single quote ('\'') so the whole path stays one argument verbatim.
 const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
-// Where the reviewers (and the fixer) read the committed diff. Default: the main working
-// tree (review mode). Under an engaged isolated autonomous run the invoker passes
-// `workspacePath`, and the diff is read from THAT worktree via an explicit `git -C <path>`
-// (gate-in-place, T612) — explicit context, never an inferred CWD. The `-C` form means the
-// reviewer subagents audit the workspace's diff even though they run from the session CWD.
-// The path is shell-quoted in the runnable command so a space/metacharacter cannot malform it.
+// Where the committed diff under review is read. Default: the main working tree (review mode).
+// Under an engaged isolated autonomous run the invoker passes `workspacePath`, and the diff is
+// read from THAT worktree via an explicit `git -C <path>` (gate-in-place, T612) — explicit
+// context, never an inferred CWD. The path is shell-quoted so a space/metacharacter cannot
+// malform the generated command.
 const WORKSPACE = input.workspacePath;
 const TASK_BRANCH = input.taskBranch; // review-mode fix-round restore target (#140/T622); absent under autonomous mode
 const diffCmd = WORKSPACE ? `git -C ${shellQuote(WORKSPACE)} diff main..HEAD` : `git diff main..HEAD`;
-// The non-switching base READ for `git show` — same tree-scoping as diffCmd. The auditors are told
-// to read base state by non-switching means; those example commands must point at the SAME tree they
-// audit, so under an isolated run they carry the explicit `git -C <workspace>` and a session-CWD
-// reviewer is never steered back to the shared tree (Codex P2 / craft, PR #174).
-const showCmd = WORKSPACE ? `git -C ${shellQuote(WORKSPACE)} show main:<path>` : `git show main:<path>`;
 const diffTarget = WORKSPACE
-  ? `the committed diff of the ISOLATED WORKSPACE at ${WORKSPACE} (run \`${diffCmd}\` — ` +
-    `that worktree holds the autonomous run's branch; do NOT audit the main working tree)`
-  : `the current branch's committed diff (\`${diffCmd}\`)`;
+  ? `the committed diff of the ISOLATED WORKSPACE at ${WORKSPACE} (the autonomous run's branch, ` +
+    `produced by \`${diffCmd}\` — NOT the main working tree)`
+  : `the current branch's committed diff (produced by \`${diffCmd}\`)`;
 
-const reviewerPrompt =
-  `Task under review: ${input.taskId}. Audit ${diffTarget} per your spec. Set 'verdict' ` +
-  `to your overall verdict and put your full verdict report, verbatim, in 'report'. ` +
-  // Prevention layer for #140/T622 (the deterministic backstop is the restore-task-branch step —
-  // run by the loop before each fix/re-dispatch and by the dispatcher after the run): in review
-  // mode you run in the maker's SHARED working tree, so a branch switch here silently relocates
-  // their HEAD off the task branch. Read base state by NON-SWITCHING means only — and the example
-  // reads reuse diffCmd/showCmd, so under an isolated run they carry the explicit `git -C <workspace>`
-  // target; a bare `git diff main..HEAD` would steer a session-CWD reviewer back to the shared tree
-  // and recreate the T612 vacuous pass (Codex P2 / craft, PR #174).
-  `Read base state by NON-SWITCHING means only — \`${diffCmd}\`, \`${showCmd}\`, ` +
-  `or a throwaway \`git worktree\` — and NEVER run \`git checkout\`/\`git switch\` against the ` +
-  `working tree you are auditing; switching it would relocate the maker's HEAD off the task branch.`;
+// The reviewers are read-only BY CONSTRUCTION: their Claude Code bindings grant only
+// Read/Grep/Glob — NO shell (#188) — so they cannot run `git` to obtain the diff themselves.
+// The loop provides it. `provideDiff` dispatches a git-capable helper that runs `diffCmd`
+// (workspace-scoped under an isolated run) and returns the committed diff verbatim; the loop
+// embeds it in each reviewer's prompt. The helper GRADES nothing — it is not a checker — so
+// maker≠checker is intact: the graders (the reviewers) hold no write capability, and a separate
+// fixer owns every edit. It is re-run per dispatch round because a fix commit changes the diff.
+// (The reviewers therefore never touch the working tree's branch, closing the #140/T622
+// reviewer-drift vector by construction; the restore step below now guards only the loop's
+// remaining shell-holding agents — this helper and the fixer — see "The loop".)
+//
+// The helper's output is NOT trusted blindly (PR #200 review): what it returns is what the
+// reviewers audit, so a failure message, summary, or truncated patch fed through as "the diff"
+// would let the gate pass without the reviewers ever seeing the real change. The provider runs
+// `diffCmd && echo <marker>` — the marker prints ONLY when the diff command exits 0 — and
+// `classifyProvidedDiff` below enforces the checked, fail-closed contract on what comes back.
+const DIFF_COMPLETE_MARKER = '-----GATE-DIFF-COMPLETE-----';
+const provideDiff = (round) =>
+  agent(
+    `Output the committed diff under review for the pre-PR gate, and NOTHING else. Run exactly ` +
+      `this and return its complete output verbatim as your final message — no summary, no ` +
+      `commentary, no code fence:\n\n    ${diffCmd} && echo '${DIFF_COMPLETE_MARKER}'\n\n` +
+      `The last line of your message must be the ${DIFF_COMPLETE_MARKER} line the command ` +
+      `prints on success. If the command fails, return its error output instead, WITHOUT that ` +
+      `line. Make NO change to any file or branch — this is a read-only step.`,
+    { label: `diff-provider-round-${round}`, phase: 'Dispatch' },
+  );
+
+// The checked contract on the provider's output (fail-closed; PR #200 review). Only output that
+// is verifiably the committed diff may reach a reviewer prompt: it must END with the completion
+// marker (the command prints it only after the diff command exits 0 — a failed run, a truncated
+// relay, or trailing commentary loses it; only the LAST line is checked, so a diff that itself
+// contains the marker text cannot confuse it), and what precedes the marker must be a non-empty
+// git diff (`diff --git ` opens every non-empty patch). Anything else — no output, an error
+// message, a summary, a non-diff payload, or an empty diff (nothing to audit: wrong branch or
+// worktree, the T612 vacuous-pass class) — classifies as unverified.
+const classifyProvidedDiff = (raw) => {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    return { ok: false, why: 'no output — the diff-provider returned nothing usable' };
+  }
+  const lines = raw.trim().split('\n');
+  if (lines[lines.length - 1].trim() !== DIFF_COMPLETE_MARKER) {
+    return {
+      ok: false,
+      why:
+        'missing completion marker — the diff command failed, or its output was truncated ' +
+        'or followed by commentary',
+    };
+  }
+  const diff = lines.slice(0, -1).join('\n').trim();
+  if (diff === '') {
+    return {
+      ok: false,
+      why: 'empty committed diff — nothing to audit (wrong branch or worktree?); a PASS would be vacuous',
+    };
+  }
+  if (!diff.startsWith('diff --git ')) {
+    return { ok: false, why: 'output is not a git diff' };
+  }
+  return { ok: true, diff };
+};
+
+// A reviewer's dispatch prompt, built around the provided diff. The reviewer audits the embedded
+// diff (it has no shell to produce one) and uses Read/Grep/Glob for the current files it touches.
+// `diffCmd` is named as provenance so the audited tree (main vs the isolated workspace) is explicit.
+// The diff has already passed `classifyProvidedDiff` — non-empty, diff-shaped, marker-verified —
+// so an invalid or empty provider payload can never reach this template: the loop fails closed
+// without dispatching first (the T612 vacuous-pass class is closed structurally, not by asking
+// the reviewer to notice).
+const reviewerPromptFor = (diff) =>
+  `Task under review: ${input.taskId}. Audit ${diffTarget} per your spec. You have read-only ` +
+  `tools only (Read/Grep/Glob) and NO shell, so the committed diff under review is provided below ` +
+  `— audit it, and use Read/Grep/Glob to inspect the current files it touches and their ` +
+  `surrounding code. Set 'verdict' to your overall verdict and put your full verdict report, ` +
+  `verbatim, in 'report'.\n\n` +
+  `----- BEGIN COMMITTED DIFF (${diffCmd}) -----\n` +
+  `${diff}\n` +
+  `----- END COMMITTED DIFF -----`;
 
 // DERIVED FROM the reviewer roster in workflow/gate-loop.md → "The reviewer roster" — the
 // single source of truth for gate membership, tier, and dispatch-condition. This array is
@@ -180,6 +243,26 @@ while (true) {
   log(
     `Gate dispatch ${fixRoundsUsed + 1}/${MAX_FIX_ROUNDS + 1}: ${pending.map((r) => r.key).join(', ')}`,
   );
+  // Obtain the committed diff for THIS round (it changes after a fix commit) and hand it to the
+  // read-only reviewers, which cannot fetch it themselves (#188). The provider's output must pass
+  // the checked contract first: an unverified payload is never embedded — the gate FAILs closed
+  // WITHOUT dispatching, rather than let reviewers grade a failure message, a summary, or a
+  // truncated patch as if it were the real committed diff (PR #200 review).
+  const provided = classifyProvidedDiff(await provideDiff(fixRoundsUsed + 1));
+  if (!provided.ok) {
+    failReports[`diff-provider:round-${fixRoundsUsed + 1}`] = provided.why;
+    return {
+      gate: 'FAIL',
+      diffUnverified: provided.why,
+      // Never dispatched this round — they hold no verdict, and an undispatched reviewer is
+      // never a pass (the same no-verdict-is-not-a-pass rule as NO-RESULT).
+      notDispatched: pending.map((r) => r.key),
+      verdicts,
+      fixRoundsUsed,
+      telemetry: telemetry('fail'),
+    };
+  }
+  const reviewerPrompt = reviewerPromptFor(provided.diff);
   const results = await parallel(
     pending.map(
       (r) => () =>
@@ -247,15 +330,17 @@ while (true) {
 
   // Review-mode fix-round restore (#140/T622; Codex P2, PR #174). We are past the PASS/stop
   // returns, so the loop is about to apply a fix and/or re-dispatch. BEFORE either, put the SHARED
-  // working tree's HEAD back on the task branch: a parallel read-only auditor (read-only as to file
-  // mutation, but it holds Bash) can leave HEAD relocated off the task branch, and then the fixer
-  // would commit onto the wrong branch and the re-dispatched reviewers would audit the wrong HEAD.
-  // This is the SAME deterministic, fail-loud restore the dispatcher runs after the loop — applied
-  // here at the fix boundary so the gap is closed on every fix/re-dispatch path, not only the
-  // terminal post-run step. The loop's runtime has no git, so the restore is performed by a
-  // dispatched agent (the only actor here with VCS access); it makes no code change. Workspace mode
-  // isolates the work in the ephemeral [isolated workspace], so there is no shared tree to restore
-  // (TASK_BRANCH is absent there).
+  // working tree's HEAD back on the task branch. The reviewers can no longer cause this drift —
+  // they are read-only by construction with no shell (#188) — but the loop still runs two
+  // shell-holding agents in the shared tree: the diff-provider above and the fixer below. Either,
+  // if it strayed into a `git checkout`/`git switch` despite its read-only instruction, would
+  // relocate HEAD, and then the fixer would commit onto the wrong branch and the re-dispatched
+  // reviewers would audit the wrong diff. This is the SAME deterministic, fail-loud restore the
+  // dispatcher runs after the loop — applied here at the fix boundary so the gap is closed on every
+  // fix/re-dispatch path, not only the terminal post-run step. The loop's runtime has no git, so the
+  // restore is performed by a dispatched agent (the only actor here with VCS access); it makes no
+  // code change and is a no-op when nothing drifted. Workspace mode isolates the work in the ephemeral
+  // [isolated workspace], so there is no shared tree to restore (TASK_BRANCH is absent there).
   if (!WORKSPACE && TASK_BRANCH) {
     await agent(
       `Before the pre-PR gate for task ${input.taskId} applies any fix or re-dispatches its ` +

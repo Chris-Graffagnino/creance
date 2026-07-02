@@ -20,17 +20,19 @@ cycle, the non-convergence stop, and verbatim verdict retention. It does NOT own
   is the dispatcher's job, exactly as today;
 - appending the telemetry record — the loop *builds* the `gate-run` payload
   (`telemetry.md`) and returns it; **the dispatcher appends it** (see "Telemetry" below);
-- **restoring the shared-tree task branch after the run** — a dispatched reviewer is
-  read-only only as to *file mutation*; it can still run `git`, so a stray
-  `git checkout`/`git switch` in an auditor step can relocate the maker's HEAD off the task
-  branch in the **shared** working tree (review mode runs the auditors there, not in an
-  isolated worktree). The dispatcher snapshots the task branch it cut and **restores it
-  after the run, on every outcome** — a deterministic backstop, run *before* it reads the
-  introducing-commit for telemetry so a drifted HEAD can neither strand the maker nor poison
-  the record. The **loop itself** closes the same gap *within* the run — it restores the
-  shared tree onto the task branch **before each fix-and-re-dispatch step** (review mode; see
-  "The loop"), so a fix round can neither commit onto nor re-audit a HEAD a parallel auditor
-  drifted. That in-loop restore is the loop's, the after-run restore is the dispatcher's, and
+- **restoring the shared-tree task branch after the run** — in a binding where the reviewer holds
+  a (sandboxed) shell for inspection, it is read-only only as to *file mutation*: it can still run
+  `git`, so a stray `git checkout`/`git switch` in an auditor step can relocate the maker's HEAD off
+  the task branch in the **shared** working tree (review mode runs the auditors there, not in an
+  isolated worktree). (A binding that instead grants the reviewer **no shell** and **provides** it the
+  committed diff has no such reviewer-drift vector — read-only by construction — but a shell-holding
+  fixer or diff helper remains in the loop, so the restore is retained regardless.) The dispatcher
+  snapshots the task branch it cut and **restores it after the run, on every outcome** — a
+  deterministic backstop, run *before* it reads the introducing-commit for telemetry so a drifted HEAD
+  can neither strand the maker nor poison the record. The **loop itself** closes the same gap *within*
+  the run — it restores the shared tree onto the task branch **before each fix-and-re-dispatch step**
+  (review mode; see "The loop"), so a fix round can neither commit onto nor re-audit a HEAD a shell
+  step drifted. That in-loop restore is the loop's, the after-run restore is the dispatcher's, and
   together they cover every path. (Under an engaged isolated autonomous run the work lives in
   the ephemeral **[isolated workspace]** governed by the lifecycle, so this shared-tree restore
   is review-mode only.)
@@ -221,16 +223,29 @@ succeeded). One record per completed gate invocation, whatever the outcome.
 - Every dispatched reviewer still satisfies every **[reviewer]** constraint: separate
   context, no file-mutation capability, adversarial posture per its spec, parallel
   dispatch.
-- A reviewer reads base state by **non-switching** means only — `git diff main..HEAD`,
-  `git show main:<path>`, or a throwaway `git worktree`, **each scoped to the tree it audits**
-  (under an isolated run, the **[isolated workspace]** via an explicit `git -C <workspace>`; in
-  review mode, the shared tree) — and never a `git checkout`/`git switch` of that tree: in review
-  mode it is the maker's **shared** tree, so switching it would relocate the maker's HEAD off the
-  task branch. (A bare, un-scoped read under an isolated run would point a session-CWD reviewer at
-  the shared tree instead of the workspace and pass vacuously — the T612 trap.) This is the
-  prevention layer; the deterministic backstop is the restore — applied by the loop before each
-  fix/re-dispatch step (review mode) and by the dispatcher after the run — so a drifted HEAD is
-  healed on every path.
+- How a reviewer obtains the committed diff it audits is **binding-specific**. A binding may grant
+  the reviewer a **read-only shell** — then it reads base state by **non-switching** means only
+  (`git diff main..HEAD`, `git show main:<path>`, or a throwaway `git worktree`, **each scoped to the
+  tree it audits**: under an isolated run the **[isolated workspace]** via an explicit
+  `git -C <workspace>`, in review mode the shared tree) and never a `git checkout`/`git switch` of
+  that tree, since in review mode it is the maker's **shared** tree and switching it would relocate
+  the maker's HEAD. (A bare, un-scoped read under an isolated run would point a session-CWD reviewer
+  at the shared tree instead of the workspace and pass vacuously — the T612 trap.) Or a binding may
+  grant the reviewer **no shell** and **provide** the committed diff in the dispatch prompt — then the
+  reviewer runs no `git` at all and has no branch-switch vector (read-only **by construction**). A
+  providing binding must not trust its diff-obtaining step blindly: what that step returns is what
+  the reviewers audit, so the provided output must satisfy a **checked, fail-closed contract** — a
+  completion marker emitted only when the diff command succeeded, and non-empty diff-shaped content
+  preceding it. Anything else (no output, a failure message, a summary, a truncated patch, an empty
+  diff) **aborts the round as unverified** — gate FAIL, no reviewer dispatched, the classification
+  recorded in the telemetry `fail_reports` keyed to the diff-providing step and round — rather than
+  being embedded, so the gate can never pass on reviewers that audited something other than the real
+  committed diff (the T612 vacuous-pass class, closed structurally rather than by asking a reviewer
+  to notice). The
+  non-switching rule is the prevention layer for the shell-holding case; the deterministic backstop —
+  the restore, applied by the loop before each fix/re-dispatch step (review mode) and by the dispatcher
+  after the run — heals a drifted HEAD on every path in both cases, since a shell-holding fixer or diff
+  helper remains in the loop regardless.
 - The constitution reviewer's **[strong tier]** floor applies to its dispatch parameter —
   strong-model is mandatory input precisely so the floor never depends on inherited
   session state.

@@ -74,7 +74,7 @@ Scoping narrows **which** criteria you grade — never **how**: an owned criteri
 an encoding test is still an overall FAIL.
 
 ## What you are reviewing
-Run `git diff main..HEAD` and review the resulting change, including its tests. Read the
+Review the change's committed diff (`git diff main..HEAD`), including its tests. Read the
 surrounding code for any file the diff touches. If the diff is empty, say so and stop.
 
 ## How to hunt
