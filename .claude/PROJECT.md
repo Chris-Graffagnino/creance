@@ -15,12 +15,14 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Constitution (law):** `memory/constitution.md` (filled from
   `memory/constitution.template.md`; the reviewers fail closed without it).
 - **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`;
-  `specs/002-spec-quality-gate/spec.md`; `specs/003-maker-eval-corpus/spec.md`
+  `specs/002-spec-quality-gate/spec.md`; `specs/003-maker-eval-corpus/spec.md`;
+  `specs/004-autonomous-backlog-loop/spec.md`
 - **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`,
-  `specs/002-spec-quality-gate/tasks.md`, and `specs/003-maker-eval-corpus/tasks.md` — the
+  `specs/002-spec-quality-gate/tasks.md`, `specs/003-maker-eval-corpus/tasks.md`, and
+  `specs/004-autonomous-backlog-loop/tasks.md` — the
   engine selects across all `specs/*/tasks.md`; task IDs are unique across them
-  (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx). `specs/000-template/tasks.template.md` is a
-  skeleton, never a backlog.
+  (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx, 004 = T9xx). `specs/000-template/tasks.template.md`
+  is a skeleton, never a backlog.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;
@@ -37,14 +39,15 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 
 ## Task & branch conventions
 - **Task ID format:** `T` + 3 digits, unique across all live `specs/*/tasks.md` — each
-  spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx).
+  spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx,
+  004 = T9xx).
 - **Model tier tag:** every task line carries `[frontier]`/`[strong]`/`[cheap]` — the
   task's MINIMUM capability tier, resolved via `.claude/MODELS.md`. Untagged → executor
   judges, leaning strong.
 - **Criterion ownership (multi-task stories):** each live `specs/*/tasks.md` carries a
   "Criterion ownership" section mapping each `US#.AC<n>` to exactly one owning task
   (`specs/001-harness-feedback-loop/tasks.md`, `specs/002-spec-quality-gate/tasks.md`,
-  `specs/003-maker-eval-corpus/tasks.md`).
+  `specs/003-maker-eval-corpus/tasks.md`, `specs/004-autonomous-backlog-loop/tasks.md`).
 - **Issue / PR / commit title:** `<type>: [<task-id>] <description>` for task work;
   `<type>: <description>` for repo maintenance (matches existing history).
 - **Branch name:** `<type>/<issue#>-<short-slug>` (e.g. `fix/21-template-tasks-glob-collision`).
