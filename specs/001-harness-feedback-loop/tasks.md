@@ -441,7 +441,7 @@
       this must leave unchanged; `workflow/**` neutrality scan stays green
       (#201; repo-maintenance — done-when on issue) — strong: edits the runtime-neutral
       workflow boundary and must not drift reviewer/gate semantics (constitution P1/P3)
-- [ ] T633 [strong] Add a **local pre-commit tasks-consistency check** as a `[guard]` rule
+- [x] T633 [strong] Add a **local pre-commit tasks-consistency check** as a `[guard]` rule
       (or equivalent deterministic pre-commit path) that catches done-but-unchecked drift for
       the **commit being attempted** — it must read the pending commit's `[T###]` from the
       guard `command` payload (the un-landed commit is *not* yet in `git log`, so a bare

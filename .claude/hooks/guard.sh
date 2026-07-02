@@ -27,6 +27,15 @@
 #      delimiter does not occur in (e.g. `s#a#https://h/p#g`), safe delimiters
 #      (`@`, `|`), and seds without a URL are all left alone; addressed forms
 #      (`1s#…`, `/re/s#…`) are caught.
+#   8. A `git commit` whose message references a task id (`[T<nnn>]`) whose box
+#      is still `- [ ]` in a live specs/*/tasks.md — done-but-unchecked drift
+#      caught at commit time, before CI (issue #202). The pending id is read
+#      from the command payload (the un-landed commit is not in `git log`); the
+#      unchecked-box half is shared from lib-tasks-drift.sh, never a forked
+#      drift definition. CI's check-tasks-consistency.sh stays the
+#      authoritative backstop. Fails open: no id in the command, a missing lib,
+#      an unreadable repo root, or no live tasks files. (Numbered 8 because
+#      rule 7 below — the PostToolUse [edit guard] — landed first.)
 # PostToolUse — fix-forward feedback (exit 2) AFTER the write, since PreToolUse
 # cannot see an edit's result and PostToolUse cannot revert (issue #79):
 #   7. An edit to a checked file that ADDS a diagnostic from the project's
@@ -367,6 +376,37 @@ case "$tool" in
     if printf '%s' "$payload" | grep -qE "${sed_pre}s/[^/'\" ]*/https?://" \
        || printf '%s' "$payload" | grep -qE "${sed_pre}s#[^#'\";]*#[^#'\";]*http[^#'\";]*#[^#'\";]*#"; then
       block sed-url-delimiter-collision "This in-place sed substitution's delimiter ('#' or '/') also occurs in the URL it substitutes — the URL's unescaped '/' (or a '#…' fragment) is read as the delimiter, ends the expression early, and can silently corrupt or blank the output (the PR-body-blank class). Use a delimiter absent from the URL, e.g. 's@…@…@' or 's|…|…|', and compose PR/issue bodies via a file, then verify the result is non-empty."
+    fi
+    # Rule 8: pending-commit tasks-drift check (issue #202 / T633). A commit
+    # whose message carries [T<nnn>] while that task's box is still `- [ ]` in
+    # a live specs/*/tasks.md would land done-but-unchecked drift that CI's
+    # check-tasks-consistency.sh (the authoritative backstop — unchanged, P5)
+    # only surfaces after a push→CI round-trip. The attempted commit is NOT yet
+    # reachable from `git log`, so its ids come from the command payload itself
+    # — extracted escape-aware, since the [T###] lives inside the JSON string's
+    # \"…\" message where jstr's [^"]* would truncate. The unchecked-box half is
+    # SHARED from lib-tasks-drift.sh (tasks_drift_unchecked_ids) — one drift
+    # definition, never a fork (P2). Fail-open: no [T###] in the command, a
+    # missing lib, an unreadable repo root, or no live tasks files all allow.
+    # Scoped to `git commit`; the tasks state is read from the event-cwd repo
+    # (a cross-repo `-C` commit falls back to this repo's state — best-effort,
+    # and still fail-open when the id is unknown here).
+    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+commit([[:space:]]|\\|")'; then
+      pend="$(printf '%s' "$payload" \
+        | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
+        | grep -oE '\[T[0-9]+\]' | tr -d '[]' | sort -u)"
+      drift_lib="$(cd "$(dirname "$0")" && pwd)/lib-tasks-drift.sh"
+      root="$(git rev-parse --show-toplevel 2>/dev/null)"
+      if [ -n "$pend" ] && [ -f "$drift_lib" ] && [ -n "$root" ]; then
+        unchecked="$( (cd "$root" && . "$drift_lib" && tasks_drift_unchecked_ids) 2>/dev/null )"
+        drifted=''
+        for id in $pend; do
+          printf '%s\n' "$unchecked" | grep -qxF "$id" && drifted="$drifted $id"
+        done
+        if [ -n "$drifted" ]; then
+          block commit-tasks-drift "This commit's message references$(printf ' [%s]' $drifted) but that task's box in specs/*/tasks.md is still '- [ ]' — done-but-unchecked drift the CI consistency check will fail after push. Tick the box (- [x]) in the tasks file and stage it in this commit, or drop the id if the work is not that task's. (Advisory local copy of check-tasks-consistency.sh rule 3; CI stays authoritative.)"
+        fi
+      fi
     fi
     ;;
   Agent|Task)

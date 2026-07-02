@@ -69,6 +69,14 @@ The deterministic gate blocks, before execution:
    A delimiter absent from the content avoids it; this veto is the deterministic backstop
    for when one is chosen anyway. Scoped to a single command, and fails open on anything
    ambiguous (the recurring instance: a body-edit substitution blanking a live PR body).
+7. A **`git commit` whose message references a task ID whose tasks-file box is still
+   unchecked** — done-but-unchecked drift caught at commit time, before the CI
+   consistency backstop (which stays authoritative and unchanged: this veto is a local
+   speed-up, never a gate-semantics change). The attempted commit is not yet reachable
+   from the repo history, so the task ID is read from the **imminent command itself**;
+   the unchecked-box detection is the **same shared drift definition** the CI check and
+   the selection precondition consume — one definition, never a fork. Fails open when
+   the message carries no task ID or the live tasks state is unavailable.
 It **fails open**: any uncertainty → allow. These rules are normative; each adapter
 supplies its own implementation (the active adapter's is named in `.claude/README.md`).
 
