@@ -75,7 +75,10 @@ checklist". The short form:
    nearby code, and existing tests.
 2. Define success criteria and the smallest safe verification path.
 3. For behavior changes, add or update meaningful tests, including negative/edge cases
-   where contracts matter.
+   where contracts matter. A test counts only if shown to fail on incorrect output and it
+   asserts per-instance/per-row behavior — never a prefix-only or single-match-anywhere
+   assertion — with the red→green evidence cited in the PR body (falsification rule:
+   `.claude/workflow/next-task.md` §5).
 4. Implement the minimum scoped change.
 5. Remove only orphaned code created by your change.
 6. Update specs/contracts/checklist when behavior or public artifacts change.

@@ -224,6 +224,13 @@ context loss because it lives on the issue). **[cheap tier]** tasks skip it.
   named interface (never a vendor SDK from UI/component code), and never use a banned
   vendor/source listed there.
 - For behavior changes, add/update meaningful tests incl. negative/edge cases.
+- **Falsify every new/changed test:** it counts only if shown to **fail on incorrect
+  output** (mutate or withhold the behavior, confirm it goes red, and **keep that red
+  run's output — the PR body cites it as evidence, §8**) AND it asserts **per-instance /
+  per-row behavior, never a single match anywhere in the artifact** — forbidden vacuous
+  shapes: a **prefix-only match**, a **single-fingerprint-anywhere match**. Maker-side
+  only; the acceptance **[reviewer]**'s §7 hard-FAIL on vacuous assertions
+  (`workflow/reviewers/spec-auditor.md`) is the unchanged backstop.
 - **Blocked by an external dependency? Mock it behind the seam — never abort.** When
   progress is blocked by something outside the repo (a provider API key, an unprovisioned
   service, an owner-only credential, an unreleased upstream), do all four:
@@ -440,19 +447,18 @@ branch directly (P4). The numbered bullets below are the promote path (and all o
 - **Pass the body via a file, never inline.** Inline bodies with embedded quotes/parens
   are unreliable across environments, and the temp `.md` must reach the CLI as UTF-8 —
   both concrete forms come from the **[environment block]**. The body must contain
-  `Closes #<issue-number>`, a
-  **"Discovered work"** line listing the issues filed under §5.5 (or "none"), a
-  **"Mocked dependencies"** line whenever §5's blocked-dependency rule fired (which seam,
-  the issue comment recording it, and — for each mocked seam — the `US#` acceptance criteria
-  whose verification currently runs **against the mock rather than the real dependency**,
-  listed as **live-unverified**; mock-verified is reported as mock-verified, never as done —
-  the same degrade-loudly posture §6.5 applies to absent visual evidence, so the criterion
-  neither blocks the pipeline nor passes silently), and a
+  `Closes #<issue-number>`, a **"Discovered work"** line listing the issues filed under
+  §5.5 (or "none"), a **"Mocked dependencies"** line whenever §5's blocked-dependency rule
+  fired (which seam, the issue comment recording it, and — for each mocked seam — the `US#`
+  acceptance criteria whose verification currently runs **against the mock rather than the
+  real dependency**, listed as **live-unverified**; mock-verified is reported as
+  mock-verified, never as done — the same degrade-loudly posture §6.5 applies to absent
+  visual evidence, so the criterion neither blocks the pipeline nor passes silently), and a
   **"Run economics"** line — the tier, model, and effort that actually ran this task, plus
   any round-up/degradation applied (over time this is the evidence for re-tuning tier
-  tags). Its **"verified automatically"**
-  section cites the reviewer-verdict comments (next bullet) as its evidence for gate claims,
-  rather than restating maker-written summaries of them. Every **"your call"** item meets
+  tags). Its **"verified automatically"** section cites the reviewer-verdict comments (next
+  bullet) as its evidence for gate claims — never restated maker summaries — and carries
+  the §5 red→green falsification evidence per new/changed test ("no tests changed" if none). Every **"your call"** item meets
   §6.5's decision-ready contract — the **Decision needed / Recommendation** pair, autonomous
   work exhausted, the exact comment-answerable choices enumerated (merge never among them;
   purely-informational items keep the `Decision needed: none (informational)` form, no

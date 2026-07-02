@@ -430,7 +430,7 @@
 > `[guard]` behavior, so it ships its matching `guard.test.sh` case in the same diff
 > (constitution P2). Independent — no ordering dependency between the two.
 
-- [ ] T632 [strong] Add a **maker-side falsification rule for tests** to
+- [x] T632 [strong] Add a **maker-side falsification rule for tests** to
       `.claude/workflow/next-task.md` §5 (and mirror one line into `AGENTS.md` only if the
       residency ceiling allows — else a pointer): a new/changed test counts only if it is
       shown to **fail on incorrect output** (mutate or withhold the behavior and confirm it
