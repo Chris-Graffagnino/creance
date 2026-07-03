@@ -417,6 +417,35 @@ jobs:
       - name: Maker-eval P5 fence tests
         run: bash .claude/hooks/maker-eval-fence.test.sh
 
+      # T904 backlog-loop run report (#229, spec 004 US1.AC6): the [backlog-loop]'s
+      # observe-only run-report emitter (backlog-loop-report.sh) appends one line per
+      # iteration — the task ID plus that iteration's terminal outcome in the outcome's
+      # OWN form (a gated outcome's verdict + PR-ref-or-discard; a refused/aborted line
+      # carries neither — never a fabricated gate result) — plus one terminal run-summary
+      # line (stop condition + iterations-of-N, so a partial run is visible AS partial) to
+      # the EXISTING out-of-repo telemetry stream (workflow/telemetry.md's storage
+      # convention; no new path convention). The test proves FIELD FIDELITY (each written
+      # field exactly equals the driven outcome, per line — not merely a well-formed
+      # line), the no-fabrication arity rules, and that a write failure is
+      # silent-to-the-run (exit 0, nothing written, caller unaffected).
+      - name: Backlog-loop run-report tests
+        run: bash .claude/hooks/backlog-loop-report.test.sh
+
+      # T904 backlog-loop P5 fence (#229, spec 004 US1.AC5): the deterministic half of
+      # constitution P5 for the run report — the sibling of the maker-eval fence above.
+      # backlog-loop-fence.sh scans the tracked tree for the report's tokens (the two
+      # record discriminators + the channel seam) and FAILs if any appear outside the
+      # writer (backlog-loop-report.sh) / triage-reader allowlist — so no gate-outcome,
+      # model-tier, task-selection, or guard path (nor the T905 loop skeleton, which is
+      # line-scoped: it may DRIVE the writer but never read the report or feed iteration
+      # counters back into control flow) can read the observe-only report. PAIRED with a
+      # non-vacuity control: the fence itself FAILS if the writer or reader stops
+      # resolving the channel. The .test.sh's first case runs the real fence over the
+      # real tree, so this step enforces the fence AND proves it live (plant/pass/control
+      # cases — the P2 "machinery proves it is live" discipline).
+      - name: Backlog-loop P5 fence tests
+        run: bash .claude/hooks/backlog-loop-fence.test.sh
+
       # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
       # methodology doc and the per-/next-task hub — new rules gravitate to it, so
       # it is the harness's accretion sink and sets the per-workflow context floor
