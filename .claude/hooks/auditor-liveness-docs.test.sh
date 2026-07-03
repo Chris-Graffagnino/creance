@@ -229,11 +229,36 @@ check "seed: corpus is seeded from the evasion register / retrospective incident
 # must say so, so it stays consistent with the bootstrap-seeded AL-SQ-FAIL-01).
 check "seed: corpus contract documents the brand-new-reviewer bootstrap exception" "$CORPUS_FLAT" \
   "explicit bootstrap seed for a brand-new reviewer"
-# A declared-ahead-of-binding dimension carries an explicit lifecycle marker, so a full run is
-# never read as already covering it (PR #181 — Codex P2 + craft #2: spec-quality is declared
-# here before the runner binding/fingerprint cover it; that wiring is the agent-binding task).
-check "lifecycle: corpus marks a declared-ahead-of-binding dimension explicitly" "$CORPUS_FLAT" \
-  "declared-but-not-yet-dispatched"
+# The declared-ahead-of-binding marker was retired once T707 wired the runner to dispatch
+# spec-quality (PR #181 had staged it; this test now asserts it is GONE, not present — a
+# stale reintroduction of the marker would mean the runner regressed to not covering
+# spec-quality, so this is a real structural pin, not a string flip).
+if printf '%s' "$CORPUS_FLAT" | grep -qF "declared-but-not-yet-dispatched"; then
+  fail=$((fail + 1))
+  printf 'FAIL lifecycle: corpus still carries the retired declared-but-not-yet-dispatched marker (T707 wired the runner — spec-quality is bound now)\n' >&2
+else
+  pass=$((pass + 1))
+fi
+
+# ── T707 — the auditor-liveness runner dispatches spec-quality-auditor (mechanize — P3) ─
+# DW1/DW2 done-when: the dispatch binding + fingerprint recipe must both name
+# spec-quality-auditor, so a full corpus run actually exercises the AL-SQ-* fixtures and
+# editing the spec-quality reviewer spec raises CORPUS-STALE, exactly as for the other
+# three auditors.
+check "T707: reviewer dispatch row names spec-quality-auditor" "$SKILL_FLAT" \
+  "spec-quality-auditor"
+check "T707: corpus contract states all four auditors are bound (none deferred)" "$CORPUS_FLAT" \
+  "all four are bound to the runner"
+# The fingerprint recipe (git hash-object argv) must include the spec-quality spec file —
+# assert the exact path appears inside the fenced recipe block, not merely anywhere in the
+# skill doc (a stray prose mention elsewhere would false-pass a substring-only check).
+fp_block="$(awk '/^```$/{n++; if (n==1) {p=1; next} else {p=0}} p' "$SKILL")"
+if printf '%s' "$fp_block" | grep -qF "reviewers/spec-quality-auditor.md"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T707: fingerprint recipe (git hash-object block) omits reviewers/spec-quality-auditor.md\n' >&2
+fi
 
 # ── CI wiring — this test is actually run by the required `verify` check ──────────────
 check "CI: verify runs this encoding test" "$(flat "$CI")" \

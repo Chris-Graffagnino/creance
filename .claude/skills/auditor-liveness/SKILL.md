@@ -1,6 +1,6 @@
 ---
 name: auditor-liveness
-description: Run the standing auditor-liveness corpus (project specifics from .claude/PROJECT.md). Re-confirms each judgment auditor (acceptance / constitution / contract) still catches its planted-violation fixtures and still passes its clean fixtures, after a reviewer-spec edit or model drift — the model-driven analog of guard.test.sh, promoted from the one-time P-RV probe. Dispatches the auditors READ-ONLY and report-only against materialized plants, compares each verdict to the corpus's expected verdict, and records an OBSERVE-ONLY outcome that never feeds gate outcomes, tier assignment, or gate semantics (P5). Use when the user says "auditor liveness", "run the auditor corpus", "re-confirm the auditors", when triage flags CORPUS-STALE, or on the weekly schedule. Read-and-report only — never edits a reviewer spec, never gates, never merges.
+description: Run the standing auditor-liveness corpus (project specifics from .claude/PROJECT.md). Re-confirms each judgment auditor (acceptance / constitution / contract / spec-quality) still catches its planted-violation fixtures and still passes its clean fixtures, after a reviewer-spec edit or model drift — the model-driven analog of guard.test.sh, promoted from the one-time P-RV probe. Dispatches the auditors READ-ONLY and report-only against materialized plants, compares each verdict to the corpus's expected verdict, and records an OBSERVE-ONLY outcome that never feeds gate outcomes, tier assignment, or gate semantics (P5). Use when the user says "auditor liveness", "run the auditor corpus", "re-confirm the auditors", when triage flags CORPUS-STALE, or on the weekly schedule. Read-and-report only — never edits a reviewer spec, never gates, never merges.
 ---
 
 # /auditor-liveness — Claude Code binding
@@ -13,9 +13,9 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/auditor-l
 | Neutral role | Claude Code mechanism |
 |---|---|
 | **[workflow]** (this one) | this skill; a run takes no required argument — it runs the whole corpus and records a **`full`** results row. An optional fixture-id (e.g. `AL-CON-FAIL-01`) in the invocation text scopes the run to one fixture (the explicit-context rule) — a diagnostic that records a **`partial:<fixture-id>`** row which **never serves as the CORPUS-STALE baseline** (a subset run has not re-confirmed every auditor — `workflow/auditor-liveness.md` → "Re-run policy") |
-| **[reviewer]** (the corpus run — read-only, **report-only**) | the `spec-auditor` / `constitution-auditor` / `contract-auditor` subagents (`.claude/agents/`) dispatched via the Agent tool against each **materialized fixture plant** — own context, **no edit tools**. A **single report-only fan-out per fixture: no fix step, no re-dispatch loop** (unlike the §7 gate's converge-to-PASS loop — the corpus *measures* an auditor, it does not repair a diff). Models per `.claude/MODELS.md` (the constitution reviewer **at-or-above the strong-tier row, never below** — see floor) |
-| **[strong tier]** (the floor on the constitution dispatch) | resolved per `.claude/MODELS.md`; passed as the Agent tool's `model` parameter on **every** constitution-auditor dispatch, never inherited from the session |
-| **[guard]** (enforces the floor) | the PreToolUse hook (`.claude/hooks/guard.sh`, **rule 5**) deterministically blocks any `constitution-auditor` dispatch whose `model` is absent or below the strong-tier row — **the same guarded path the §7 gate and the retrospective use**, so the floor is enforced here, not merely asserted |
+| **[reviewer]** (the corpus run — read-only, **report-only**) | the `spec-auditor` / `constitution-auditor` / `contract-auditor` / `spec-quality-auditor` subagents (`.claude/agents/`) dispatched via the Agent tool against each **materialized fixture plant** — own context, **no edit tools**. A **single report-only fan-out per fixture: no fix step, no re-dispatch loop** (unlike the §7 gate's converge-to-PASS loop — the corpus *measures* an auditor, it does not repair a diff). Models per `.claude/MODELS.md` (the constitution AND spec-quality reviewers **at-or-above the strong-tier row, never below** — see floor) |
+| **[strong tier]** (the floor on the constitution + spec-quality dispatch) | resolved per `.claude/MODELS.md`; passed as the Agent tool's `model` parameter on **every** constitution-auditor and spec-quality-auditor dispatch, never inherited from the session |
+| **[guard]** (enforces the floor) | the PreToolUse hook (`.claude/hooks/guard.sh`, **rule 5**) deterministically blocks any `constitution-auditor` or `spec-quality-auditor` dispatch whose `model` is absent or below the strong-tier row — **the same guarded path the §7 gate and the retrospective use**, so the floor is enforced here, not merely asserted |
 | **fixture materialization** (the run, step 1) | for each fixture, `git worktree add --detach <tmp> <base>` then plant the fixture's scenario in `<tmp>` (the same planting the `P-RV` / `P-EV` probes use, in the throwaway-worktree path the retrospective uses to grade a tree as-it-was); the reviewer bindings grant no shell (#188), so **run `git -C <tmp> diff <base>..HEAD` yourself and pass that diff in the auditor's prompt**; dispatch the fixture's auditor **pointed at `<tmp>`** for its surrounding-context reads (Read/Grep/Glob) **only within `<tmp>`**; `git worktree remove <tmp>` after. Read-only — a detached worktree + a planted commit on it mutate no tracked branch, and the run leaves the repo as it found it |
 | **verdict comparison** (the run, step 3) | compare the auditor's returned verdict to the fixture's **Expected** cell in `auditor-liveness-corpus.md` (and, for a FAIL fixture, that the **evidence anchor** was named): match ⇒ `PASS`, mismatch ⇒ `MISMATCH`. No tool acts on the result — it is recorded and surfaced only |
 | **observe-only results channel** | the **"Corpus-run results"** table in this file (below) — one appended dated row per run: date, **run scope** (`full` or `partial:<fixture-id>`), driver model, reviewer-spec fingerprint, and each fixture's `PASS`/`MISMATCH`. Append-only; **never** read by any gate, tier resolver, or gate-semantic. The triage **CORPUS-STALE** check reads the most recent **`full`-scope** row's fingerprint + date as its baseline (a `partial` row is an audit-trail diagnostic, never a freshness baseline) |
@@ -27,7 +27,7 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/auditor-l
 ## The reviewer-spec fingerprint (the deterministic on-reviewer-spec-change detector)
 
 `auditor-liveness.md` → "Re-run policy" defers the concrete hash recipe to the adapter. It is
-a single content hash over the **auditor specs the reviewers load** — the three `*-auditor.md`
+a single content hash over the **auditor specs the reviewers load** — the four `*-auditor.md`
 specs plus the evasion register they consult at dispatch — reproducible from a clean checkout
 (the same `git hash-object` shape the guard-machinery fingerprint uses,
 `adapters/claude-code-probes.md` → "Probe-run fingerprint"):
@@ -37,6 +37,7 @@ git hash-object \
   .claude/workflow/reviewers/spec-auditor.md \
   .claude/workflow/reviewers/constitution-auditor.md \
   .claude/workflow/reviewers/contract-auditor.md \
+  .claude/workflow/reviewers/spec-quality-auditor.md \
   .claude/workflow/reviewers/evasion-register.md \
   | git hash-object --stdin
 ```

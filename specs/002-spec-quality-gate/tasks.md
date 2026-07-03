@@ -41,7 +41,7 @@
 
 ## Phase 3 — Liveness coupling (follow-on)
 
-- [ ] T707 [cheap] Auditor-liveness runner coupling for the spec-quality auditor
+- [x] T707 [cheap] Auditor-liveness runner coupling for the spec-quality auditor
       (**blocked by T706** — needs the `spec-quality-auditor` agent; the dispatch row
       can't point at an agent that does not exist): wire the auditor-liveness `[reviewer]`
       dispatch row + frontmatter (`.claude/skills/auditor-liveness/SKILL.md`) to dispatch
