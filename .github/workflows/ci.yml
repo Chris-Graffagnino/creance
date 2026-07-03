@@ -215,6 +215,21 @@ jobs:
       - name: Isolation falsification proof
         run: bash .claude/hooks/isolation-falsification.test.sh
 
+      # T903 backlog-loop multi-iteration falsification proof (spec 004 US1.AC4): extends the
+      # T613 single-run proof above to the [backlog-loop]'s N-iteration case (backlog-loop.md →
+      # "Safety invariants"). Drives the REAL isolated-workspace lifecycle through 3 sequential
+      # mixed-outcome iterations (PASS→promote, FAIL→discard, PASS→promote) against ONE shared
+      # base repo, planting the T613 adversarial un-gated commit in EVERY iteration, and proves:
+      # the base ref stays byte-identical after every iteration and at run end; no merge lands
+      # (exact rev-list count + explicit is-ancestor exit codes); every planted un-gated commit
+      # stays unreachable from base — including from the DISCARDED iteration whose branch no
+      # longer exists; and the terminal state is the PR queue's (promoted branches alive
+      # un-merged, discarded branch gone). The T612 promotion path is unchanged and merge stays
+      # session-explicit. P2 "machinery proves it is live", same as the isolation proof above;
+      # adapter-side CI change, not a workflow/** change — no constitution P1 concern.
+      - name: Backlog-loop multi-iteration falsification tests
+        run: bash .claude/hooks/backlog-loop-falsification.test.sh
+
       # T622 review-mode gate branch-restore backstop (#140): in REVIEW mode the §7
       # [orchestrated run] dispatches the read-only auditors in the SHARED working tree, and
       # an auditor's Bash `git checkout`/`switch` can silently relocate the maker's HEAD off
