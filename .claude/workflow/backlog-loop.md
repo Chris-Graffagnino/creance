@@ -182,8 +182,11 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
 Between-iteration state becomes durable as a run report under `telemetry.md`'s law:
 **telemetry observes; it never decides.**
 
-- **Shape:** one line per iteration — the task ID, the gate verdict, and the resulting PR
-  reference or discard, each field matching that iteration's actual outcome — plus one
+- **Shape:** one line per iteration — the task ID plus that iteration's terminal outcome,
+  in the outcome's own form. A **gated** outcome records the gate verdict and the
+  resulting PR reference or discard; a **`refused` or `aborted`** iteration records that
+  outcome itself — no gate ran, so no verdict and no PR-or-discard artifact exists, and
+  the line carries none (a report line never fabricates a gate result). Plus one
   terminal run-summary line carrying the stop condition and `iterations of N`, so a
   **partially completed run is a valid outcome, visible *as partial*** — never mistaken
   for a clean drain, never treated as an error baseline.
