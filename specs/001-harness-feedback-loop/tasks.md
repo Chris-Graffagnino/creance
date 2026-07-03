@@ -457,6 +457,24 @@
       case, and the wiring assertion (#202; repo-maintenance — done-when on issue) — strong:
       changes `[guard]` behavior and adds its P2 regression coverage (constitution P2/P3)
 
+## Phase 15 — Environment-learning intake (EdgeBench deltas, #209/#210)
+
+- [ ] T634 [cheap] Effective-fix-rate trend: define the read-only flip/re-dispatch
+      derivation in `workflow/telemetry.md` → Consumers (a flip = FAIL in round *n*,
+      PASS/JUSTIFY in round *n+1*; no new record type, no schema or writer change);
+      render it in the triage "Gate trends" section with numerator/denominator shown,
+      deterministic recipe (P3), read-only (US2.AC3 posture), explicit
+      no-fix-rounds-vs-0-of-N and no-data states; fixture-backed test per US9.AC3
+      (FAIL→PASS flip, FAIL→JUSTIFY flip, non-convergence, pass-first-try, both empty
+      states); observe-only — no gate/tier/guard/selection consumer (P5) (#209) (US9)
+- [ ] T635 [strong] Retry experience retention: workflow retry sub-doc (pointer from
+      `next-task.md`, budget check green) defining verbatim per-auditor/round posting of
+      non-convergence verdicts as a marked issue comment + the retry-consumes-it
+      procedure (maker input only — no steering authority, no verdict carry-over, every
+      reviewer re-runs); tracker-not-telemetry source boundary stated (P5);
+      `DESIGN-NOTES.md` entry on identical-starts vs experience retention; two-sided
+      conformance probe (posts on non-convergence, silent on PASS) (#210) (US10)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -498,6 +516,15 @@
 | US8.AC4 | T630 |
 | US8.AC5 | T630 |
 | US8.AC6 | T631 |
+| US9.AC1 | T634 |
+| US9.AC2 | T634 |
+| US9.AC3 | T634 |
+| US9.AC4 | T634 |
+| US10.AC1 | T635 |
+| US10.AC2 | T635 |
+| US10.AC3 | T635 |
+| US10.AC4 | T635 |
+| US10.AC5 | T635 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 

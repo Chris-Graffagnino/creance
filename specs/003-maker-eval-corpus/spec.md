@@ -168,3 +168,72 @@ can never gain control authority.
   appended with the maker-behavior fingerprint and that no gate/tier state is touched)
   is added to the neutral checklist, instantiated for the active adapter, and passes
   on it with results recorded.
+
+### US3 — Trajectory measurement (interval snapshots, post-hoc judged)
+As a harness operator, I want an eval run to capture interval snapshots of the maker's
+workspace and grade them after the run with the pinned judge, so that learning curves —
+improvement over interaction time, not just endpoints — become part of the maker-eval
+record and comparisons can measure how a maker learns, not only where it lands.
+
+Motivation: EdgeBench (ByteDance Seed, 2026-07-02, https://edge-bench.org/paper.pdf
+§2.3) grades host-side interval snapshots invisible to the agent — this channel's
+observe-only posture (P5) applied over time. Trajectory records are what US4's swap
+protocol consumes. Intake of issue #211.
+
+**Acceptance Criteria**
+- AC1: The workflow doc defines interval snapshot capture for a corpus run: at a fixed,
+  instrument-declared cadence during the maker's [headless run], workspace snapshots are
+  captured into the eval channel's fenced path (US1.AC1); capture is silent-to-the-run —
+  a failed or partial snapshot never blocks, fails, or alters the maker's run — and **no
+  snapshot-derived score reaches any maker-visible surface**; a run longer than one
+  interval that yields no snapshots is recorded **trajectory-incomplete, explicitly,
+  never silently** (so "no snapshots" cannot masquerade as "no intervals elapsed").
+- AC2: Snapshot capture ships tests covering: snapshots appear at the declared cadence
+  on a fixture run; a forced snapshot-write failure leaves the maker run's outcome and
+  artifacts byte-identical; and the trajectory-incomplete marking fires on a planted
+  zero-snapshot multi-interval run and does not fire on a genuinely sub-interval run — a
+  marking test that exercises only the firing direction does not satisfy this.
+- AC3: After the run, the pinned judge (US1.AC1) grades each snapshot against the same
+  per-task rubric; per-interval scores extend the per-(corpus task × maker tier) record
+  under an **explicit instrument version**: the record carries the version, the schema
+  extension lands as a reviewed PR that moves the eval-instrument fingerprint (US1.AC3,
+  constitution P4), and triage's comparability annotations (US2.AC2) render
+  cross-version differences as INSTRUMENT-CHANGED / not-comparable rather than
+  differencing them — a version bump that still gets differenced, or a schema change
+  with no fingerprint movement, each violates this.
+- AC4: The observe-only boundary holds over the new storage: per-interval scores and
+  snapshots live only under the fenced eval path, the US2.AC3 deterministic CI fence
+  extends to the trajectory storage, and its `.test.sh` gains a planted cross-reference
+  case for the trajectory path that fires, alongside the pass-on-the-real-tree control
+  (constitution P2/P5).
+
+### US4 — Learning-speed model-swap protocol
+As a harness operator, when I consider a model-tier swap, I want a documented comparison
+protocol measuring learning gain over a fixed budget from matched starts, so that the
+human-reviewed swap PR cites learning speed rather than endpoint scores that conflate
+prior knowledge with learning.
+
+Motivation: EdgeBench §4 disentangles the two exactly this way (matched first-attempt
+slice, fixed interaction budget) and finds agent learning speed doubling roughly every
+three months across frontier releases — endpoint-only comparisons systematically
+undervalue newer models. Depends on US3's trajectory records. Intake of issue #212.
+
+**Acceptance Criteria**
+- AC1: A workflow-doc protocol defines the comparison: select corpus tasks where the
+  candidate's and incumbent's earliest-interval (US3) scores fall within a stated
+  matching tolerance; compare score gain over a stated fixed interaction budget; output
+  an observe-only report the human-reviewed swap PR cites. The doc must contain each
+  named element — the matched-start selection rule with its tolerance, the fixed budget,
+  the gain definition, and an explicit statement that the report informs a human-reviewed
+  `.claude/MODELS.md` PR and never auto-retiers (constitution P5; spec 001 non-goals
+  unchanged) — a protocol missing any element does not satisfy this.
+- AC2: The adapter model table (`.claude/MODELS.md`) records each row's context window
+  as a stated attribute, with the guidance note that long-horizon paths prefer the
+  larger context at equal tier (EdgeBench §5.3: a stable multi-point gain even with
+  external memory channels available); the protocol report states both compared rows'
+  context windows so a swap never silently trades context away.
+- AC3: The maker-facing implementation-loop guidance gains three behaviors, placed
+  within the `next-task.md` line budget or its sub-docs (the budget check stays green):
+  make the task measurable before improving it; decompose a stalled failure into
+  searchable subproblems; once a working core exists, keep it fixed and repair residuals
+  rather than rewriting (EdgeBench §5.4).
