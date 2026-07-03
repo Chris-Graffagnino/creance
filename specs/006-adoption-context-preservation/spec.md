@@ -7,7 +7,7 @@
 
 ## Overview
 
-Creance's onboarding is greenfield-only: the README Quickstart and `EXTRACTION.md`
+Creance's onboarding is greenfield-only: the README Quickstart and `.claude/EXTRACTION.md`
 document one direction — start a *new* project from the template. Adopting the harness
 into a project that **already exists** has no documented path and no guard, and a
 template-style install threatens two of that project's three context layers: the
@@ -18,7 +18,7 @@ orphan** (durable design rationale stranded in a per-project store the install n
 imports nor mentions, then lost to a machine migration or invisible to a cold/headless
 run). The failure is silent and destructive — the class this repo treats as first-class
 (DESIGN-NOTES §"the guard was silently dead"; constitution P2's posture) — and it
-generalizes Creance's own extraction thesis: `DESIGN-NOTES.md` exists *because*
+generalizes Creance's own extraction thesis: `.claude/DESIGN-NOTES.md` exists *because*
 out-of-repo memory doesn't survive a copy. This spec promotes that one-time observation
 into a standing onboarding contract: **adoption preserves pre-existing context — it
 never overwrites or orphans it** — via a documented non-destructive adoption path
@@ -72,7 +72,7 @@ project's law, profile, or scope.
   merges, where template content goes when a real artifact already exists). A doc that
   anywhere instructs copying a template file over an existing profile artifact violates
   this criterion.
-- AC2: The reconcile procedure derives from `EXTRACTION.md`'s GENERICIZE/TEMPLATE
+- AC2: The reconcile procedure derives from `.claude/EXTRACTION.md`'s GENERICIZE/TEMPLATE
   cut-list **run in reverse** — every profile-artifact entry that list marks has a
   named adoption action, enforced by a deterministic coverage check (a lint or test
   that fails when a cut-list profile entry has no adoption mapping) so the two
@@ -104,14 +104,23 @@ that "adoption succeeded" can never read as "context preserved" when it wasn't.
   directions: a planted would-clobber fixture (a pre-existing artifact present) is
   refused with the artifact named, AND a clean greenfield fixture (no pre-existing
   artifacts) proceeds without a refusal — a test exercising only the refusal direction
-  does not satisfy this (constitution P2/P3). The tests are **wired into the repo's
-  standing verification** with the wiring asserted — unwired tests are the same
-  silently-dead-guard class as an unwired check.
+  does not satisfy this (constitution P2/P3). AC1's fail-closed branch is fixtured
+  too: a planted unreadable/uncertain state (an artifact whose presence cannot be
+  determined) is refused, not proceeded past — untested, the fail-closed clause is
+  words. The tests are **wired into the repo's standing verification** with the
+  wiring asserted — unwired tests are the same silently-dead-guard class as an
+  unwired check.
 - AC3: A post-adoption conformance probe captures a content fingerprint of each
   pre-existing profile artifact **before** install and asserts **after** install that
-  each is unchanged — or changed only by a reconcile decision explicitly recorded in
-  the adoption run's output — with both directions proven: a planted silent overwrite
-  FAILs the probe, and an overwrite-free control run passes, results recorded as
+  each is unchanged — or changed only by a reconcile decision the **adopter
+  ratified**, recorded in an artifact **independent of the install run's own
+  output**: the install logging its own overwrite as "reconciled" never satisfies the
+  exemption (otherwise the run being audited certifies itself and the preservation
+  guarantee is bypassed — the non-goal stands: the harness proposes, the adopter
+  ratifies). The probe is proven in all three directions: a planted silent overwrite
+  FAILs, an overwrite-free control run passes, AND a changed artifact passes only
+  when its adopter-ratified reconcile record is present — the same change with no
+  record (or with only the install's self-reported log) FAILs; results recorded as
   independently readable artifacts (the spec 001 US8.AC6 evidence rule: a bare
   self-assertion does not satisfy this). The captured fingerprints live **outside the
   install-target paths** — a fingerprint stored where the install writes could be
@@ -155,7 +164,7 @@ of the same orphan risk.
 
 **Acceptance Criteria**
 - AC1: The rule ships as **two coordinated pieces in the same change**, each
-  cross-referencing the other: a rationale entry in `DESIGN-NOTES.md` (adapter-aware —
+  cross-referencing the other: a rationale entry in `.claude/DESIGN-NOTES.md` (adapter-aware —
   it may name the concrete store and why it is orphan-prone) and an operational
   trigger in the per-task loop (mechanism-neutral — no tool, vendor, model, or store
   name). A single-location version — rule without rationale, or rationale without an

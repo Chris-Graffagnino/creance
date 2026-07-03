@@ -19,9 +19,11 @@
 - [ ] T1102 [strong] Pre-adoption preservation guard (deterministic, fail-closed,
       refuses loud with artifacts named; standalone + invoked by the adoption path) +
       post-adoption conformance probe (pre-install fingerprints asserted post-install,
-      reconcile-recorded changes exempt) — both with two-sided falsification tests in
-      the same diff (planted clobber refused / greenfield control proceeds;
-      planted silent overwrite FAILs / overwrite-free control passes, independently
+      changes exempt only via an adopter-ratified reconcile record independent of the
+      install's own output) — both with falsification tests in the same diff (planted
+      clobber refused / greenfield control proceeds / unreadable state refused;
+      planted silent overwrite FAILs / overwrite-free control passes / ratified
+      reconcile passes where the same unrecorded change FAILs, independently
       readable evidence); blocked by T1101 (US2)
 
 ## Phase 2 — Rescue, prevention, and steady state
@@ -34,7 +36,7 @@
       fully-covered control prunes clean); provenance kept out of the always-loaded
       index; workflow/**-resident text names the store as a [role] only (neutrality
       scan green); blocked by T1101 (US3)
-- [ ] T1104 [strong] Standing prevention rule — DESIGN-NOTES.md rationale entry
+- [ ] T1104 [strong] Standing prevention rule — `.claude/DESIGN-NOTES.md` rationale entry
       (adapter-aware) + mechanism-neutral operational trigger in the per-task loop,
       cross-referenced both ways; per-task doc line-budget stays green (pointer-style
       or compensating trim, never a budget bump) and neutrality scan green (US4)

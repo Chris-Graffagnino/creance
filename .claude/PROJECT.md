@@ -51,8 +51,7 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   judges, leaning strong.
 - **Criterion ownership (multi-task stories):** each live `specs/*/tasks.md` carries a
   "Criterion ownership" section mapping each `US#.AC<n>` to exactly one owning task
-  (`specs/001-harness-feedback-loop/tasks.md`, `specs/002-spec-quality-gate/tasks.md`,
-  `specs/003-maker-eval-corpus/tasks.md`, `specs/004-autonomous-backlog-loop/tasks.md`).
+  (the live tasks files are enumerated once, under Paths → "Tasks (backlog)").
 - **Issue / PR / commit title:** `<type>: [<task-id>] <description>` for task work;
   `<type>: <description>` for repo maintenance (matches existing history).
 - **Branch name:** `<type>/<issue#>-<short-slug>` (e.g. `fix/21-template-tasks-glob-collision`).
