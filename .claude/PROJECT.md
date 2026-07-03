@@ -17,14 +17,17 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 - **Spec (acceptance criteria):** `specs/001-harness-feedback-loop/spec.md`;
   `specs/002-spec-quality-gate/spec.md`; `specs/003-maker-eval-corpus/spec.md`;
   `specs/004-autonomous-backlog-loop/spec.md`; `specs/005-held-out-acceptance/spec.md`;
-  `specs/006-adoption-context-preservation/spec.md`
+  `specs/006-adoption-context-preservation/spec.md`;
+  `specs/007-workflow-context-economy/spec.md`
 - **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`,
   `specs/002-spec-quality-gate/tasks.md`, `specs/003-maker-eval-corpus/tasks.md`,
   `specs/004-autonomous-backlog-loop/tasks.md`,
-  `specs/005-held-out-acceptance/tasks.md`, and
-  `specs/006-adoption-context-preservation/tasks.md` — the
+  `specs/005-held-out-acceptance/tasks.md`,
+  `specs/006-adoption-context-preservation/tasks.md`, and
+  `specs/007-workflow-context-economy/tasks.md` — the
   engine selects across all `specs/*/tasks.md`; task IDs are unique across them
-  (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx, 004 = T9xx, 005 = T10xx, 006 = T11xx).
+  (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx, 004 = T9xx, 005 = T10xx, 006 = T11xx,
+  007 = T12xx).
   `specs/000-template/tasks.template.md` is a skeleton, never a backlog.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
@@ -43,7 +46,7 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 ## Task & branch conventions
 - **Task ID format:** `T` + 3–4 digits, unique across all live `specs/*/tasks.md` — each
   spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx,
-  004 = T9xx, 005 = T10xx, 006 = T11xx). The 4-digit extension was owner-ratified on #213 when the
+  004 = T9xx, 005 = T10xx, 006 = T11xx, 007 = T12xx). The 4-digit extension was owner-ratified on #213 when the
   3-digit hundreds blocks were exhausted; every deterministic consumer parses `T[0-9]+`,
   so no hook or CI change accompanies it.
 - **Model tier tag:** every task line carries `[frontier]`/`[strong]`/`[cheap]` — the
@@ -254,3 +257,8 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   T804. Its judge is pinned independently of the maker model-table change and triage
   suppresses cross-judge comparisons, so the differential stays an independent
   measurement (P1) → T801, T802, T803.
+- Spec 007 — context compaction must never weaken the workflow contract: every compact
+  artifact is generated or drift-checked (P2/P3), the stage-card split keeps every
+  neutral card inside the neutrality scan's coverage (P1), budget signals stay
+  observe-and-gate-CI-only (P5's posture), and the `AGENTS.md` trim keeps the existing
+  residency check live → T1201–T1206.
