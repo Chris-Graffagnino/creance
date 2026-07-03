@@ -7,7 +7,7 @@
 
 ## Phase 1 — The neutral loop model
 
-- [ ] T901 [strong] Specify the runtime-neutral `[backlog-loop]` in
+- [x] T901 [strong] Specify the runtime-neutral `[backlog-loop]` in
       `.claude/workflow/**`: a bounded iteration model whose each iteration is a complete,
       unmodified `next-task` cycle (`[live-state reconciliation]` → implement in the
       `[isolated workspace]` → §7 gate → PASS→PR / FAIL→discard), composing existing roles
