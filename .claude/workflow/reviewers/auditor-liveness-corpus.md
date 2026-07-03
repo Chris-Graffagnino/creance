@@ -25,8 +25,7 @@ run; this corpus proves the auditors live on a schedule and on every reviewer-sp
   fixtures could be a stuck "always PASS". The matched pair is what proves the auditor
   *discriminates* — the same known-good/known-bad calibration the guard's regression test
   uses. The four auditors are **acceptance**, **constitution**, **contract**, and
-  **spec-quality** (the last is declared here ahead of its runner binding — see the
-  **Lifecycle** bullet below).
+  **spec-quality** — all four are bound to the runner and exercised by a full corpus run.
 - **Each fixture row carries:** a stable `AL-…` id, its target auditor (one of the four
   dimension names above), its expected verdict (`FAIL` or `PASS`), the violation it plants
   (the scenario the runner materializes), and — for an expected-`FAIL` — the **evidence
@@ -44,13 +43,11 @@ run; this corpus proves the auditors live on a schedule and on every reviewer-sp
 - **Lifecycle — a dimension may be declared here ahead of its runner binding.** The corpus
   declares the fixture; a later task teaches the runner to dispatch it (`auditor-liveness.md`
   → "The run": *this file declares the expectation, the runner reconstructs the plant*).
-  **`spec-quality` is in that state today:** its `AL-SQ-*` pair is declared and CI-enforced
-  here, but the adapter's **[reviewer]** dispatch binding and the **reviewer-spec fingerprint**
-  do **not** yet cover it (the spec-quality skill/agent-binding task owns that wiring). Until
-  it lands, a **full** corpus run exercises only the three bound auditors, the `AL-SQ-*` rows
-  stand as a **declared-but-not-yet-dispatched** expectation, and editing
-  `reviewers/spec-quality-auditor.md` does **not** yet raise **CORPUS-STALE**. The marker is
-  removed when the binding lands and a full run first exercises `spec-quality`.
+  **`spec-quality` no longer carries that caveat:** the adapter's **[reviewer]** dispatch
+  binding and the **reviewer-spec fingerprint** now cover it (`.claude/skills/auditor-liveness/SKILL.md`),
+  so a **full** corpus run exercises all four bound auditors and editing
+  `reviewers/spec-quality-auditor.md` raises **CORPUS-STALE** exactly as editing any other
+  auditor spec does.
 
 ## Fixtures
 
