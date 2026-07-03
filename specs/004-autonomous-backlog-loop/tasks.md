@@ -18,7 +18,7 @@
 
 ## Phase 2 — Deterministic bounds & safety proofs
 
-- [ ] T902 [strong] Deterministic stop-condition enforcement + activation-gating: max-N
+- [x] T902 [strong] Deterministic stop-condition enforcement + activation-gating: max-N
       (N resolved from configuration/invocation, never hardcoded), no-unblocked-candidate,
       same-task-fails-gate-twice, and any lifecycle/`[autonomy activation]` failing closed
       — evaluated only *between* iterations, never mid-task. Ships paired tests: run halts

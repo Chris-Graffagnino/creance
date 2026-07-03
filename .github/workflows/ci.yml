@@ -169,6 +169,24 @@ jobs:
       - name: Autonomy-activation tests
         run: bash .claude/hooks/autonomy-mode.test.sh
 
+      # T902 [backlog-loop] control skeleton (spec 004 US1.AC2/AC3): backlog-loop.sh is
+      # the deterministic control skeleton for the bounded unattended loop
+      # (.claude/workflow/backlog-loop.md, T901) — reachable ONLY through the
+      # autonomy-mode.sh check above, consulted at the top of EVERY loop head and
+      # failing CLOSED to review (AC2), with the closed stop-condition set evaluated
+      # only BETWEEN iterations: max-N (N from the invocation, never hardcoded; N=0 is
+      # a valid no-op), backlog-drained, same-identity-fails-gate-twice (first FAIL
+      # advances one selection), and fail-closed (AC3). The selection/iteration
+      # mechanisms are injectable seams with NO silent defaults (T905 binds the real
+      # ones), so the .test.sh drives the skeleton with stub seams and proves every
+      # stop condition, the activation ordering, and the shipped-profile default
+      # (review, nothing runs) with exact-transcript assertions — the P2 "machinery
+      # proves it is live" discipline, same as autonomy-mode.test.sh. Adapter-side
+      # (hooks/ is the Claude Code binding), so a CI change, not a workflow/** change
+      # — no constitution P1 concern.
+      - name: Backlog-loop control tests
+        run: bash .claude/hooks/backlog-loop.test.sh
+
       # T611 isolated-workspace lifecycle tests (#108, epic #81 part b):
       # isolated-workspace.sh binds the [isolated workspace] role's worktree enter/exit
       # lifecycle (.claude/workflow/README.md), and the next-task path wires T610's
