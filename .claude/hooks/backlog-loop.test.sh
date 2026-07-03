@@ -343,6 +343,21 @@ assert_eq "refused: identity excluded from every later selection" "$(cat "$FIX/s
 want="$(printf 'start T701\nend T701 outcome refused\nstart T702\nend T702 outcome pass PR-T702')"
 assert_eq "refused: identity never re-invoked this run" "$(cat "$FIX/iter.log")" "$want"
 
+# ── 13. Broken selector -> stop fail-closed (the header's documented decision:
+#    a selector that cannot run is a lifecycle check failing closed, condition
+#    (d) — never silently read as an empty backlog / backlog-drained).
+mkfix c13
+printf 'T710\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+RC=0
+OUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="/nonexistent/no-such-selector" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  bash "$SCRIPT" run 3 2>/dev/null)" || RC=$?
+assert_eq "broken selector: stop fail-closed, not backlog-drained" "$OUT" "stop: fail-closed after 0 of 3"
+assert_eq "broken selector: exit 0 on the clean stop" "$RC" "0"
+assert_eq "broken selector: iteration command never invoked" "$(cat "$FIX/iter.log")" ""
+
 # ── Usage guards: missing/non-numeric N, wrong subcommand, and a missing seam
 #    are loud exit-2 errors — never a silent default that touches real state.
 rc_guard() { # <label> <want-rc> [args...] — seams present unless overridden
