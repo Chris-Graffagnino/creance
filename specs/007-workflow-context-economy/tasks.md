@@ -10,9 +10,12 @@
 ## Phase 1 — The measurement substrate
 
 - [ ] T1201 [strong] Repository token-budget check — per-file and per-bundle counts over
-      the named context artifacts/bundles; documented owner-ratified budgets (initial
-      values from #166) with an explicit override path; wired into `verify` with the
-      wiring asserted; two-sided falsification fixtures (planted over-budget fails
+      the named context artifacts/bundles that exist at landing time; documented
+      owner-ratified budgets (initial values from #166) with an explicit override path,
+      budgets for later-landing surfaces (compact packet, stage cards, task index,
+      restructured bundles) registered but gating deferred to the owning task's diff
+      per US1.AC1 — this task creates no downstream artifact; wired into `verify` with
+      the wiring asserted; two-sided falsification fixtures (planted over-budget fails
       naming artifact + count / within-budget control passes); tokenizer identity kept
       out of `workflow/**`, neutrality scan green (US1)
 
@@ -30,9 +33,10 @@
 - [ ] T1204 [strong] Split the per-task procedure into demand-loaded stage cards within
       budget (or documented override); entrypoint loads current card + compact packet
       only; full source stays coherent via generated assembly or index with a
-      deterministic completeness/drift check so a dropped obligation fails verification;
-      existing references resolve and neutrality-scan coverage includes every card;
-      blocked by T1201, T1203 (US4)
+      deterministic completeness/drift check compared against an independently captured
+      pre-split obligation inventory (committed as a fixture the cards cannot influence)
+      so a dropped obligation fails verification; existing references resolve and
+      neutrality-scan coverage includes every card; blocked by T1201, T1203 (US4)
 - [ ] T1205 [strong] Generated task index — selection-critical fields only, within
       budget; two-sided staleness CI check (planted stale fails naming the entry /
       regenerated control passes) wired into `verify`; selection reads index-first then
@@ -41,9 +45,11 @@
 
 ## Phase 3 — Prose to determinism
 
-- [ ] T1206 [strong] Encode the governance-rule candidate set as deterministic checks
-      with two-sided focused tests (merge not pre-approved by the [permission allowlist]
-      in default review mode; budget checks wired per US1); non-encodable candidates
+- [ ] T1206 [strong] Account for the governance-rule candidate set without duplicating
+      existing coverage: merge-not-pre-approved is carried by T623's existing
+      `guard.test.sh` regression (cite it, assert it still runs, extend only on a found
+      gap — no re-implementation); budget-checks-wired is cited from US1.AC2; any new
+      encoded rule ships with two-sided focused tests; non-encodable candidates
       documented with explicit P3 justification, never silently dropped; per encoded
       rule, resident prose reduced to a pointer at the check; all new checks name their
       repair target on failure (US6)
@@ -56,6 +62,7 @@
 | US1.AC2 | T1201 |
 | US1.AC3 | T1201 |
 | US1.AC4 | T1201 |
+| US1.AC5 | T1201–T1206 (every task, graded on its own PR body) |
 | US2.AC1 | T1202 |
 | US2.AC2 | T1202 |
 | US2.AC3 | T1202 |
@@ -77,7 +84,7 @@
 
 - none
 
-> Sequencing note (not a blocker): T1206's allowlist check is independent of the
-> measurement substrate and may land alongside T1201. Evidence note (from #166's
-> definition of done): each T120x PR body carries measured before/after token counts for
-> the bundles its diff touches, alongside the standard red→green falsification evidence.
+> Sequencing note (not a blocker): T1206's carried-coverage audit is independent of the
+> measurement substrate and may land alongside T1201. Evidence rule: graded as
+> **US1.AC5** — each T120x PR body carries measured before/after token counts for the
+> surfaces its diff touches, alongside the standard red→green falsification evidence.

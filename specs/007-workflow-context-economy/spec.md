@@ -79,6 +79,13 @@ overage, so that context growth is caught deterministically instead of noticed.
   ≤ 2k; each stage card ≤ 1.5k; task index ≤ 4k; ordinary `next-task` bundle ≤ 18k;
   ordinary PR-review bundle ≤ 10k tokens). A budget the check chooses or adjusts itself
   violates this criterion (the owner ratifies budget changes, never the tooling).
+  The check measures and reports every named surface that exists when it runs; budgets
+  for surfaces that later stories introduce or restructure (the compact packet, the
+  stage cards, the task index, and the two read bundles) are documented and registered
+  from the start but begin **gating** only in the diff that lands or restructures the
+  surface — each of US2–US5's AC1 owns activating its own budget gate — so the
+  measurement substrate stays narrow and never blocks on artifacts it exists to
+  measure.
 - AC2: The check is wired into the repo's standing verification (`verify`) with the
   wiring asserted — a check that exists but never runs is the silently-dead-guard class
   (constitution P2), and a hand-run script with no CI wiring does not satisfy this.
@@ -89,6 +96,14 @@ overage, so that context growth is caught deterministically instead of noticed.
 - AC4: The concrete tokenizer/counter identity is a project/adapter fact documented
   beside the check; no `workflow/**` neutral doc names it, and the neutrality scan stays
   green over every neutral doc the change touches (constitution P1).
+- AC5: Every PR implementing a task of this spec carries measured before/after token
+  counts in its body for each context artifact or bundle its diff touches, produced by
+  the AC1 counter (the substrate PR that introduces the counter reports the baseline
+  counts it establishes; a diff touching no measured surface states that explicitly).
+  A T12xx PR body without this evidence does not satisfy this criterion — the source
+  issue's definition-of-done line, made gradable instead of carried as an ungraded
+  sequencing note. This criterion is owned by **every** task of this spec, graded on
+  each task's own PR.
 
 ### US2 — Lean resident `AGENTS.md` (issue slice 1)
 As a harness operator, I want the always-resident `AGENTS.md` reduced to per-turn rules
@@ -101,7 +116,8 @@ doc can carry.
   without explicit authorization and concrete green tracker status; the required pre-PR
   review passes (the §7 gate and the profile's review-pass set, named as [roles]);
   repository-search-first; and pointers to the source-of-truth workflow/profile docs —
-  and measures within its US1.AC1 budget under the repository token counter.
+  and measures within its US1.AC1 budget under the repository token counter, with that
+  budget's gate activated in the same diff (US1.AC1's deferred-activation rule).
 - AC2: Every rule or procedure removed from `AGENTS.md` remains available in a named
   source-of-truth doc reachable by a pointer that survives in `AGENTS.md`; removed
   content with no surviving home, or a pointer to a doc that does not carry it,
@@ -122,7 +138,8 @@ so that ordinary runs read ~2k tokens of profile instead of the full `.claude/PR
   specs/tasks paths, issue/branch/PR naming conventions, required checks, autonomy
   status, the critical invariants with their deterministic backstops, and the edit-time
   checker map — and measures within its US1.AC1 budget under the repository token
-  counter.
+  counter, with that budget's gate activated in the same diff (US1.AC1's
+  deferred-activation rule).
 - AC2: A deterministic drift check fails when the packet disagrees with
   `.claude/PROJECT.md` on any covered field, is proven in **both** directions in the
   same diff (a planted drift fixture fails with the drifted field named, AND an in-sync
@@ -143,7 +160,8 @@ demand, so that each stage pays for its own instructions instead of the whole pr
   and task selection; context read; issue and branch; implementation loop; verification;
   pre-PR gate; PR creation and stop condition), each measuring within its US1.AC1 budget
   under the repository token counter — or carrying a documented overage through US1.AC1's
-  override path where a stage genuinely cannot compress.
+  override path where a stage genuinely cannot compress — with the stage-card budget's
+  gate activated in the same diff (US1.AC1's deferred-activation rule).
 - AC2: The per-task entrypoint (the skill binding) loads only the current stage card plus
   the compact project packet for ordinary work — never the full assembled procedure by
   default; the escalation to the full source is explicit, not the default path.
@@ -153,10 +171,15 @@ demand, so that each stage pays for its own instructions instead of the whole pr
   split, and the neutrality scan's coverage includes **every** resulting neutral card — a
   card that escapes the scan is the silently-dead-guard class (P1/P2).
 - AC4: The split loses nothing: every obligation of the pre-split procedure exists in
-  exactly one card (or the assembly), enforced deterministically — the AC3 drift check on
-  a generated assembly, or an explicit completeness check over the index — so a dropped
-  section fails verification rather than passing silently; a restructuring proven only by
-  eyeball does not satisfy this.
+  exactly one card (or the assembly), enforced deterministically against an
+  **independent pre-split oracle** — an obligation inventory (e.g. section/heading IDs
+  and rule anchors) captured from the pre-split `next-task.md` itself and committed as a
+  fixture the cards cannot influence — via the AC3 drift check on a generated assembly
+  or an explicit completeness check over the index, either one compared to that
+  inventory, so a dropped section fails verification rather than passing silently. A
+  check whose reference is derived solely from the post-split cards would reproduce an
+  omission instead of detecting it and does not satisfy this; a restructuring proven
+  only by eyeball does not satisfy this.
 
 ### US5 — Generated task index (issue slice 4)
 As the task-selection step, I want a generated index of selection-critical fields, so
@@ -166,7 +189,8 @@ that picking a task reads ~4k tokens instead of every live tasks file.
 - AC1: A generated task index exists carrying only selection-critical fields per task —
   task ID, title, model tier, checkbox state, owning acceptance criterion refs, spec
   path, and issue/PR link when known — and measures within its US1.AC1 budget under the
-  repository token counter for the current repo.
+  repository token counter for the current repo, with that budget's gate activated in
+  the same diff (US1.AC1's deferred-activation rule).
 - AC2: A CI check fails when the index is stale relative to the live `specs/*/tasks.md`
   files, proven in **both** directions in the same diff (a planted stale fixture fails
   naming the stale entry, AND a freshly-regenerated control passes), wired into standing
@@ -183,15 +207,21 @@ of resident prompt prose, so that compliance stops depending on the model re-rea
 rule every turn (constitution P3).
 
 **Acceptance Criteria**
-- AC1: Each encoded rule from the initial candidate set — (a) a merge command must not be
-  pre-approved by the [permission allowlist] in default review mode, and (b) the
-  compact-context/token-budget checks run in standing verification (US1.AC2's wiring) —
-  ships as a deterministic check with focused tests covering **both** directions (a
-  planted violating fixture fails, AND a compliant control passes). A candidate that
-  cannot be made deterministic (e.g. the issue's "PR creation only after documented
-  verification and review passes", which is procedural) is documented as prose with an
-  explicit justification per constitution P3 — never silently dropped and never claimed
-  as encoded.
+- AC1: Each rule from the initial candidate set is accounted for **without duplicating
+  existing coverage**: (a) "a merge command must not be pre-approved by the [permission
+  allowlist] in default review mode" is already encoded — the T623 regression in the
+  [guard]'s test suite (`guard.test.sh`, `settings #165: no gh pr merge pre-approval`)
+  is the carried implementation; this story cites it and asserts it still runs in
+  standing verification, extending it only if an audit finds a concrete coverage gap,
+  and re-implementing or re-proving the existing check is out of scope, not a
+  deliverable. (b) "the compact-context/token-budget checks run in standing
+  verification" is owned by US1.AC2 and is cited here, not re-encoded. Any **new** rule
+  this story encodes ships as a deterministic check with focused tests covering **both**
+  directions (a planted violating fixture fails, AND a compliant control passes). A
+  candidate that cannot be made deterministic (e.g. the issue's "PR creation only after
+  documented verification and review passes", which is procedural) is documented as
+  prose with an explicit justification per constitution P3 — never silently dropped and
+  never claimed as encoded.
 - AC2: For each encoded rule, the resident prompt prose is reduced to a pointer at the
   deterministic check rather than restating the procedure; the full rationale survives in
   the source-of-truth doc per US2.AC2's posture.
