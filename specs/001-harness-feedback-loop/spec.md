@@ -319,3 +319,83 @@ arbitrary-new-skill registration deferred above.
   degradation in the PR" rule), never silently dropped, that outcome likewise evidenced by
   a recorded artifact. A probe that only ever exercises the available path does not satisfy
   this.
+
+### US9 — Effective-fix-rate trend (submission efficiency)
+As a harness operator, I want triage to surface what fraction of gate fix rounds convert
+a reviewer FAIL into a cleared verdict, so that how well the maker turns reviewer
+feedback into accepted fixes becomes an inspectable trend rather than an anecdote.
+
+Motivation: EdgeBench (ByteDance Seed, 2026-07-02,
+https://edge-bench.org/paper.pdf §5.1) finds submission *efficiency* — not submission
+count — separates strong from weak agents; the weak-agent signature ("over-trust local
+proxies, bundle unrelated edits, continue exploration after feedback ruled a direction
+out") is measurable from the existing gate-run records. Intake of issue #209.
+
+**Acceptance Criteria**
+- AC1: The telemetry doc's Consumers section defines the **effective-fix rate** as a
+  read-only derivation over existing `gate-run` records — a **flip** is a reviewer whose
+  verdict is FAIL in round *n* and PASS or JUSTIFY in round *n+1* of the same run; the
+  rate is flips over FAIL-triggered re-dispatches, aggregated per snapshot window and
+  broken out per auditor — introducing **no new record type, no schema change, and no
+  writer change** (the derivation reads the stream exactly as US2's trends do).
+- AC2: The triage snapshot's "Gate trends" section (US2.AC1) renders the effective-fix
+  rate for the window **with its numerator and denominator shown** (never a bare
+  percentage), computed by a deterministic recipe a non-scorer can re-run (constitution
+  P3 — never model estimation), read-only over telemetry (the US2.AC3 posture), with an
+  explicit "no fix rounds in window" state — distinguished from a genuine 0-of-N rate —
+  and the existing "no data yet" state when no telemetry exists; neither state may be
+  silently omitted or rendered as an error.
+- AC3: The derivation ships with a fixture-backed test over a planted telemetry stream
+  containing at least: a run with a FAIL→PASS flip, a run with a FAIL→JUSTIFY flip, a
+  non-convergence run whose FAIL never cleared, and a pass-first-try run — asserting the
+  first two each count once in the numerator, the first three contribute their
+  re-dispatches to the denominator, the pass-first-try run contributes nothing, and both
+  empty states from AC2 each render. A test that exercises only the happy path does not
+  satisfy this.
+- AC4: The rate is observe-only (constitution P5): it is rendered by triage and citable
+  by the human-reviewed retrospective, and no gate, tier-resolution, guard, or selection
+  path reads it; the derivation writes nothing to the stream.
+
+### US10 — Retry consumes prior gate verdicts (experience retention)
+As a harness operator, I want a retry of a task after a gate non-convergence stop to
+start from the prior attempt's reviewer verdicts instead of cold, so that feedback the
+gate already produced converts into progress instead of being discarded with the
+session. Scope: the posting half fires on gate non-convergence only — a passed-gate PR
+round-trip has no blocking verdicts to persist, and human PR-review feedback lives on
+the PR thread, outside this story; a retry that finds an existing marked retry comment
+consumes it (AC2) regardless of what prompted the retry.
+
+Motivation: EdgeBench §5.2 ablates continuous experience against independent restarts
+under the same time budget (+6.9 points): accumulated feedback history, not extra
+attempts, drives the gain. Identical starts are a harness property; discarding paid-for
+verdicts on retry buys no safety. Intake of issue #210.
+
+**Acceptance Criteria**
+- AC1: The retry procedure lives in a workflow sub-doc referenced by pointer from
+  `next-task.md` (whose line-budget check stays green — the accretion-sink rule), and
+  defines the posting half: when a gate returns non-convergence, the dispatcher posts the
+  blocking reviewers' verdict reports **verbatim, keyed by auditor and round**, as a
+  **[comment marker]**'d comment on the task's issue — an empty or summarized posting
+  does not satisfy this — so the feedback survives the session on the tracker channel.
+- AC2: The same sub-doc defines the consuming half: a retry of the task (resume, or
+  re-selection of the same task ID) reads the newest such marked retry comment as maker
+  input before re-implementation — when no such comment exists, the retry proceeds as
+  an ordinary cold start, never an error — addressing each recorded finding or stating
+  why not —
+  while the comment, being marked, carries **no steering authority** (`next-task.md`
+  §2.5) and relaxes nothing: every reviewer still re-runs from scratch on the retry's own
+  diff, and **no prior verdict — PASS included — is carried forward as a current
+  verdict**; a retry that skips a reviewer because it passed last time violates this
+  criterion.
+- AC3: The retry input's source is the issue's marked comment — the tracker channel —
+  never the telemetry stream: the sub-doc states this boundary explicitly, and no retry,
+  selection, or gate path reads telemetry to obtain the verdicts (constitution P5
+  unchanged: the stream keeps zero consumers with control authority).
+- AC4: A `DESIGN-NOTES.md` entry records the tension this story resolves — identical
+  starts (harness determinism) versus experience retention (EdgeBench §5.2) — and its
+  resolution: starts stay identical for the harness machinery; feedback history persists
+  on the tracker.
+- AC5: A conformance probe covers both directions: a simulated non-convergence return
+  produces the marked retry comment carrying the verbatim reports, and a gate PASS
+  produces no retry comment — a probe exercising only the posting path does not satisfy
+  this.

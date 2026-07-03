@@ -65,6 +65,25 @@
       added to the neutral checklist, instantiated for the active adapter, run live,
       results recorded (US2)
 
+## Phase 3 — Trajectory & swap protocol (EdgeBench intake, #211/#212)
+
+- [ ] T807 [strong] Interval snapshot capture for corpus runs: fixed instrument-declared
+      cadence, snapshots into the fenced eval path (US1.AC1), silent-to-the-run on
+      write failure, no maker-visible scores, explicit trajectory-incomplete marking;
+      tests per US3.AC2 (cadence fixture, byte-identical-on-write-failure, two-sided
+      incomplete marking) (#211) (US3)
+- [ ] T808 [strong] Post-hoc pinned-judge grading of snapshots + versioned schema
+      extension: per-interval scores in the (task × tier) record under an explicit
+      instrument version (reviewed-PR eval-instrument fingerprint movement, P4); triage
+      renders cross-version deltas INSTRUMENT-CHANGED/not-comparable; extend the US2.AC3
+      CI fence to the trajectory storage + planted trajectory-path cross-reference test
+      case (P2/P5); blocked by T807 (#211) (US3)
+- [ ] T809 [cheap] Learning-speed swap protocol doc (matched-start selection with stated
+      tolerance, fixed budget, gain definition, informs-never-retiers statement) +
+      `.claude/MODELS.md` context-window attribute per row with long-horizon guidance +
+      the three EdgeBench §5.4 maker behaviors in implementation-loop guidance
+      (`next-task.md` budget check stays green); blocked by T807+T808 (#212) (US4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -78,6 +97,13 @@
 | US2.AC2 | T803 |
 | US2.AC3 | T804 |
 | US2.AC4 | T805 |
+| US3.AC1 | T807 |
+| US3.AC2 | T807 |
+| US3.AC3 | T808 |
+| US3.AC4 | T808 |
+| US4.AC1 | T809 |
+| US4.AC2 | T809 |
+| US4.AC3 | T809 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
