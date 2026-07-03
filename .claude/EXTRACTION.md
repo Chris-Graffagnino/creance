@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 103 rows.
+Manifest source inventory: 104 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -149,6 +149,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `skills/triage/SKILL.md` | KEEP | Claude adapter binding for triage. Verbatim. |
 | `workflow/README.md` | KEEP | The binding contract — the spine. Verbatim. |
 | `workflow/auditor-liveness.md` | KEEP | Runtime-neutral auditor-liveness methodology. Verbatim. |
+| `workflow/backlog-loop.md` | KEEP | Runtime-neutral [backlog-loop] spec — bounded unattended chaining of gated next-task cycles. Verbatim. |
 | `workflow/conformance-probes.md` | KEEP | Neutral probe checklist. Verbatim. |
 | `workflow/constitution-check.md` | KEEP | Pre-PR compliance gate. Verbatim. |
 | `workflow/gate-loop.md` | KEEP | §7 gate as pseudocode. Verbatim. |
