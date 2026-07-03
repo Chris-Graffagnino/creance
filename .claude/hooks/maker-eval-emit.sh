@@ -456,19 +456,22 @@ EOF
 
   # From here every failure is a WRITE failure: silent-to-the-eval (exit 0, nothing written),
   # exactly as `record` and the telemetry emitter do — the eval is observe-only.
-  local channel agreement ts repo rec
+  local channel ts repo rec
   channel="$(channel_dir)" || return 0
   [ -n "$channel" ] || return 0
-  # A fixed-scale fraction in [0,1]; awk (not bc) for portability. `matched/total`.
-  agreement="$(awk -v m="$matched" -v t="$total" 'BEGIN { printf "%.4f", (t>0 ? m/t : 0) }')" || return 0
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 0
   repo="$(repo_basename)"
+  # jq computes agreement = matched/total itself, so the fraction is a CANONICAL JSON number
+  # (8/8 -> 1, 2/4 -> 0.5) with no locale-decimal or trailing-zero variance across jq versions
+  # or awk locales (the old `awk "%.4f"` emitted `1.0000`, which some jq builds preserved rather
+  # than normalized). `matched`/`total` are plain shell integers; jq divides.
   rec="$(jq -c \
     --arg ts "$ts" --arg repo "$repo" --arg run "$run_id" \
-    --argjson agreement "$agreement" --argjson floor "$floor" \
+    --argjson floor "$floor" \
     --argjson matched "$matched" --argjson total "$total" \
     -n '{record:"maker-eval-agreement", timestamp:$ts, repo:$repo, run_id:$run,
-         agreement:$agreement, floor:$floor, matched:$matched, total:$total}' \
+         agreement:(if $total > 0 then $matched / $total else 0 end),
+         floor:$floor, matched:$matched, total:$total}' \
     2>/dev/null)" || return 0
   [ -n "$rec" ] || return 0
 
