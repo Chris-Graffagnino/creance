@@ -278,6 +278,26 @@ agerr="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/agfile/agsub" bash "$EMIT" a
 eq "T806: agreement write failure exits 0 (silent-to-the-eval)" "0" "$rc"
 eq "T806: agreement write failure emits nothing to stderr" "" "$agerr"
 if [ -e "$TMP/agfile/agsub" ]; then bad "T806: agreement write failure wrote nothing" "created $TMP/agfile/agsub"; else ok; fi
+# (vii) a verdict OUTSIDE the scoring schema (meets|partial|fails) is a loud caller error —
+# silently counting a non-schema verdict as a disagreement would skew the figure.
+AGCH7="$TMP/agreement-channel-bogus"
+cat > "$TMP/v-bogus.json" <<'EOF'
+{"verdicts":[{"pair":"CAL-01","verdict":"bogus"},{"pair":"CAL-02","verdict":"fails"},
+{"pair":"CAL-03","verdict":"meets"},{"pair":"CAL-04","verdict":"fails"}]}
+EOF
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH7" bash "$EMIT" agreement \
+  --run-id run-AG7 --verdicts "$TMP/v-bogus.json" >/dev/null 2>&1; rc=$?
+eq "T806: a non-schema judge verdict is a loud caller error (exit 2)" "2" "$rc"
+eq "T806: a non-schema judge verdict lands no record" "0" "$(grep -c . "$AGCH7/records.jsonl" 2>/dev/null || echo 0)"
+# (viii) a dangling option (--run-id with no value) is a loud usage error (exit 2, nothing
+# written) — the unguarded parser left the arg list unchanged after `shift 2` and spun
+# forever. perl's alarm caps the run (macOS ships no GNU timeout): a regression dies on
+# SIGALRM (rc 142) instead of hanging the suite.
+AGCH8="$TMP/agreement-channel-dangling"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH8" perl -e 'alarm 5; exec @ARGV' \
+  bash "$EMIT" agreement --run-id >/dev/null 2>&1; rc=$?
+eq "T806: agreement --run-id with no value is a loud usage error (exit 2, no hang)" "2" "$rc"
+if [ -e "$AGCH8" ]; then bad "T806: a dangling option writes nothing" "created $AGCH8"; else ok; fi
 
 # ── T806 (US1.AC5 / AC3): a CALIBRATION-SET edit moves ONLY eval_instrument ────────────────
 # The calibration set + labels + floor are part of the frozen instrument, so editing an owner

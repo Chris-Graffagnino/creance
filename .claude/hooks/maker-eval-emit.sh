@@ -378,10 +378,12 @@ do_record() {
 # ── agreement (the judge<->owner calibration figure, T806 / US1.AC5) ─────────────
 do_agreement() {
   local run_id="" verdicts=""
+  # A dangling option (a flag with no value) is a loud usage error: an unguarded `shift 2`
+  # on a 1-element list leaves the list unchanged and the loop spins forever.
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --run-id)   run_id="${2:-}"; shift 2 ;;
-      --verdicts) verdicts="${2:-}"; shift 2 ;;
+      --run-id)   [ "$#" -ge 2 ] || { usage; return 2; }; run_id="$2"; shift 2 ;;
+      --verdicts) [ "$#" -ge 2 ] || { usage; return 2; }; verdicts="$2"; shift 2 ;;
       *) usage; return 2 ;;
     esac
   done
@@ -401,6 +403,14 @@ do_agreement() {
               and ((.verdicts // []) | all(.pair != null and .verdict != null))' \
         "$verdicts" >/dev/null 2>&1; then
     printf 'maker-eval-emit: verdicts file is not a well-formed { verdicts:[{pair,verdict}...] } object: %s\n' "$verdicts" >&2
+    return 2
+  fi
+  # Every judge verdict must be a scoring-schema value (`meets`/`partial`/`fails` — the corpus
+  # manifest's per-dimension verdicts). A non-schema verdict is a loud caller error, never a
+  # silently-counted disagreement that would skew the figure.
+  if ! jq -e '(.verdicts // []) | all(.verdict | IN("meets","partial","fails"))' \
+        "$verdicts" >/dev/null 2>&1; then
+    printf 'maker-eval-emit: every judge verdict must be a scoring-schema value (meets|partial|fails): %s\n' "$verdicts" >&2
     return 2
   fi
 
