@@ -33,7 +33,7 @@
       `US#` with zero ACs, a verbatim-duplicate AC) + a `.test.sh` proving it fires
       on planted smells and does not false-fire on a clean spec; wire into CI
       `verify` (US2)
-- [ ] T705 [strong] Intake §4 gameability screen delegates to the shared reviewer
+- [x] T705 [strong] Intake §4 gameability screen delegates to the shared reviewer
       check (de-fork) + a test so a re-fork FAILs CI (US2)
 - [x] T706 [cheap] Claude skill/agent binding (reuse the [reviewer] role) +
       conformance probe for the spec-touch dispatch added to the neutral checklist,

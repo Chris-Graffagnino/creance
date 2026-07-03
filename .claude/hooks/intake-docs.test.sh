@@ -4,7 +4,10 @@
 # comments"), plus T606 (#76; repo-maintenance — done-when on issue): the §4
 # gameability screen, its mirror as a named step in the acceptance reviewer's
 # intake-conversion mode (so a prose-only addition does not satisfy the gate),
-# and the spec-auditor left-shift note.
+# and the spec-auditor left-shift note. T705 (#219; US2.AC4) de-forks the
+# gameability rule: its single canonical home is the shared spec-quality reviewer
+# (`reviewers/spec-quality-auditor.md` hunt (d)) and intake §4 delegates to it — a
+# re-fork (re-inlining the worked-example prose into intake) FAILs CI here.
 #
 # The triage and intake procedures are runtime-neutral prose executed by the
 # engine — `.claude/workflow/triage.md` and `.claude/workflow/intake.md` ARE the
@@ -41,6 +44,16 @@ check() { # check <name> <haystack> <needle (grep -F fixed string)>
   else
     fail=$((fail + 1))
     printf 'FAIL %s\n     missing: %s\n' "$name" "$needle" >&2
+  fi
+}
+
+check_absent() { # check_absent <name> <haystack> <needle> — FAIL if the needle IS present
+  local name="$1" hay="$2" needle="$3"
+  if printf '%s' "$hay" | grep -qF -- "$needle"; then
+    fail=$((fail + 1))
+    printf 'FAIL %s\n     unexpectedly present: %s\n' "$name" "$needle" >&2
+  else
+    pass=$((pass + 1))
   fi
 }
 
@@ -206,16 +219,67 @@ fi
 # ── T606 — gameability screen at intake (#76; repo-maintenance — done-when) ────
 SPEC_AUDITOR="$DIR/workflow/reviewers/spec-auditor.md"
 SPEC_AUDITOR_FLAT="$(flat "$SPEC_AUDITOR")"
+# T705 (US2.AC4): the gameability rule is de-forked. Its single canonical home is the
+# shared spec-quality reviewer; intake §4 delegates to it instead of carrying a forked
+# copy. So the worked-example prose (the `if x: return y` shape and the one-sided shape)
+# now lives in spec-quality-auditor.md, and intake §4 points there.
+SPEC_QUALITY_AUDITOR="$DIR/workflow/reviewers/spec-quality-auditor.md"
+# Extract ONLY the '- **(d) Gameability**' bullet (through its indented continuation,
+# stopping at the next top-level bullet or heading): the invariant is that the canonical
+# phrase and BOTH worked shapes live INSIDE hunt (d), not merely somewhere in the file —
+# a whole-file check would keep passing if the worked examples drifted out of the hunt.
+hunt_d_block() {
+  awk '
+    d && (/^- \*\*\(/ || /^#/) { exit }
+    /^- \*\*\(d\) Gameability\*\*/ { d = 1 }
+    d { print }
+  ' "$1"
+}
+SPEC_QUALITY_HUNT_D="$(hunt_d_block "$SPEC_QUALITY_AUDITOR" | tr -s '[:space:]' ' ')"
 
-# DW1 — intake.md §4 carries the gameability screen with a concrete worked example
-# (the `if x: return y` shape AND the recall-without-precision shape).
+# DW1 — intake.md §4 still runs the gameability screen at draft time, but now DELEGATES
+# to the shared reviewer's check rather than restating the rule.
 check "T606 DW1: §4 gameability-screen heading" "$INTAKE_FLAT" \
   "Screen each drafted criterion for gameability"
 check "T606 DW1: the screen names the cheapest satisfy-without-the-work path" "$INTAKE_FLAT" \
   "cheapest way to satisfy the criterion without doing the real work"
-check "T606 DW1: worked example — trivially satisfiable (if x: return y)" "$INTAKE_FLAT" \
+
+# T705 (US2.AC4): the canonical rule lives in the shared spec-quality reviewer's hunt (d),
+# carrying BOTH worked shapes — the single definition intake delegates to. Each assertion
+# runs against the extracted hunt-(d) block, so moving the canonical phrase or a worked
+# shape elsewhere in the file (outside hunt (d)) FAILs.
+check "T705 canonical: hunt (d) block extracted (non-empty)" "$SPEC_QUALITY_HUNT_D" \
+  "(d) Gameability"
+check "T705 canonical: hunt (d) is the single gameability definition" "$SPEC_QUALITY_HUNT_D" \
+  "single canonical definition of the gameability screen"
+check "T705 canonical: hunt (d) carries the trivially-satisfiable worked example (if x: return y)" "$SPEC_QUALITY_HUNT_D" \
   "if x: return y"
-check "T606 DW1: worked example — one-sided (recall without precision)" "$INTAKE_FLAT" \
+check "T705 canonical: hunt (d) carries the one-sided (recall without precision) worked example" "$SPEC_QUALITY_HUNT_D" \
+  "One-sided (recall without precision)"
+
+# T705 (US2.AC4): intake §4 DELEGATES to that single definition (points at the reviewer's
+# hunt (d)) and names the one-definition/two-consumers de-fork.
+check "T705 delegate: intake §4 delegates to the shared reviewer's gameability check" "$INTAKE_FLAT" \
+  "spec-quality [reviewer]'s gameability check"
+check "T705 delegate: intake §4 points at reviewers/spec-quality-auditor.md hunt (d)" "$INTAKE_FLAT" \
+  "\`reviewers/spec-quality-auditor.md\` → hunt **(d)**"
+check "T705 delegate: intake §4 names the one-definition/two-consumers de-fork" "$INTAKE_FLAT" \
+  "one definition, two consumers (the spec gate and intake)"
+
+# T705 (US2.AC4): the acceptance reviewer's intake-conversion mode is the third consumer —
+# its gameability bullet must also point at the canonical home (reviewers/
+# spec-quality-auditor.md hunt (d)), not at worked examples intake §4 no longer carries.
+check "T705 delegate: spec-auditor intake mode points at reviewers/spec-quality-auditor.md hunt (d)" "$SPEC_AUDITOR_FLAT" \
+  "\`reviewers/spec-quality-auditor.md\` → hunt **(d)**"
+check "T705 delegate: spec-auditor intake mode cites hunt (d)'s worked examples" "$SPEC_AUDITOR_FLAT" \
+  "per hunt **(d)**'s worked examples"
+
+# T705 (US2.AC4) re-fork guard: a later edit that re-inlines the rule prose into intake
+# (the fork this task removed) FAILs CI. The two worked-example strings are the fork's
+# fingerprint — they belong in the canonical reviewer home ONLY, never restated in intake.
+check_absent "T705 re-fork guard: intake §4 does not re-inline the if-x-return-y worked example" "$INTAKE_FLAT" \
+  "if x: return y"
+check_absent "T705 re-fork guard: intake §4 does not re-inline the one-sided worked example" "$INTAKE_FLAT" \
   "One-sided (recall without precision)"
 
 # DW2 — the gate verifies drafted criteria via a NAMED artifact: an explicit step in
