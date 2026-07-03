@@ -76,8 +76,10 @@ project's law, profile, or scope.
   cut-list **run in reverse** — every profile-artifact entry that list marks has a
   named adoption action, enforced by a deterministic coverage check (a lint or test
   that fails when a cut-list profile entry has no adoption mapping) so the two
-  directions cannot drift apart; a hand-maintained second list with no such check does
-  not satisfy this.
+  directions cannot drift apart; the check is **wired into the repo's standing
+  verification** with the wiring asserted (a check that exists but never runs is the
+  silently-dead-guard class this spec exists to prevent — constitution P2), and a
+  hand-maintained second list with no such check does not satisfy this.
 - AC3: The adoption path composes with the agent-assisted onboarding prompt
   (`docs/onboarding-prompt.md`, #16/T627): the prompt itself states the branch
   condition — a target repo with any pre-existing profile artifact takes the
@@ -102,14 +104,18 @@ that "adoption succeeded" can never read as "context preserved" when it wasn't.
   directions: a planted would-clobber fixture (a pre-existing artifact present) is
   refused with the artifact named, AND a clean greenfield fixture (no pre-existing
   artifacts) proceeds without a refusal — a test exercising only the refusal direction
-  does not satisfy this (constitution P2/P3).
+  does not satisfy this (constitution P2/P3). The tests are **wired into the repo's
+  standing verification** with the wiring asserted — unwired tests are the same
+  silently-dead-guard class as an unwired check.
 - AC3: A post-adoption conformance probe captures a content fingerprint of each
   pre-existing profile artifact **before** install and asserts **after** install that
   each is unchanged — or changed only by a reconcile decision explicitly recorded in
   the adoption run's output — with both directions proven: a planted silent overwrite
   FAILs the probe, and an overwrite-free control run passes, results recorded as
   independently readable artifacts (the spec 001 US8.AC6 evidence rule: a bare
-  self-assertion does not satisfy this).
+  self-assertion does not satisfy this). The captured fingerprints live **outside the
+  install-target paths** — a fingerprint stored where the install writes could be
+  clobbered by the very overwrite it exists to detect.
 
 ### US3 — One-time context promotion with a coverage-gated prune
 As an adopter, I want an adoption-time procedure that audits the project's out-of-repo
