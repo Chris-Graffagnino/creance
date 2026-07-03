@@ -252,6 +252,9 @@ check "T707: corpus contract states all four auditors are bound (none deferred)"
 # The fingerprint recipe (git hash-object argv) must include the spec-quality spec file —
 # assert the exact path appears inside the fenced recipe block, not merely anywhere in the
 # skill doc (a stray prose mention elsewhere would false-pass a substring-only check).
+# Assumes the fingerprint recipe is the FIRST fenced ``` block in SKILL.md (true today) —
+# if a future edit adds an earlier code block, retarget this to the block that follows the
+# "## The reviewer-spec fingerprint" heading instead of counting from the top.
 fp_block="$(awk '/^```$/{n++; if (n==1) {p=1; next} else {p=0}} p' "$SKILL")"
 if printf '%s' "$fp_block" | grep -qF "reviewers/spec-quality-auditor.md"; then
   pass=$((pass + 1))
