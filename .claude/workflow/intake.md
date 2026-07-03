@@ -115,21 +115,18 @@ valve: owner steering cannot relax engine invariants).
 ### Screen each drafted criterion for gameability (not just checkability)
 
 Independently checkable is necessary but **not sufficient**: a criterion can be perfectly
-checkable and still trivially gameable. "Returns the correct value for input X" is
-checkable, yet `if x: return y` satisfies it without building the real capability.
+checkable and still trivially gameable.
 
 So before a criterion enters the draft — a bucket-1 `US#` acceptance criterion or a
-bucket-2/3 done-when criterion alike — run the **gameability screen**: name the **cheapest
-way to satisfy the criterion without doing the real work**. If such a path exists, the
-criterion is *one-sided* (it rewards one direction and never penalizes the other) or
-*trivially satisfiable* — tighten it to penalize **both** failure directions before
-drafting. Two shapes to reject, each with its tightening:
-- **Trivially satisfiable:** "returns the right answer for input X" → met by `if x: return y`.
-  Tighten to something the hard-coded shortcut fails — a property over a range of inputs, or
-  inputs the drafter does not enumerate up front.
-- **One-sided (recall without precision):** "flags every gamed criterion" → met by flagging
-  *everything*. Tighten to penalize the other direction too: "flags every gamed criterion
-  **and passes a non-gamed control**."
+bucket-2/3 done-when criterion alike — run the **gameability screen**. That screen **is** the
+spec-quality [reviewer]'s gameability check applied to criterion design at draft time: this
+doc **delegates** to that single definition rather than restating it — one definition, two
+consumers (the spec gate and intake), the P2 anti-duplication pattern (cf.
+`lib-tasks-drift.sh`). Apply the gameability hunt exactly as
+`reviewers/spec-quality-auditor.md` → hunt **(d)** states it — name the cheapest way to
+satisfy the criterion without doing the real work, reject the *trivially satisfiable* and
+*one-sided* shapes, and tighten each to penalize **both** failure directions — and do it
+here, before the criterion is drafted.
 
 This screen **left-shifts** a fence the acceptance [reviewer] otherwise applies only
 *post-implementation*: the spec-auditor's hard-FAIL red-team catches a diff that games a

@@ -62,10 +62,16 @@ its concrete failure mode — not the abstract principle:
   behavior for not-X, an unbounded or empty/missing input, or an unhandled failure mode — name
   the missing case as the finding.
 - **(d) Gameability** — name the **cheapest way to satisfy the criterion without doing the real
-  work** (generalizing the intake §4 / T606 gameability screen). A criterion met by a hard-coded
-  shortcut, or *one-sided* — it rewards one direction and never penalizes the other ("flags
-  every gamed criterion", met by flagging *everything*) — is a finding; the minimal fix
-  penalizes **both** failure directions (e.g. "…and passes a non-gamed control").
+  work**. This is the single canonical definition of the gameability screen: the intake
+  [workflow]'s draft-time screen (`workflow/intake.md` §4) is this same check applied to
+  criterion *design*, delegating here rather than forking the rule (one definition, two
+  consumers — the spec gate and intake). Two shapes to reject, each with its tightening:
+  - **Trivially satisfiable** — "returns the right answer for input X", met by a hard-coded
+    `if x: return y`. The minimal fix is something the hard-coded shortcut fails — a property
+    over a range of inputs, or inputs the drafter does not enumerate up front.
+  - **One-sided (recall without precision)** — it rewards one direction and never penalizes the
+    other ("flags every gamed criterion", met by flagging *everything*). The minimal fix
+    penalizes **both** failure directions (e.g. "…and passes a non-gamed control").
 - **(e) Undocumented architecture/trade-off call** — does the criterion **force a values,
   architecture, or cost trade-off the spec leaves unrecorded**? A criterion that silently fixes a
   provider model, a privacy posture, an egress boundary, or a cost ceiling without the spec
