@@ -357,10 +357,13 @@ out") is measurable from the existing gate-run records. Intake of issue #209.
   path reads it; the derivation writes nothing to the stream.
 
 ### US10 — Retry consumes prior gate verdicts (experience retention)
-As a harness operator, I want a retry of a task — after a gate non-convergence stop or a
-PR round-trip — to start from the prior attempt's reviewer verdicts instead of cold, so
-that feedback the gate already produced converts into progress instead of being
-discarded with the session.
+As a harness operator, I want a retry of a task after a gate non-convergence stop to
+start from the prior attempt's reviewer verdicts instead of cold, so that feedback the
+gate already produced converts into progress instead of being discarded with the
+session. Scope: the posting half fires on gate non-convergence only — a passed-gate PR
+round-trip has no blocking verdicts to persist, and human PR-review feedback lives on
+the PR thread, outside this story; a retry that finds an existing marked retry comment
+consumes it (AC2) regardless of what prompted the retry.
 
 Motivation: EdgeBench §5.2 ablates continuous experience against independent restarts
 under the same time budget (+6.9 points): accumulated feedback history, not extra
@@ -376,7 +379,9 @@ verdicts on retry buys no safety. Intake of issue #210.
   does not satisfy this — so the feedback survives the session on the tracker channel.
 - AC2: The same sub-doc defines the consuming half: a retry of the task (resume, or
   re-selection of the same task ID) reads the newest such marked retry comment as maker
-  input before re-implementation, addressing each recorded finding or stating why not —
+  input before re-implementation — when no such comment exists, the retry proceeds as
+  an ordinary cold start, never an error — addressing each recorded finding or stating
+  why not —
   while the comment, being marked, carries **no steering authority** (`next-task.md`
   §2.5) and relaxes nothing: every reviewer still re-runs from scratch on the retry's own
   diff, and **no prior verdict — PASS included — is carried forward as a current

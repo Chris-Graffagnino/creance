@@ -18,9 +18,12 @@
       two-sided falsification test (fires on a planted maker-phase read; passes the
       acceptance-reviewer-dispatch control; wiring assertion; test cases in the same
       diff, P2/P3); blocked by T1001 (US1)
-- [ ] T1003 [strong] Acceptance-reviewer held-out grading step (blocking FAIL naming
-      only the failed entry — no set enumeration, passed entries stay unrevealed; loud
-      absence degradation, visible rubric unchanged) + two-sided live conformance probe
+- [ ] T1003 [strong] Acceptance-reviewer held-out grading step (reviewer verifies
+      read-only result artifacts — entry execution, where needed, routes through the
+      US1.AC1 deterministic dispatcher-side step, never a reviewer shell grant (#188);
+      blocking FAIL naming only the failed entry — no set enumeration, passed entries
+      stay unrevealed; loud absence degradation, visible rubric unchanged) + two-sided
+      live conformance probe
       (planted-fail fixture FAILs a visible-rubric-passing diff, clean control passes,
       independently readable evidence recorded); blocked by T1001+T1002 (US2)
 
