@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 104 rows.
+Manifest source inventory: 106 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -98,6 +98,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/auditor-liveness-docs.test.sh` | KEEP | Encoding test for the auditor-liveness corpus and wiring. Verbatim. |
 | `hooks/autonomy-mode.sh` | KEEP | Deterministic [autonomy activation] binding. Verbatim. |
 | `hooks/autonomy-mode.test.sh` | KEEP | Activation fail-closed/default-off regression tests. Verbatim. |
+| `hooks/backlog-loop.sh` | KEEP | Deterministic [backlog-loop] control skeleton — closed stop-condition set + activation gating, selection/iteration as injectable seams (T902). Verbatim. |
+| `hooks/backlog-loop.test.sh` | KEEP | Backlog-loop stop-condition/activation regression tests (exact-transcript paired proofs). Verbatim. |
 | `hooks/check-tasks-consistency.sh` | KEEP | Tasks-file consistency and drift gate. Verbatim. |
 | `hooks/check-tasks-consistency.test.sh` | KEEP | Regression tests proving the tasks-file consistency gate fires and avoids false positives. Verbatim. |
 | `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register. Keep structural/neutrality/extraction checks; drop only instance-coupled real-escape assertions when the register is reset. |
