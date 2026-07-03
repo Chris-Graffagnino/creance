@@ -71,6 +71,15 @@ with the resolved task ID passed explicitly in the invocation text — one task,
 context (`next-task.md` → "Context discipline"); no iteration continues a prior
 iteration's conversation.
 
+Because every iteration **names its task ID explicitly**, the selection inside the cycle
+is an **explicit pick** under `next-task.md` §1: **[selection announce-and-confirm]**
+resolves to announce-and-proceed, and the confirm pause — an interactive-session
+affordance for *implicit* contradicted picks — is **structurally unreachable** in an
+unattended run (nothing can hang awaiting an answer no one is present to give). The
+protection the pause provides is not lost: an explicitly named candidate whose live state
+contradicts it meets **[live-state reconciliation]**'s *terminal refusal* instead, which
+the loop consumes as the `refused` outcome below.
+
 ## The loop
 
 ```text
@@ -79,7 +88,9 @@ if [autonomy activation] resolves to anything but an engaged autonomous run:
 
 iterations ← 0
 fails      ← empty map        # stable task identity → gate-FAIL count this run
-skip       ← none             # identity to pass over once (the advance rule)
+                              #   (an absent key reads as 0)
+skip       ← none             # identity to pass over ONCE — consumed by the very next
+                              #   selection, whatever that iteration's outcome
 ineligible ← empty set        # identities refused by [live-state reconciliation] this run
 
 loop:                          # every condition below is evaluated HERE, between
@@ -92,6 +103,7 @@ loop:                          # every condition below is evaluated HERE, betwee
                 skipping `ineligible`, and passing over `skip` when another
                 unblocked candidate exists (no other candidate → `skip` is
                 re-selected: it re-surfaces as lowest-unblocked)
+    skip ← none                              # consumed: it applied to this one selection
     (b) if no candidate:                     stop backlog-drained
 
     run ONE complete next-task cycle for candidate as a fresh [headless run],
@@ -104,13 +116,15 @@ loop:                          # every condition below is evaluated HERE, betwee
         silent-to-the-run — see "The run report")
 
     case outcome:
-        gate PASS → PR:   skip ← none
+        gate PASS → PR:   continue
         gate FAIL → discard:
             fails[candidate] ← fails[candidate] + 1
             (c) if fails[candidate] = 2:     stop repeated-gate-fail
             skip ← candidate                 # advance to the next unblocked candidate
-        refused ([live-state reconciliation] refused the candidate — its live
-                 state shows landed or in-flight work):
+        refused ([live-state reconciliation]'s POSITIVE refusal — live state
+                 shows landed or in-flight work for the candidate; distinct
+                 from its fail-open path, which surfaces a warning and lets
+                 the cycle proceed as a normal iteration, per §1):
             ineligible ← ineligible + candidate   # re-selecting would refuse again;
                                                   # the drift is surfaced, per §1
         aborted (a lifecycle or activation check failed closed mid-cycle):
@@ -123,8 +137,14 @@ loop:                          # every condition below is evaluated HERE, betwee
   the two FAILs fell.
 - **First FAIL advances, second stops.** On a first gate FAIL the iteration itself has
   already discarded its workspace (§8 FAIL→discard, unchanged); the loop then passes over
-  that identity in favor of the next unblocked candidate, re-selecting it only when it
-  re-surfaces as lowest-unblocked. This grinds on nothing: no third attempt exists.
+  that identity **for exactly one selection** (`skip` is consumed whatever that next
+  iteration's outcome), re-selecting it only when it re-surfaces as lowest-unblocked.
+  This grinds on nothing: no third attempt exists. Worked trace — a two-task backlog
+  where task A FAILs and task B is blocked: iteration 1 runs A → FAIL, `skip ← A`;
+  the next selection passes over A, finds no other unblocked candidate, so A is
+  re-selected (its `fails` count intact, `skip` consumed); iteration 2 runs A → a second
+  FAIL stops the run (condition (c)) — or a PASS opens A's PR and the next selection
+  finds nothing, stopping for condition (b).
 - **The loop consumes outcomes from the run's return, never from the report.** Stop
   conditions and the advance rule read each iteration's result exactly where §8's
   promote/discard step reads the gate outcome — from the invoked run itself. The run
@@ -141,7 +161,7 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
 | (a) | `iterations = N` (max-N; N from configuration/invocation, never hardcoded; N=0 → immediate no-op) | budget drained — the run cannot exceed N iterations |
 | (b) | no unblocked candidate remains (selection finds nothing startable) | backlog drained — the run must not stop early while eligible work and budget remain |
 | (c) | the same task identity fails the §7 gate **twice** in one run | non-convergence — a human reads the two discards; the loop never grinds |
-| (d) | any lifecycle or **[autonomy activation]** check fails closed (at the between-iteration re-check, or aborting a cycle) | fail-closed — autonomy's posture is preserved, not retried around |
+| (d) | any lifecycle or **[autonomy activation]** check fails closed (at the between-iteration re-check, or aborting a cycle — the two layers "Reachability" above defines; this row and that section state one rule) | fail-closed — autonomy's posture is preserved, not retried around |
 
 ## Safety invariants (what N iterations must never change)
 
