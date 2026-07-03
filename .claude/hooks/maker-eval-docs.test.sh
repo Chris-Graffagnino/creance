@@ -270,6 +270,111 @@ check "DW7 (neutral): the frozen instrument changes only by a human-reviewed PR 
 check "DW7 (neutral): a run only reads the instrument and appends observe-only records" "$NEU_FLAT" \
   "A run only *reads* the instrument and *appends* observe-only records"
 
+# ── T806 (#218 — spec 003 US1.AC5) — the owner-labeled calibration set + agreement figure ──
+# The judge is CALIBRATED against human judgment, not assumed valid. The frozen instrument now
+# carries the actual owner-labeled calibration set (a parseable `| CAL-… |` table) + a stated
+# agreement floor, and the neutral doc defines HOW a run computes the judge↔owner agreement over
+# it. This is a REAL structural check (not a string grep) mirroring DW1: it parses the
+# calibration table, asserts every pair is well-formed (CAL-<digits>, unique), carries an owner
+# label that is a real scoring-schema verdict, and probes a real corpus rubric dimension — and
+# that the labels SPAN the verdict range (a set of all-`meets` or all-`fails` labels could not
+# discriminate a stuck judge). A later edit that drops the set, a label, the floor, or collapses
+# the label spread fails the `verify` CI job (constitution P3).
+# The valid scoring-schema verdicts + the real rubric dimensions, reused from the corpus itself.
+valid_verdicts="meets partial fails"
+rubric_dims="$(rows_under "$CORPUS" "scored rubric dimensions" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3 }')"
+
+cal_rows="$(awk '/^## / { insec = (index($0, "Judge calibration") > 0); next }
+                 insec && /^\| CAL-/ { print }' "$CORPUS")"
+cal_ids="$(printf '%s\n' "$cal_rows" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2 }' | grep -E '^CAL-')"
+ncal="$(printf '%s\n' "$cal_ids" | grep -c .)"
+ncaluniq="$(printf '%s\n' "$cal_ids" | sort -u | grep -c .)"
+
+if [ "$ncal" -ge 2 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T806: parsed only %s calibration pairs (expected >= 2 — a matched-discrimination set)\n' "$ncal" >&2
+fi
+if [ "$ncal" -eq "$ncaluniq" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T806: calibration pair ids are not unique (%s rows, %s distinct)\n' "$ncal" "$ncaluniq" >&2
+fi
+if [ "$(printf '%s\n' "$cal_ids" | grep -vcE '^CAL-[0-9]+$')" -eq 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T806: a calibration pair id is not of the form CAL-<digits>\n' >&2
+fi
+
+# Per-row: owner label is a real scoring-schema verdict; dimension is a real rubric dimension.
+n_meets=0; n_fails=0; cal_bad=0
+while IFS= read -r crow; do
+  [ -n "$crow" ] || continue
+  cdim="$(printf  '%s' "$crow" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $3); print $3 }')"
+  clabel="$(printf '%s' "$crow" | awk -F'|' '{ gsub(/^[ \t]+|[ \t]+$/, "", $4); print $4 }')"
+  # the owner label must be one of meets/partial/fails
+  if ! printf '%s\n' $valid_verdicts | grep -qxF -- "$clabel"; then
+    printf 'FAIL T806: calibration owner label "%s" is not a scoring-schema verdict (meets/partial/fails)\n' "$clabel" >&2; cal_bad=1
+  fi
+  case "$clabel" in meets) n_meets=$((n_meets + 1)) ;; fails) n_fails=$((n_fails + 1)) ;; esac
+  # the probed dimension must be a real corpus rubric dimension (referential integrity)
+  if ! printf '%s\n' "$rubric_dims" | grep -qxF -- "$cdim"; then
+    printf 'FAIL T806: calibration pair probes unknown rubric dimension "%s"\n' "$cdim" >&2; cal_bad=1
+  fi
+done <<EOF
+$cal_rows
+EOF
+
+# The labels must SPAN the verdict range — at least one `meets` AND one `fails` — so a judge
+# stuck at "always meets" or "always fails" scores below agreement instead of trivially high
+# (the matched known-good/known-bad discrimination, mirrored from auditor-liveness).
+if [ "$n_meets" -ge 1 ] && [ "$n_fails" -ge 1 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T806: calibration labels do not span the verdict range (meets=%s fails=%s — need >=1 of each)\n' "$n_meets" "$n_fails" >&2
+fi
+if [ "$cal_bad" -eq 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T806: calibration table has malformed or dangling rows (see above)\n' >&2
+fi
+
+# The stated agreement floor is a single number in [0,1], parseable from the section.
+cal_floor="$(awk '/^## / { insec = (index($0, "Judge calibration") > 0); next } insec' "$CORPUS" \
+  | grep -oE 'Agreement floor:[[:space:]]*`[0-9]+\.?[0-9]*`' | grep -oE '[0-9]+\.?[0-9]*' | head -1)"
+if [ -n "$cal_floor" ] && awk -v f="$cal_floor" 'BEGIN { exit !(f >= 0 && f <= 1) }'; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T806: no valid agreement floor in [0,1] stated under Judge calibration (got: %s)\n' "${cal_floor:-<none>}" >&2
+fi
+
+# Prose: the corpus declares the set is owner-labeled + the floor raises JUDGE-MISCALIBRATED.
+check "T806 (corpus): the calibration set is owner-labeled + part of the frozen instrument" "$CORPUS_FLAT" \
+  "owner-labeled calibration set"
+check "T806 (corpus): the floor raises JUDGE-MISCALIBRATED in the read-only surfacing" "$CORPUS_FLAT" \
+  "JUDGE-MISCALIBRATED"
+check "T806 (corpus): the set is no longer reserved — it declares the frozen pairs" "$CORPUS_FLAT" \
+  "The owner-labeled calibration pairs"
+
+# Neutral doc: defines the agreement COMPUTATION (fraction of pairs matching the owner label)
+# and that it is observe-only — never gates/retiers/alters the eval (P5).
+check "T806 (neutral): the doc defines the agreement computation section" "$NEU_FLAT" \
+  "The agreement computation"
+check "T806 (neutral): agreement is the fraction of pairs whose judge verdict equals the owner label" "$NEU_FLAT" \
+  "the fraction of pairs whose judge verdict equals the owner's label exactly"
+check "T806 (neutral): the agreement figure is observe-only — never gates/retiers/alters the eval" "$NEU_FLAT" \
+  "never** gates a run, retiers a model, alters a score"
+check "T806 (neutral): below-floor surfaces as JUDGE-MISCALIBRATED, a warning not an action" "$NEU_FLAT" \
+  "JUDGE-MISCALIBRATED"
+check "T806 (neutral): the set/labels/floor belong to the eval-instrument fingerprint (US1.AC3)" "$NEU_FLAT" \
+  "they belong to the eval-instrument fingerprint"
+
 # ── T805 (#163 — spec 003 US2.AC1) — the skill binding reuses [workflow]/[headless run]/ ──
 # [reviewer], runs on a maker-behavior fingerprint change AND a schedule, and adds no new
 # binding-contract role. The encoding test for T805's criteria lives here (alongside T801's)

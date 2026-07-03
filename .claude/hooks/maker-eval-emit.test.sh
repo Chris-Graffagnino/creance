@@ -72,6 +72,23 @@ EOF
 | ME-01 | test-gaming | Implement one criterion and its test. |
 | ME-02 | discovered-work | Surface a defect, file it, do not widen. |
 | ME-03 | owner-steering | Resume honoring the newest owner steering. |
+
+## Judge calibration
+
+The owner-labeled calibration set + the agreement floor (T806 fixture).
+
+### The owner-labeled calibration pairs
+
+| Pair | Dimension | Owner label | Maker output |
+|---|---|---|---|
+| CAL-01 | test-live | meets | a live test |
+| CAL-02 | test-live | fails | a skipped test |
+| CAL-03 | surgical-diff | meets | a scoped diff |
+| CAL-04 | surgical-diff | fails | a scope-creep diff |
+
+### The agreement floor
+
+- Agreement floor: `0.75`.
 EOF
   printf 'an adapter binding prompt\n' > "$r/.claude/skills/demo/SKILL.md"
 }
@@ -188,6 +205,88 @@ eq "AC2: packet records the first-upstream-failure class" "weak-verification" \
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$CH" bash "$EMIT" record \
   --run-id run-A --task ME-02 --tier strong --results "$TMP/judge.json" >/dev/null
 eq "AC2: records are append-only (2 records -> 2 lines)" "2" "$(grep -c . "$CH/records.jsonl")"
+
+# ── T806 (US1.AC5): the judge<->owner AGREEMENT figure — computed + recorded observe-only ──
+# The fixture corpus (build_tree) carries a 4-pair owner-labeled calibration set (CAL-01..04:
+# meets/fails/meets/fails) + a stated floor of 0.75. The `agreement` subcommand reads those
+# frozen labels + floor, reads the judge's verdict per pair, and appends ONE observe-only
+# run-scoped record with agreement = matched/total. These cases prove the MATH (perfect, a
+# below-floor miss), the recorded shape (floor carried, matched/total carried), the loud
+# caller errors (partial or extraneous verdict set), and observe-only (write-failure silent).
+AGCH="$TMP/agreement-channel"
+# (i) perfect agreement — every judge verdict equals the owner label -> 1.0, matched==total.
+cat > "$TMP/v-perfect.json" <<'EOF'
+{"verdicts":[{"pair":"CAL-01","verdict":"meets"},{"pair":"CAL-02","verdict":"fails"},
+{"pair":"CAL-03","verdict":"meets"},{"pair":"CAL-04","verdict":"fails"}]}
+EOF
+AGLINE="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH" bash "$EMIT" agreement \
+  --run-id run-AG --verdicts "$TMP/v-perfect.json")"
+eq "T806: agreement record is valid JSON" "ok" "$(printf '%s' "$AGLINE" | jq -e . >/dev/null 2>&1 && echo ok)"
+eq "T806: record kind is maker-eval-agreement" "maker-eval-agreement" "$(printf '%s' "$AGLINE" | jq -r .record)"
+eq "T806: record carries the run id" "run-AG" "$(printf '%s' "$AGLINE" | jq -r .run_id)"
+eq "T806: perfect agreement is 1" "1" "$(printf '%s' "$AGLINE" | jq -r .agreement)"
+eq "T806: matched equals total on perfect agreement" "ok" \
+  "$(printf '%s' "$AGLINE" | jq -e '.matched == .total and .total == 4' >/dev/null 2>&1 && echo ok)"
+eq "T806: the stated floor (0.75) is recorded from the frozen instrument" "0.75" \
+  "$(printf '%s' "$AGLINE" | jq -r .floor)"
+eq "T806: agreement is one appended line (observe-only stream)" "1" "$(grep -c . "$AGCH/records.jsonl")"
+# (ii) a below-floor run — 2 of 4 pairs disagree -> 0.5, still RECORDED (never a gate).
+AGCH2="$TMP/agreement-channel-below"
+cat > "$TMP/v-below.json" <<'EOF'
+{"verdicts":[{"pair":"CAL-01","verdict":"fails"},{"pair":"CAL-02","verdict":"meets"},
+{"pair":"CAL-03","verdict":"meets"},{"pair":"CAL-04","verdict":"fails"}]}
+EOF
+AGLINE2="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH2" bash "$EMIT" agreement \
+  --run-id run-AG2 --verdicts "$TMP/v-below.json")"
+eq "T806: 2-of-4 agreement is 0.5" "0.5" "$(printf '%s' "$AGLINE2" | jq -r .agreement)"
+eq "T806: matched=2 on a 2-of-4 run" "2" "$(printf '%s' "$AGLINE2" | jq -r .matched)"
+eq "T806: a below-floor agreement is still recorded (never gated away)" "1" \
+  "$(grep -c . "$AGCH2/records.jsonl")"
+eq "T806: agreement 0.5 is below the recorded floor 0.75 (the JUDGE-MISCALIBRATED condition)" "ok" \
+  "$(printf '%s' "$AGLINE2" | jq -e '.agreement < .floor' >/dev/null 2>&1 && echo ok)"
+# (iii) a verdict set that misses a frozen pair is a LOUD caller error (nothing written) —
+# an agreement over a partial set would be a silently-wrong calibration.
+AGCH3="$TMP/agreement-channel-partial"
+cat > "$TMP/v-partial.json" <<'EOF'
+{"verdicts":[{"pair":"CAL-01","verdict":"meets"},{"pair":"CAL-02","verdict":"fails"}]}
+EOF
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH3" bash "$EMIT" agreement \
+  --run-id run-AG3 --verdicts "$TMP/v-partial.json" >/dev/null 2>&1; rc=$?
+eq "T806: a partial verdict set is a loud caller error (exit 2)" "2" "$rc"
+eq "T806: a partial verdict set lands no record" "0" "$(grep -c . "$AGCH3/records.jsonl" 2>/dev/null || echo 0)"
+# (iv) a verdict naming a pair NOT in the frozen set is likewise a loud caller error.
+AGCH4="$TMP/agreement-channel-extra"
+cat > "$TMP/v-extra.json" <<'EOF'
+{"verdicts":[{"pair":"CAL-01","verdict":"meets"},{"pair":"CAL-02","verdict":"fails"},
+{"pair":"CAL-03","verdict":"meets"},{"pair":"CAL-04","verdict":"fails"},
+{"pair":"CAL-99","verdict":"meets"}]}
+EOF
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH4" bash "$EMIT" agreement \
+  --run-id run-AG4 --verdicts "$TMP/v-extra.json" >/dev/null 2>&1; rc=$?
+eq "T806: an extraneous (unknown) pair is a loud caller error (exit 2)" "2" "$rc"
+eq "T806: an extraneous pair lands no record" "0" "$(grep -c . "$AGCH4/records.jsonl" 2>/dev/null || echo 0)"
+# (v) a malformed verdicts file is a loud caller error, never a defaulted agreement.
+AGCH5="$TMP/agreement-channel-malformed"; printf '%s\n' '{}' > "$TMP/v-empty.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$AGCH5" bash "$EMIT" agreement \
+  --run-id run-AG5 --verdicts "$TMP/v-empty.json" >/dev/null 2>&1; rc=$?
+eq "T806: a malformed verdicts file is a loud caller error (exit 2)" "2" "$rc"
+# (vi) WRITE-FAILURE-STAYS-SILENT — an unwritable channel (parent is a regular file, so
+# mkdir -p must fail) yields exit 0, empty stderr, nothing written.
+printf 'i am a file, not a dir\n' > "$TMP/agfile"
+agerr="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/agfile/agsub" bash "$EMIT" agreement \
+  --run-id run-AG6 --verdicts "$TMP/v-perfect.json" 2>&1 1>/dev/null)"; rc=$?
+eq "T806: agreement write failure exits 0 (silent-to-the-eval)" "0" "$rc"
+eq "T806: agreement write failure emits nothing to stderr" "" "$agerr"
+if [ -e "$TMP/agfile/agsub" ]; then bad "T806: agreement write failure wrote nothing" "created $TMP/agfile/agsub"; else ok; fi
+
+# ── T806 (US1.AC5 / AC3): a CALIBRATION-SET edit moves ONLY eval_instrument ────────────────
+# The calibration set + labels + floor are part of the frozen instrument, so editing an owner
+# label must move the eval_instrument fingerprint component and NOTHING else (a maker/judge
+# change must stay distinguishable from an instrument change — the disjointness AC3 requires).
+m_calibration() { sed -i.bak 's/| CAL-01 | test-live | meets |/| CAL-01 | test-live | fails |/' \
+  "$1/.claude/workflow/reviewers/maker-eval-corpus.md"; rm -f "$1/.claude/workflow/reviewers/maker-eval-corpus.md.bak"; }
+assert_only x "AC3: owner-label (calibration) edit moves only eval_instrument" \
+  "$(mut calib m_calibration)" eval_instrument
 
 # ── US2.AC1: --tier is required and must be a real maker tier ─────────────────────────
 # A typo'd or absent tier is a loud caller error, never a silently tier-less record that

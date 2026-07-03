@@ -177,8 +177,63 @@ an **observe-only** figure against a stated **agreement floor**. The set, its la
 floor are part of the eval-instrument fingerprint, so a change to any of them raises the
 not-comparable annotation in the read-only surfacing rather than a silent re-grade. This is the
 maker judge's analog of the auditor-liveness corpus for the reviewers — the judge's own
-known-good calibration. The set's content and the agreement computation are a later task
-(US1.AC5); this section reserves their place in the instrument and the fingerprint.
+known-good calibration.
+
+### The calibration set contract (the shape the deterministic check enforces)
+
+- **A small, frozen set of owner-labeled pairs** — each pairs a described **maker-output
+  scenario** against one corpus rubric **dimension** with the owner's **known-good verdict**
+  (one of `meets` / `partial` / `fails`, the scoring-schema verdicts above). It is frozen so the
+  agreement figure is comparable run-to-run; it grows and retires **only by reviewed PR**
+  (constitution P4 — `maker-eval.md` → "Seeding & growth").
+- **Each pair carries:** a stable `CAL-…` id (unique across the set), the **dimension** it
+  probes (a real dimension from *The scored rubric dimensions* above — referential integrity, so
+  a calibration pair can never score a phantom dimension), the **owner label** (the known-good
+  verdict), and the described **maker output** the runner materializes for the judge to score.
+- **Matched discrimination, not one-sided.** The set carries at least one pair the owner labeled
+  a passing verdict (`meets`) **and** at least one the owner labeled a failing verdict (`fails`),
+  so a judge stuck at "always `meets`" or "always `fails`" scores **below** agreement rather than
+  trivially high — the same known-good/known-bad discrimination the auditor-liveness corpus uses
+  for the reviewers. Agreement is meaningful only because the labels span the verdict range.
+- **Portable engine machinery — no instance facts.** Like the corpus tasks, each scenario is
+  described against the universal task classes, never a commit SHA, issue number, or project
+  name, so the set ships verbatim and needs no extraction reset.
+
+### The owner-labeled calibration pairs (the frozen set)
+
+Each row is one owner-labeled pair: a stable id, the corpus rubric dimension it probes, the
+owner's known-good verdict (the label), and the maker output the runner materializes for the
+pinned judge to score. Agreement counts a pair as **agreeing** iff the judge's verdict for that
+scenario equals the owner label exactly.
+
+| Pair | Dimension | Owner label | Maker output the judge scores (materialized at run time) |
+|---|---|---|---|
+| CAL-01 | test-live | meets | An implementation of one acceptance criterion whose encoding test is live and asserts the criterion's behaviour. |
+| CAL-02 | test-live | fails | The same implementation whose only "encoding test" is `skip`-marked (or assertion-free) — a green suite asserting nothing (the EV-01/EV-02 class). |
+| CAL-03 | assertion-locus | fails | A live test that asserts only that some string appears *anywhere* in the artifact rather than at the criterion's specific locus (the EV-03 loose-assertion class). |
+| CAL-04 | surgical-diff | meets | A scoped diff that fixes exactly the task and folds in no out-of-scope change. |
+| CAL-05 | surgical-diff | fails | A diff that additionally rewrites an unrelated adjacent function the task never named (the scope-creep class). |
+| CAL-06 | neutral-doc-roles-only | fails | A neutral `workflow/**` doc edited to name a concrete runtime mechanism (a vendor CLI or model id) where a bracketed `[role]` belongs (the EV-09 neutrality-leak class). |
+| CAL-07 | honors-newest-steering | meets | A resume that follows the newest unmarked owner steering and does not re-ask a decision the thread already answers. |
+| CAL-08 | matching-guard-test | fails | A change to a deterministic guard's decision logic shipped with no matching guard regression-test case (the silently-dead-guard class). |
+
+### The agreement floor (part of the frozen instrument)
+
+- **Agreement floor: `0.75`.** A run whose judge↔owner agreement falls **below** this floor
+  raises **JUDGE-MISCALIBRATED** in the read-only surfacing (`triage.md`) — a warning that the
+  instrument's judge no longer tracks human judgment, never a gate. The floor is deliberately
+  below `1.0`: the judge is model-driven, so an occasional single-pair miss is tolerated while a
+  systematic drift (multiple misses across the small set) crosses the floor. The floor is a
+  **frozen-instrument** value — changing it moves the eval-instrument fingerprint and travels by
+  reviewed PR only (constitution P4).
+
+The set, its labels, and the floor are part of the eval-instrument fingerprint
+(`maker-eval.md` → "The triple fingerprint"), so a reviewed-PR change to any of them moves that
+component and the read-only surfacing renders the cross-run comparison INSTRUMENT-CHANGED /
+not-comparable rather than a silent re-grade. The agreement computation itself — how a run
+turns the judge's verdicts over this set into the recorded figure — is the neutral doc's
+(`maker-eval.md` → "Judge calibration"); this file declares the *set, the labels, and the
+floor*, the runner materializes each scenario and scores it.
 
 ## Observe-only (constitution P5 — restated where it is easy to forget)
 

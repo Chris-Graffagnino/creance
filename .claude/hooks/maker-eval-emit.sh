@@ -58,6 +58,22 @@
 #       the whole write aborts — a record never claims a packet file it lacks. Any other
 #       write failure is silent (exit 0, nothing written).
 #
+#   agreement --run-id <id> --verdicts <judge-cal.json>
+#       Compute and APPEND the judge<->owner AGREEMENT figure for one run (T806, spec 003
+#       US1.AC5). The frozen owner-labeled calibration set + its floor live in the corpus
+#       manifest (reviewers/maker-eval-corpus.md -> "Judge calibration"); this reads the
+#       owner label for each CAL-id and its stated floor from there, reads the judge's verdict
+#       for each pair from <judge-cal.json> ({ verdicts:[{pair,verdict}...] }), and computes
+#       AGREEMENT = (pairs whose judge verdict == owner label, exactly) / (total pairs). It
+#       appends EXACTLY ONE observe-only run-scoped line
+#       { record:"maker-eval-agreement", run_id, agreement, floor, matched, total, timestamp }
+#       to <channel>/records.jsonl. OBSERVE-ONLY: the figure is calibration, never a gate — it
+#       feeds no gate/tier/guard/selection path (the triage reader surfaces JUDGE-MISCALIBRATED
+#       when agreement < floor; the P5 fence keeps the channel reader-scoped). A judge-verdicts
+#       file that does not cover EVERY calibration pair (or a pair not in the frozen set) is a
+#       loud caller error (exit 2, nothing written) — an agreement figure over a partial set
+#       would be a silently-wrong calibration. Any other write failure is silent (exit 0).
+#
 #   complete --run-id <id>
 #       Exit 0 + print "complete" iff every corpus task id has a record under <id> AT EVERY
 #       maker tier in records.jsonl; else exit 3 + "incomplete (missing: <task>@<tier> ...)".
@@ -89,7 +105,7 @@ CORPUS="$WORKFLOW_DIR/reviewers/maker-eval-corpus.md"
 PROFILE="${MAKER_EVAL_PROJECT_FILE:-$CLAUDE_DIR/PROJECT.md}"
 
 usage() {
-  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | complete --run-id <id>}\n' \
+  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | agreement --run-id <id> --verdicts <f> | complete --run-id <id>}\n' \
     "$(basename "$0")" >&2
 }
 
@@ -224,6 +240,30 @@ maker_tiers() {
     | sed -E 's/.*\[(frontier|strong|cheap) tier\].*/\1/'
 }
 
+# ── calibration set + floor (for the agreement figure, T806 / US1.AC5) ───────────
+# The owner-labeled calibration set is a frozen table under "## Judge calibration" in the
+# corpus manifest: `| CAL-id | dimension | owner-label | scenario |`. Parse each pair's id
+# and owner label, scoped to that section only (so the contract prose above it — which also
+# names `meets`/`fails` — cannot leak a phantom pair). '+' quantifiers only (BSD/GNU portable,
+# #97). Emits `CAL-id<TAB>label` lines; the agreement math reads the same file's floor below.
+calibration_labels() {
+  awk '/^## / { insec = (index($0, "Judge calibration") > 0); next }
+       insec && /^\| CAL-/ { print }' "$CORPUS" 2>/dev/null \
+    | awk -F'|' '{ id=$2; lab=$4;
+                   gsub(/^[ \t]+|[ \t]+$/, "", id); gsub(/^[ \t]+|[ \t]+$/, "", lab);
+                   if (id ~ /^CAL-[0-9]+$/) print id "\t" lab }'
+}
+
+# The stated agreement floor: the `Agreement floor: \`<n>\`` value under "## Judge calibration".
+# A single frozen number in [0,1]; parsed from the section so the emitter and the read-only
+# surfacing share one source. Empty if absent (the caller then aborts loudly — no silent floor).
+calibration_floor() {
+  awk '/^## / { insec = (index($0, "Judge calibration") > 0); next }
+       insec' "$CORPUS" 2>/dev/null \
+    | grep -oE 'Agreement floor:[[:space:]]*`[0-9]+\.?[0-9]*`' \
+    | grep -oE '[0-9]+\.?[0-9]*' | head -1
+}
+
 # ── record ──────────────────────────────────────────────────────────────────────
 # A packet-path token (run_id/task_id) must be a single non-escaping path component, so
 # neither the on-disk packet dir nor the in-record packet link can leave the fenced
@@ -335,6 +375,111 @@ do_record() {
   printf '%s\n' "$rec"
 }
 
+# ── agreement (the judge<->owner calibration figure, T806 / US1.AC5) ─────────────
+do_agreement() {
+  local run_id="" verdicts=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --run-id)   run_id="${2:-}"; shift 2 ;;
+      --verdicts) verdicts="${2:-}"; shift 2 ;;
+      *) usage; return 2 ;;
+    esac
+  done
+  # Missing required args / a hostile run id are CALLER errors: fail loud (like `record`).
+  if [ -z "$run_id" ] || [ -z "$verdicts" ]; then usage; return 2; fi
+  if ! safe_token "$run_id"; then
+    printf 'maker-eval-emit: run id must be a safe path component (no "/" or ".."): run-id=[%s]\n' "$run_id" >&2
+    return 2
+  fi
+  if [ ! -f "$verdicts" ]; then
+    printf 'maker-eval-emit: verdicts file not found: %s\n' "$verdicts" >&2
+    return 2
+  fi
+  # The judge-verdicts file must be a { verdicts:[{pair,verdict}...] } object — a malformed
+  # shape is a loud caller error, never a silently-defaulted agreement.
+  if ! jq -e '((.verdicts // null) | type == "array")
+              and ((.verdicts // []) | all(.pair != null and .verdict != null))' \
+        "$verdicts" >/dev/null 2>&1; then
+    printf 'maker-eval-emit: verdicts file is not a well-formed { verdicts:[{pair,verdict}...] } object: %s\n' "$verdicts" >&2
+    return 2
+  fi
+
+  # Read the frozen owner labels + floor from the corpus manifest (the single source). A run
+  # with no parseable calibration set or no stated floor cannot compute an honest agreement —
+  # a loud caller error, not a defaulted figure.
+  local labels floor total matched
+  labels="$(calibration_labels)"
+  floor="$(calibration_floor)"
+  if [ -z "$labels" ]; then
+    printf 'maker-eval-emit: no owner-labeled calibration pairs parsed from %s\n' "$CORPUS" >&2
+    return 2
+  fi
+  if [ -z "$floor" ]; then
+    printf 'maker-eval-emit: no agreement floor parsed from %s\n' "$CORPUS" >&2
+    return 2
+  fi
+
+  # Agreement = (pairs whose judge verdict == owner label, exactly) / (total frozen pairs).
+  # EVERY frozen pair must have exactly one judge verdict, and every judge verdict must name a
+  # frozen pair — an agreement over a partial or extraneous set would be a silently-wrong
+  # calibration, so either is a loud caller error (nothing written).
+  total=0; matched=0
+  local cal_id owner_label judge_verdict n_for_pair pair
+  # (a) every judge-verdict pair id must be a known calibration id (no extraneous pairs).
+  while IFS= read -r pair; do
+    [ -n "$pair" ] || continue
+    if ! printf '%s\n' "$labels" | cut -f1 | grep -qxF -- "$pair"; then
+      printf 'maker-eval-emit: judge verdict names unknown calibration pair: %s\n' "$pair" >&2
+      return 2
+    fi
+  done <<EOF
+$(jq -r '.verdicts[].pair' "$verdicts" 2>/dev/null)
+EOF
+  # (b) every frozen pair must have exactly one judge verdict, matched exactly against the label.
+  while IFS="$(printf '\t')" read -r cal_id owner_label; do
+    [ -n "$cal_id" ] || continue
+    total=$((total + 1))
+    n_for_pair="$(jq -r --arg p "$cal_id" '[.verdicts[] | select(.pair == $p)] | length' "$verdicts" 2>/dev/null)"
+    if [ "${n_for_pair:-0}" -ne 1 ]; then
+      printf 'maker-eval-emit: calibration pair %s must have exactly one judge verdict (got %s)\n' "$cal_id" "${n_for_pair:-0}" >&2
+      return 2
+    fi
+    judge_verdict="$(jq -r --arg p "$cal_id" 'first(.verdicts[] | select(.pair == $p) | .verdict)' "$verdicts" 2>/dev/null)"
+    [ "$judge_verdict" = "$owner_label" ] && matched=$((matched + 1))
+  done <<EOF
+$labels
+EOF
+  if [ "$total" -eq 0 ]; then
+    printf 'maker-eval-emit: no calibration pairs to score\n' >&2
+    return 2
+  fi
+
+  # From here every failure is a WRITE failure: silent-to-the-eval (exit 0, nothing written),
+  # exactly as `record` and the telemetry emitter do — the eval is observe-only.
+  local channel agreement ts repo rec
+  channel="$(channel_dir)" || return 0
+  [ -n "$channel" ] || return 0
+  # A fixed-scale fraction in [0,1]; awk (not bc) for portability. `matched/total`.
+  agreement="$(awk -v m="$matched" -v t="$total" 'BEGIN { printf "%.4f", (t>0 ? m/t : 0) }')" || return 0
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 0
+  repo="$(repo_basename)"
+  rec="$(jq -c \
+    --arg ts "$ts" --arg repo "$repo" --arg run "$run_id" \
+    --argjson agreement "$agreement" --argjson floor "$floor" \
+    --argjson matched "$matched" --argjson total "$total" \
+    -n '{record:"maker-eval-agreement", timestamp:$ts, repo:$repo, run_id:$run,
+         agreement:$agreement, floor:$floor, matched:$matched, total:$total}' \
+    2>/dev/null)" || return 0
+  [ -n "$rec" ] || return 0
+
+  {
+    mkdir -p "$channel" || return 0
+    printf '%s\n' "$rec" >> "$channel/records.jsonl" || return 0
+  } 2>/dev/null || return 0
+
+  printf '%s\n' "$rec"
+}
+
 # ── complete ──────────────────────────────────────────────────────────────────
 record_present() { # <records-file> <run-id> <task-id> <tier>
   [ -f "$1" ] || return 1
@@ -392,6 +537,7 @@ cmd="${1:-}"
 case "$cmd" in
   fingerprint) fingerprint_json ;;
   record)      do_record "$@" ;;
+  agreement)   do_agreement "$@" ;;
   complete)    do_complete "$@" ;;
   *) usage; exit 2 ;;
 esac

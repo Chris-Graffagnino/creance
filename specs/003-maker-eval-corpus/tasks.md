@@ -34,7 +34,7 @@
       scoring-schema/calibration-set+labels+floor);
       observe-only, touches no gate/tier state; ships a test incl. the
       write-failure-stays-silent and the partial-run-is-not-a-baseline cases (US1)
-- [ ] T806 [strong] Judge calibration artifact + agreement reporting: a small
+- [x] T806 [strong] Judge calibration artifact + agreement reporting: a small
       **owner-labeled calibration set** (maker outputs paired with the owner's
       known-good verdicts) as a frozen, PR-only instrument artifact (P4); each run
       computes & records the **judge↔owner agreement** over it as an observe-only

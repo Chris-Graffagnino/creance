@@ -147,6 +147,40 @@ differenced makes the comparison **not-comparable** (the regression call is supp
 than reported as a confounded delta — `triage.md`). The concrete hash recipe is the adapter's
 to supply.
 
+## Judge calibration (the agreement figure — the judge checked against human judgment)
+
+The differential above assumes the judge itself is meaningful. That is not assumed — it is
+**measured**, exactly as the reviewers are (auditor-liveness): the frozen instrument carries a
+small **owner-labeled calibration set** (`reviewers/maker-eval-corpus.md` → "Judge calibration")
+— described maker outputs each paired with the owner's known-good verdict against a corpus rubric
+dimension — and each run reports the **judge↔owner agreement** over that set as an
+**observe-only** figure against a stated **agreement floor**.
+
+**The agreement computation (what a run records).** For each owner-labeled pair in the
+calibration set, the run has the pinned judge score the pair's described output against its
+dimension's known-good criterion, yielding one scoring-schema verdict per pair. **Agreement is
+the fraction of pairs whose judge verdict equals the owner's label exactly** — matched pairs
+over total pairs, a number in `[0, 1]`. The run records that figure alongside its results, with
+the calibration set's stated floor, as one more **observe-only** value in the run's records (the
+concrete record shape is the adapter's — `.claude/PROJECT.md` → "Paths" → the eval channel). The
+figure is computed **only** from the pinned judge and the frozen owner labels, so between two
+runs it moves only when the judge or the labels move — never because the maker changed.
+
+**What the figure does — and never does.** The agreement figure is calibration, not a gate: it
+tells the operator only whether the instrument's judge **still tracks human judgment**. It
+**never** gates a run, retiers a model, alters a score, or changes the eval outcome — a run whose
+agreement is below floor still records its results, and the below-floor state surfaces in triage
+as **JUDGE-MISCALIBRATED** (`triage.md`), a warning for a human to act on, never an automatic
+anything (constitution P5, restated in "Observe-only" below). When no agreement is recorded yet,
+the surfacing renders the explicit "no agreement recorded yet" state, never a silent omission.
+
+The calibration set, its labels, and its floor are **frozen-instrument artifacts**: they belong
+to the eval-instrument fingerprint (above, component 3), so a reviewed-PR edit to any of them
+moves that component and the read-only surfacing renders the cross-run comparison
+INSTRUMENT-CHANGED / not-comparable rather than a silent re-grade. Like every instrument
+artifact they change **only by a human-reviewed PR** (constitution P4 — "Seeding & growth"
+below).
+
 ## Re-run policy (on maker-behavior change + on a named schedule)
 
 The corpus re-runs on **both** triggers (the same two-trigger discipline as auditor-liveness):
