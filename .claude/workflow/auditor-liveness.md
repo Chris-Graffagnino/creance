@@ -71,8 +71,9 @@ plant, **read-only**:
 2. Dispatch the fixture's target **[reviewer]** against the plant, **read-only and
    report-only** — a single fan-out, **no fix step and no re-dispatch loop** (unlike the
    gate's converge-to-PASS cycle; the corpus *measures* an auditor, it does not drive a task
-   to PASS). The constitution **[reviewer]** is dispatched **at-or-above the [strong tier]**
-   floor — the same floor the gate and the **[guard]** enforce, never below.
+   to PASS). The constitution and spec-quality **[reviewers]** are dispatched
+   **at-or-above the [strong tier]** floor — the same floor the gate and the **[guard]**
+   enforce, never below.
 3. Compare the returned verdict to the fixture's expected verdict (and, for a FAIL, that the
    evidence anchor was named). Equal ⇒ the fixture is `PASS` (the auditor is live on it);
    unequal ⇒ `MISMATCH` (the auditor may have gone blind — or over-eager — on that

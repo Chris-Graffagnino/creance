@@ -44,7 +44,8 @@ analog of the two PROBES-STALE facts:
 
 - **Recompute the current reviewer-spec fingerprint** using the recipe defined **once** in
   **`.claude/skills/auditor-liveness/SKILL.md` → "The reviewer-spec fingerprint"** (the
-  `git hash-object` over the three `*-auditor.md` specs + the evasion register, rendered
+  `git hash-object` over the four `*-auditor.md` specs — including
+  `spec-quality-auditor.md` — + the evasion register, rendered
   `specs=<sha7>`). Reuse that recipe — never re-derive it here — so what the fingerprint
   covers stays a one-place edit. It is a content hash: recomputing is **read-only**.
 - **The recorded baseline** is the most recent non-placeholder **`full`-scope** row of that

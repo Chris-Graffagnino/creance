@@ -245,8 +245,24 @@ fi
 # spec-quality-auditor, so a full corpus run actually exercises the AL-SQ-* fixtures and
 # editing the spec-quality reviewer spec raises CORPUS-STALE, exactly as for the other
 # three auditors.
-check "T707: reviewer dispatch row names spec-quality-auditor" "$SKILL_FLAT" \
-  "spec-quality-auditor"
+# The check is scoped to the [reviewer] dispatch-table row itself (row-anchored grep, the
+# same extraction shape reviewer-roster.test.sh's skill_map uses) — grepping the whole doc
+# would false-pass if the row dropped spec-quality-auditor while the name survived elsewhere
+# (the frontmatter description, the fingerprint recipe). PR #220 review, Codex 3520178705.
+dispatch_row="$(grep -F '| **[reviewer]**' "$SKILL")"
+if printf '%s' "$dispatch_row" | grep -qF "spec-quality-auditor"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL T707: the [reviewer] dispatch-table row does not name spec-quality-auditor\n' >&2
+fi
+# Triage's CORPUS-STALE recipe (the adapter that actually recomputes the fingerprint) must
+# cover all four auditor specs too — a three-spec recipe would omit spec-quality edits from
+# the recomputed value, breaking the on-change trigger. PR #220 review, Codex 3520178701.
+check "T707 (triage adapter): CORPUS-STALE recipe hashes all four auditor specs" "$TRIAGE_ADP_FLAT" \
+  'four `*-auditor.md` specs'
+check "T707 (triage adapter): CORPUS-STALE recipe names spec-quality-auditor.md" "$TRIAGE_ADP_FLAT" \
+  "spec-quality-auditor.md"
 check "T707: corpus contract states all four auditors are bound (none deferred)" "$CORPUS_FLAT" \
   "all four are bound to the runner"
 # The fingerprint recipe (git hash-object argv) must include the spec-quality spec file —
