@@ -26,6 +26,10 @@
 #                       command resolves to review, never autonomous (AC2);
 #   * aborted / refused outcomes: aborted -> fail-closed (AC3d); refused ->
 #                       ineligible for the rest of the run, never re-selected;
+#   * malformed selector output: anything but exactly one `T`+digits ID (two
+#                       ids on one line, multi-line output, a non-ID token)
+#                       stops fail-closed — never a concatenated bogus
+#                       identity, never misread as backlog-drained;
 #   * usage guards:     missing/non-numeric N, missing seams -> loud exit 2;
 #   * wiring (P2):      the `verify` job ACTIVELY runs this test, and the neutral
 #                       doc still names the closed stop-reason set the skeleton
@@ -357,6 +361,29 @@ OUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
 assert_eq "broken selector: stop fail-closed, not backlog-drained" "$OUT" "stop: fail-closed after 0 of 3"
 assert_eq "broken selector: exit 0 on the clean stop" "$RC" "0"
 assert_eq "broken selector: iteration command never invoked" "$(cat "$FIX/iter.log")" ""
+
+# ── 14. Malformed selector output -> stop fail-closed (craft-review finding):
+#    the selector contract is EXACTLY one task ID (`T` + digits) or nothing.
+#    Two IDs on one line must never become a concatenated bogus identity
+#    ("T901T902"); multi-line or garbage output is the selector misbehaving —
+#    condition (d), never an accepted candidate, never backlog-drained.
+run_malformed() { # <label> <selector-stdout-via-printf-format>
+  mkfix "$1"
+  RC=0
+  OUT="$(BACKLOG_LOOP_ACTIVATION_CMD="bash $BIN/act-auto.sh" \
+    BACKLOG_LOOP_SELECT_CMD="printf '$2'" \
+    BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+    bash "$SCRIPT" run 3 2>/dev/null)" || RC=$?
+}
+run_malformed c14a 'T901 T902\n'
+assert_eq "malformed selector (two ids, one line): stop fail-closed" "$OUT" "stop: fail-closed after 0 of 3"
+assert_eq "malformed selector (two ids, one line): iteration never invoked" "$(cat "$FIX/iter.log")" ""
+run_malformed c14b 'T901\nT902\n'
+assert_eq "malformed selector (two ids, two lines): stop fail-closed" "$OUT" "stop: fail-closed after 0 of 3"
+assert_eq "malformed selector (two ids, two lines): iteration never invoked" "$(cat "$FIX/iter.log")" ""
+run_malformed c14c 'banana\n'
+assert_eq "malformed selector (non-task-id token): stop fail-closed" "$OUT" "stop: fail-closed after 0 of 3"
+assert_eq "malformed selector (non-task-id token): iteration never invoked" "$(cat "$FIX/iter.log")" ""
 
 # ── Usage guards: missing/non-numeric N, wrong subcommand, and a missing seam
 #    are loud exit-2 errors — never a silent default that touches real state.

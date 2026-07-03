@@ -28,6 +28,12 @@
 #   BACKLOG_LOOP_SELECT_CMD      REQUIRED. Candidate selection; invoked with
 #       the excluded task identities as arguments; prints the lowest
 #       unblocked candidate task ID, or nothing when no candidate remains.
+#       The contract is ENFORCED: output must be exactly one task ID (`T` +
+#       digits, the format every deterministic consumer parses — see
+#       .claude/PROJECT.md "Task & branch conventions") or empty. Anything
+#       else (multiple tokens, multiple lines, a non-ID word) is the selector
+#       misbehaving -> condition (d), fail closed — never a concatenated
+#       bogus identity, never misread as a drained backlog.
 #   BACKLOG_LOOP_ITERATION_CMD   REQUIRED. Runs ONE complete next-task cycle
 #       for the candidate (invoked with the task ID as its argument); prints
 #       the outcome on stdout: `pass <pr-ref>` | `fail-discard` | `refused` |
@@ -115,6 +121,12 @@ select_candidate() {
   bash -c "$SELECT_CMD \"\$@\"" backlog-loop-select "$@" 2>/dev/null
 }
 
+# valid_task_id <s> — whole-string match against the task-ID format every
+# deterministic consumer parses (`T` + digits). Anchored over the ENTIRE
+# output, so multi-token ("T901 T902"), multi-line, or non-ID output can
+# never slip through as a candidate identity.
+valid_task_id() { [[ "$1" =~ ^T[0-9]+$ ]]; }
+
 while :; do
   # ── loop head: every stop condition is evaluated HERE, between iterations,
   # never mid-task. [autonomy activation] is consulted once per head. At the
@@ -138,12 +150,12 @@ while :; do
   for id in $ineligible; do set -- "$@" "$id"; done
   [ -z "$skip" ] || set -- "$@" "$skip"
   candidate="$(select_candidate "$@")" || finish fail-closed
-  candidate="$(printf '%s\n' "$candidate" | head -1 | tr -d '[:space:]')"
+  [ -z "$candidate" ] || valid_task_id "$candidate" || finish fail-closed
   if [ -z "$candidate" ] && [ -n "$skip" ]; then
     set --
     for id in $ineligible; do set -- "$@" "$id"; done
     candidate="$(select_candidate "$@")" || finish fail-closed
-    candidate="$(printf '%s\n' "$candidate" | head -1 | tr -d '[:space:]')"
+    [ -z "$candidate" ] || valid_task_id "$candidate" || finish fail-closed
   fi
   skip="" # consumed: it applied to this one selection, whatever happens next
   [ -n "$candidate" ] || finish backlog-drained # (b)
