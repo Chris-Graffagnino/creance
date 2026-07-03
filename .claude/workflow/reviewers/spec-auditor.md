@@ -126,11 +126,13 @@ the hard-FAIL rule, and the output contract still apply normally to anything the
 diff *itself* implements. Screen **each drafted criterion** against `workflow/intake.md` §4:
 - **Independently checkable** — checkable by someone who is not the scorer (intake's
   write-posture independence requirement).
-- **Not trivially gameable** — apply §4's **gameability screen**: name the cheapest way to
-  satisfy the criterion *without doing the real work*. If such a path exists, the criterion
-  is one-sided or trivially satisfiable. A drafted criterion that is checkable but gameable
-  is a **FAIL** (graded on criterion design, not on missing implementation); the minimal fix
-  is the tightening that penalizes both failure directions (per §4's worked examples).
+- **Not trivially gameable** — apply the **gameability screen**, whose single canonical
+  home is `reviewers/spec-quality-auditor.md` → hunt **(d)** (§4 delegates to that same
+  definition): name the cheapest way to satisfy the criterion *without doing the real
+  work*. If such a path exists, the criterion is one-sided or trivially satisfiable. A
+  drafted criterion that is checkable but gameable is a **FAIL** (graded on criterion
+  design, not on missing implementation); the minimal fix is the tightening that penalizes
+  both failure directions (per hunt **(d)**'s worked examples).
 
 This is a criterion-design screen that replaces the normal implementation/test hunt **for
 the drafted criteria only**; it changes no gate semantics (roster, dispatch, round limits,
