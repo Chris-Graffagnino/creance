@@ -98,6 +98,11 @@ emit summary run-B max-N 6 6 >/dev/null 2>&1
 eq "clean-drain stop recorded"        "max-N" "$(field 6 .stop)"
 eq "clean drain not partial (i = N)"  "false" "$(field 6 '.iterations < .budget')"
 
+# The stop condition is a CLOSED set (backlog-loop.md): the remaining two terminal
+# states are accepted too, so the validation is not over-tight (lines 7, 8).
+emit summary run-B backlog-drained 3 6    >/dev/null 2>&1; eq "backlog-drained stop accepted"    0 "$?"
+emit summary run-B repeated-gate-fail 2 6 >/dev/null 2>&1; eq "repeated-gate-fail stop accepted" 0 "$?"
+
 # ── loud caller errors: nothing written, exit 2 ──────────────────────────────────
 before="$(wc -l < "$CHAN" | tr -d '[:space:]')"
 emit iteration run-A T105 refused FABRICATED     >/dev/null 2>&1; eq "refused + a fabricated verdict is a loud caller error" 2 "$?"
@@ -108,6 +113,8 @@ emit iteration run-A T105 exploded               >/dev/null 2>&1; eq "an unknown
 emit iteration run-A                             >/dev/null 2>&1; eq "iteration missing args is a loud caller error" 2 "$?"
 emit summary run-A max-N six 6                   >/dev/null 2>&1; eq "a non-integer iteration count is a loud caller error" 2 "$?"
 emit summary run-A max-N 6                       >/dev/null 2>&1; eq "summary missing args is a loud caller error" 2 "$?"
+emit summary run-A typo-stop 4 6                 >/dev/null 2>&1; eq "an unknown stop condition (closed set) is a loud caller error" 2 "$?"
+emit summary run-A max-N 7 6                     >/dev/null 2>&1; eq "iterations exceeding budget (impossible run) is a loud caller error" 2 "$?"
 emit bogus                                       >/dev/null 2>&1; eq "an unknown subcommand is a loud caller error" 2 "$?"
 eq "no caller error wrote a line" "$before" "$(wc -l < "$CHAN" | tr -d '[:space:]')"
 
@@ -124,6 +131,39 @@ if [ -e "$BLOCK/sub" ]; then bad "unwritable channel: nothing may be created"; e
 out="$(BACKLOG_LOOP_REPORT_FILE="$BLOCK/sub/report.jsonl" bash "$EMIT" summary run-C fail-closed 1 6 2>/dev/null)"
 eq "unwritable channel: summary write also silent (exit 0)" 0 "$?"
 eq "unwritable channel: summary claims no record either" "" "$out"
+
+# ── channel resolution: the PRODUCTION profile + shipped-default paths (P4) ───────
+# The override seam above is the TEST path. These exercise report_file()'s
+# profile-declared and shipped-default branches, so a broken default/profile
+# resolution cannot hide behind the silent-write posture while the suite stays
+# green (the override seam alone would never notice a misrouted default).
+
+# (1) shipped default: no override, a placeholder-only profile (its `<...>` token
+#     is NOT an override — it must fall through), temp HOME → the emitter writes
+#     <home>/.claude/triage/<repo>-telemetry.jsonl. Run with CWD = the repo so
+#     git-toplevel resolution is deterministic.
+PROF_PH="$TMP/profile-placeholder.md"
+printf -- '- **Telemetry:** appends to `<triage inbox dir>/creance-telemetry.jsonl` per record\n' > "$PROF_PH"
+DHOME="$TMP/defhome"
+DEF_FILE="$DHOME/.claude/triage/$(basename "$REPO_ROOT")-telemetry.jsonl"
+out="$(cd "$REPO_ROOT" && env -u BACKLOG_LOOP_REPORT_FILE HOME="$DHOME" BACKLOG_LOOP_PROJECT_FILE="$PROF_PH" \
+  bash "$EMIT" iteration run-D T301 pass PASS 'PR#5' 2>/dev/null)"
+eq "default path: emitter exits 0" 0 "$?"
+if [ -f "$DEF_FILE" ]; then ok; else bad "default path: shipped-default channel not written" "expected $DEF_FILE"; fi
+eq "default path: record lands with the driven task" "T301" "$(sed -n '1p' "$DEF_FILE" 2>/dev/null | jq -r .task_id)"
+eq "default path: placeholder profile did NOT become the channel (echo == landed line)" "$out" "$(sed -n '1p' "$DEF_FILE" 2>/dev/null)"
+
+# (2) profile-declared concrete channel: a fixture profile whose Telemetry bullet
+#     names a concrete absolute .jsonl path is resolved and written (no override).
+PROF_CH="$TMP/profchan/telemetry.jsonl"
+PROF_CONC="$TMP/profile-concrete.md"
+printf -- '- **Telemetry:** one JSONL line per record to `%s`\n' "$PROF_CH" > "$PROF_CONC"
+out="$(cd "$REPO_ROOT" && env -u BACKLOG_LOOP_REPORT_FILE BACKLOG_LOOP_PROJECT_FILE="$PROF_CONC" \
+  bash "$EMIT" summary run-D max-N 6 6 2>/dev/null)"
+eq "profile path: emitter exits 0" 0 "$?"
+if [ -f "$PROF_CH" ]; then ok; else bad "profile path: profile-declared channel not written" "expected $PROF_CH"; fi
+eq "profile path: summary lands at the profile-declared channel" "backlog-loop-summary" "$(sed -n '1p' "$PROF_CH" 2>/dev/null | jq -r .record)"
+eq "profile path: stop recorded" "max-N" "$(sed -n '1p' "$PROF_CH" 2>/dev/null | jq -r .stop)"
 
 # ── CI wiring (the silent-death backstop, P2): verify must ACTIVELY run this ─────
 if grep -qE '(^|[[:space:]])bash[[:space:]]+[.]claude/hooks/backlog-loop-report[.]test[.]sh([[:space:]]|$)' "$CI"; then

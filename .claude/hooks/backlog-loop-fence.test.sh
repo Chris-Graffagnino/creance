@@ -147,6 +147,13 @@ L="$TMP/control-writer-withheld"; mkfix "$L"
 addfile "$L" ".claude/hooks/backlog-loop-report.sh" '# a writer that no longer resolves any channel'
 run_fence 3 "$L" "CONTROL FAILS: writer no longer resolves the run-report channel"
 
+# (l2) the writer names the tokens ONLY in a whole-line comment (its executable
+#      code no longer resolves the channel) → still vacuous, control FAILs. The
+#      control reads a CODE-ONLY view, so header docs cannot mask a gutted writer.
+L2="$TMP/control-writer-comment-only"; mkfix "$L2"
+addfile "$L2" ".claude/hooks/backlog-loop-report.sh" '# emits backlog-loop-iteration / backlog-loop-summary via BACKLOG_LOOP_REPORT_FILE, but resolves nothing'
+run_fence 3 "$L2" "CONTROL FAILS: writer names the tokens only in a comment (code-only view)"
+
 # (m) a MISSING writer file is the same vacuity — control FAILs.
 M="$TMP/control-writer-missing"; mkfix "$M"
 rm "$M/.claude/hooks/backlog-loop-report.sh"

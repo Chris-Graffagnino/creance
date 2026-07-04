@@ -35,7 +35,10 @@
 # fence verifies the reporting path still RESOLVES the channel — the writer
 # (hooks/backlog-loop-report.sh) and the reader (workflow/triage.md) must each
 # reference the report tokens. If either no longer does, the fence FAILS (exit 3):
-# it must never rot into scanning for a token nothing uses.
+# it must never rot into scanning for a token nothing uses. The writer side reads
+# the tokens from EXECUTABLE code only (whole-line comments stripped): a
+# regression that guts the code but keeps the token-naming header block must still
+# trip the control, not be masked by the docs.
 #
 # DETERMINISM + FAIL-CLOSED: a plain `grep` over the tracked tree (NOT ripgrep,
 # whose user config can silently skip files — the check-tasks-consistency.sh
@@ -139,6 +142,17 @@ list_files() {
   fi
 }
 
+# Concrete-code view of a shell source for the non-vacuity control: drop
+# whole-line comments so the control asserts the report tokens survive in
+# EXECUTABLE code, not merely in the header docs. A regression that guts the
+# writer's code (the jq record literals / channel resolution) but leaves the
+# header block intact must still trip the control (exit 3) — otherwise the fence
+# is vacuous, scanning for tokens no live code uses. Trailing comments are NOT
+# stripped: `#` also opens ${p#...}/${r##*} parameter expansions, so a naive
+# strip would corrupt code — and the writer's doc-only token mentions all live in
+# the whole-line header block anyway.
+code_only() { grep -vE '^[[:space:]]*#' "$1" 2>/dev/null; }
+
 # Fold shell line-continuations into ONE logical line, emitted as `grep -n`-style
 # "<start-lineno>:<text>" (the maker-eval fence's fold, same POSIX awk).
 fold_continuations() {
@@ -195,8 +209,8 @@ fi
 # The fence is only meaningful while the reporting path still resolves the channel
 # it scans for. If the writer or the reader stops referencing the report tokens,
 # the fence is scanning for a token nothing uses — FAIL LOUD, never a silent pass.
-if ! grep -qE "$CHANNEL_READ_TOKENS" "$ROOT/$WRITER_FILE" 2>/dev/null; then
-  printf 'backlog-loop-fence: CONTROL FAILURE — the report writer (%s) no longer resolves the run-report channel (no record/seam token found); the fence would be vacuous.\n' "$WRITER_FILE" >&2
+if ! code_only "$ROOT/$WRITER_FILE" | grep -qE "$CHANNEL_READ_TOKENS"; then
+  printf 'backlog-loop-fence: CONTROL FAILURE — the report writer (%s) no longer resolves the run-report channel in executable code (no record/seam token outside comments); the fence would be vacuous.\n' "$WRITER_FILE" >&2
   exit 3
 fi
 if ! grep -qE "$CHANNEL_READ_TOKENS" "$ROOT/$READER_FILE" 2>/dev/null; then

@@ -42,6 +42,10 @@
 #       stop condition and `iterations of N` (`iterations`/`budget` fields), so a
 #       partially completed run is visible AS partial from the line itself —
 #       never mistaken for a clean drain, never an error baseline (US1.AC6).
+#       <stop-condition> is a CLOSED set (backlog-loop.md → "Stop conditions":
+#       max-N | backlog-drained | repeated-gate-fail | fail-closed) and
+#       <iterations> must not exceed <N>; an unknown stop or an impossible
+#       iterations > N count is a LOUD caller error (exit 2, nothing written).
 #
 # Channel resolution (the run report goes to the EXISTING telemetry stream —
 # telemetry.md's storage convention; NO new path convention), precedence:
@@ -173,10 +177,27 @@ do_summary() {
   if [ "$#" -ne 4 ] || [ -z "$run_id" ] || [ -z "$stop" ] || [ -z "$iterations" ] || [ -z "$budget" ]; then
     usage; return 2
   fi
+  # The stop condition is a CLOSED set (backlog-loop.md → "Stop conditions":
+  # max-N | backlog-drained | repeated-gate-fail | fail-closed). An unknown token
+  # is a LOUD caller error (exit 2, nothing written) — the summary line records
+  # the run's terminal state, and only these four are terminal states the loop
+  # can reach; a fabricated stop would misreport why the run ended.
+  case "$stop" in
+    max-N | backlog-drained | repeated-gate-fail | fail-closed) ;;
+    *)
+      printf 'backlog-loop-report: unknown stop condition [%s] (max-N | backlog-drained | repeated-gate-fail | fail-closed)\n' "$stop" >&2
+      return 2 ;;
+  esac
   # `iterations of N` must be two honest counters — a non-integer is a LOUD
   # caller error (never a defaulted or truncated figure).
   case "$iterations" in *[!0-9]* | "") usage; return 2 ;; esac
   case "$budget"     in *[!0-9]* | "") usage; return 2 ;; esac
+  # A completed count can never exceed the budget it ran under — iterations > N is
+  # an impossible run, a LOUD caller error, never a silently recorded figure.
+  if [ "$iterations" -gt "$budget" ]; then
+    printf 'backlog-loop-report: iterations (%s) cannot exceed budget (%s)\n' "$iterations" "$budget" >&2
+    return 2
+  fi
 
   # From here every failure is a WRITE failure: silent-to-the-run (exit 0).
   local ts repo rec
