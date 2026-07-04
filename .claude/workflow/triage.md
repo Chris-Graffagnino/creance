@@ -57,9 +57,12 @@ procedure is safe to run unattended because it cannot change the repo.
    three resolutions came up empty — a missing log at just the default path is not evidence
    the launcher never ran.
 6. The **telemetry stream** (path from the profile → "Paths" → Telemetry; record shapes
-   per `workflow/telemetry.md`) — **read-only, like every other source here**: never write
+   per `workflow/telemetry.md`, and the **[backlog-loop]** run-report records' shape per
+   `workflow/backlog-loop.md` → "The run report (observe-only)") — **read-only, like every
+   other source here**: never write
    to, truncate, or rewrite the stream. An absent or empty file is not a read failure —
-   it feeds the "Gate trends" section's explicit no-data state (§2).
+   it feeds the "Gate trends" and "Backlog-loop run report" sections' explicit no-data
+   states (§2).
 7. The **probe-run records and the current machinery** (for the "Verification-machinery
    freshness" findings, §2) — both read-only:
    - The conformance probes record their results as a **dated table with a `[guard]`-machinery
@@ -152,6 +155,26 @@ procedure is safe to run unattended because it cannot change the repo.
   silently omitted and a missing file is never an error. Records that fail to parse are
   skipped and counted in the section's "skipped malformed lines" note, never repaired
   in place.
+- **Backlog-loop run report (from the telemetry stream).** The latest **[backlog-loop]**
+  run's observe-only report (`workflow/backlog-loop.md` → "The run report (observe-only)"),
+  read from the same stream as the gate trends: group the stream's
+  `backlog-loop-iteration` and `backlog-loop-summary` records by run id and surface the
+  run whose summary record is newest. One line per iteration — the task ID plus that
+  iteration's terminal outcome **in the outcome's own form**: a gated outcome's verdict
+  and its PR reference or discard; a refused or aborted iteration shows the outcome
+  itself, with no gate verdict and no PR-or-discard (the report never fabricates a gate
+  result, and neither may this surfacing) — plus the run-summary line's stop condition
+  and `iterations of N`. **Flag a partial run as partial**: a run whose stop condition is
+  neither the drained budget nor the drained backlog (`backlog-loop.md` → "Stop
+  conditions") stopped with eligible budget remaining, so mark it explicitly rather than
+  letting it read as a clean drain — a partial run is a valid outcome, never an error
+  baseline. This derivation is **read-only over telemetry** (per `workflow/telemetry.md`,
+  telemetry observes and never decides — the loop itself consumes each iteration's
+  outcome from the run's own return, never from this report). When the stream holds no
+  backlog-loop records, the section still renders, with the explicit "no backlog-loop
+  run recorded yet" state shown in the §4 template — never an error and never silently
+  omitted. Records that fail to parse are skipped and counted in the section's "skipped
+  malformed lines" note, never repaired in place.
 - **Discovered-work clusters (from the open issues' bodies).** The open issues
   filed as discovered work — those whose body carries a `Discovered while working #N`
   provenance line (the `next-task.md` §5.5 convention) — grouped by the
@@ -315,6 +338,12 @@ shape:
 - <"no data yet — telemetry stream absent/empty at <path>" replaces the three lines above
   when §2's gate-trends derivation found no gate-run records>
 - <"skipped malformed lines: <n>" — present only when nonzero, whether or not data was found>
+
+## Backlog-loop run report (latest run: <run-id | none>)
+- <task-id>: <"gate <verdict> → PR <ref>"  |  "gate <verdict> → discarded"  |  "refused"  |  "aborted">   (one line per iteration, in run order)
+- stop: <stop-condition> — <iterations> of <N> iterations   <append " — PARTIAL: stopped with budget remaining" when §2 flagged the run partial>
+- <"no backlog-loop run recorded yet — nothing to surface" replaces the two lines above when the stream holds no backlog-loop records>
+- <"skipped malformed lines: <n>" — present only when nonzero>
 
 ## Discovered-work clusters
 - <path/subsystem>: #<n> #<n> …   <append " — 3+, possible missing spec" when the group has 3 or more>

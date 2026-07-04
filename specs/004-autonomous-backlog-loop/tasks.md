@@ -34,7 +34,7 @@
 
 ## Phase 3 — Observe-only reporting & live proof
 
-- [ ] T904 [strong] Run report as observe-only telemetry: one line per iteration (task
+- [x] T904 [strong] Run report as observe-only telemetry: one line per iteration (task
       ID, gate verdict, PR ref or discard) written to the out-of-repo triage-inbox channel
       (existing triage default — no new path convention); `/triage` surfaces the batch. A
       deterministic P5 fence proves no gate-outcome / model-tier / task-selection path
