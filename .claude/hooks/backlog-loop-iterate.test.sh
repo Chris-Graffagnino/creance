@@ -95,6 +95,17 @@ set_reply 'BACKLOG-LOOP-OUTCOME: pass https://example.test/pr/9 (squash pending)
 run_iter T101
 assert_eq "pass keeps interior spacing of its ref text" "$OUT" "pass https://example.test/pr/9 (squash pending)"
 
+set_reply 'BACKLOG-LOOP-OUTCOME: pass PR#12
+Recapping the contract I was given:
+  BACKLOG-LOOP-OUTCOME: pass <pr-ref>     (the §7 gate passed...)
+  BACKLOG-LOOP-OUTCOME: aborted           (a lifecycle check failed closed)'
+run_iter T101
+assert_eq "an echoed (indented) contract never overrides the real marker" "$OUT" "pass PR#12"
+
+set_reply 'BACKLOG-LOOP-OUTCOME: pass <pr-ref>'
+run_iter T101
+assert_eq "the contract's own placeholder shape is never a real pass" "$OUT" "aborted"
+
 # ── 3. fail closed: missing marker / unrecognized outcome / non-zero run exit.
 set_reply 'the run said many things but never the marker'
 run_iter T101

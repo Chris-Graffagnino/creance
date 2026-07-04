@@ -57,13 +57,17 @@ fi
 # The composed prompt: one complete, unmodified next-task cycle, the task ID
 # explicit in the invocation text, plus the outcome-marker contract. The cycle
 # itself decides pass/fail/refused/aborted — this wrapper only transports it.
+# The four contract examples are INDENTED on purpose: the outcome grep below is
+# anchored to column 0, so a cycle that quotes this contract back verbatim can
+# never have a quoted example win the last-marker-wins parse — only the run's
+# own unindented terminal line matches.
 prompt="/next-task $task_id
 
-Unattended [backlog-loop] iteration (one complete next-task cycle for $task_id — run it exactly per the workflow; never merge). When the cycle reaches its terminal state, end your final message with exactly ONE line in this form and nothing after it:
-BACKLOG-LOOP-OUTCOME: pass <pr-ref>     (the §7 gate passed and promotion opened <pr-ref>)
-BACKLOG-LOOP-OUTCOME: fail-discard      (the §7 gate failed; the workspace was discarded)
-BACKLOG-LOOP-OUTCOME: refused           ([live-state reconciliation] refused $task_id — landed or in-flight work exists)
-BACKLOG-LOOP-OUTCOME: aborted           (a lifecycle or [autonomy activation] check failed closed)"
+Unattended [backlog-loop] iteration (one complete next-task cycle for $task_id — run it exactly per the workflow; never merge). When the cycle reaches its terminal state, end your final message with exactly ONE line, at the start of the line, in this form and nothing after it:
+  BACKLOG-LOOP-OUTCOME: pass <pr-ref>     (the §7 gate passed and promotion opened <pr-ref>)
+  BACKLOG-LOOP-OUTCOME: fail-discard      (the §7 gate failed; the workspace was discarded)
+  BACKLOG-LOOP-OUTCOME: refused           ([live-state reconciliation] refused $task_id — landed or in-flight work exists)
+  BACKLOG-LOOP-OUTCOME: aborted           (a lifecycle or [autonomy activation] check failed closed)"
 
 out="$(bash -c "$HEADLESS_CMD \"\$@\"" backlog-loop-headless "$prompt" 2>/dev/null)" || { echo aborted; exit 0; }
 
@@ -73,7 +77,15 @@ outcome="${marker#BACKLOG-LOOP-OUTCOME:}"
 outcome="$(printf '%s\n' "$outcome" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
 
 case "$outcome" in
-  pass\ ?* | fail-discard | refused | aborted) printf '%s\n' "$outcome" ;;
+  pass\ ?*)
+    # A ref carrying angle brackets is the contract's own placeholder shape
+    # (`pass <pr-ref>`), never a real PR reference — a quoted-contract echo,
+    # not a promotion. FAIL CLOSED rather than report a fabricated pass.
+    case "$outcome" in
+      *"<"* | *">"*) echo aborted ;;
+      *) printf '%s\n' "$outcome" ;;
+    esac ;;
+  fail-discard | refused | aborted) printf '%s\n' "$outcome" ;;
   *) echo aborted ;; # missing/unrecognized marker fails closed
 esac
 exit 0
