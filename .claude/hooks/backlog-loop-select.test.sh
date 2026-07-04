@@ -177,6 +177,24 @@ run_select
 assert_eq "no tasks files: loud exit 1" "$RC" "1"
 assert_eq "no tasks files: nothing on stdout" "$OUT" ""
 
+# ── 6b. an EXISTING but unreadable tasks file is the same fail-closed case: a
+#      permissions/mount misconfiguration must never read as a drained backlog
+#      (PR #239 review). Skipped as root (chmod 000 does not bar root).
+if [ "$(id -u)" -eq 0 ]; then
+  ok # cannot exercise unreadability as root — counted as skipped-pass
+else
+  mkroot c6b
+  cat > "$ROOT/specs/aaa/tasks.md" <<'EOF'
+# Tasks A
+- [ ] T101 [cheap] open (US1)
+EOF
+  chmod 000 "$ROOT/specs/aaa/tasks.md"
+  run_select
+  chmod 644 "$ROOT/specs/aaa/tasks.md" # restore so the trap's rm -rf never stalls
+  assert_eq "unreadable tasks file: loud exit 1, never 'drained'" "$RC" "1"
+  assert_eq "unreadable tasks file: nothing on stdout" "$OUT" ""
+fi
+
 # ── Wiring (P2): the `verify` job ACTIVELY runs this test.
 verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
 if verify_steps | grep -qE '^[[:space:]]*run:[[:space:]]+bash[[:space:]]+\.claude/hooks/backlog-loop-select\.test\.sh([[:space:]]|$)'; then

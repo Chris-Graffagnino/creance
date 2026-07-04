@@ -40,18 +40,28 @@
 #                       UNMET (fail closed toward not starting);
 #   * winner          — the numerically lowest surviving id, printed alone.
 # Output: exactly one task ID, or nothing (backlog drained). Exit 0 on both;
-# exit 1 (LOUD) when no live tasks file is readable at all — a selector that
-# cannot see the backlog must fail closed (the loop's condition (d)), never
-# report a drained backlog it never read.
+# exit 1 (LOUD) when no live tasks file exists at all OR any existing tasks
+# file is not readable — a selector that cannot see the whole backlog must
+# fail closed (the loop's condition (d)), never report a drained backlog it
+# never read.
 # Tests: .claude/hooks/backlog-loop-select.test.sh (wired into CI verify).
 set -u
 
 PROFILE="${BACKLOG_LOOP_SELECT_PROFILE:-.claude/PROJECT.md}"
 
 # ── the backlog (fail LOUD when unreadable — never a silent "drained") ─────────
+# An EXISTING tasks file the invoking user cannot read is the fail-closed case
+# too: a permissions/mount misconfiguration must never be misread as a drained
+# backlog (PR #239 review — the later grep/awk read errors are suppressed, so
+# without this preflight the selector would return empty stdout, exit 0).
 tasks_files=""
 for f in specs/*/tasks.md; do
-  [ -f "$f" ] && tasks_files="$tasks_files$f
+  [ -f "$f" ] || continue
+  if [ ! -r "$f" ]; then
+    echo "backlog-loop-select: tasks file $f exists but is not readable — cannot select (failing closed, never a silent 'drained')" >&2
+    exit 1
+  fi
+  tasks_files="$tasks_files$f
 "
 done
 if [ -z "$tasks_files" ]; then

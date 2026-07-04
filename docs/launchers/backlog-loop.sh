@@ -68,9 +68,18 @@ if [ ! -x "$CLAUDE_BIN" ]; then
   exit 1
 fi
 
+# Auth is REQUIRED for an unattended run (docs/headless-auth.md; the
+# triage-heartbeat.sh contract): a missing token must be a scheduler-visible
+# failure (`exit=1 note=auth...` in the run log), never a silent slide into
+# unauthenticated cycles — the iterate binding maps a failed cycle to
+# `aborted` and the loop exits 0 on a clean fail-closed stop, so without this
+# preflight an auth outage would masquerade as a successful completed loop.
 if [ -f "$TOKEN_FILE" ]; then
   CLAUDE_CODE_OAUTH_TOKEN="$(cat "$TOKEN_FILE")"
   export CLAUDE_CODE_OAUTH_TOKEN
+else
+  note="auth: $(basename "$TOKEN_FILE") missing"
+  exit 1
 fi
 
 cd "$REPO_ROOT" || { note="repo root missing: $REPO_ROOT"; exit 1; }
@@ -80,8 +89,14 @@ run_id="bl-$(date +%Y%m%dT%H%M%S)-$$"
 
 # The headless cycle invocation the iterate binding wraps: the prompt argument
 # (composed by backlog-loop-iterate.sh, task ID embedded) lands after these
-# flags. Add your permission-mode flag here if your unattended setup needs one.
-export BACKLOG_LOOP_HEADLESS_CMD="$CLAUDE_BIN -p --model $MODEL"
+# flags.
+# --dangerously-skip-permissions: deliberate for unattended runs (a permission
+# prompt would hang the iteration forever — docs/headless-auth.md). The
+# compensating controls for THIS launcher: the deterministic guard hook, the
+# fail-closed [autonomy activation] check (without the profile opt-in the loop
+# stops before any iteration), the [isolated workspace] each engaged cycle
+# runs in, and the §7 gate every promotion must pass.
+export BACKLOG_LOOP_HEADLESS_CMD="$CLAUDE_BIN -p --model $MODEL --dangerously-skip-permissions"
 
 out="$(BACKLOG_LOOP_SELECT_CMD="bash .claude/hooks/backlog-loop-select.sh" \
   BACKLOG_LOOP_ITERATION_CMD="bash .claude/hooks/backlog-loop-iterate.sh" \
