@@ -1,7 +1,10 @@
 # Headless auth & permissions for unattended runs
 
-> **Claude Code adapter artifact** — a new adapter supplies its own equivalent; the
-> normative contract is `.claude/workflow/triage.md` §6.
+> **Claude Code adapter artifact** — a new adapter supplies its own equivalent. This doc
+> now covers both unattended launchers, so the normative contract is per workflow:
+> `.claude/workflow/triage.md` §6 for the `/triage` heartbeat, and
+> `.claude/workflow/backlog-loop.md` for the `[backlog-loop]` (each launcher's own header
+> cites its contract too).
 
 The triage heartbeat (and any scheduled [headless run]) executes with nobody watching.
 Two things make that safe-ish, and both are deliberate tradeoffs you should understand
