@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 115 rows.
+Manifest source inventory: 116 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -103,6 +103,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/backlog-loop-fence.test.sh` | KEEP | Paired plant/pass/control tests for the run-report P5 fence — fires on a planted read in each danger class (including a line-continuation wrap in the loop skeleton), no false fire on the sanctioned surface, control fails when the writer/reader resolution is withheld. Verbatim. |
 | `hooks/backlog-loop-iterate.sh` | KEEP | The [backlog-loop]'s real iteration binding (T905) — one fresh headless next-task cycle per iteration, task ID explicit in the composed prompt, outcome read from the run's own return via the terminal outcome marker; fails closed to `aborted`. Verbatim. |
 | `hooks/backlog-loop-iterate.test.sh` | KEEP | Iteration-binding tests — prompt composition (explicit task ID + marker contract), verbatim outcome transport for the whole grammar, every fail-closed path, loud usage guards. Verbatim. |
+| `hooks/backlog-loop-launcher.test.sh` | KEEP | Launcher regression guard for the [scheduled run] entry (`docs/launchers/backlog-loop.sh`) — drives the real template against a stubbed CLI/loop and proves the fail-loud auth/permission composition: a missing token or CLI is a scheduler-visible exit 1 with the loop never reached (never an unauthenticated run), the composed cycle carries `--dangerously-skip-permissions` with the token exported, a non-zero cycle propagates, and the dead-man run-log line is unconditional. Verbatim. |
 | `hooks/backlog-loop-report.sh` | KEEP | The [backlog-loop]'s observe-only run-report emitter — one iteration line per cycle (the outcome's own form; never a fabricated gate result) plus one run-summary line, appended to the existing telemetry stream; write failure is silent-to-the-run. Verbatim. |
 | `hooks/backlog-loop-report.test.sh` | KEEP | Field-fidelity + posture tests for the run-report emitter — each written field exactly equals the driven outcome, refused/aborted lines carry no verdict or PR/discard, a partial run is visible as partial, write failure stays silent, malformed drives fail loud. Verbatim. |
 | `hooks/backlog-loop-select.sh` | KEEP | The [backlog-loop]'s real selection binding (T905) — lowest-numbered unchecked task across the live tasks files with dependencies met, excluding passed identities and the profile/tasks-file blocked lists; an unreadable backlog fails loud, never a silent "drained". Verbatim. |
