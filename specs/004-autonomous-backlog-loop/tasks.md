@@ -26,7 +26,7 @@
       plus the activation-bypass-FAILs and opt-in-absent-resolves-to-review cases. Any
       constraint on the loop's control flow that is guard-enforced ships its matching
       `guard.test.sh` case (P2) (US1)
-- [ ] T903 [strong] No-merge / no-base-write falsification proof across iterations:
+- [x] T903 [strong] No-merge / no-base-write falsification proof across iterations:
       extend the T613 proof to the multi-iteration case — a test proving that across N
       iterations no merge and no base-branch write occurs and that an un-gated change from
       any iteration is unreachable from base; promotion reuses the existing T612 PR path
