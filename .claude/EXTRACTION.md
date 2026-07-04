@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 108 rows.
+Manifest source inventory: 111 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -98,10 +98,13 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/auditor-liveness-docs.test.sh` | KEEP | Encoding test for the auditor-liveness corpus and wiring. Verbatim. |
 | `hooks/autonomy-mode.sh` | KEEP | Deterministic [autonomy activation] binding. Verbatim. |
 | `hooks/autonomy-mode.test.sh` | KEEP | Activation fail-closed/default-off regression tests. Verbatim. |
+| `hooks/backlog-loop-falsification.test.sh` | KEEP | Multi-iteration [backlog-loop] extension of the isolation falsification proof — N mixed-outcome lifecycle iterations against one base: no merge, no base write, every un-gated commit unreachable (spec 004 US1.AC4). Verbatim. |
 | `hooks/backlog-loop-fence.sh` | KEEP | Deterministic P5 fence over the [backlog-loop] run report — the report's record discriminators + channel seam are read/resolved only by the report writer and the triage reader, never a gate/tier/guard/selection path; the loop skeleton (`hooks/backlog-loop.sh`) is line-scoped (may drive the writer, never read the report); paired with a non-vacuity control that fails when the writer/reader stops resolving the channel. Verbatim. |
 | `hooks/backlog-loop-fence.test.sh` | KEEP | Paired plant/pass/control tests for the run-report P5 fence — fires on a planted read in each danger class (including a line-continuation wrap in the loop skeleton), no false fire on the sanctioned surface, control fails when the writer/reader resolution is withheld. Verbatim. |
 | `hooks/backlog-loop-report.sh` | KEEP | The [backlog-loop]'s observe-only run-report emitter — one iteration line per cycle (the outcome's own form; never a fabricated gate result) plus one run-summary line, appended to the existing telemetry stream; write failure is silent-to-the-run. Verbatim. |
 | `hooks/backlog-loop-report.test.sh` | KEEP | Field-fidelity + posture tests for the run-report emitter — each written field exactly equals the driven outcome, refused/aborted lines carry no verdict or PR/discard, a partial run is visible as partial, write failure stays silent, malformed drives fail loud. Verbatim. |
+| `hooks/backlog-loop.sh` | KEEP | Deterministic [backlog-loop] control skeleton — closed stop-condition set + activation gating, selection/iteration as injectable seams (T902). Verbatim. |
+| `hooks/backlog-loop.test.sh` | KEEP | Backlog-loop stop-condition/activation regression tests (exact-transcript paired proofs). Verbatim. |
 | `hooks/check-tasks-consistency.sh` | KEEP | Tasks-file consistency and drift gate. Verbatim. |
 | `hooks/check-tasks-consistency.test.sh` | KEEP | Regression tests proving the tasks-file consistency gate fires and avoids false positives. Verbatim. |
 | `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register. Keep structural/neutrality/extraction checks; drop only instance-coupled real-escape assertions when the register is reset. |

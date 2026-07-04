@@ -169,6 +169,24 @@ jobs:
       - name: Autonomy-activation tests
         run: bash .claude/hooks/autonomy-mode.test.sh
 
+      # T902 [backlog-loop] control skeleton (spec 004 US1.AC2/AC3): backlog-loop.sh is
+      # the deterministic control skeleton for the bounded unattended loop
+      # (.claude/workflow/backlog-loop.md, T901) — reachable ONLY through the
+      # autonomy-mode.sh check above, consulted at the top of EVERY loop head and
+      # failing CLOSED to review (AC2), with the closed stop-condition set evaluated
+      # only BETWEEN iterations: max-N (N from the invocation, never hardcoded; N=0 is
+      # a valid no-op), backlog-drained, same-identity-fails-gate-twice (first FAIL
+      # advances one selection), and fail-closed (AC3). The selection/iteration
+      # mechanisms are injectable seams with NO silent defaults (T905 binds the real
+      # ones), so the .test.sh drives the skeleton with stub seams and proves every
+      # stop condition, the activation ordering, and the shipped-profile default
+      # (review, nothing runs) with exact-transcript assertions — the P2 "machinery
+      # proves it is live" discipline, same as autonomy-mode.test.sh. Adapter-side
+      # (hooks/ is the Claude Code binding), so a CI change, not a workflow/** change
+      # — no constitution P1 concern.
+      - name: Backlog-loop control tests
+        run: bash .claude/hooks/backlog-loop.test.sh
+
       # T611 isolated-workspace lifecycle tests (#108, epic #81 part b):
       # isolated-workspace.sh binds the [isolated workspace] role's worktree enter/exit
       # lifecycle (.claude/workflow/README.md), and the next-task path wires T610's
@@ -196,6 +214,21 @@ jobs:
       # proves it is live", same as the lifecycle/autonomy/guard tests; adapter-side CI change.
       - name: Isolation falsification proof
         run: bash .claude/hooks/isolation-falsification.test.sh
+
+      # T903 backlog-loop multi-iteration falsification proof (spec 004 US1.AC4): extends the
+      # T613 single-run proof above to the [backlog-loop]'s N-iteration case (backlog-loop.md →
+      # "Safety invariants"). Drives the REAL isolated-workspace lifecycle through 3 sequential
+      # mixed-outcome iterations (PASS→promote, FAIL→discard, PASS→promote) against ONE shared
+      # base repo, planting the T613 adversarial un-gated commit in EVERY iteration, and proves:
+      # the base ref stays byte-identical after every iteration and at run end; no merge lands
+      # (exact rev-list count + explicit is-ancestor exit codes); every planted un-gated commit
+      # stays unreachable from base — including from the DISCARDED iteration whose branch no
+      # longer exists; and the terminal state is the PR queue's (promoted branches alive
+      # un-merged, discarded branch gone). The T612 promotion path is unchanged and merge stays
+      # session-explicit. P2 "machinery proves it is live", same as the isolation proof above;
+      # adapter-side CI change, not a workflow/** change — no constitution P1 concern.
+      - name: Backlog-loop multi-iteration falsification tests
+        run: bash .claude/hooks/backlog-loop-falsification.test.sh
 
       # T622 review-mode gate branch-restore backstop (#140): in REVIEW mode the §7
       # [orchestrated run] dispatches the read-only auditors in the SHARED working tree, and
