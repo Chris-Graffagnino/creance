@@ -52,6 +52,14 @@ jobs:
       - name: Shell-portability lint (hooks)
         run: bash .claude/hooks/shell-lint.sh .claude/hooks/*.sh
 
+      # The launcher templates in docs/launchers/ are adapter machinery too: the
+      # [scheduled run] entry (.claude/README.md role table) is docs/launchers/
+      # backlog-loop.sh, NOT a sample-only file, so it earns the SAME standing
+      # portability gate as the hooks instead of only ad-hoc linting when touched
+      # (PR #239 review). *.sh only — the .ps1 sibling is PowerShell.
+      - name: Shell-portability lint (launchers)
+        run: bash .claude/hooks/shell-lint.sh docs/launchers/*.sh
+
       - name: Shell-portability lint tests
         run: bash .claude/hooks/shell-lint.test.sh
 
@@ -478,6 +486,44 @@ jobs:
       # cases — the P2 "machinery proves it is live" discipline).
       - name: Backlog-loop P5 fence tests
         run: bash .claude/hooks/backlog-loop-fence.test.sh
+
+      # T905 backlog-loop selection binding (#238, spec 004 US1.AC7): the real
+      # BACKLOG_LOOP_SELECT_CMD — lowest-numbered unchecked task across the live
+      # specs/*/tasks.md whose dependencies are met, excluding passed identities and
+      # the profile/tasks-file blocked lists. The .test.sh proves every documented
+      # selection rule against fixture trees (cross-file lowest-wins, whole-id
+      # exclusion, blocked-bullet vs prose-mention discrimination, met/unmet
+      # `Blocked by` ranges incl. the wrapped-continuation-line shape, drained ->
+      # empty, unreadable backlog -> LOUD exit 1 fail-closed) — the P2 "machinery
+      # proves it is live" discipline, same as backlog-loop.test.sh.
+      - name: Backlog-loop selection binding tests
+        run: bash .claude/hooks/backlog-loop-select.test.sh
+
+      # T905 backlog-loop iteration binding (#238, spec 004 US1.AC7): the real
+      # BACKLOG_LOOP_ITERATION_CMD — one fresh headless next-task cycle per
+      # iteration, task ID explicit in the composed prompt (the explicit-context
+      # rule), the outcome read from the run's OWN return via the terminal
+      # BACKLOG-LOOP-OUTCOME marker (never a report file — constitution P5). The
+      # .test.sh proves the prompt composition, verbatim outcome transport for the
+      # whole grammar, and every fail-closed path (missing marker / unrecognized
+      # outcome / non-zero run exit -> `aborted`; usage errors loud exit 2).
+      - name: Backlog-loop iteration binding tests
+        run: bash .claude/hooks/backlog-loop-iterate.test.sh
+
+      # T905 backlog-loop launcher regression guard (#238, spec 004 US1; PR #239
+      # review): docs/launchers/backlog-loop.sh is the [scheduled run] entry
+      # (.claude/README.md role table), and its OWN logic — the auth preflight and
+      # the --dangerously-skip-permissions composition — is covered by NONE of the
+      # sibling hook tests. This drives the real launcher template against a stubbed
+      # claude + loop skeleton and proves the fail-LOUD auth/permission behavior the
+      # review flagged as untested: a missing token or missing claude is a
+      # scheduler-visible exit 1 with the loop never reached (never an
+      # unauthenticated run — the exact ca180d4 regression), the composed cycle
+      # carries the permission bypass with the token exported, and a non-zero cycle
+      # propagates its exit. The dead-man run-log line is asserted on every exit
+      # path. P2 "machinery proves it is live", same as the sibling binding tests.
+      - name: Backlog-loop launcher tests
+        run: bash .claude/hooks/backlog-loop-launcher.test.sh
 
       # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
       # methodology doc and the per-/next-task hub — new rules gravitate to it, so
