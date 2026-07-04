@@ -24,7 +24,8 @@ POLICY_REGISTRY = [
             "Deterministic, fail-open tool_call guard: blocks base-branch edits, "
             "bulk staging (git add .), commit/push to the base branch, pushes whose "
             "refspec targets it, a constitution reviewer dispatched below the strong "
-            "tier, and self-colliding in-place substitutions "
+            "tier, self-colliding in-place substitutions, and pending commits whose "
+            "message references an unchecked task "
             "(.claude/workflow/README.md -> 'The [guard] rules')."
         ),
         "params_schema": {
