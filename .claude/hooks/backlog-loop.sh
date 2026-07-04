@@ -7,8 +7,11 @@
 # sequencing, the skip/ineligible bookkeeping, and the closed stop-condition
 # set, and it consumes each iteration's outcome from the invoked command's
 # return ALONE. It never merges, never writes any git ref, and never reads any
-# report file (constitution P5) — the run report is T904's surface, and the
-# real selection/iteration mechanisms are bound later (T905).
+# report file (constitution P5) — it only DRIVES the T904 report emitter
+# (write-only, under an opt-in run id; see BACKLOG_LOOP_RUN_ID below). The real
+# selection/iteration bindings are backlog-loop-select.sh and
+# backlog-loop-iterate.sh (T905), composed by the [scheduled run] launcher
+# template docs/launchers/backlog-loop.sh.
 #
 # Usage: backlog-loop.sh run <N>
 #   N — the iteration budget, resolved from the invocation only (never
@@ -41,6 +44,16 @@
 #       reads as `aborted` (fail closed).
 #   SELECT/ITERATION carry NO defaults on purpose: a missing seam is a loud
 #   usage error (exit 2), never a silent default that touches real state.
+#   BACKLOG_LOOP_RUN_ID          optional. When set, the loop DRIVES the T904
+#       run-report emitter (backlog-loop-report.sh) under this run id — one
+#       iteration record per completed cycle (outcome mapped to the emitter's
+#       own-form arity: pass -> verdict PASS + the PR ref; fail-discard ->
+#       verdict FAIL; refused/aborted -> the outcome alone) plus the terminal
+#       summary record from finish(). WRITE-ONLY and silent-to-the-run: the
+#       drive's output and exit status are discarded — the loop reads outcomes
+#       from each run's return ALONE, never from the report (constitution P5;
+#       the report fence line-scopes exactly this drive). Unset -> no drive
+#       (the T902 behavior, unchanged).
 #
 # Stop conditions (the closed set; evaluated only BETWEEN iterations — a
 # started iteration always runs to its own terminal state first):
@@ -67,9 +80,11 @@
 # network. Tests: .claude/hooks/backlog-loop.test.sh (wired into CI verify).
 set -u
 
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 ACTIVATION_CMD="${BACKLOG_LOOP_ACTIVATION_CMD:-bash .claude/hooks/autonomy-mode.sh}"
 SELECT_CMD="${BACKLOG_LOOP_SELECT_CMD:-}"
 ITERATION_CMD="${BACKLOG_LOOP_ITERATION_CMD:-}"
+RUN_ID="${BACKLOG_LOOP_RUN_ID:-}"
 
 usage() {
   echo "usage: backlog-loop.sh run <N>" >&2
@@ -83,11 +98,11 @@ usage() {
 N="$2"
 case "$N" in '' | *[!0-9]*) usage ;; esac
 if [ -z "$SELECT_CMD" ]; then
-  echo "backlog-loop.sh: BACKLOG_LOOP_SELECT_CMD is required (no silent default; T905 binds the real selector)" >&2
+  echo "backlog-loop.sh: BACKLOG_LOOP_SELECT_CMD is required (no silent default; the real selector is backlog-loop-select.sh)" >&2
   usage
 fi
 if [ -z "$ITERATION_CMD" ]; then
-  echo "backlog-loop.sh: BACKLOG_LOOP_ITERATION_CMD is required (no silent default; T905 binds the real cycle)" >&2
+  echo "backlog-loop.sh: BACKLOG_LOOP_ITERATION_CMD is required (no silent default; the real cycle binding is backlog-loop-iterate.sh)" >&2
   usage
 fi
 
@@ -96,7 +111,32 @@ failed_once=""  # newline list: identities with ONE gate FAIL so far (fails[id]=
 ineligible=""   # space list: identities refused by [live-state reconciliation]
 skip=""         # identity passed over for exactly ONE selection
 
+# Report drive (T905): write-only, silent-to-the-run — output and exit status
+# discarded, so a dead emitter can never stall or steer the loop. Active only
+# under a run id. The outcome is mapped to the emitter's own-form arity; the
+# loop's control flow never reads anything back.
+report_iteration() { # <task-id> <outcome...>
+  [ -n "$RUN_ID" ] || return 0
+  local task="$1" out="$2"
+  case "$out" in
+    pass\ ?*)
+      bash "$SELF_DIR/backlog-loop-report.sh" iteration "$RUN_ID" "$task" pass PASS "${out#pass }" >/dev/null 2>&1 || : ;;
+    fail-discard)
+      bash "$SELF_DIR/backlog-loop-report.sh" iteration "$RUN_ID" "$task" fail-discard FAIL >/dev/null 2>&1 || : ;;
+    refused | aborted)
+      bash "$SELF_DIR/backlog-loop-report.sh" iteration "$RUN_ID" "$task" "$out" >/dev/null 2>&1 || : ;;
+  esac
+  return 0
+}
+
+report_summary() { # <stop-condition>
+  [ -n "$RUN_ID" ] || return 0
+  bash "$SELF_DIR/backlog-loop-report.sh" summary "$RUN_ID" "$1" "$iterations" "$N" >/dev/null 2>&1 || :
+  return 0
+}
+
 finish() {
+  report_summary "$1"
   printf 'stop: %s after %s of %s\n' "$1" "$iterations" "$N"
   exit 0
 }
@@ -171,6 +211,7 @@ while :; do
   esac
   iterations=$((iterations + 1)) # every started iteration consumes budget
   printf 'iteration %s task %s outcome %s\n' "$iterations" "$candidate" "$outcome"
+  report_iteration "$candidate" "$outcome"
 
   case "$outcome" in
     pass\ *) : ;; # PR opened by the cycle's own promotion path; continue

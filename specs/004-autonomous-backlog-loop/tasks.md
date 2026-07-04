@@ -41,7 +41,7 @@
       reads the run report or iteration counters, **paired** with a control proving the
       reporting path does resolve them (non-vacuous). Write-failure is silent-to-the-run;
       partial run is not a baseline (US1)
-- [ ] T905 [cheap] Adapter binding for the `[backlog-loop]` (the `[scheduled run]` /
+- [x] T905 [cheap] Adapter binding for the `[backlog-loop]` (the `[scheduled run]` /
       loop-wrapper mechanism) + conformance probe: one real multi-task unattended run on
       the live adapter, recorded with dated fingerprints (the T303/P-IW pattern) including
       the observed stop condition, in the adapter probe-results table. Blocked by

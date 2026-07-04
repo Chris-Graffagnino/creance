@@ -323,6 +323,41 @@ dead live.
 - **Fixtures, never live state:** the probe runs against the throwaway fixture and leaves the
   repo as it found it (the workspace is ephemeral; discard removes it whole).
 
+### P-BL — [backlog-loop] (bounded unattended chaining)
+The **[backlog-loop]** chains complete `next-task.md` cycles unattended (`backlog-loop.md`).
+Its deterministic properties — the closed stop-condition set, activation gating, the
+observe-only report — are proven by tests in the abstract; this probe proves the composed
+mechanism **fires on a real driver**: one real multi-task unattended run, recorded with the
+dated fingerprint convention ("Recording"), **including the observed stop condition**.
+- **Setup:** a throwaway fixture (a disposable repository with a small synthetic backlog of
+  several task identities, plus a disposable report channel) — never the live backlog, never
+  the real telemetry stream. Record the fixture base branch's ref before the run. The cycle
+  *inside* an iteration may be substituted with a scripted stand-in that drives the real
+  **[isolated workspace]** lifecycle and returns each iteration's outcome in the loop's own
+  grammar — the model-driven cycle is P-NT/P-IW's surface and live use's; this probe pins the
+  **loop composition**: sequencing, gating, stop conditions, report.
+- **Action 1 (reachability, fail-closed):** start the loop with **no** autonomous
+  authorization (profile opt-in absent, no in-session authorization).
+- **Expect 1:** the loop consults **[autonomy activation]** and stops fail-closed with
+  **zero iterations started** — it never falls back to un-isolated or review-mode iterations.
+- **Action 2 (the multi-task run):** under an explicit authorization, run the loop with a
+  budget N larger than the fixture backlog, over iterations that mix outcomes (at least one
+  gate PASS, one gate FAIL→discard, one refusal).
+- **Expect 2:** (a) **multiple distinct task identities** run in sequence, unattended — no
+  prompt, no mid-run human input; (b) every stop-condition consult happens **between**
+  iterations (a started iteration always reaches its own terminal state); (c) the run stops
+  for a deterministic condition from the closed set, and the **observed stop condition is
+  recorded** in the results row; (d) the fixture base branch's ref is **byte-identical**
+  before and after — across all iterations nothing merged and nothing wrote the base branch,
+  and a discarded iteration's un-gated change is unreachable from it; (e) the run report
+  carries **one line per iteration matching that iteration's actual outcome** plus the
+  terminal summary (stop condition, iterations-of-N), written to the disposable channel —
+  and the loop's control flow demonstrably read outcomes from each run's return, not from
+  the report.
+- **Fixtures, never live state:** the fixture repository, its workspaces, and the disposable
+  report channel are discarded after; the probe leaves the real repo, backlog, and telemetry
+  stream as found.
+
 ## Procedure probes
 
 Probes for individual procedures in this directory whose write posture warrants a
@@ -510,6 +545,7 @@ channel as it found them.
 | [guard] (+ its six rules) | P-GD.1–.6 |
 | [permission allowlist] | P-PA |
 | [isolated workspace] + [autonomy activation] | P-IW |
+| [backlog-loop] *(optional)* | P-BL |
 | [environment block] | P-EB |
 | [comment marker] (+ the §2.5 channel rules) | P-CM |
 | intake procedure (`intake.md`) | P-IN |

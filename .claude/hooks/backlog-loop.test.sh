@@ -408,6 +408,81 @@ GUARD_SELECT="" rc_guard "usage: missing BACKLOG_LOOP_SELECT_CMD -> exit 2" 2 ru
 GUARD_ITER="" rc_guard "usage: missing BACKLOG_LOOP_ITERATION_CMD -> exit 2" 2 run 1
 assert_eq "usage errors: iteration command never invoked" "$(cat "$FIX/iter.log")" ""
 
+# ── Report drive (T905): under BACKLOG_LOOP_RUN_ID the loop drives the T904
+#    emitter — one iteration record per completed cycle in the outcome's own
+#    form plus the terminal summary — write-only and silent-to-the-run; without
+#    a run id nothing is driven (the T902 behavior). Field assertions are
+#    per-record via jq (the emitter's own test idiom), never a grep-anywhere.
+run_loop_report() { # <N> <report-file> <run-id>
+  RC=0
+  OUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+    BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+    BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+    BACKLOG_LOOP_REPORT_FILE="$2" \
+    BACKLOG_LOOP_RUN_ID="$3" \
+    bash "$SCRIPT" run "$1" 2>/dev/null)" || RC=$?
+}
+rfield() { # <report-file> <line#> <jq-expr>
+  sed -n "$2p" "$1" | jq -r "$3" 2>/dev/null
+}
+
+# rd1: a mixed run (pass / first-FAIL / re-selection refused) writes one record
+# per iteration + one summary, each field equal to that iteration's outcome.
+mkfix rd1
+printf 'T901\nT902\nT903\n' > "$FIX/backlog"
+printf 'T902 fail-discard\nT902 refused\n' > "$FIX/plan"
+ACT="bash $BIN/act-auto.sh"
+run_loop_report 9 "$FIX/report.jsonl" run-rd1
+want="$(printf 'iteration 1 task T901 outcome pass PR-T901\niteration 2 task T902 outcome fail-discard\niteration 3 task T903 outcome pass PR-T903\niteration 4 task T902 outcome refused\nstop: backlog-drained after 4 of 9')"
+assert_eq "report drive: stdout transcript unchanged by the drive" "$OUT" "$want"
+assert_eq "report drive: exactly 5 records (4 iterations + summary)" "$(grep -c . "$FIX/report.jsonl")" "5"
+assert_eq "report drive: rec1 task"        "$(rfield "$FIX/report.jsonl" 1 .task_id)" "T901"
+assert_eq "report drive: rec1 outcome"     "$(rfield "$FIX/report.jsonl" 1 .outcome)" "pass"
+assert_eq "report drive: rec1 verdict"     "$(rfield "$FIX/report.jsonl" 1 .verdict)" "PASS"
+assert_eq "report drive: rec1 pr ref"      "$(rfield "$FIX/report.jsonl" 1 .pr)" "PR-T901"
+assert_eq "report drive: rec1 run id"      "$(rfield "$FIX/report.jsonl" 1 .run_id)" "run-rd1"
+assert_eq "report drive: rec2 task"        "$(rfield "$FIX/report.jsonl" 2 .task_id)" "T902"
+assert_eq "report drive: rec2 outcome"     "$(rfield "$FIX/report.jsonl" 2 .outcome)" "fail-discard"
+assert_eq "report drive: rec2 verdict"     "$(rfield "$FIX/report.jsonl" 2 .verdict)" "FAIL"
+assert_eq "report drive: rec2 disposition" "$(rfield "$FIX/report.jsonl" 2 .disposition)" "discard"
+assert_eq "report drive: rec2 carries no pr" "$(rfield "$FIX/report.jsonl" 2 'has("pr")')" "false"
+assert_eq "report drive: rec3 task"        "$(rfield "$FIX/report.jsonl" 3 .task_id)" "T903"
+assert_eq "report drive: rec3 outcome"     "$(rfield "$FIX/report.jsonl" 3 .outcome)" "pass"
+assert_eq "report drive: rec4 outcome"     "$(rfield "$FIX/report.jsonl" 4 .outcome)" "refused"
+assert_eq "report drive: rec4 (ungated) carries no verdict" "$(rfield "$FIX/report.jsonl" 4 'has("verdict")')" "false"
+assert_eq "report drive: summary stop"     "$(rfield "$FIX/report.jsonl" 5 .stop)" "backlog-drained"
+assert_eq "report drive: summary iterations" "$(rfield "$FIX/report.jsonl" 5 .iterations)" "4"
+assert_eq "report drive: summary budget"   "$(rfield "$FIX/report.jsonl" 5 .budget)" "9"
+
+# rd2: no run id -> no drive, no report file (the T902 behavior, unchanged).
+mkfix rd2
+printf 'T901\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+run_loop_report 3 "$FIX/report.jsonl" ""
+assert_eq "no run id: loop runs normally" "$OUT" "$(printf 'iteration 1 task T901 outcome pass PR-T901\nstop: backlog-drained after 1 of 3')"
+if [ -f "$FIX/report.jsonl" ]; then bad "no run id: report file must not be created"; else ok; fi
+
+# rd3: an unwritable report path is silent-to-the-run — transcript and exit
+# code identical to rd2's clean run (the write failure steers nothing).
+mkfix rd3
+printf 'T901\n' > "$FIX/backlog"
+: > "$FIX/blocker" # a FILE where a directory is needed -> mkdir/append both fail
+ACT="bash $BIN/act-auto.sh"
+run_loop_report 3 "$FIX/blocker/report.jsonl" run-rd3
+assert_eq "unwritable report: transcript unchanged" "$OUT" "$(printf 'iteration 1 task T901 outcome pass PR-T901\nstop: backlog-drained after 1 of 3')"
+assert_eq "unwritable report: exit 0" "$RC" "0"
+
+# rd4: a fail-closed stop before any iteration still writes the summary record
+# (a partial run is visible AS partial — zero of N).
+mkfix rd4
+printf 'T901\n' > "$FIX/backlog"
+ACT="bash $BIN/act-review.sh"
+run_loop_report 3 "$FIX/report.jsonl" run-rd4
+assert_eq "review mode: loop never starts" "$OUT" "stop: fail-closed after 0 of 3"
+assert_eq "review mode: summary is the ONLY record" "$(grep -c . "$FIX/report.jsonl")" "1"
+assert_eq "review mode: summary stop" "$(rfield "$FIX/report.jsonl" 1 .stop)" "fail-closed"
+assert_eq "review mode: summary iterations" "$(rfield "$FIX/report.jsonl" 1 .iterations)" "0"
+
 # ── Wiring (P2): the `verify` job ACTIVELY runs this test (an active `run:`
 #    step scoped to the verify job body, not a comment mention) — same
 #    discipline as autonomy-mode.test.sh.
