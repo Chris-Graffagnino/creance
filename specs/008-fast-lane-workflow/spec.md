@@ -84,7 +84,13 @@ and leaving the safe envelope always fails closed into the full workflow.
 - AC2: The checker escalates on each trigger class from the source issue — (a) the
   diff touches the project's protected-path set (constitution, `workflow/**` including
   reviewer specs, hooks/guards, adapters, model table, the profile's
-  invariants/review-pass/autonomy sections, live `specs/*/{spec.md,tasks.md}`);
+  invariants/review-pass/autonomy sections, live `specs/*/{spec.md,tasks.md}`, plus the
+  issue's structural exclusions wherever they are path-expressible — dependency
+  manifests/lockfiles and any project surfaces the profile designates as public
+  contract, provider seam, data model, or UI; the concrete globs stay profile facts
+  per AC4). Structural exclusions with no path expression in this project are not the
+  checker's job — US2.AC5 assigns them to the lane as in-flight escalation
+  obligations, so no exclusion class from the source issue is silently unenforced;
   (b) the diff exceeds the configured file-count or changed-line thresholds;
   (c) no concrete issue number is supplied for the work; (d) required diff data is
   unavailable or unreadable — class (d) failing **closed** to `escalate`, never a
@@ -139,6 +145,20 @@ the common low-risk case gets cheaper without any governance bound getting weake
   owner-approved reclassification. The decision input is the checker's verdict alone —
   a lane that proceeds past an `escalate`, skips the pre-PR re-screen, or substitutes
   model judgment for the verdict violates this criterion (constitution P3).
+- AC5: The lane doc obligates escalation on the source issue's remaining trigger
+  classes — the ones no diff-time checker can compute: the work turns out to lack a
+  clear single objective or to require an ambiguous product/architecture decision; the
+  change would introduce a new dependency, public contract, provider seam, data model,
+  or UI surface not already caught by the checker's protected-path screen (US1.AC2);
+  a targeted verification check cannot be run or gives ambiguous results; discovered
+  work affects acceptance criteria; or a required review pass finds a material issue
+  that cannot be fixed within lane scope. Each carries the same escalate semantics as
+  AC4 — stop, record the trigger and its evidence, continue only through the full
+  workflow or owner-approved reclassification. These obligations are one-directional
+  and fail closed: they may only add escalations on top of the checker's verdict,
+  never argue an `escalate` back to `eligible` (constitution P3), and uncertainty
+  about whether one applies resolves to escalate. A lane doc that omits any of these
+  classes, or a lane run that proceeds past one, does not satisfy this criterion.
 
 ### US3 — Active-adapter binding and PR-body evidence
 
