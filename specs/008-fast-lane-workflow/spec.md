@@ -145,9 +145,13 @@ the common low-risk case gets cheaper without any governance bound getting weake
   owner-approved reclassification. The decision input is the checker's verdict alone —
   a lane that proceeds past an `escalate`, skips the pre-PR re-screen, or substitutes
   model judgment for the verdict violates this criterion (constitution P3).
-- AC5: The lane doc obligates escalation on the source issue's remaining trigger
-  classes — the ones no diff-time checker can compute: the work turns out to lack a
-  clear single objective or to require an ambiguous product/architecture decision; the
+- AC5: The lane doc obligates escalation on the source issue's remaining eligibility
+  conditions and trigger classes — the ones no diff-time checker can compute: the work
+  carries no explicit fast-lane mandate, evaluated at lane entry — neither the user
+  explicitly asking for a small fix/change nor an issue explicitly labeled or
+  described as repo-maintenance — so ordinary task/spec work never enters the lane on
+  diff size alone; the work turns out to lack a clear single objective or to require
+  an ambiguous product/architecture decision; the
   change would introduce a new dependency, public contract, provider seam, data model,
   or UI surface not already caught by the checker's protected-path screen (US1.AC2);
   a targeted verification check cannot be run or gives ambiguous results; discovered

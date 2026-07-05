@@ -31,11 +31,12 @@
       checker-evidenced constitution screen, PR-stop); streamlining envelope enumerated
       and bounded; deterministic escalation contract with both mandatory checker call
       sites (entry + pre-PR re-screen), escalate → stop, record, continue only via full
-      workflow or owner-approved reclassification; in-flight escalation obligations for
-      the judgment-shaped trigger classes no diff-time checker computes (ambiguous
-      objective/decision, structural introduction past the path screen, unrunnable or
-      ambiguous check, acceptance-affecting discovered work, out-of-lane material
-      finding) — one-directional and fail-closed; Blocked by T1301 (US2)
+      workflow or owner-approved reclassification; escalation obligations for
+      the judgment-shaped eligibility conditions and trigger classes no diff-time
+      checker computes (no explicit small-fix/repo-maintenance mandate at entry,
+      ambiguous objective/decision, structural introduction past the path screen,
+      unrunnable or ambiguous check, acceptance-affecting discovered work, out-of-lane
+      material finding) — one-directional and fail-closed; Blocked by T1301 (US2)
 - [ ] T1303 [strong] Active-adapter fast-lane binding + PR-body evidence — binding points
       to the neutral doc (no restated procedure), maps its [roles], invokes the checker
       at both call sites, conformance demonstrated by test or recorded probe; PR-body
