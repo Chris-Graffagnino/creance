@@ -524,6 +524,26 @@ def _shell_cwd_status_after_segment(shell_cwd, segment):
     return shell_cwd, None
 
 
+def _first_shell_command_name(segment):
+    tokens = _shell_tokens(segment)
+    if not tokens:
+        return None
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        name = _shell_command_name(tok)
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+            return name
+        if _is_shell_assignment(tok) or name in _SHELL_COMMAND_PREFIXES:
+            i += 1
+            continue
+        return name
+    return None
+
+
 def _is_shell_comment_start(command, index):
     if command[index] != "#":
         return False
@@ -654,12 +674,60 @@ def _command_substitution_sites(command, cwd):
     def close_segment(end, next_start, separator=None):
         nonlocal segment_start, segment_sites, shell_cwd, previous_separator, last_status
         segment = command[segment_start:end]
-        if segment.strip() and _shell_command_should_run(previous_separator, last_status):
+        should_run = _shell_command_should_run(previous_separator, last_status)
+        if segment.strip() and should_run:
+            if _first_shell_command_name(segment) in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+                return True
             sites.extend(segment_sites)
             shell_cwd, last_status = _shell_cwd_status_after_segment(shell_cwd, segment)
         segment_sites = []
         previous_separator = separator
         segment_start = next_start
+        return False
+
+    def skip_group(index, opener):
+        closer = ")" if opener == "(" else "}"
+        stack = [closer]
+        single = double = False
+        index += 1
+        while index < len(command):
+            ch = command[index]
+            if ch == "\\" and not single:
+                index += 2
+                continue
+            if ch == "'" and not double:
+                single = not single
+                index += 1
+                continue
+            if ch == '"' and not single:
+                double = not double
+                index += 1
+                continue
+            if single:
+                index += 1
+                continue
+            if command.startswith("$(", index):
+                body, end = _read_dollar_substitution(command, index + 2)
+                if body is not None:
+                    index = end + 1
+                    continue
+            if ch == "`":
+                body, end = _read_backtick_substitution(command, index + 1)
+                if body is not None:
+                    index = end + 1
+                    continue
+            if not double and ch in ("(", "{"):
+                stack.append(")" if ch == "(" else "}")
+                index += 1
+                continue
+            if not double and stack and ch == stack[-1]:
+                stack.pop()
+                index += 1
+                if not stack:
+                    return index
+                continue
+            index += 1
+        return index
 
     while i < len(command):
         ch = command[i]
@@ -705,22 +773,36 @@ def _command_substitution_sites(command, cwd):
             j = i + 1
             while j < len(command) and command[j] == ch and ch in ("&", "|"):
                 j += 1
-            close_segment(i, j, command[i:j])
+            if close_segment(i, j, command[i:j]):
+                return sites
             i = j
             continue
         if not double and ch == "(":
-            close_segment(i, i + 1)
+            if not _shell_command_should_run(previous_separator, last_status):
+                segment_sites = []
+                i = skip_group(i, ch)
+                segment_start = i
+                continue
+            if close_segment(i, i + 1):
+                return sites
             cwd_stack.append(shell_cwd)
             i += 1
             continue
         if not double and ch == ")":
-            close_segment(i, i + 1)
+            if close_segment(i, i + 1):
+                return sites
             if cwd_stack:
                 shell_cwd = cwd_stack.pop()
             i += 1
             continue
         if not double and ch in ("{", "}"):
-            close_segment(i, i + 1)
+            if ch == "{" and not _shell_command_should_run(previous_separator, last_status):
+                segment_sites = []
+                i = skip_group(i, ch)
+                segment_start = i
+                continue
+            if close_segment(i, i + 1):
+                return sites
             i += 1
             continue
         i += 1
@@ -852,7 +934,23 @@ def _known_shell_status(name):
     return None
 
 
+def _skip_shell_group(tokens, index):
+    closers = {"(": ")", "{": "}"}
+    stack = [closers[tokens[index]]]
+    index += 1
+    while index < len(tokens) and stack:
+        tok = tokens[index]
+        if tok in closers:
+            stack.append(closers[tok])
+        elif tok == stack[-1]:
+            stack.pop()
+        index += 1
+    return index
+
+
 def _skip_shell_command(tokens, index):
+    if index < len(tokens) and tokens[index] in ("(", "{"):
+        return _skip_shell_group(tokens, index)
     while index < len(tokens) and not _is_shell_separator(tokens[index]):
         index += 1
     return index
@@ -1049,6 +1147,16 @@ def _split_commit_invocations(command, cwd):
     while i < len(tokens):
         tok = tokens[i]
         tok_name = _shell_command_name(tok)
+        if (
+            command_start
+            and (tok in ("(", "{") or not _is_shell_separator(tok))
+            and not _shell_command_should_run(previous_separator, last_status)
+        ):
+            i = _skip_shell_command(tokens, i)
+            command_start = False
+            scoped_command_cwd = None
+            invert_next_status = False
+            continue
         if tok == "(":
             cwd_stack.append(shell_cwd)
             command_start = True
@@ -1090,12 +1198,6 @@ def _split_commit_invocations(command, cwd):
             continue
         if _is_shell_redirection(tok):
             i += 2 if _redirection_consumes_next(tok) else 1
-            continue
-        if command_start and not _shell_command_should_run(previous_separator, last_status):
-            i = _skip_shell_command(tokens, i)
-            command_start = False
-            scoped_command_cwd = None
-            invert_next_status = False
             continue
         command_cwd = scoped_command_cwd or shell_cwd
         if command_start and tok_name == "!":
@@ -1470,21 +1572,30 @@ def _is_live_tasks_pathspec(token, root=None):
 def _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd):
     if pathspec.startswith(":") or any(ch in pathspec for ch in "*?["):
         return set()
+    root = _git(git_args + ["rev-parse", "--show-toplevel"], cwd)
+    if root is None or not root.strip():
+        return None
+    root = root.strip()
     query = pathspec
     if os.path.isabs(query):
-        root = _git(git_args + ["rev-parse", "--show-toplevel"], cwd)
-        if root is None or not root.strip():
-            return None
         try:
             query = os.path.relpath(
                 os.path.realpath(query),
-                os.path.realpath(root.strip()),
+                os.path.realpath(root),
             ).replace("\\", "/")
         except ValueError:
             return set()
-        if query.startswith("../") or query == "..":
+    else:
+        try:
+            query = os.path.relpath(
+                os.path.realpath(os.path.join(cwd or os.getcwd(), query)),
+                os.path.realpath(root),
+            ).replace("\\", "/")
+        except ValueError:
             return set()
-    out = _git(git_args + ["ls-tree", "-r", "--name-only", "HEAD", "--", query], cwd)
+    if query.startswith("../") or query == "..":
+        return set()
+    out = _git(git_args + ["-C", root, "ls-tree", "-r", "--name-only", "HEAD", "--", query], cwd)
     if out is None:
         return None
     return {

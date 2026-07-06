@@ -590,6 +590,21 @@ class TestPendingCommitTasksDrift(GuardTestBase):
 
                 self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
 
+    def test_subdirectory_broad_pathspec_commit_of_tasks_deletion_does_not_read_head(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        subdir = os.path.join(cwd, "subdir")
+        os.makedirs(subdir)
+        _git(["rm", "-q", "specs/010-fixture/tasks.md"], cwd)
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit .. -m "feat: [T987] delete task file"',
+                cwd=subdir,
+            ))
+        )
+
     def test_target_repo_pathspec_deletion_uses_invoked_cwd(self):
         clean = self.repo("feature/clean")
         drifted = self.repo("feature/drifted")
@@ -680,6 +695,17 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             'if true; then echo ok; else git commit -m "feat: [T987] no"; fi',
             'if false; then git commit -m "feat: [T987] no"; fi',
             'while false; do git commit -m "feat: [T987] no"; done',
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
+
+    def test_unsupported_shell_control_flow_command_substitution_fails_open(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'if false; then echo "$(git commit -m \'feat: [T987] no\')"; fi',
+            'case x in y) echo "$(git commit -m \'feat: [T987] no\')";; esac',
         ):
             with self.subTest(command=command):
                 self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
@@ -1223,6 +1249,29 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             '(git commit -m "feat: [T987] do the thing")',
             'echo $(git commit -m "feat: [T987] do the thing")',
             'cat <(git commit -m "feat: [T987] do the thing")',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
+    def test_skipped_compound_group_commit_invocations_are_not_scanned(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'false && (echo ok; git commit -m "feat: [T987] no")',
+            'true || { echo ok; git commit -m "feat: [T987] no"; }',
+            'false && (echo "$(git commit -m \'feat: [T987] no\')")',
+            'true || { echo "$(git commit -m \'feat: [T987] no\')"; }',
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
+
+        for command in (
+            'false || (echo ok; git commit -m "feat: [T987] do the thing")',
+            'true && { echo ok; git commit -m "feat: [T987] do the thing"; }',
         ):
             with self.subTest(command=command):
                 self.assertDeny(
