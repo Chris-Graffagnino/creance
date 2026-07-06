@@ -265,6 +265,23 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+    def test_prior_git_add_of_tasks_before_plain_commit_fails_open(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git add specs/010-fixture/tasks.md seed.txt && '
+                'git commit -m "feat: [T987] do the thing"',
+                cwd=cwd,
+            ))
+        )
+
     def test_plain_commit_from_subdir_reads_root_tasks_index(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1837,6 +1854,8 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             'git commit -F - <<EOF\nfeat: [T987] do the thing\nEOF',
             'git commit --file=- <<< "feat: [T987] do the thing"',
             "git commit -F - < stdin-message.txt",
+            "printf 'feat: [T987] do the thing\\n' | git commit -F -",
+            "echo 'feat: [T987] do the thing' | git commit --file=-",
         ):
             with self.subTest(command=command):
                 self.assertDeny(

@@ -351,6 +351,7 @@ _COMMIT_VALUE_PREFIXES = tuple(opt + "=" for opt in (
 ))
 _COMMIT_STATUS_DRY_RUN_OPTS = {"--porcelain", "--short", "--long"}
 _COMMIT_STATUS_DRY_RUN_NEGATED_OPTS = {"--no-porcelain", "--no-short", "--no-long"}
+_GIT_ADD_PATHSPEC_FILE_OPTS = {"--pathspec-from-file"}
 _COMMIT_TASKS_HEAD = "head"
 _COMMIT_TASKS_INDEX = "index"
 _COMMIT_TASKS_WORKTREE = "worktree"
@@ -1361,6 +1362,60 @@ def _skip_command_prefix(tokens, index):
     return index
 
 
+def _shell_literal_stdout(tokens, index):
+    name = _shell_command_name(tokens[index])
+    if name not in ("echo", "printf"):
+        return None, None
+    args = []
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if _is_shell_redirection(tok):
+            index += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        args.append(tok)
+        index += 1
+    if name == "echo":
+        while args and args[0] != "-" and args[0].startswith("-") and set(args[0][1:]) <= set("neE"):
+            args = args[1:]
+    return " ".join(args), index
+
+
+def _git_add_touches_live_tasks(args, git_args, cwd):
+    pathspecs = []
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            pathspecs.extend(args[i + 1:])
+            break
+        if tok in ("-A", "--all", "-u", "--update"):
+            return True
+        if tok in _GIT_ADD_PATHSPEC_FILE_OPTS or any(
+            tok.startswith(opt + "=") for opt in _GIT_ADD_PATHSPEC_FILE_OPTS
+        ):
+            return True
+        if tok.startswith("-") and not tok.startswith("--"):
+            flags = tok[1:]
+            if "A" in flags or "u" in flags or "p" in flags or "i" in flags:
+                return True
+            i += 1
+            continue
+        if tok.startswith("--"):
+            i += 1
+            continue
+        pathspecs.append(tok)
+        i += 1
+    for pathspec in pathspecs:
+        live_paths = _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=True)
+        if live_paths is None or live_paths:
+            return True
+    return False
+
+
 def _split_commit_invocations(command, cwd):
     nested = []
     for body, body_cwd in _command_substitution_sites(command, cwd):
@@ -1380,6 +1435,9 @@ def _split_commit_invocations(command, cwd):
     last_status = True
     scoped_command_cwd = None
     invert_next_status = False
+    pending_pipe_stdout = None
+    pipe_stdin_text = None
+    index_tasks_mutated = False
     i = 0
     while i < len(tokens):
         tok = tokens[i]
@@ -1436,6 +1494,8 @@ def _split_commit_invocations(command, cwd):
             command_start = True
             current_command = None
             previous_separator = tok
+            pipe_stdin_text = pending_pipe_stdout if tok == "|" else None
+            pending_pipe_stdout = None
             scoped_command_cwd = None
             i += 1
             continue
@@ -1460,6 +1520,10 @@ def _split_commit_invocations(command, cwd):
             invert_next_status = not invert_next_status
             i += 1
             continue
+        if command_start:
+            stdout_text, _ = _shell_literal_stdout(tokens, i)
+            if stdout_text is not None:
+                pending_pipe_stdout = stdout_text
         if command_start and tok_name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
             skipped = _skip_unsupported_shell_control_flow(tokens, i)
             if skipped is None:
@@ -1571,6 +1635,23 @@ def _split_commit_invocations(command, cwd):
                 j += 1
                 continue
             break
+        if j < len(tokens) and tokens[j] == "add":
+            k = j + 1
+            add_args = []
+            while k < len(tokens) and not _is_shell_separator(tokens[k]):
+                add_args.append(tokens[k])
+                k += 1
+            if _git_add_touches_live_tasks(add_args, gargs, git_cwd):
+                index_tasks_mutated = True
+            i = k
+            command_start = False
+            last_status = _apply_shell_status(None, invert_next_status)
+            previous_separator = None
+            scoped_command_cwd = None
+            invert_next_status = False
+            pending_pipe_stdout = None
+            pipe_stdin_text = None
+            continue
         if j < len(tokens) and tokens[j] == "commit":
             k = j + 1
             args = []
@@ -1582,7 +1663,7 @@ def _split_commit_invocations(command, cwd):
                     break
                 args.append(tokens[k])
                 k += 1
-            stdin_text = None
+            stdin_text = pipe_stdin_text
             pending_commit_heredocs = []
             scan = 0
             while scan < len(args):
@@ -1596,7 +1677,10 @@ def _split_commit_invocations(command, cwd):
                 _, bodies = _read_heredoc_bodies(tokens, k + 1, pending_commit_heredocs)
                 if bodies:
                     stdin_text = "\n".join(bodies)
-            out.append({"git_args": gargs, "args": args, "cwd": git_cwd})
+            invocation = {"git_args": gargs, "args": args, "cwd": git_cwd}
+            if index_tasks_mutated:
+                invocation["index_tasks_mutated"] = True
+            out.append(invocation)
             if stdin_text is not None:
                 out[-1]["stdin"] = stdin_text
             i = k
@@ -1605,12 +1689,17 @@ def _split_commit_invocations(command, cwd):
             previous_separator = None
             scoped_command_cwd = None
             invert_next_status = False
+            pending_pipe_stdout = None
+            pipe_stdin_text = None
+            index_tasks_mutated = False
             continue
         command_start = False
         last_status = _apply_shell_status(None, invert_next_status)
         previous_separator = None
         scoped_command_cwd = None
         invert_next_status = False
+        pending_pipe_stdout = None
+        pipe_stdin_text = None
         i = max(j + 1, i + 1)
     return out + nested
 
@@ -2505,6 +2594,8 @@ def _rule_commit_tasks_drift(command, base, cwd):
             invocation["args"], root, commit_cwd, invocation["git_args"], commit_cwd,
         )
         if selection is None:
+            continue
+        if selection["base"] == _COMMIT_TASKS_INDEX and invocation.get("index_tasks_mutated"):
             continue
         unchecked = _unchecked_task_ids_in_commit_view(
             root,
