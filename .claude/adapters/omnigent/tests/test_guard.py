@@ -1330,6 +1330,21 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                     "commit-tasks-drift",
                 )
 
+    def test_function_definition_body_is_not_scanned(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'f(){ git commit -m "feat: [T987] no"; }; echo ok',
+            'f () { git commit -m "feat: [T987] no"; }; echo ok',
+            'function f { git commit -m "feat: [T987] no"; }; echo ok',
+            'function f() { git commit -m "feat: [T987] no"; }; echo ok',
+            'f(){ echo "$(git commit -m \'feat: [T987] no\')"; }; echo ok',
+            'function f { echo "$(git commit -m \'feat: [T987] no\')"; }; echo ok',
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
+
     def test_skipped_compound_group_commit_invocations_are_not_scanned(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1598,6 +1613,20 @@ class TestPendingCommitTasksDrift(GuardTestBase):
         for command in (
             "git commit -F message.txt",
             "git commit --file=message.txt",
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
+    def test_commit_message_stdin_task_id_denied(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'git commit -F - <<EOF\nfeat: [T987] do the thing\nEOF',
+            'git commit --file=- <<< "feat: [T987] do the thing"',
         ):
             with self.subTest(command=command):
                 self.assertDeny(

@@ -659,8 +659,79 @@ def _blank_quoted_data_heredoc_bodies(command):
     return "".join(chars)
 
 
+def _blank_shell_function_bodies(command):
+    chars = list(command)
+    single = double = False
+    i = 0
+
+    def command_start(index):
+        return index == 0 or command[index - 1] in " \t\r\n;&|"
+
+    def matching_brace(index):
+        depth = 1
+        single = double = False
+        index += 1
+        while index < len(command):
+            ch = command[index]
+            if ch == "\\" and not single:
+                index += 2
+                continue
+            if ch == "'" and not double:
+                single = not single
+                index += 1
+                continue
+            if ch == '"' and not single:
+                double = not double
+                index += 1
+                continue
+            if single:
+                index += 1
+                continue
+            if not double and ch == "{":
+                depth += 1
+            elif not double and ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return index
+            index += 1
+        return None
+
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            i += 2
+            continue
+        if ch == "'" and not double:
+            single = not single
+            i += 1
+            continue
+        if ch == '"' and not single:
+            double = not double
+            i += 1
+            continue
+        if not single and not double and command_start(i):
+            tail = command[i:]
+            match = (
+                re.match(r"function\s+[A-Za-z_][A-Za-z0-9_]*\s*(?:\(\)\s*)?\{", tail)
+                or re.match(r"[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{", tail)
+            )
+            if match:
+                open_brace = i + match.end() - 1
+                close_brace = matching_brace(open_brace)
+                if close_brace is None:
+                    return "".join(chars)
+                for j in range(open_brace + 1, close_brace):
+                    if chars[j] != "\n":
+                        chars[j] = " "
+                i = close_brace + 1
+                continue
+        i += 1
+    return "".join(chars)
+
+
 def _command_substitution_sites(command, cwd):
     command = _blank_quoted_data_heredoc_bodies(command)
+    command = _blank_shell_function_bodies(command)
     sites = []
     shell_cwd = cwd
     cwd_stack = []
@@ -948,7 +1019,57 @@ def _skip_shell_group(tokens, index):
     return index
 
 
+def _shell_function_body_start(tokens, index):
+    if index >= len(tokens):
+        return None, None
+    name = _shell_command_name(tokens[index])
+    if name == "function":
+        if index + 2 >= len(tokens):
+            return None, None
+        body = index + 2
+        if tokens[body] == "()":
+            body += 1
+        if body < len(tokens) and "{" in tokens[body]:
+            return body, "{"
+        return None, None
+    if index + 1 >= len(tokens):
+        return None, None
+    next_tok = tokens[index + 1]
+    if next_tok == "()":
+        body = index + 2
+        if body < len(tokens) and ("{" in tokens[body] or "(" in tokens[body]):
+            return body, "{" if "{" in tokens[body] else "("
+    if next_tok.startswith("()") and "{" in next_tok:
+        return index + 1, "{"
+    return None, None
+
+
+def _skip_shell_function_definition(tokens, index):
+    body, opener = _shell_function_body_start(tokens, index)
+    if body is None:
+        return None
+    closer = "}" if opener == "{" else ")"
+    depth = 0
+    started = False
+    i = body
+    while i < len(tokens):
+        tok = tokens[i]
+        for ch in tok:
+            if ch == opener:
+                depth += 1
+                started = True
+            elif ch == closer and started:
+                depth -= 1
+                if depth <= 0:
+                    return i + 1
+        i += 1
+    return len(tokens)
+
+
 def _skip_shell_command(tokens, index):
+    skipped = _skip_shell_function_definition(tokens, index)
+    if skipped is not None:
+        return skipped
     if index < len(tokens) and tokens[index] in ("(", "{"):
         return _skip_shell_group(tokens, index)
     while index < len(tokens) and not _is_shell_separator(tokens[index]):
@@ -1157,6 +1278,17 @@ def _split_commit_invocations(command, cwd):
             scoped_command_cwd = None
             invert_next_status = False
             continue
+        if command_start:
+            skipped_function = _skip_shell_function_definition(tokens, i)
+            if skipped_function is not None:
+                i = skipped_function
+                command_start = True
+                current_command = None
+                previous_separator = None
+                scoped_command_cwd = None
+                last_status = _apply_shell_status(True, invert_next_status)
+                invert_next_status = False
+                continue
         if tok == "(":
             cwd_stack.append(shell_cwd)
             command_start = True
@@ -1310,7 +1442,23 @@ def _split_commit_invocations(command, cwd):
             while k < len(tokens) and not _is_shell_separator(tokens[k]):
                 args.append(tokens[k])
                 k += 1
+            stdin_text = None
+            pending_commit_heredocs = []
+            scan = 0
+            while scan < len(args):
+                heredoc, next_scan = _heredoc_delimiter(args, scan)
+                if heredoc is not None:
+                    pending_commit_heredocs.append((heredoc, True))
+                    scan = next_scan
+                    continue
+                scan += 1
+            if pending_commit_heredocs and k < len(tokens) and tokens[k] == "\n":
+                _, bodies = _read_heredoc_bodies(tokens, k + 1, pending_commit_heredocs)
+                if bodies:
+                    stdin_text = "\n".join(bodies)
             out.append({"git_args": gargs, "args": args, "cwd": git_cwd})
+            if stdin_text is not None:
+                out[-1]["stdin"] = stdin_text
             i = k
             command_start = False
             last_status = _apply_shell_status(None, invert_next_status)
@@ -1445,7 +1593,22 @@ def _commit_reuses_head_subject(args):
     return amend and no_edit
 
 
-def _task_ids_from_commit_message(args, cwd=None, git_args=None):
+def _task_ids_from_commit_stdin(args, stdin_text=None):
+    if stdin_text:
+        return set(_RE_TASK_ID.findall(stdin_text))
+    i = 0
+    while i < len(args):
+        op, rest = _split_shell_redirection(args[i])
+        if op == "<<<":
+            text = rest
+            if not text and i + 1 < len(args):
+                text = args[i + 1]
+            return set(_RE_TASK_ID.findall(text or ""))
+        i += 1
+    return set()
+
+
+def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None):
     out = set()
     replaces_message = False
     i = 0
@@ -1463,7 +1626,10 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None):
         if tok in _COMMIT_MESSAGE_FILE_OPTS:
             replaces_message = True
             if i + 1 < len(args):
-                out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
+                if args[i + 1] == "-":
+                    out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                else:
+                    out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
             i += 2
             continue
         if tok in _COMMIT_REUSE_MESSAGE_OPTS:
@@ -1490,7 +1656,11 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None):
             continue
         if tok.startswith("--file="):
             replaces_message = True
-            out.update(_task_ids_from_commit_message_file(tok.split("=", 1)[1], cwd))
+            msg_file = tok.split("=", 1)[1]
+            if msg_file == "-":
+                out.update(_task_ids_from_commit_stdin(args, stdin_text))
+            else:
+                out.update(_task_ids_from_commit_message_file(msg_file, cwd))
             i += 1
             continue
         if tok.startswith("--reuse-message=") or tok.startswith("--reedit-message="):
@@ -1526,11 +1696,17 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None):
                 replaces_message = True
                 msg_file = body.split("F", 1)[1]
                 if msg_file:
-                    out.update(_task_ids_from_commit_message_file(msg_file, cwd))
+                    if msg_file == "-":
+                        out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                    else:
+                        out.update(_task_ids_from_commit_message_file(msg_file, cwd))
                     i += 1
                 else:
                     if i + 1 < len(args):
-                        out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
+                        if args[i + 1] == "-":
+                            out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                        else:
+                            out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
                     i += 2
                 continue
             if "C" in body or "c" in body:
@@ -2108,7 +2284,10 @@ def _rule_commit_tasks_drift(command, base, cwd):
         if _commit_is_dry_run(invocation["args"]):
             continue
         pending = _task_ids_from_commit_message(
-            invocation["args"], invocation.get("cwd") or cwd, invocation["git_args"],
+            invocation["args"],
+            invocation.get("cwd") or cwd,
+            invocation["git_args"],
+            invocation.get("stdin"),
         )
         if not pending:
             continue
