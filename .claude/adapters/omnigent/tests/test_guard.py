@@ -1295,6 +1295,8 @@ class TestPendingCommitTasksDrift(GuardTestBase):
         for command in (
             'command -p git commit -m "feat: [T987] do the thing"',
             'time -p git commit -m "feat: [T987] do the thing"',
+            'noglob git commit -m "feat: [T987] do the thing"',
+            'nocorrect git commit -m "feat: [T987] do the thing"',
             'sudo git commit -m "feat: [T987] do the thing"',
             'sudo -E -u root git commit -m "feat: [T987] do the thing"',
         ):
@@ -1856,6 +1858,7 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "git commit -F - < stdin-message.txt",
             "printf 'feat: [T987] do the thing\\n' | git commit -F -",
             "echo 'feat: [T987] do the thing' | git commit --file=-",
+            "printf 'chore: no task\\n' | git commit -F - < stdin-message.txt",
         ):
             with self.subTest(command=command):
                 self.assertDeny(

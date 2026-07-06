@@ -313,7 +313,9 @@ _GIT_GLOBALS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
 _GIT_GLOBALS_NO_ARG = {
     "--paginate", "--no-pager", "--bare", "--literal-pathspecs", "--no-optional-locks", "-p",
 }
-_SHELL_COMMAND_PREFIXES = {"if", "then", "do", "while", "until", "else", "elif", "time", "!"}
+_SHELL_COMMAND_PREFIXES = {
+    "if", "then", "do", "while", "until", "else", "elif", "time", "!", "noglob", "nocorrect",
+}
 _SHELL_UNSUPPORTED_CONTROL_FLOW = {
     "case", "do", "done", "elif", "else", "esac", "fi", "for", "if", "then", "until", "while",
 }
@@ -1836,8 +1838,7 @@ def _commit_reuses_head_subject(args):
 
 
 def _task_ids_from_commit_stdin(args, stdin_text=None, cwd=None):
-    if stdin_text:
-        return set(_RE_TASK_ID.findall(stdin_text))
+    out = set(_RE_TASK_ID.findall(stdin_text or ""))
     i = 0
     while i < len(args):
         op, rest = _split_shell_redirection(args[i])
@@ -1845,17 +1846,21 @@ def _task_ids_from_commit_stdin(args, stdin_text=None, cwd=None):
             text = rest
             if not text and i + 1 < len(args):
                 text = args[i + 1]
-            return set(_RE_TASK_ID.findall(text or ""))
+            out.update(_RE_TASK_ID.findall(text or ""))
+            i += 2 if rest == "" else 1
+            continue
         if op in ("<", "<>"):
             path = rest
             if not path and i + 1 < len(args):
                 path = args[i + 1]
-            return _task_ids_from_commit_message_file(path, cwd)
+            out.update(_task_ids_from_commit_message_file(path, cwd))
+            i += 2 if rest == "" else 1
+            continue
         if op is not None:
             i += 2 if rest == "" else 1
             continue
         i += 1
-    return set()
+    return out
 
 
 def _task_ids_from_shell_expansion_tokens(args, index, value=None):
