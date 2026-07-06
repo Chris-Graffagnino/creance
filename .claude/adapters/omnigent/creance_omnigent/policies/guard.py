@@ -1409,6 +1409,19 @@ def _shell_literal_stdout(tokens, index):
     return " ".join(args), index
 
 
+def _pathspec_file_option_entries(args, index, cwd):
+    """Pathspec entries named by the ``--pathspec-from-file`` option at ``args[index]``,
+    plus the index of the next token. ``(None, next)`` when the file cannot be read
+    (missing value, stdin, unreadable) — callers treat that as touching live tasks."""
+    nul = "--pathspec-file-nul" in args
+    tok = args[index]
+    if tok in _GIT_ADD_PATHSPEC_FILE_OPTS:
+        if index + 1 >= len(args):
+            return None, len(args)
+        return _pathspec_file_entries(args[index + 1], cwd, nul), index + 2
+    return _pathspec_file_entries(tok.split("=", 1)[1], cwd, nul), index + 1
+
+
 def _git_add_touches_live_tasks(args, git_args, cwd):
     pathspecs = []
     broad_update = False
@@ -1428,7 +1441,11 @@ def _git_add_touches_live_tasks(args, git_args, cwd):
         if tok in _GIT_ADD_PATHSPEC_FILE_OPTS or any(
             tok.startswith(opt + "=") for opt in _GIT_ADD_PATHSPEC_FILE_OPTS
         ):
-            return True
+            entries, i = _pathspec_file_option_entries(args, i, cwd)
+            if entries is None:
+                return True
+            pathspecs.extend(entries)
+            continue
         if tok.startswith("-") and not tok.startswith("--"):
             flags = tok[1:]
             if "A" in flags or "u" in flags or "p" in flags or "i" in flags:
@@ -1461,7 +1478,11 @@ def _git_rm_touches_live_tasks(args, git_args, cwd):
         if tok in _GIT_ADD_PATHSPEC_FILE_OPTS or any(
             tok.startswith(opt + "=") for opt in _GIT_ADD_PATHSPEC_FILE_OPTS
         ):
-            return True
+            entries, i = _pathspec_file_option_entries(args, i, cwd)
+            if entries is None:
+                return True
+            pathspecs.extend(entries)
+            continue
         if tok.startswith("-"):
             i += 1
             continue
@@ -2491,7 +2512,12 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
             return None
         worktree_paths.update(live_paths - excluded_worktree_paths)
     if all_mode and not only_mode:
-        return {"base": _COMMIT_TASKS_WORKTREE, "worktree_paths": set()}
+        index_paths = _index_pinned_live_tasks_paths(root, git_args, cwd) if root else None
+        return {
+            "base": _COMMIT_TASKS_WORKTREE,
+            "worktree_paths": set(),
+            "index_paths": index_paths or set(),
+        }
     return {
         "base": (
             _COMMIT_TASKS_HEAD
@@ -2604,6 +2630,27 @@ def _live_tasks_paths_in_index(root, git_args=None, cwd=None):
     return paths if paths else None
 
 
+def _index_pinned_live_tasks_paths(root, git_args=None, cwd=None):
+    """Live tasks files whose skip-worktree or assume-unchanged index bit makes
+    ``git commit -a`` land the index blob instead of the worktree content
+    (``git ls-files -v``: tag ``S`` or lowercase). None on any git failure ->
+    the caller keeps the plain worktree view (fail open)."""
+    listed = _git(
+        (git_args or []) + ["-C", root, "ls-files", "-v", "--full-name", "--", "specs"],
+        cwd or root,
+    )
+    if listed is None:
+        return None
+    paths = set()
+    for line in listed.splitlines():
+        if len(line) < 3 or line[1] != " ":
+            continue
+        tag, rel = line[0], line[2:].replace("\\", "/")
+        if _is_live_tasks_pathspec(rel) and (tag == "S" or tag.islower()):
+            paths.add(rel)
+    return paths
+
+
 def _live_tasks_paths_in_head(root, git_args=None, cwd=None):
     tracked = _git(
         (git_args or []) + [
@@ -2644,17 +2691,25 @@ def _tasks_text_in_view(root, view, rel, git_args=None, cwd=None):
     return _git((git_args or []) + ["show", ":{}".format(rel)], cwd or root)
 
 
-def _unchecked_task_ids_in_commit_view(root, base_view, worktree_paths=None, git_args=None, cwd=None):
+def _unchecked_task_ids_in_commit_view(
+    root, base_view, worktree_paths=None, git_args=None, cwd=None, index_paths=None,
+):
     worktree_paths = set(worktree_paths or ())
+    index_paths = set(index_paths or ())
     base_paths = _live_tasks_paths(root, base_view, git_args, cwd)
     if base_paths is None:
-        if not worktree_paths:
+        if not worktree_paths and not index_paths:
             return None
         base_paths = set()
     ids = set()
     seen = False
-    for rel in sorted(base_paths | worktree_paths):
-        view = _COMMIT_TASKS_WORKTREE if rel in worktree_paths else base_view
+    for rel in sorted(base_paths | worktree_paths | index_paths):
+        if rel in worktree_paths:
+            view = _COMMIT_TASKS_WORKTREE
+        elif rel in index_paths:
+            view = _COMMIT_TASKS_INDEX
+        else:
+            view = base_view
         content = _tasks_text_in_view(root, view, rel, git_args, cwd)
         if content is None:
             continue
@@ -2710,6 +2765,7 @@ def _rule_commit_tasks_drift(command, base, cwd):
             selection.get("worktree_paths"),
             invocation["git_args"],
             invocation.get("cwd") or cwd,
+            selection.get("index_paths"),
         )
         if unchecked is None:
             continue

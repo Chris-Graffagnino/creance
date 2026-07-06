@@ -348,6 +348,80 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             ))
         )
 
+    def test_prior_git_add_pathspec_file_without_tasks_does_not_skip_index_check(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+        with open(os.path.join(cwd, "paths.txt"), "w") as f:
+            f.write("seed.txt\n")
+
+        for command in (
+            'git add --pathspec-from-file=paths.txt && '
+            'git commit -m "feat: [T987] do the thing"',
+            'git add --pathspec-from-file paths.txt && '
+            'git commit -m "feat: [T987] do the thing"',
+            'git rm -q --cached --pathspec-from-file=paths.txt && '
+            'git commit -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
+    def test_prior_git_add_pathspec_file_nul_entries_are_read(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+        with open(os.path.join(cwd, "paths.txt"), "w") as f:
+            f.write("seed.txt\0")
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'git add --pathspec-file-nul --pathspec-from-file=paths.txt && '
+                'git commit -m "feat: [T987] do the thing"',
+                cwd=cwd,
+            )),
+            "commit-tasks-drift",
+        )
+
+    def test_prior_git_add_pathspec_file_with_tasks_fails_open(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        with open(os.path.join(cwd, "paths.txt"), "w") as f:
+            f.write("specs/010-fixture/tasks.md\n")
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git add --pathspec-from-file=paths.txt && '
+                'git commit -m "feat: [T987] do the thing"',
+                cwd=cwd,
+            ))
+        )
+
+    def test_prior_git_add_unreadable_pathspec_file_fails_open(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'git add --pathspec-from-file=missing.txt && '
+            'git commit -m "feat: [T987] do the thing"',
+            'git add --pathspec-from-file=- && '
+            'git commit -m "feat: [T987] do the thing"',
+            'git add --pathspec-from-file && '
+            'git commit -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd))
+                )
+
     def test_plain_commit_from_subdir_reads_root_tasks_index(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -374,6 +448,51 @@ class TestPendingCommitTasksDrift(GuardTestBase):
 
         self.assertAllow(
             self.pol(_event("sys_os_shell", 'git commit -am "feat: [T987] do the thing"', cwd=cwd))
+        )
+
+    def test_commit_all_index_pinned_tasks_reads_index_view(self):
+        # `git commit -a` does NOT restage a tasks file whose skip-worktree or
+        # assume-unchanged index bit is set — it lands the (unchecked) index blob,
+        # so a cosmetically checked worktree must not satisfy the guard.
+        for bit in ("--skip-worktree", "--assume-unchanged"):
+            with self.subTest(bit=bit):
+                cwd = self.repo("feature/x")
+                path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+                with open(os.path.join(cwd, "seed.txt"), "a") as f:
+                    f.write("changed\n")
+                _git(["update-index", bit, "specs/010-fixture/tasks.md"], cwd)
+                with open(path, "w") as f:
+                    f.write("- [x] T987 fixture task\n")
+
+                self.assertDeny(
+                    self.pol(_event(
+                        "sys_os_shell",
+                        'git commit -am "feat: [T987] do the thing"',
+                        cwd=cwd,
+                    )),
+                    "commit-tasks-drift",
+                )
+
+    def test_commit_all_index_pinned_checked_tasks_allowed(self):
+        # The converse: the pinned index blob is checked, so the commit lands a
+        # checked box even though the worktree copy looks unchecked.
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        _git(["add", "specs/010-fixture/tasks.md"], cwd)
+        _git(["update-index", "--skip-worktree", "specs/010-fixture/tasks.md"], cwd)
+        with open(path, "w") as f:
+            f.write("- [ ] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit -am "feat: [T987] do the thing"',
+                cwd=cwd,
+            ))
         )
 
     def test_no_all_after_all_reads_staged_tasks_view(self):
