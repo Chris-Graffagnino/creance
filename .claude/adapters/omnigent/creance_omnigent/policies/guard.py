@@ -36,7 +36,9 @@ from __future__ import annotations
 import fnmatch
 import os
 import re
+import shlex
 import shutil
+import stat
 import subprocess
 import tempfile
 
@@ -225,21 +227,12 @@ _RE_C_OPT = re.compile(r"-C\s+([^\s;&|\"]+)")
 _RE_GITDIR_OPT = re.compile(r"--git-dir(?:=|\s+)([^\s;&|\"]+)")
 
 
-def _effective_branch(command, cwd):
-    """Branch of the repo ``command`` acts on. The repo-locating globals (`-C`,
-    `--git-dir`) are read from the SAME `git … commit|push` invocation rule 3 matched
-    (issue #138 / PR #173 Codex P2) — so an unrelated leading `git -C <other> status`
-    cannot lend its `-C` — and `--git-dir` is honored alongside `-C` (PR #173 craft H1).
-    They are replayed against `git … branch --show-current` run from the EVENT cwd, so a
-    relative path resolves against the event cwd, not the policy process cwd (PR #173 craft
-    H2; git applies repeated `-C` cumulatively, so `cd <a> && git -C <b>` nests for free).
-    Best-effort + fail-open: an unreadable target (bad path, non-repo, detached HEAD)
-    falls back to the event-cwd branch, so the change only ADDS DENY coverage and never
-    weakens the existing event-cwd check (e.g. `cd <gone> && git commit` on base DENYs)."""
+def _effective_git_args(command, run_re=_RE_COMMIT_PUSH_RUN):
+    """Git globals locating the repo for the matched invocation, replayable from cwd."""
     m = _RE_CD.match(command)
     cddir = m.group(1) if m else None
     copt = gdir = None
-    run = _RE_COMMIT_PUSH_RUN.search(command)
+    run = run_re.search(command)
     if run:
         seg = run.group(0)
         cs = list(_RE_C_OPT.finditer(seg))
@@ -255,6 +248,21 @@ def _effective_branch(command, cwd):
         gargs += ["-C", copt]
     if gdir:
         gargs += ["--git-dir", gdir]
+    return gargs
+
+
+def _effective_branch(command, cwd):
+    """Branch of the repo ``command`` acts on. The repo-locating globals (`-C`,
+    `--git-dir`) are read from the SAME `git … commit|push` invocation rule 3 matched
+    (issue #138 / PR #173 Codex P2) — so an unrelated leading `git -C <other> status`
+    cannot lend its `-C` — and `--git-dir` is honored alongside `-C` (PR #173 craft H1).
+    They are replayed against `git … branch --show-current` run from the EVENT cwd, so a
+    relative path resolves against the event cwd, not the policy process cwd (PR #173 craft
+    H2; git applies repeated `-C` cumulatively, so `cd <a> && git -C <b>` nests for free).
+    Best-effort + fail-open: an unreadable target (bad path, non-repo, detached HEAD)
+    falls back to the event-cwd branch, so the change only ADDS DENY coverage and never
+    weakens the existing event-cwd check (e.g. `cd <gone> && git commit` on base DENYs)."""
+    gargs = _effective_git_args(command)
     if gargs:
         out = _git(gargs + ["branch", "--show-current"], cwd)  # cwd = EVENT cwd (craft H2)
         if out is not None and out.strip():
@@ -290,6 +298,2486 @@ def _rule_commit_push_base(command, base, cwd):
             "never commit or push while on the base branch '{}'. Work on a feature "
             "branch and open a PR.".format(base),
         )
+    return None
+
+
+# Rule 7 — a pending `git commit` whose message carries [T<nnn>] while that task's
+# live tasks-file box is still unchecked. The unchecked-box definition is read from
+# lib-tasks-drift.sh's `tasks_drift_unchecked_ids` so Omnigent tracks the same shared
+# workflow definition without sourcing bash in the adapter runtime.
+_RE_TASK_ID = re.compile(r"\[(T[0-9]+)\]")
+_SHELL_SEPARATORS = {";", "&&", "||", "|", "&", "(", ")", "{", "}", "\n"}
+_SHELL_SEPARATOR_CHARS = set(";&|(){}\n")
+_SHELL_REDIRECT_OPS = ("<<<", "<<-", "<<", "<>", ">>", ">|", "<&", ">&", "<", ">")
+_GIT_GLOBALS_WITH_ARG = {"-C", "-c", "--git-dir", "--work-tree", "--namespace"}
+_GIT_GLOBALS_NO_ARG = {
+    "--paginate", "--no-pager", "--bare", "--literal-pathspecs", "--no-optional-locks", "-p",
+}
+_SHELL_COMMAND_PREFIXES = {
+    "if", "then", "do", "while", "until", "else", "elif", "time", "!", "noglob", "nocorrect",
+}
+_SHELL_UNSUPPORTED_CONTROL_FLOW = {
+    "case", "do", "done", "elif", "else", "esac", "fi", "for", "if", "then", "until", "while",
+}
+_SHELL_UNSUPPORTED_FLOW_END = {
+    "case": "esac",
+    "for": "done",
+    "if": "fi",
+    "until": "done",
+    "while": "done",
+}
+_SHELL_COMMAND_WRAPPERS = {"command", "exec", "env", "sudo"}
+_SHELL_C_WRAPPERS = {"bash", "sh", "zsh"}
+_SHELL_CD_OPTIONS_NO_ARG = {"-L", "-P", "-e"}
+_ENV_OPTIONS_WITH_ARG = {
+    "-C", "-P", "-S", "-u", "--argv0", "--chdir", "--path", "--split-string", "--unset",
+}
+_SHELL_C_OPTIONS_WITH_ARG = {"-o", "-O", "--init-file", "--rcfile"}
+_SUDO_OPTIONS_WITH_ARG = {
+    "-C", "-D", "-g", "-h", "-p", "-r", "-t", "-T", "-u",
+    "--chdir", "--close-from", "--group", "--host", "--login-class", "--prompt",
+    "--role", "--type", "--user",
+}
+_COMMIT_MESSAGE_OPTS = {"-m", "--message", "--trailer"}
+_COMMIT_MESSAGE_FILE_OPTS = {"-F", "--file"}
+_COMMIT_REUSE_MESSAGE_OPTS = {"-C", "-c", "--reuse-message", "--reedit-message"}
+_COMMIT_GENERATED_MESSAGE_OPTS = {"--fixup", "--squash"}
+_COMMIT_VALUE_OPTS = {
+    "-m", "--message", "-F", "--file", "-C", "-c", "--reuse-message", "--reedit-message",
+    "--author", "--date", "--template", "--cleanup", "--fixup", "--squash",
+    "--pathspec-from-file", "--trailer",
+}
+_COMMIT_VALUE_PREFIXES = tuple(opt + "=" for opt in (
+    "--message", "--file", "--reuse-message", "--reedit-message", "--author", "--date",
+    "--template", "--cleanup", "--fixup", "--squash", "--pathspec-from-file", "--trailer",
+))
+_COMMIT_STATUS_DRY_RUN_OPTS = {"--porcelain", "--short", "--long"}
+_COMMIT_STATUS_DRY_RUN_NEGATED_OPTS = {"--no-porcelain", "--no-short", "--no-long"}
+_GIT_ADD_PATHSPEC_FILE_OPTS = {"--pathspec-from-file"}
+_COMMIT_TASKS_HEAD = "head"
+_COMMIT_TASKS_INDEX = "index"
+_COMMIT_TASKS_WORKTREE = "worktree"
+_MAX_GUARD_FILE_READ_BYTES = 1024 * 1024
+
+
+def _default_tasks_drift_lib():
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.normpath(os.path.join(here, "..", "..", "..", "..", "hooks", "lib-tasks-drift.sh"))
+
+
+_TASKS_DRIFT_LIB = _default_tasks_drift_lib()
+
+
+def _strip_shell_comments(command):
+    out = []
+    single = double = False
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            out.append(command[i:i + 2])
+            i += 2
+            continue
+        if ch == "'" and not double:
+            single = not single
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '"' and not single:
+            double = not double
+            out.append(ch)
+            i += 1
+            continue
+        if not single and not double and _is_shell_comment_start(command, i):
+            newline = command.find("\n", i)
+            if newline < 0:
+                break
+            out.append("\n")
+            i = newline + 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _expand_unquoted_tilde_words(command):
+    out = []
+    single = double = False
+    word_start = True
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            out.append(command[i:i + 2])
+            i += 2
+            word_start = False
+            continue
+        if ch == "'" and not double:
+            single = not single
+            out.append(ch)
+            i += 1
+            word_start = False
+            continue
+        if ch == '"' and not single:
+            double = not double
+            out.append(ch)
+            i += 1
+            word_start = False
+            continue
+        if not single and not double and word_start and ch == "~":
+            j = i + 1
+            while j < len(command) and command[j] not in "/ \t\r\n;&|(){}<>":
+                j += 1
+            prefix = command[i:j]
+            expanded = os.path.expanduser(prefix)
+            if expanded != prefix:
+                out.append(expanded)
+                i = j
+                word_start = False
+                continue
+        out.append(ch)
+        if not single and not double and ch in " \t\r\n;&|(){}<>":
+            word_start = True
+        else:
+            word_start = False
+        i += 1
+    return "".join(out)
+
+
+def _shell_tokens(command):
+    try:
+        command = _strip_shell_comments(command).replace("\\\n", " ")
+        command = _expand_unquoted_tilde_words(command)
+        lex = shlex.shlex(command, posix=True, punctuation_chars=";&|(){}\n")
+        lex.whitespace_split = True
+        lex.whitespace = " \t\r"
+        lex.commenters = ""
+        return list(lex)
+    except Exception:
+        return None
+
+
+def _read_backtick_substitution(command, start):
+    i = start
+    while i < len(command):
+        if command[i] == "\\":
+            i += 2
+            continue
+        if command[i] == "`":
+            return command[start:i], i
+        i += 1
+    return None, None
+
+
+def _read_dollar_substitution(command, start):
+    depth = 1
+    single = double = False
+    i = start
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            i += 2
+            continue
+        if ch == "'" and not double:
+            single = not single
+            i += 1
+            continue
+        if ch == '"' and not single:
+            double = not double
+            i += 1
+            continue
+        if single:
+            i += 1
+            continue
+        if not double and command.startswith("$(", i):
+            depth += 1
+            i += 2
+            continue
+        if not double and ch == "(":
+            depth += 1
+            i += 1
+            continue
+        if not double and ch == ")":
+            depth -= 1
+            if depth == 0:
+                return command[start:i], i
+            i += 1
+            continue
+        i += 1
+    return None, None
+
+
+def _apply_shell_status(status, invert):
+    if status is None:
+        return None
+    return not status if invert else status
+
+
+def _shell_cwd_status_after_segment(shell_cwd, segment):
+    tokens = _shell_tokens(segment)
+    if not tokens:
+        return shell_cwd, None
+    i = 0
+    invert = False
+    while i < len(tokens) and (
+        tokens[i] in _SHELL_COMMAND_PREFIXES or _is_shell_assignment(tokens[i])
+    ):
+        if tokens[i] == "!":
+            invert = not invert
+        i += 1
+    if i < len(tokens) and tokens[i] == "cd":
+        target, _ = _shell_cd_target(tokens, i)
+        if target is not None:
+            new_cwd = _resolve_existing_shell_cd(shell_cwd, target)
+            status = new_cwd != shell_cwd or os.path.isdir(_resolve_shell_cd(shell_cwd, target))
+            return new_cwd, _apply_shell_status(status, invert)
+    if i < len(tokens):
+        return shell_cwd, _apply_shell_status(_known_shell_status(tokens[i]), invert)
+    return shell_cwd, None
+
+
+def _first_shell_command_name(segment):
+    tokens = _shell_tokens(segment)
+    if not tokens:
+        return None
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        name = _shell_command_name(tok)
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+            return name
+        if _is_shell_assignment(tok) or name in _SHELL_COMMAND_PREFIXES:
+            i += 1
+            continue
+        return name
+    return None
+
+
+def _is_shell_comment_start(command, index):
+    if command[index] != "#":
+        return False
+    return index == 0 or command[index - 1] in " \t\r\n;&|(){}"
+
+
+def _heredoc_prefix_feeds_shell(command, index):
+    line_start = command.rfind("\n", 0, index) + 1
+    segment = re.split(r"[;&|]", command[line_start:index])[-1]
+    tokens = _shell_tokens(segment)
+    if not tokens:
+        return True
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        name = _shell_command_name(tok)
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if _is_shell_assignment(tok) or name in ("env", "command", "exec", "time"):
+            i += 1
+            continue
+        if tok.startswith("-") and i > 0:
+            i += 1
+            continue
+        return name in _SHELL_C_WRAPPERS
+    return True
+
+
+def _raw_heredoc_spec(command, index):
+    if not command.startswith("<<", index):
+        return None
+    strip_tabs = command.startswith("<<-", index)
+    i = index + (3 if strip_tabs else 2)
+    while i < len(command) and command[i] in " \t":
+        i += 1
+    if i >= len(command) or command[i] in "\r\n;&|(){}":
+        return None
+    quoted = False
+    delim = []
+    while i < len(command) and command[i] not in " \t\r\n;&|(){}":
+        ch = command[i]
+        if ch in ("'", '"'):
+            quoted = True
+            quote = ch
+            i += 1
+            while i < len(command) and command[i] != quote:
+                delim.append(command[i])
+                i += 1
+            if i < len(command):
+                i += 1
+            continue
+        if ch == "\\":
+            quoted = True
+            i += 1
+            if i < len(command):
+                delim.append(command[i])
+                i += 1
+            continue
+        delim.append(ch)
+        i += 1
+    if not delim:
+        return None
+    return "".join(delim), quoted, strip_tabs, i
+
+
+def _blank_quoted_data_heredoc_bodies(command):
+    chars = list(command)
+    pending = []
+    single = double = False
+    i = 0
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            i += 2
+            continue
+        if ch == "'" and not double:
+            single = not single
+            i += 1
+            continue
+        if ch == '"' and not single:
+            double = not double
+            i += 1
+            continue
+        if not single and not double and command.startswith("<<", i):
+            spec = _raw_heredoc_spec(command, i)
+            if spec is not None:
+                delim, quoted, strip_tabs, next_i = spec
+                if quoted and not _heredoc_prefix_feeds_shell(command, i):
+                    pending.append((delim, strip_tabs))
+                i = next_i
+                continue
+        if ch == "\n" and pending:
+            i += 1
+            for delim, strip_tabs in pending:
+                body_start = i
+                while i < len(command):
+                    line_end = command.find("\n", i)
+                    if line_end < 0:
+                        line_end = len(command)
+                    line = command[i:line_end]
+                    compare = line.lstrip("\t") if strip_tabs else line
+                    if compare == delim:
+                        for j in range(body_start, i):
+                            if chars[j] != "\n":
+                                chars[j] = " "
+                        i = line_end
+                        break
+                    i = line_end + 1 if line_end < len(command) else len(command)
+            pending = []
+            continue
+        i += 1
+    return "".join(chars)
+
+
+def _blank_shell_function_bodies(command):
+    chars = list(command)
+    single = double = False
+    i = 0
+
+    def command_start(index):
+        return index == 0 or command[index - 1] in " \t\r\n;&|"
+
+    def matching_brace(index):
+        depth = 1
+        single = double = False
+        index += 1
+        while index < len(command):
+            ch = command[index]
+            if ch == "\\" and not single:
+                index += 2
+                continue
+            if ch == "'" and not double:
+                single = not single
+                index += 1
+                continue
+            if ch == '"' and not single:
+                double = not double
+                index += 1
+                continue
+            if single:
+                index += 1
+                continue
+            if not double and ch == "{":
+                depth += 1
+            elif not double and ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return index
+            index += 1
+        return None
+
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            i += 2
+            continue
+        if ch == "'" and not double:
+            single = not single
+            i += 1
+            continue
+        if ch == '"' and not single:
+            double = not double
+            i += 1
+            continue
+        if not single and not double and command_start(i):
+            tail = command[i:]
+            match = (
+                re.match(r"function\s+[A-Za-z_][A-Za-z0-9_]*\s*(?:\(\)\s*)?\{", tail)
+                or re.match(r"[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{", tail)
+            )
+            if match:
+                open_brace = i + match.end() - 1
+                close_brace = matching_brace(open_brace)
+                if close_brace is None:
+                    return "".join(chars)
+                for j in range(open_brace + 1, close_brace):
+                    if chars[j] != "\n":
+                        chars[j] = " "
+                i = close_brace + 1
+                continue
+        i += 1
+    return "".join(chars)
+
+
+def _command_substitution_sites(command, cwd):
+    command = _blank_quoted_data_heredoc_bodies(command)
+    command = _blank_shell_function_bodies(command)
+    sites = []
+    shell_cwd = cwd
+    cwd_stack = []
+    segment_start = 0
+    segment_sites = []
+    previous_separator = None
+    last_status = True
+    unsupported_flow = []
+    single = double = False
+    i = 0
+
+    def close_segment(end, next_start, separator=None):
+        nonlocal segment_start, segment_sites, shell_cwd, previous_separator, last_status
+        segment = command[segment_start:end]
+        should_run = _shell_command_should_run(previous_separator, last_status)
+        if segment.strip() and should_run:
+            name = _first_shell_command_name(segment)
+            if unsupported_flow:
+                if name == unsupported_flow[-1]:
+                    unsupported_flow.pop()
+                else:
+                    flow_end = _SHELL_UNSUPPORTED_FLOW_END.get(name)
+                    if flow_end is not None:
+                        unsupported_flow.append(flow_end)
+                last_status = None
+            elif name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+                flow_end = _SHELL_UNSUPPORTED_FLOW_END.get(name)
+                if flow_end is not None:
+                    unsupported_flow.append(flow_end)
+                last_status = None
+            else:
+                sites.extend(segment_sites)
+                shell_cwd, last_status = _shell_cwd_status_after_segment(shell_cwd, segment)
+        segment_sites = []
+        previous_separator = separator
+        segment_start = next_start
+        return False
+
+    def skip_group(index, opener):
+        closer = ")" if opener == "(" else "}"
+        stack = [closer]
+        single = double = False
+        index += 1
+        while index < len(command):
+            ch = command[index]
+            if ch == "\\" and not single:
+                index += 2
+                continue
+            if ch == "'" and not double:
+                single = not single
+                index += 1
+                continue
+            if ch == '"' and not single:
+                double = not double
+                index += 1
+                continue
+            if single:
+                index += 1
+                continue
+            if command.startswith("$(", index):
+                body, end = _read_dollar_substitution(command, index + 2)
+                if body is not None:
+                    index = end + 1
+                    continue
+            if ch == "`":
+                body, end = _read_backtick_substitution(command, index + 1)
+                if body is not None:
+                    index = end + 1
+                    continue
+            if not double and ch in ("(", "{"):
+                stack.append(")" if ch == "(" else "}")
+                index += 1
+                continue
+            if not double and stack and ch == stack[-1]:
+                stack.pop()
+                index += 1
+                if not stack:
+                    return index
+                continue
+            index += 1
+        return index
+
+    while i < len(command):
+        ch = command[i]
+        if ch == "\\" and not single:
+            i += 2
+            continue
+        if ch == "'" and not double:
+            single = not single
+            i += 1
+            continue
+        if ch == '"' and not single:
+            double = not double
+            i += 1
+            continue
+        if single:
+            i += 1
+            continue
+        if not double and _is_shell_comment_start(command, i):
+            newline = command.find("\n", i)
+            if newline < 0:
+                break
+            i = newline
+            continue
+        if command.startswith("$(", i):
+            body, end = _read_dollar_substitution(command, i + 2)
+            if body is not None:
+                segment_sites.append((body, shell_cwd))
+                i = end + 1
+                continue
+        if not double and (command.startswith("<(", i) or command.startswith(">(", i)):
+            body, end = _read_dollar_substitution(command, i + 2)
+            if body is not None:
+                segment_sites.append((body, shell_cwd))
+                i = end + 1
+                continue
+        if ch == "`":
+            body, end = _read_backtick_substitution(command, i + 1)
+            if body is not None:
+                segment_sites.append((body, shell_cwd))
+                i = end + 1
+                continue
+        if not double and ch in (";", "&", "|", "\n"):
+            j = i + 1
+            while j < len(command) and command[j] == ch and ch in ("&", "|"):
+                j += 1
+            if close_segment(i, j, command[i:j]):
+                return sites
+            i = j
+            continue
+        if not double and ch == "(":
+            if not _shell_command_should_run(previous_separator, last_status):
+                segment_sites = []
+                i = skip_group(i, ch)
+                segment_start = i
+                continue
+            if close_segment(i, i + 1):
+                return sites
+            cwd_stack.append(shell_cwd)
+            i += 1
+            continue
+        if not double and ch == ")":
+            if close_segment(i, i + 1):
+                return sites
+            if cwd_stack:
+                shell_cwd = cwd_stack.pop()
+            i += 1
+            continue
+        if not double and ch in ("{", "}"):
+            if ch == "{" and not _shell_command_should_run(previous_separator, last_status):
+                segment_sites = []
+                i = skip_group(i, ch)
+                segment_start = i
+                continue
+            if close_segment(i, i + 1):
+                return sites
+            i += 1
+            continue
+        i += 1
+    close_segment(len(command), len(command))
+    return sites
+
+
+def _is_shell_separator(token):
+    return token in _SHELL_SEPARATORS or (
+        bool(token) and all(ch in _SHELL_SEPARATOR_CHARS for ch in token)
+    )
+
+
+def _shell_command_name(token):
+    return os.path.basename(token)
+
+
+def _split_shell_redirection(token):
+    if token.startswith("&>>"):
+        return "&>>", token[3:]
+    if token.startswith("&>"):
+        return "&>", token[2:]
+    body = re.sub(r"^[0-9]+", "", token)
+    for op in _SHELL_REDIRECT_OPS:
+        if body.startswith(op):
+            return op, body[len(op):]
+    return None, None
+
+
+def _is_shell_redirection(token):
+    op, _ = _split_shell_redirection(token)
+    return op is not None
+
+
+def _redirection_consumes_next(token):
+    op, rest = _split_shell_redirection(token)
+    return op is not None and rest == ""
+
+
+def _heredoc_delimiter(tokens, index):
+    op, rest = _split_shell_redirection(tokens[index])
+    if op not in ("<<", "<<-"):
+        return None, index
+    if rest:
+        return rest, index + 1
+    if index + 1 < len(tokens) and not _is_shell_separator(tokens[index + 1]):
+        return tokens[index + 1], index + 2
+    return None, index + 1
+
+
+def _herestring_body(tokens, index):
+    op, rest = _split_shell_redirection(tokens[index])
+    if op != "<<<":
+        return None, index
+    if rest:
+        return rest, index + 1
+    if index + 1 < len(tokens) and not _is_shell_separator(tokens[index + 1]):
+        return tokens[index + 1], index + 2
+    return None, index + 1
+
+
+def _render_shell_line(tokens):
+    parts = []
+    for tok in tokens:
+        if _is_shell_separator(tok) or _is_shell_redirection(tok):
+            parts.append(tok)
+        else:
+            parts.append(shlex.quote(tok))
+    return " ".join(parts)
+
+
+def _shell_tail_line(tokens, index):
+    end = index
+    while end < len(tokens) and not _is_shell_separator(tokens[end]):
+        end += 1
+    return _render_shell_line(tokens[index:end]), end
+
+
+def _token_opens_shell_substitution_arg(token):
+    return token in ("$", "<") or token.endswith("$") or token.endswith("<")
+
+
+def _append_balanced_shell_group(tokens, index, out):
+    if index >= len(tokens) or tokens[index] != "(":
+        return index
+    depth = 0
+    while index < len(tokens):
+        tok = tokens[index]
+        out.append(tok)
+        if tok == "(":
+            depth += 1
+        elif tok == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return index
+
+
+def _skip_balanced_shell_group(tokens, index):
+    return _append_balanced_shell_group(tokens, index, [])
+
+
+def _skip_unsupported_shell_control_flow(tokens, index):
+    end = _SHELL_UNSUPPORTED_FLOW_END.get(_shell_command_name(tokens[index]))
+    if end is None:
+        return None
+    stack = [end]
+    command_start = False
+    i = index + 1
+    while i < len(tokens):
+        tok = tokens[i]
+        name = _shell_command_name(tok)
+        if _is_shell_separator(tok):
+            command_start = True
+            i += 1
+            continue
+        if command_start:
+            nested_end = _SHELL_UNSUPPORTED_FLOW_END.get(name)
+            if nested_end is not None:
+                stack.append(nested_end)
+            elif stack and name == stack[-1]:
+                stack.pop()
+                i += 1
+                if not stack:
+                    return i
+                command_start = False
+                continue
+            command_start = False
+        i += 1
+    return None
+
+
+def _read_heredoc_bodies(tokens, index, heredocs):
+    bodies = []
+    for delim, executable in heredocs:
+        at_line_start = True
+        line = []
+        lines = []
+        while index < len(tokens):
+            tok = tokens[index]
+            if tok == "\n":
+                if executable:
+                    lines.append(_render_shell_line(line) if line else "")
+                    line = []
+                at_line_start = True
+                index += 1
+                continue
+            if at_line_start and tok == delim:
+                index += 1
+                if index < len(tokens) and tokens[index] == "\n":
+                    index += 1
+                break
+            if executable:
+                line.append(tok)
+            at_line_start = False
+            index += 1
+        if executable:
+            if line:
+                lines.append(_render_shell_line(line))
+            body = "\n".join(lines)
+            if body.strip():
+                bodies.append(body)
+    return index, bodies
+
+
+def _mark_pending_heredocs_executable(pending_heredocs):
+    return [(delim, True) for delim, _ in pending_heredocs]
+
+
+def _resolve_shell_cd(shell_cwd, target):
+    if os.path.isabs(target):
+        return os.path.normpath(target)
+    return os.path.normpath(os.path.join(shell_cwd, target))
+
+
+def _resolve_existing_shell_cd(shell_cwd, target):
+    path = _resolve_shell_cd(shell_cwd, target)
+    return path if os.path.isdir(path) else shell_cwd
+
+
+def _shell_cd_target(tokens, index):
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "--":
+            index += 1
+            break
+        if tok in _SHELL_CD_OPTIONS_NO_ARG:
+            index += 1
+            continue
+        break
+    if index < len(tokens) and not _is_shell_separator(tokens[index]):
+        return tokens[index], index + 1
+    return None, index
+
+
+def _shell_command_should_run(separator, last_status):
+    if separator == "&&":
+        return last_status is not False
+    if separator == "||":
+        return last_status is not True
+    return True
+
+
+def _shell_command_run_is_certain(separator, last_status):
+    if separator == "&&":
+        return last_status is True
+    if separator == "||":
+        return last_status is False
+    return True
+
+
+def _known_shell_status(name):
+    if name == "true":
+        return True
+    if name == "false":
+        return False
+    return None
+
+
+def _skip_shell_group(tokens, index):
+    closers = {"(": ")", "{": "}"}
+    stack = [closers[tokens[index]]]
+    index += 1
+    while index < len(tokens) and stack:
+        tok = tokens[index]
+        if tok in closers:
+            stack.append(closers[tok])
+        elif tok == stack[-1]:
+            stack.pop()
+        index += 1
+    return index
+
+
+def _shell_function_body_start(tokens, index):
+    if index >= len(tokens):
+        return None, None
+    name = _shell_command_name(tokens[index])
+    if name == "function":
+        if index + 2 >= len(tokens):
+            return None, None
+        body = index + 2
+        if tokens[body] == "()":
+            body += 1
+        if body < len(tokens) and "{" in tokens[body]:
+            return body, "{"
+        return None, None
+    if index + 1 >= len(tokens):
+        return None, None
+    next_tok = tokens[index + 1]
+    if next_tok == "()":
+        body = index + 2
+        if body < len(tokens) and ("{" in tokens[body] or "(" in tokens[body]):
+            return body, "{" if "{" in tokens[body] else "("
+    if next_tok.startswith("()") and "{" in next_tok:
+        return index + 1, "{"
+    return None, None
+
+
+def _skip_shell_function_definition(tokens, index):
+    body, opener = _shell_function_body_start(tokens, index)
+    if body is None:
+        return None
+    closer = "}" if opener == "{" else ")"
+    depth = 0
+    started = False
+    i = body
+    while i < len(tokens):
+        tok = tokens[i]
+        for ch in tok:
+            if ch == opener:
+                depth += 1
+                started = True
+            elif ch == closer and started:
+                depth -= 1
+                if depth <= 0:
+                    return i + 1
+        i += 1
+    return len(tokens)
+
+
+def _shell_function_definition(tokens, index):
+    body, _ = _shell_function_body_start(tokens, index)
+    if body is None:
+        return None
+    end = _skip_shell_function_definition(tokens, index)
+    if end is None:
+        return None
+    if _shell_command_name(tokens[index]) == "function":
+        if index + 1 >= len(tokens):
+            return None
+        name = tokens[index + 1]
+    else:
+        name = tokens[index]
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+        return None
+    return name, _render_shell_line(tokens[body + 1:end - 1]), end
+
+
+def _skip_shell_command(tokens, index):
+    skipped = _skip_shell_function_definition(tokens, index)
+    if skipped is not None:
+        return skipped
+    if index < len(tokens) and tokens[index] in ("(", "{"):
+        return _skip_shell_group(tokens, index)
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        index += 1
+    return index
+
+
+def _is_shell_assignment(token):
+    return bool(re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", token))
+
+
+def _skip_env_wrapper(tokens, index, shell_cwd):
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "--":
+            return index + 1, shell_cwd
+        if _is_shell_assignment(tok):
+            index += 1
+            continue
+        if tok in ("-C", "--chdir"):
+            if index + 1 >= len(tokens):
+                return len(tokens), shell_cwd
+            shell_cwd = _resolve_shell_cd(shell_cwd, tokens[index + 1])
+            index += 2
+            continue
+        if tok.startswith("--chdir="):
+            shell_cwd = _resolve_shell_cd(shell_cwd, tok.split("=", 1)[1])
+            index += 1
+            continue
+        if tok in _ENV_OPTIONS_WITH_ARG:
+            index += 2
+            continue
+        if any(tok.startswith(opt + "=") for opt in _ENV_OPTIONS_WITH_ARG if opt.startswith("--")):
+            index += 1
+            continue
+        if tok.startswith("-") and tok != "-":
+            index += 1
+            continue
+        break
+    return index, shell_cwd
+
+
+def _env_split_string(tokens, index, shell_cwd):
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "--":
+            return None, shell_cwd, index + 1
+        if _is_shell_assignment(tok):
+            index += 1
+            continue
+        if tok in ("-C", "--chdir"):
+            if index + 1 >= len(tokens):
+                return None, shell_cwd, len(tokens)
+            shell_cwd = _resolve_shell_cd(shell_cwd, tokens[index + 1])
+            index += 2
+            continue
+        if tok.startswith("--chdir="):
+            shell_cwd = _resolve_shell_cd(shell_cwd, tok.split("=", 1)[1])
+            index += 1
+            continue
+        if tok in ("-S", "--split-string"):
+            if index + 1 >= len(tokens):
+                return None, shell_cwd, len(tokens)
+            tail, end = _shell_tail_line(tokens, index + 2)
+            body = tokens[index + 1] + (" " + tail if tail else "")
+            return body, shell_cwd, end
+        if tok.startswith("--split-string="):
+            tail, end = _shell_tail_line(tokens, index + 1)
+            body = tok.split("=", 1)[1] + (" " + tail if tail else "")
+            return body, shell_cwd, end
+        if tok in _ENV_OPTIONS_WITH_ARG:
+            index += 2
+            continue
+        if any(tok.startswith(opt + "=") for opt in _ENV_OPTIONS_WITH_ARG if opt.startswith("--")):
+            index += 1
+            continue
+        if tok.startswith("-") and tok != "-":
+            index += 1
+            continue
+        break
+    return None, shell_cwd, index
+
+
+def _shell_c_string(tokens, index):
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "-c" or (tok.startswith("-") and not tok.startswith("--") and "c" in tok[1:]):
+            if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                return None, len(tokens)
+            return tokens[index + 1], index + 2
+        if tok in _SHELL_C_OPTIONS_WITH_ARG:
+            if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                return None, len(tokens)
+            index += 2
+            continue
+        if any(tok.startswith(opt + "=") for opt in _SHELL_C_OPTIONS_WITH_ARG if opt.startswith("--")):
+            index += 1
+            continue
+        if tok == "--":
+            index += 1
+            continue
+        if tok.startswith("-") and tok != "-":
+            index += 1
+            continue
+        break
+    return None, index
+
+
+def _skip_command_wrapper(tokens, index, shell_cwd):
+    name = _shell_command_name(tokens[index])
+    index += 1
+    wrapper_cwd = shell_cwd
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "--":
+            return index + 1, wrapper_cwd
+        if name == "command":
+            if tok == "-p":
+                index += 1
+                continue
+            break
+        if name == "exec":
+            if tok == "-a":
+                if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                    return len(tokens), wrapper_cwd
+                index += 2
+                continue
+            if tok in ("-c", "-l"):
+                index += 1
+                continue
+            break
+        if name == "sudo":
+            if tok in ("-D", "--chdir"):
+                if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                    return len(tokens), wrapper_cwd
+                wrapper_cwd = _resolve_shell_cd(wrapper_cwd, tokens[index + 1])
+                index += 2
+                continue
+            if tok.startswith("--chdir="):
+                wrapper_cwd = _resolve_shell_cd(wrapper_cwd, tok.split("=", 1)[1])
+                index += 1
+                continue
+            if tok in _SUDO_OPTIONS_WITH_ARG:
+                if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                    return len(tokens), wrapper_cwd
+                index += 2
+                continue
+            if any(
+                tok.startswith(opt + "=")
+                for opt in _SUDO_OPTIONS_WITH_ARG
+                if opt.startswith("--")
+            ):
+                index += 1
+                continue
+            if tok.startswith("-") and tok != "-":
+                index += 1
+                continue
+            break
+        break
+    return index, wrapper_cwd
+
+
+def _skip_command_prefix(tokens, index):
+    name = _shell_command_name(tokens[index])
+    index += 1
+    if name != "time":
+        return index
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "--":
+            return index + 1
+        if tok == "-p":
+            index += 1
+            continue
+        if tok == "-o":
+            if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                return len(tokens)
+            index += 2
+            continue
+        break
+    return index
+
+
+def _shell_literal_stdout(tokens, index):
+    name = _shell_command_name(tokens[index])
+    if name not in ("echo", "printf"):
+        return None, None
+    args = []
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if _is_shell_redirection(tok):
+            index += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        args.append(tok)
+        index += 1
+    if name == "echo":
+        while args and args[0] != "-" and args[0].startswith("-") and set(args[0][1:]) <= set("neE"):
+            args = args[1:]
+    return " ".join(args), index
+
+
+def _pathspec_file_option_entries(args, index, cwd):
+    """Pathspec entries named by the ``--pathspec-from-file`` option at ``args[index]``,
+    plus the index of the next token. ``(None, next)`` when the file cannot be read
+    (missing value, stdin, unreadable) — callers treat that as touching live tasks."""
+    nul = "--pathspec-file-nul" in args
+    tok = args[index]
+    if tok in _GIT_ADD_PATHSPEC_FILE_OPTS:
+        if index + 1 >= len(args):
+            return None, len(args)
+        return _pathspec_file_entries(args[index + 1], cwd, nul), index + 2
+    return _pathspec_file_entries(tok.split("=", 1)[1], cwd, nul), index + 1
+
+
+def _git_add_touches_live_tasks(args, git_args, cwd):
+    pathspecs = []
+    broad_update = False
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            pathspecs.extend(args[i + 1:])
+            break
+        if tok in ("-A", "--all", "-u", "--update"):
+            broad_update = True
+            i += 1
+            continue
+        if tok in _GIT_ADD_PATHSPEC_FILE_OPTS or any(
+            tok.startswith(opt + "=") for opt in _GIT_ADD_PATHSPEC_FILE_OPTS
+        ):
+            entries, i = _pathspec_file_option_entries(args, i, cwd)
+            if entries is None:
+                return True
+            pathspecs.extend(entries)
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            flags = tok[1:]
+            if "A" in flags or "u" in flags or "p" in flags or "i" in flags:
+                broad_update = True
+            i += 1
+            continue
+        if tok.startswith("--"):
+            i += 1
+            continue
+        pathspecs.append(tok)
+        i += 1
+    for pathspec in pathspecs:
+        live_paths = _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=True)
+        if live_paths is None or live_paths:
+            return True
+    return broad_update and not pathspecs
+
+
+def _git_rm_touches_live_tasks(args, git_args, cwd):
+    pathspecs = []
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            pathspecs.extend(args[i + 1:])
+            break
+        if tok in _GIT_ADD_PATHSPEC_FILE_OPTS or any(
+            tok.startswith(opt + "=") for opt in _GIT_ADD_PATHSPEC_FILE_OPTS
+        ):
+            entries, i = _pathspec_file_option_entries(args, i, cwd)
+            if entries is None:
+                return True
+            pathspecs.extend(entries)
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        pathspecs.append(tok)
+        i += 1
+    for pathspec in pathspecs:
+        live_paths = _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=True)
+        if live_paths is None or live_paths:
+            return True
+    return False
+
+
+def _split_commit_invocations(command, cwd):
+    nested = []
+    for body, body_cwd in _command_substitution_sites(command, cwd):
+        invocations = _split_commit_invocations(body, body_cwd)
+        if invocations:
+            nested.extend(invocations)
+    tokens = _shell_tokens(command)
+    if tokens is None:
+        return nested or None
+    out = []
+    shell_cwd = cwd
+    cwd_stack = []
+    pending_heredocs = []
+    command_start = True
+    current_command = None
+    previous_separator = None
+    last_status = True
+    scoped_command_cwd = None
+    invert_next_status = False
+    pending_pipe_stdout = None
+    pipe_stdin_text = None
+    shell_functions = {}
+    index_tasks_mutated_roots = set()
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        tok_name = _shell_command_name(tok)
+        if (
+            command_start
+            and (tok in ("(", "{") or not _is_shell_separator(tok))
+            and not _shell_command_should_run(previous_separator, last_status)
+        ):
+            i = _skip_shell_command(tokens, i)
+            command_start = False
+            scoped_command_cwd = None
+            invert_next_status = False
+            continue
+        if command_start:
+            function_def = _shell_function_definition(tokens, i)
+            if function_def is not None:
+                name, body, next_i = function_def
+                shell_functions[name] = body
+                i = next_i
+                command_start = True
+                current_command = None
+                previous_separator = None
+                scoped_command_cwd = None
+                last_status = _apply_shell_status(True, invert_next_status)
+                invert_next_status = False
+                continue
+        if tok == "(":
+            cwd_stack.append(shell_cwd)
+            command_start = True
+            current_command = None
+            i += 1
+            continue
+        if tok == ")":
+            if cwd_stack:
+                shell_cwd = cwd_stack.pop()
+            command_start = False
+            i += 1
+            continue
+        if tok in ("{", "}"):
+            command_start = tok == "{"
+            current_command = None if command_start else current_command
+            i += 1
+            continue
+        if tok == "\n" and pending_heredocs:
+            i, bodies = _read_heredoc_bodies(tokens, i + 1, pending_heredocs)
+            for body in bodies:
+                invocations = _split_commit_invocations(body, shell_cwd)
+                if invocations:
+                    nested.extend(invocations)
+            pending_heredocs = []
+            command_start = True
+            current_command = None
+            continue
+        if _is_shell_separator(tok):
+            command_start = True
+            current_command = None
+            previous_separator = tok
+            pipe_stdin_text = pending_pipe_stdout if tok == "|" else None
+            pending_pipe_stdout = None
+            scoped_command_cwd = None
+            i += 1
+            continue
+        heredoc, next_i = _heredoc_delimiter(tokens, i)
+        if heredoc is not None:
+            pending_heredocs.append((heredoc, current_command in _SHELL_C_WRAPPERS))
+            i = next_i
+            continue
+        herestring, next_i = _herestring_body(tokens, i)
+        if herestring is not None:
+            if current_command in _SHELL_C_WRAPPERS:
+                invocations = _split_commit_invocations(herestring, shell_cwd)
+                if invocations:
+                    nested.extend(invocations)
+            i = next_i
+            continue
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        command_certain = _shell_command_run_is_certain(previous_separator, last_status)
+        command_cwd = scoped_command_cwd or shell_cwd
+        if command_start and tok_name == "!":
+            invert_next_status = not invert_next_status
+            i += 1
+            continue
+        if command_start:
+            stdout_text, _ = _shell_literal_stdout(tokens, i)
+            if stdout_text is not None:
+                pending_pipe_stdout = stdout_text
+        if command_start and tok_name in shell_functions:
+            body = shell_functions[tok_name]
+            invocations = _split_commit_invocations(body, command_cwd)
+            if invocations:
+                nested.extend(invocations)
+            i += 1
+            command_start = False
+            current_command = tok_name
+            previous_separator = None
+            scoped_command_cwd = None
+            last_status = _apply_shell_status(None, invert_next_status)
+            invert_next_status = False
+            pending_pipe_stdout = None
+            pipe_stdin_text = None
+            continue
+        if command_start and tok_name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+            skipped = _skip_unsupported_shell_control_flow(tokens, i)
+            if skipped is None:
+                return out + nested or None
+            i = skipped
+            command_start = True
+            current_command = None
+            previous_separator = None
+            scoped_command_cwd = None
+            last_status = _apply_shell_status(None, invert_next_status)
+            invert_next_status = False
+            continue
+        if command_start and scoped_command_cwd is None and tok_name == "cd":
+            target, next_i = _shell_cd_target(tokens, i)
+            if target is not None:
+                new_cwd = _resolve_existing_shell_cd(shell_cwd, target)
+                status = new_cwd != shell_cwd or os.path.isdir(_resolve_shell_cd(shell_cwd, target))
+                last_status = _apply_shell_status(status, invert_next_status)
+                shell_cwd = new_cwd
+                i = next_i
+                command_start = False
+                current_command = tok_name
+                previous_separator = None
+                invert_next_status = False
+                continue
+        if command_start and tok_name == "env":
+            body, body_cwd, next_i = _env_split_string(tokens, i, command_cwd)
+            if body is not None:
+                invocations = _split_commit_invocations(body, body_cwd)
+                if invocations:
+                    nested.extend(invocations)
+                i = next_i
+                command_start = False
+                previous_separator = None
+                scoped_command_cwd = None
+                last_status = _apply_shell_status(None, invert_next_status)
+                invert_next_status = False
+                continue
+            i, scoped_command_cwd = _skip_env_wrapper(tokens, i, command_cwd)
+            if i >= len(tokens) or _is_shell_separator(tokens[i]):
+                command_start = False
+                previous_separator = None
+                scoped_command_cwd = None
+                invert_next_status = False
+            continue
+        if command_start and tok_name in _SHELL_C_WRAPPERS:
+            body, next_i = _shell_c_string(tokens, i)
+            if body is not None:
+                invocations = _split_commit_invocations(body, command_cwd)
+                if invocations:
+                    nested.extend(invocations)
+                i = next_i
+                command_start = False
+                previous_separator = None
+                scoped_command_cwd = None
+                last_status = _apply_shell_status(None, invert_next_status)
+                invert_next_status = False
+                continue
+        if command_start and (
+            tok_name in _SHELL_COMMAND_WRAPPERS
+        ):
+            i, scoped_command_cwd = _skip_command_wrapper(tokens, i, command_cwd)
+            continue
+        if command_start and tok_name in _SHELL_COMMAND_PREFIXES:
+            i = _skip_command_prefix(tokens, i)
+            continue
+        if command_start and _is_shell_assignment(tok):
+            i += 1
+            continue
+        if command_start:
+            current_command = tok_name
+            if current_command in _SHELL_C_WRAPPERS:
+                pending_heredocs = _mark_pending_heredocs_executable(pending_heredocs)
+        if tok_name != "git" or not command_start:
+            if command_start:
+                last_status = _apply_shell_status(_known_shell_status(tok_name), invert_next_status)
+                invert_next_status = False
+            command_start = False
+            previous_separator = None
+            scoped_command_cwd = None
+            i += 1
+            continue
+        j = i + 1
+        gargs = ["-C", command_cwd] if command_cwd else []
+        git_cwd = command_cwd
+        while j < len(tokens) and not _is_shell_separator(tokens[j]):
+            tok = tokens[j]
+            if _is_shell_redirection(tok):
+                j += 2 if _redirection_consumes_next(tok) else 1
+                continue
+            if tok in _GIT_GLOBALS_WITH_ARG:
+                if j + 1 >= len(tokens):
+                    break
+                if tok in ("-C", "--git-dir", "--work-tree"):
+                    gargs += [tok, tokens[j + 1]]
+                if tok == "-C":
+                    git_cwd = _resolve_shell_cd(git_cwd, tokens[j + 1])
+                j += 2
+                continue
+            if tok.startswith("--git-dir="):
+                gargs += ["--git-dir", tok.split("=", 1)[1]]
+                j += 1
+                continue
+            if tok.startswith("--work-tree="):
+                gargs += ["--work-tree", tok.split("=", 1)[1]]
+                j += 1
+                continue
+            if tok in _GIT_GLOBALS_NO_ARG:
+                j += 1
+                continue
+            break
+        if j < len(tokens) and tokens[j] == "add":
+            k = j + 1
+            add_args = []
+            while k < len(tokens) and not _is_shell_separator(tokens[k]):
+                add_args.append(tokens[k])
+                k += 1
+            if command_certain and _git_add_touches_live_tasks(add_args, gargs, git_cwd):
+                root = _commit_invocation_root({"git_args": gargs, "args": [], "cwd": git_cwd}, cwd)
+                if root:
+                    index_tasks_mutated_roots.add(os.path.realpath(root))
+            i = k
+            command_start = False
+            last_status = _apply_shell_status(None, invert_next_status)
+            previous_separator = None
+            scoped_command_cwd = None
+            invert_next_status = False
+            pending_pipe_stdout = None
+            pipe_stdin_text = None
+            continue
+        if j < len(tokens) and tokens[j] == "rm":
+            k = j + 1
+            rm_args = []
+            while k < len(tokens) and not _is_shell_separator(tokens[k]):
+                rm_args.append(tokens[k])
+                k += 1
+            if command_certain and _git_rm_touches_live_tasks(rm_args, gargs, git_cwd):
+                root = _commit_invocation_root({"git_args": gargs, "args": [], "cwd": git_cwd}, cwd)
+                if root:
+                    index_tasks_mutated_roots.add(os.path.realpath(root))
+            i = k
+            command_start = False
+            last_status = _apply_shell_status(None, invert_next_status)
+            previous_separator = None
+            scoped_command_cwd = None
+            invert_next_status = False
+            pending_pipe_stdout = None
+            pipe_stdin_text = None
+            continue
+        if j < len(tokens) and tokens[j] == "commit":
+            k = j + 1
+            args = []
+            while k < len(tokens):
+                if _is_shell_separator(tokens[k]):
+                    if tokens[k] == "(" and args and _token_opens_shell_substitution_arg(args[-1]):
+                        k = _append_balanced_shell_group(tokens, k, args)
+                        continue
+                    break
+                args.append(tokens[k])
+                k += 1
+            stdin_text = pipe_stdin_text
+            pending_commit_heredocs = []
+            scan = 0
+            while scan < len(args):
+                heredoc, next_scan = _heredoc_delimiter(args, scan)
+                if heredoc is not None:
+                    pending_commit_heredocs.append((heredoc, True))
+                    scan = next_scan
+                    continue
+                scan += 1
+            if pending_commit_heredocs and k < len(tokens) and tokens[k] == "\n":
+                _, bodies = _read_heredoc_bodies(tokens, k + 1, pending_commit_heredocs)
+                if bodies:
+                    stdin_text = "\n".join(bodies)
+            invocation = {"git_args": gargs, "args": args, "cwd": git_cwd}
+            root = _commit_invocation_root(invocation, cwd)
+            if root and os.path.realpath(root) in index_tasks_mutated_roots:
+                invocation["index_tasks_mutated"] = True
+            out.append(invocation)
+            if stdin_text is not None:
+                out[-1]["stdin"] = stdin_text
+            i = k
+            command_start = False
+            last_status = _apply_shell_status(None, invert_next_status)
+            previous_separator = None
+            scoped_command_cwd = None
+            invert_next_status = False
+            pending_pipe_stdout = None
+            pipe_stdin_text = None
+            continue
+        command_start = False
+        last_status = _apply_shell_status(None, invert_next_status)
+        previous_separator = None
+        scoped_command_cwd = None
+        invert_next_status = False
+        pending_pipe_stdout = None
+        pipe_stdin_text = None
+        i = max(j + 1, i + 1)
+    return out + nested
+
+
+def _commit_invocation_root(invocation, cwd):
+    gargs = invocation["git_args"]
+    if gargs:
+        has_git_dir = "--git-dir" in gargs
+        has_work_tree = "--work-tree" in gargs
+        if has_git_dir and not has_work_tree:
+            configured_work_tree = _git(gargs + ["config", "--path", "--get", "core.worktree"], cwd)
+            if configured_work_tree is not None and configured_work_tree.strip():
+                out = _git(gargs + ["rev-parse", "--show-toplevel"], cwd)
+                if out is not None and out.strip():
+                    return out.strip()
+            out = _git(gargs + ["rev-parse", "--absolute-git-dir"], cwd)
+            if out is not None and out.strip():
+                git_dir = os.path.normpath(out.strip())
+                if os.path.basename(git_dir) == ".git":
+                    return os.path.dirname(git_dir)
+            return None
+        out = _git(gargs + ["rev-parse", "--show-toplevel"], cwd)
+        if out is not None and out.strip():
+            return out.strip()
+    return _repo_root(cwd)
+
+
+def _read_regular_file(path, cwd):
+    if not path or path == "-":
+        return None
+    fp = path if os.path.isabs(path) else os.path.join(cwd or os.getcwd(), path)
+    fd = None
+    try:
+        fd = os.open(fp, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+        st = os.fstat(fd)
+        if not stat.S_ISREG(st.st_mode) or st.st_size > _MAX_GUARD_FILE_READ_BYTES:
+            return None
+        chunks = []
+        remaining = _MAX_GUARD_FILE_READ_BYTES + 1
+        while remaining > 0:
+            chunk = os.read(fd, remaining)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+    except Exception:
+        return None
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except Exception:
+                pass
+    raw = b"".join(chunks)
+    if len(raw) > _MAX_GUARD_FILE_READ_BYTES:
+        return None
+    return raw
+
+
+def _task_ids_from_commit_message_file(path, cwd):
+    if not path or path == "-":
+        return set()
+    raw = _read_regular_file(path, cwd)
+    if raw is None:
+        return set()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("utf-8", "surrogateescape")
+    return set(_RE_TASK_ID.findall(text))
+
+
+def _task_ids_from_commit_ref(ref, fmt, cwd=None, git_args=None):
+    if not ref:
+        return set()
+    message = _git((git_args or []) + ["show", "-s", "--format=" + fmt, ref], cwd or os.getcwd())
+    if message is None:
+        return set()
+    return set(_RE_TASK_ID.findall(message))
+
+
+def _task_ids_from_commit_subject_ref(ref, cwd=None, git_args=None):
+    return _task_ids_from_commit_ref(ref, "%s", cwd, git_args)
+
+
+def _task_ids_from_commit_message_ref(ref, cwd=None, git_args=None):
+    return _task_ids_from_commit_ref(ref, "%B", cwd, git_args)
+
+
+def _task_ids_from_fixup_ref(value, cwd=None, git_args=None):
+    if not value:
+        return set()
+    for prefix in ("amend:", "reword:"):
+        if value.startswith(prefix):
+            return _task_ids_from_commit_message_ref(value[len(prefix):], cwd, git_args)
+    return _task_ids_from_commit_subject_ref(value, cwd, git_args)
+
+
+def _commit_reuses_head_subject(args):
+    amend = False
+    no_edit = False
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            break
+        if tok == "--amend":
+            amend = True
+            i += 1
+            continue
+        if tok == "--no-edit":
+            no_edit = True
+            i += 1
+            continue
+        if tok == "--edit":
+            no_edit = False
+            i += 1
+            continue
+        if tok in _COMMIT_VALUE_OPTS:
+            i += 2
+            continue
+        if any(tok.startswith(prefix) for prefix in _COMMIT_VALUE_PREFIXES):
+            i += 1
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            _, consumes_next = _short_option_flags_before_value(tok)
+            i += 2 if consumes_next else 1
+            continue
+        i += 1
+    return amend and no_edit
+
+
+def _task_ids_from_commit_stdin(args, stdin_text=None, cwd=None):
+    out = set(_RE_TASK_ID.findall(stdin_text or ""))
+    i = 0
+    while i < len(args):
+        op, rest = _split_shell_redirection(args[i])
+        if op == "<<<":
+            text = rest
+            if not text and i + 1 < len(args):
+                text = args[i + 1]
+            out.update(_RE_TASK_ID.findall(text or ""))
+            i += 2 if rest == "" else 1
+            continue
+        if op in ("<", "<>"):
+            path = rest
+            path_index = i
+            if not path and i + 1 < len(args):
+                path = args[i + 1]
+                path_index = i + 1
+            expanded = _task_ids_from_shell_expansion_tokens(args, path_index, path)
+            if expanded:
+                out.update(expanded)
+            else:
+                out.update(_task_ids_from_commit_message_file(path, cwd))
+            i += 2 if rest == "" else 1
+            continue
+        if op is not None:
+            i += 2 if rest == "" else 1
+            continue
+        i += 1
+    return out
+
+
+def _task_ids_from_shell_expansion_tokens(args, index, value=None):
+    text = args[index] if value is None and index < len(args) else (value or "")
+    out = set(_RE_TASK_ID.findall(text))
+    if text in ("$", "<") and index + 1 < len(args) and args[index + 1] == "(":
+        depth = 1
+        j = index + 2
+        body = []
+        while j < len(args):
+            tok = args[j]
+            if tok == "(":
+                depth += 1
+            elif tok == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            body.append(tok)
+            j += 1
+        if depth == 0:
+            out.update(_RE_TASK_ID.findall(" ".join(body)))
+    return out
+
+
+def _task_ids_from_commit_message_arg(args, index, value=None):
+    return _task_ids_from_shell_expansion_tokens(args, index, value)
+
+
+def _task_ids_from_commit_file_arg(args, index, value, cwd=None, stdin_text=None):
+    if value == "-":
+        return _task_ids_from_commit_stdin(args, stdin_text, cwd)
+    if _token_opens_shell_substitution_arg(value):
+        expanded = _task_ids_from_shell_expansion_tokens(args, index, value)
+        if expanded:
+            return expanded
+    return _task_ids_from_commit_message_file(value, cwd)
+
+
+def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None):
+    out = set()
+    replaces_message = False
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if tok == "--":
+            break
+        if tok in _COMMIT_MESSAGE_OPTS:
+            if tok != "--trailer":
+                replaces_message = True
+            if i + 1 < len(args):
+                out.update(_task_ids_from_commit_message_arg(args, i + 1))
+            i += 2
+            continue
+        if tok in _COMMIT_MESSAGE_FILE_OPTS:
+            replaces_message = True
+            if i + 1 < len(args):
+                out.update(_task_ids_from_commit_file_arg(args, i + 1, args[i + 1], cwd, stdin_text))
+            i += 2
+            continue
+        if tok in _COMMIT_REUSE_MESSAGE_OPTS:
+            replaces_message = True
+            if i + 1 < len(args):
+                out.update(_task_ids_from_commit_message_ref(args[i + 1], cwd, git_args))
+            i += 2
+            continue
+        if tok in _COMMIT_GENERATED_MESSAGE_OPTS:
+            replaces_message = True
+            if i + 1 < len(args):
+                if tok == "--fixup":
+                    out.update(_task_ids_from_fixup_ref(args[i + 1], cwd, git_args))
+                else:
+                    out.update(_task_ids_from_commit_subject_ref(args[i + 1], cwd, git_args))
+            i += 2
+            continue
+        if tok.startswith("--message="):
+            replaces_message = True
+            out.update(_task_ids_from_commit_message_arg(args, i, tok.split("=", 1)[1]))
+            i += 1
+            continue
+        if tok.startswith("--trailer="):
+            out.update(_RE_TASK_ID.findall(tok.split("=", 1)[1]))
+            i += 1
+            continue
+        if tok.startswith("--file="):
+            replaces_message = True
+            msg_file = tok.split("=", 1)[1]
+            out.update(_task_ids_from_commit_file_arg(args, i, msg_file, cwd, stdin_text))
+            i += 1
+            continue
+        if tok.startswith("--reuse-message=") or tok.startswith("--reedit-message="):
+            replaces_message = True
+            out.update(_task_ids_from_commit_message_ref(tok.split("=", 1)[1], cwd, git_args))
+            i += 1
+            continue
+        if tok.startswith("--fixup="):
+            replaces_message = True
+            out.update(_task_ids_from_fixup_ref(tok.split("=", 1)[1], cwd, git_args))
+            i += 1
+            continue
+        if tok.startswith("--squash="):
+            replaces_message = True
+            out.update(_task_ids_from_commit_subject_ref(tok.split("=", 1)[1], cwd, git_args))
+            i += 1
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            body = tok[1:]
+            if "m" in body:
+                replaces_message = True
+                msg = body.split("m", 1)[1]
+                if msg:
+                    out.update(_task_ids_from_commit_message_arg(args, i, msg))
+                    i += 1
+                else:
+                    if i + 1 < len(args):
+                        out.update(_task_ids_from_commit_message_arg(args, i + 1))
+                    i += 2
+                continue
+            if "F" in body:
+                replaces_message = True
+                msg_file = body.split("F", 1)[1]
+                if msg_file:
+                    out.update(_task_ids_from_commit_file_arg(args, i, msg_file, cwd, stdin_text))
+                    i += 1
+                else:
+                    if i + 1 < len(args):
+                        out.update(
+                            _task_ids_from_commit_file_arg(
+                                args, i + 1, args[i + 1], cwd, stdin_text
+                            )
+                        )
+                    i += 2
+                continue
+            if "C" in body or "c" in body:
+                replaces_message = True
+                opt = "C" if "C" in body else "c"
+                ref = body.split(opt, 1)[1]
+                if ref:
+                    out.update(_task_ids_from_commit_message_ref(ref, cwd, git_args))
+                    i += 1
+                else:
+                    if i + 1 < len(args):
+                        out.update(_task_ids_from_commit_message_ref(args[i + 1], cwd, git_args))
+                    i += 2
+                continue
+        i += 1
+    if not replaces_message and _commit_reuses_head_subject(args):
+        out.update(_task_ids_from_commit_message_ref("HEAD", cwd, git_args))
+    return sorted(out)
+
+
+def _is_live_tasks_pathspec(token, root=None):
+    path = token.replace("\\", "/")
+    if os.path.isabs(path):
+        if not root:
+            return False
+        try:
+            path = os.path.relpath(os.path.realpath(path), os.path.realpath(root)).replace("\\", "/")
+        except ValueError:
+            return False
+    while path.startswith("./"):
+        path = path[2:]
+    parts = path.split("/")
+    return (
+        len(parts) == 3
+        and parts[0] == "specs"
+        and bool(parts[1])
+        and parts[1] not in (".", "..")
+        and parts[2] == "tasks.md"
+    )
+
+
+def _root_relative_git_path(path, root, cwd):
+    path = path.replace("\\", "/")
+    if os.path.isabs(path):
+        abspath = path
+    else:
+        abspath = os.path.join(cwd or root, path)
+    try:
+        rel = os.path.relpath(
+            os.path.realpath(abspath),
+            os.path.realpath(root),
+        ).replace("\\", "/")
+    except ValueError:
+        return None
+    if rel == ".":
+        return rel
+    if rel.startswith("../") or rel == "..":
+        return None
+    return rel
+
+
+def _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd):
+    root = _git(git_args + ["rev-parse", "--show-toplevel"], cwd)
+    if root is None or not root.strip():
+        return None, False
+    root = root.strip()
+    query = pathspec
+    query_cwd = cwd or root
+    if not pathspec.startswith(":") and not any(ch in pathspec for ch in "*?["):
+        query = _root_relative_git_path(pathspec, root, query_cwd)
+        if query is None:
+            return set(), False
+        query_cwd = root
+    out = _git(git_args + ["-C", query_cwd, "ls-tree", "-r", "--name-only", "HEAD", "--", query], cwd)
+    if out is None:
+        return None, False
+    matched = False
+    paths = set()
+    for rel in out.splitlines():
+        if not rel:
+            continue
+        matched = True
+        normalized = _root_relative_git_path(rel, root, query_cwd)
+        if normalized and _is_live_tasks_pathspec(normalized):
+            paths.add(normalized)
+    return paths, matched
+
+
+def _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=False):
+    out = _git(git_args + ["ls-files", "--full-name", "--", pathspec], cwd)
+    if out is None:
+        return None
+    matched_index = False
+    paths = set()
+    for rel in out.splitlines():
+        if rel:
+            matched_index = True
+        if rel and _is_live_tasks_pathspec(rel):
+            paths.add(rel.replace("\\", "/"))
+    head_paths, matched_head = _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd)
+    if head_paths is None:
+        return None
+    paths.update(head_paths)
+    exact = _exact_live_tasks_pathspec(pathspec, git_args, cwd)
+    if exact is not None:
+        paths.add(exact)
+    if not matched_index and not matched_head and not paths:
+        return set() if allow_unmatched else None
+    return paths
+
+
+def _exact_live_tasks_pathspec(pathspec, git_args, cwd):
+    if pathspec.startswith(":") or any(ch in pathspec for ch in "*?["):
+        return None
+    root = _git(git_args + ["rev-parse", "--show-toplevel"], cwd)
+    if root is None or not root.strip():
+        return None
+    root = os.path.realpath(root.strip())
+    path = pathspec
+    if not os.path.isabs(path):
+        path = os.path.join(cwd, path)
+    try:
+        rel = os.path.relpath(os.path.realpath(path), root).replace("\\", "/")
+    except ValueError:
+        return None
+    if rel.startswith("../") or rel == ".." or not _is_live_tasks_pathspec(rel):
+        return None
+    if _git(git_args + ["cat-file", "-e", "HEAD:{}".format(rel)], cwd) is None:
+        return None
+    return rel
+
+
+def _exclude_pathspec_payload(pathspec):
+    if pathspec.startswith(":!") or pathspec.startswith(":^"):
+        return pathspec[2:] or "."
+    if not pathspec.startswith(":("):
+        return None
+    end = pathspec.find(")")
+    if end < 0:
+        return None
+    magic = [part.strip() for part in pathspec[2:end].split(",")]
+    if "exclude" not in magic and "!" not in magic and "^" not in magic:
+        return None
+    kept = [part for part in magic if part not in ("exclude", "!", "^")]
+    payload = pathspec[end + 1:] or "."
+    if kept:
+        return ":({}){}".format(",".join(kept), payload)
+    return payload
+
+
+def _short_option_flags_before_value(token):
+    if not token.startswith("-") or token.startswith("--"):
+        return None, False
+    body = token[1:]
+    value_options = []
+    for opt in "mFCct":
+        pos = body.find(opt)
+        if pos >= 0:
+            value_options.append((pos, True))
+    for opt in "uS":
+        pos = body.find(opt)
+        if pos >= 0:
+            value_options.append((pos, False))
+    if not value_options:
+        return body, False
+    first, requires_next = min(value_options, key=lambda item: item[0])
+    return body[:first], requires_next and body[first + 1:] == ""
+
+
+def _pathspec_file_entries(pathspec_file, pathspec_cwd, nul=False):
+    if not pathspec_cwd:
+        return None
+    raw = _read_regular_file(pathspec_file, pathspec_cwd)
+    if raw is None:
+        return None
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("utf-8", "surrogateescape")
+    entries = text.split("\0") if nul else text.splitlines()
+    out = []
+    for entry in entries:
+        entry = entry.strip()
+        if not entry:
+            continue
+        out.append(entry)
+    return out
+
+
+def _commit_pathspec_mode(args):
+    include_mode = False
+    only_mode = False
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            break
+        if tok == "--include":
+            include_mode = True
+            only_mode = False
+            i += 1
+            continue
+        if tok == "--no-include":
+            include_mode = False
+            i += 1
+            continue
+        if tok == "--only":
+            include_mode = False
+            only_mode = True
+            i += 1
+            continue
+        if tok == "--no-only":
+            only_mode = False
+            i += 1
+            continue
+        if (
+            tok.startswith("--include=")
+            or tok.startswith("--only=")
+            or tok.startswith("--no-include=")
+            or tok.startswith("--no-only=")
+        ):
+            i += 1
+            continue
+        if tok in _COMMIT_VALUE_OPTS:
+            i += 2
+            continue
+        if any(tok.startswith(prefix) for prefix in _COMMIT_VALUE_PREFIXES):
+            i += 1
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            flags, consumes_next = _short_option_flags_before_value(tok)
+            if flags:
+                for flag in flags:
+                    if flag == "i":
+                        include_mode = True
+                        only_mode = False
+                    elif flag == "o":
+                        include_mode = False
+                        only_mode = True
+            i += 2 if consumes_next else 1
+            continue
+        i += 1
+    return include_mode, only_mode
+
+
+def _commit_has_reword_fixup(args):
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            break
+        if tok == "--fixup":
+            if i + 1 < len(args) and args[i + 1].startswith("reword:"):
+                return True
+            i += 2
+            continue
+        if tok.startswith("--fixup="):
+            return tok.split("=", 1)[1].startswith("reword:")
+        if tok in _COMMIT_VALUE_OPTS:
+            i += 2
+            continue
+        if any(tok.startswith(prefix) for prefix in _COMMIT_VALUE_PREFIXES):
+            i += 1
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            _, consumes_next = _short_option_flags_before_value(tok)
+            i += 2 if consumes_next else 1
+            continue
+        i += 1
+    return False
+
+
+def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, cwd=None):
+    i = 0
+    after_double_dash = False
+    pathspec_file_nul = "--pathspec-file-nul" in args
+    explicit_pathspec = False
+    all_mode = False
+    include_mode, only_mode = _commit_pathspec_mode(args)
+    only_mode = only_mode or _commit_has_reword_fixup(args)
+    worktree_paths = set()
+    excluded_worktree_paths = set()
+    positive_pathspec = False
+    git_args = git_args or []
+    cwd = cwd or pathspec_cwd or root
+
+    def add_pathspec(pathspec, includes_index):
+        nonlocal explicit_pathspec, positive_pathspec
+        exclude_payload = _exclude_pathspec_payload(pathspec)
+        live_paths = _pathspec_live_tasks_paths(
+            exclude_payload if exclude_payload is not None else pathspec, git_args, cwd,
+            allow_unmatched=exclude_payload is not None,
+        )
+        if live_paths is None:
+            return False
+        if exclude_payload is not None:
+            excluded_worktree_paths.update(live_paths)
+            worktree_paths.difference_update(live_paths)
+        else:
+            positive_pathspec = True
+            worktree_paths.update(live_paths - excluded_worktree_paths)
+        if not includes_index:
+            explicit_pathspec = True
+        return True
+
+    def add_pathspec_file(pathspec_file, includes_index):
+        entries = _pathspec_file_entries(pathspec_file, pathspec_cwd, pathspec_file_nul)
+        if entries is None:
+            return False
+        for entry in entries:
+            if not add_pathspec(entry, includes_index):
+                return False
+        return True
+
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "(":
+            i = _skip_balanced_shell_group(args, i)
+            continue
+        if after_double_dash:
+            if not add_pathspec(tok, include_mode):
+                return None
+            i += 1
+            continue
+        if tok == "--":
+            after_double_dash = True
+            i += 1
+            continue
+        if tok == "--pathspec-from-file":
+            if i + 1 >= len(args):
+                return None
+            if not add_pathspec_file(args[i + 1], include_mode):
+                return None
+            i += 2
+            continue
+        if tok.startswith("--pathspec-from-file="):
+            if not add_pathspec_file(tok.split("=", 1)[1], include_mode):
+                return None
+            i += 1
+            continue
+        if tok == "--all":
+            all_mode = True
+            i += 1
+            continue
+        if tok == "--no-all":
+            all_mode = False
+            i += 1
+            continue
+        if tok.startswith("--all="):
+            return None
+        if tok in {"--patch", "--interactive"}:
+            return None
+        if tok in {"--include", "--no-include", "--only", "--no-only"}:
+            i += 1
+            continue
+        if (
+            tok.startswith("--include=")
+            or tok.startswith("--only=")
+            or tok.startswith("--no-include=")
+            or tok.startswith("--no-only=")
+        ):
+            return None
+        if tok in _COMMIT_VALUE_OPTS:
+            i += 2
+            continue
+        if any(tok.startswith(prefix) for prefix in _COMMIT_VALUE_PREFIXES):
+            i += 1
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            flags, consumes_next = _short_option_flags_before_value(tok)
+            if flags is not None and "p" in flags:
+                return None
+            if flags is not None and "a" in flags:
+                all_mode = True
+            if consumes_next:
+                i += 2
+                continue
+            i += 1
+            continue
+        if not tok.startswith("-"):
+            if not add_pathspec(tok, include_mode):
+                return None
+        i += 1
+    if explicit_pathspec and not positive_pathspec:
+        live_paths = _pathspec_live_tasks_paths(".", git_args, root or cwd)
+        if live_paths is None:
+            return None
+        worktree_paths.update(live_paths - excluded_worktree_paths)
+    if all_mode and not only_mode:
+        index_paths = _index_pinned_live_tasks_paths(root, git_args, cwd) if root else None
+        return {
+            "base": _COMMIT_TASKS_WORKTREE,
+            "worktree_paths": set(),
+            "index_paths": index_paths or set(),
+        }
+    return {
+        "base": (
+            _COMMIT_TASKS_HEAD
+            if explicit_pathspec or only_mode
+            else _COMMIT_TASKS_INDEX
+        ),
+        "worktree_paths": worktree_paths,
+    }
+
+
+def _commit_is_dry_run(args):
+    dry_run = False
+    status_dry_run = False
+    nul_status_dry_run = False
+    i = 0
+    while i < len(args):
+        tok = args[i]
+        if _is_shell_redirection(tok):
+            i += 2 if _redirection_consumes_next(tok) else 1
+            continue
+        if tok == "--":
+            break
+        if tok in _COMMIT_VALUE_OPTS:
+            i += 2
+            continue
+        if any(tok.startswith(prefix) for prefix in _COMMIT_VALUE_PREFIXES):
+            i += 1
+            continue
+        if tok.startswith("-") and not tok.startswith("--"):
+            flags, consumes_next = _short_option_flags_before_value(tok)
+            if flags and "z" in flags:
+                nul_status_dry_run = True
+            i += 2 if consumes_next else 1
+            continue
+        if tok == "--dry-run":
+            dry_run = True
+        elif tok == "--no-dry-run":
+            dry_run = False
+        elif tok in _COMMIT_STATUS_DRY_RUN_OPTS:
+            status_dry_run = True
+        elif tok in _COMMIT_STATUS_DRY_RUN_NEGATED_OPTS:
+            status_dry_run = False
+        i += 1
+    return dry_run or status_dry_run or nul_status_dry_run
+
+
+def _shared_unchecked_task_patterns():
+    try:
+        with open(_TASKS_DRIFT_LIB, encoding="utf-8") as f:
+            body = f.read()
+    except Exception:
+        return None
+    m = re.search(r"tasks_drift_unchecked_ids\(\)\s*\{(?P<body>.*?)\n\}", body, re.S)
+    if not m:
+        return None
+    fn = m.group("body")
+    line_pattern = re.search(r"grep\s+-hoE\s+(['\"])(?P<pat>.*?)\1\s+specs/\*/tasks\.md", fn, re.S)
+    id_pattern = re.search(r"\|\s*grep\s+-oE\s+(['\"])(?P<pat>.*?)\1", fn, re.S)
+    if not line_pattern or not id_pattern:
+        return None
+    try:
+        return re.compile(line_pattern.group("pat")), re.compile(id_pattern.group("pat"))
+    except re.error:
+        return None
+
+
+def _unchecked_ids_from_text(text):
+    patterns = _shared_unchecked_task_patterns()
+    if patterns is None:
+        return None
+    line_re, id_re = patterns
+    out = set()
+    for line in text.splitlines():
+        m = line_re.search(line)
+        if not m:
+            continue
+        id_match = id_re.search(m.group(0))
+        if id_match:
+            out.add(id_match.group(0))
+    return out
+
+
+def _live_tasks_paths_in_worktree(root, git_args=None, cwd=None):
+    tracked = _git(
+        (git_args or []) + ["-C", root, "ls-files", "--full-name", "--", "specs"],
+        cwd or root,
+    )
+    if tracked is None:
+        return None
+    paths = set()
+    for rel in tracked.splitlines():
+        rel = rel.replace("\\", "/")
+        if rel and _is_live_tasks_pathspec(rel) and os.path.isfile(os.path.join(root, rel)):
+            paths.add(rel)
+    return paths if paths else None
+
+
+def _live_tasks_paths_in_index(root, git_args=None, cwd=None):
+    tracked = _git(
+        (git_args or []) + ["-C", root, "ls-files", "--full-name", "--", "specs"],
+        cwd or root,
+    )
+    if tracked is None:
+        return None
+    paths = {
+        rel.replace("\\", "/")
+        for rel in tracked.splitlines()
+        if rel and _is_live_tasks_pathspec(rel)
+    }
+    return paths if paths else None
+
+
+def _index_pinned_live_tasks_paths(root, git_args=None, cwd=None):
+    """Live tasks files whose skip-worktree or assume-unchanged index bit makes
+    ``git commit -a`` land the index blob instead of the worktree content
+    (``git ls-files -v``: tag ``S`` or lowercase). None on any git failure ->
+    the caller keeps the plain worktree view (fail open)."""
+    listed = _git(
+        (git_args or []) + ["-C", root, "ls-files", "-v", "--full-name", "--", "specs"],
+        cwd or root,
+    )
+    if listed is None:
+        return None
+    paths = set()
+    for line in listed.splitlines():
+        if len(line) < 3 or line[1] != " ":
+            continue
+        tag, rel = line[0], line[2:].replace("\\", "/")
+        if _is_live_tasks_pathspec(rel) and (tag == "S" or tag.islower()):
+            paths.add(rel)
+    return paths
+
+
+def _live_tasks_paths_in_head(root, git_args=None, cwd=None):
+    tracked = _git(
+        (git_args or []) + [
+            "-C", root, "ls-tree", "-r", "--name-only", "HEAD", "--", "specs",
+        ],
+        cwd or root,
+    )
+    if tracked is None:
+        return None
+    paths = {
+        rel.replace("\\", "/")
+        for rel in tracked.splitlines()
+        if rel and _is_live_tasks_pathspec(rel)
+    }
+    return paths if paths else None
+
+
+def _live_tasks_paths(root, view, git_args=None, cwd=None):
+    if view == _COMMIT_TASKS_WORKTREE:
+        return _live_tasks_paths_in_worktree(root, git_args, cwd)
+    if view == _COMMIT_TASKS_HEAD:
+        return _live_tasks_paths_in_head(root, git_args, cwd)
+    return _live_tasks_paths_in_index(root, git_args, cwd)
+
+
+def _tasks_text_in_view(root, view, rel, git_args=None, cwd=None):
+    if view == _COMMIT_TASKS_WORKTREE:
+        path = os.path.join(root, rel)
+        try:
+            if not os.path.isfile(path):
+                return None
+            with open(path, encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            return None
+    if view == _COMMIT_TASKS_HEAD:
+        return _git((git_args or []) + ["show", "HEAD:{}".format(rel)], cwd or root)
+    return _git((git_args or []) + ["show", ":{}".format(rel)], cwd or root)
+
+
+def _unchecked_task_ids_in_commit_view(
+    root, base_view, worktree_paths=None, git_args=None, cwd=None, index_paths=None,
+):
+    worktree_paths = set(worktree_paths or ())
+    index_paths = set(index_paths or ())
+    base_paths = _live_tasks_paths(root, base_view, git_args, cwd)
+    if base_paths is None:
+        if not worktree_paths and not index_paths:
+            return None
+        base_paths = set()
+    ids = set()
+    seen = False
+    for rel in sorted(base_paths | worktree_paths | index_paths):
+        if rel in worktree_paths:
+            view = _COMMIT_TASKS_WORKTREE
+        elif rel in index_paths:
+            view = _COMMIT_TASKS_INDEX
+        else:
+            view = base_view
+        content = _tasks_text_in_view(root, view, rel, git_args, cwd)
+        if content is None:
+            continue
+        unchecked = _unchecked_ids_from_text(content)
+        if unchecked is None:
+            return None
+        seen = True
+        ids.update(unchecked)
+    return ids if seen else None
+
+
+def _unchecked_task_ids_in_worktree(root):
+    return _unchecked_task_ids_in_commit_view(root, _COMMIT_TASKS_WORKTREE)
+
+
+def _unchecked_task_ids_in_index(root):
+    return _unchecked_task_ids_in_commit_view(root, _COMMIT_TASKS_INDEX)
+
+
+def _unchecked_task_ids_in_head(root):
+    return _unchecked_task_ids_in_commit_view(root, _COMMIT_TASKS_HEAD)
+
+
+def _rule_commit_tasks_drift(command, base, cwd):
+    invocations = _split_commit_invocations(command, cwd)
+    if not invocations:
+        return None
+    for invocation in invocations:
+        if _commit_is_dry_run(invocation["args"]):
+            continue
+        pending = _task_ids_from_commit_message(
+            invocation["args"],
+            invocation.get("cwd") or cwd,
+            invocation["git_args"],
+            invocation.get("stdin"),
+        )
+        if not pending:
+            continue
+        root = _commit_invocation_root(invocation, cwd)
+        if not root:
+            continue
+        commit_cwd = invocation.get("cwd") or cwd
+        selection = _commit_tasks_selection(
+            invocation["args"], root, commit_cwd, invocation["git_args"], commit_cwd,
+        )
+        if selection is None:
+            continue
+        if selection["base"] == _COMMIT_TASKS_INDEX and invocation.get("index_tasks_mutated"):
+            continue
+        unchecked = _unchecked_task_ids_in_commit_view(
+            root,
+            selection["base"],
+            selection.get("worktree_paths"),
+            invocation["git_args"],
+            invocation.get("cwd") or cwd,
+            selection.get("index_paths"),
+        )
+        if unchecked is None:
+            continue
+        drifted = [task_id for task_id in pending if task_id in unchecked]
+        if drifted:
+            refs = " ".join("[{}]".format(task_id) for task_id in drifted)
+            return _deny(
+                "commit-tasks-drift",
+                "this commit's message references {} but that task's box in specs/*/tasks.md "
+                "is still '- [ ]' in what this commit will land. Tick the box and stage it in "
+                "this commit, or drop the id if the work is not that task's.".format(refs),
+            )
     return None
 
 
@@ -335,6 +2823,7 @@ def _rule_sed_collision(command, base=None, cwd=None):
 _SHELL_RULES = (
     _rule_bulk_staging,
     _rule_commit_push_base,
+    _rule_commit_tasks_drift,
     _rule_push_refspec_base,
     _rule_sed_collision,
 )
@@ -436,7 +2925,7 @@ def _rule_strong_floor(event, models_file, reviewer_keys, reviewer_match, model_
 
 
 # --------------------------------------------------------------------------------------
-# [edit guard] (rule 7) — delta-based fix-forward lint reject.
+# [edit guard] — delta-based fix-forward lint reject.
 #
 # PHASE NOTE (UNVERIFIED firing phase -> pinned at T620): this check compares the touched
 # file's CURRENT on-disk diagnostics against its committed (HEAD) baseline, so it is only
@@ -600,7 +3089,7 @@ def make_guard_tool_call(
     model_keys=DEFAULT_MODEL_KEYS,
     edit_path_keys=DEFAULT_EDIT_PATH_KEYS,
 ):
-    """The `tool_call`-phase guard policy: rules 1-6. Returns a configured evaluator."""
+    """The `tool_call`-phase guard policy: rules 1-7. Returns a configured evaluator."""
     mfile = models_file or _default_models_file()
     disp = tuple(dispatch_tools)
 
