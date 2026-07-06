@@ -177,11 +177,14 @@ class TestPendingCommitTasksDrift(GuardTestBase):
         _git(["commit", "-q", "-m", "seed fixture tasks file"], cwd)
         return path
 
-    def _commit_seed_change(self, cwd, subject, suffix):
+    def _commit_seed_change(self, cwd, subject, suffix, body=None):
         with open(os.path.join(cwd, "seed.txt"), "a") as f:
             f.write(suffix)
         _git(["add", "seed.txt"], cwd)
-        _git(["commit", "-q", "-m", subject], cwd)
+        args = ["commit", "-q", "-m", subject]
+        if body is not None:
+            args += ["-m", body]
+        _git(args, cwd)
         return subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=cwd,
@@ -314,6 +317,25 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             ))
         )
 
+    def test_all_only_pathspec_reads_head_tasks_view(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("pending\n")
+
+        for command in (
+            'git commit -a --only seed.txt -m "feat: [T987] do the thing"',
+            'git commit -ao seed.txt -m "feat: [T987] do the thing"',
+            'git commit --all --only seed.txt -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
     def test_interactive_patch_commit_modes_fail_open(self):
         cwd = self.repo("feature/x")
         path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -359,10 +381,37 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+        body_source_sha = self._commit_seed_change(
+            cwd,
+            "subject without task id",
+            "body-source\n",
+            body="body references [T987]",
+        )
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("pending body reuse\n")
+        _git(["add", "seed.txt"], cwd)
+
+        for command in (
+            "git commit -C %s" % body_source_sha,
+            "git commit -c %s" % body_source_sha,
+            "git commit --reuse-message=%s" % body_source_sha,
+            "git commit --reedit-message=%s" % body_source_sha,
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
     def test_no_edit_amend_reuses_head_message_task_ids(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
-        self._commit_seed_change(cwd, "feat: [T987] previous work", "source\n")
+        self._commit_seed_change(
+            cwd,
+            "subject without task id",
+            "source\n",
+            body="body references [T987]",
+        )
         with open(os.path.join(cwd, "seed.txt"), "a") as f:
             f.write("pending\n")
         _git(["add", "seed.txt"], cwd)
@@ -1054,6 +1103,26 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             self.pol(_event(
                 "sys_os_shell",
                 'git --git-dir=%s/.git commit -m "feat: [T987] do the thing"' % drifted,
+                cwd=clean,
+            )),
+            "commit-tasks-drift",
+        )
+
+    def test_git_dir_core_worktree_commit_reads_target_repo_tasks(self):
+        clean = self.repo("feature/clean")
+        drifted = self.repo("feature/drifted")
+        self._seed_tasks(drifted, "- [ ] T987 fixture task\n")
+        git_dir = os.path.join(self.tmpdir(), "repo.git")
+        os.rename(os.path.join(drifted, ".git"), git_dir)
+        _git(["--git-dir", git_dir, "config", "core.worktree", drifted], clean)
+        with open(os.path.join(drifted, "seed.txt"), "a") as f:
+            f.write("changed\n")
+        _git(["--git-dir", git_dir, "add", "seed.txt"], clean)
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'git --git-dir=%s commit -m "feat: [T987] do the thing"' % git_dir,
                 cwd=clean,
             )),
             "commit-tasks-drift",

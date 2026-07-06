@@ -1481,6 +1481,11 @@ def _commit_invocation_root(invocation, cwd):
         has_git_dir = "--git-dir" in gargs
         has_work_tree = "--work-tree" in gargs
         if has_git_dir and not has_work_tree:
+            configured_work_tree = _git(gargs + ["config", "--path", "--get", "core.worktree"], cwd)
+            if configured_work_tree is not None and configured_work_tree.strip():
+                out = _git(gargs + ["rev-parse", "--show-toplevel"], cwd)
+                if out is not None and out.strip():
+                    return out.strip()
             out = _git(gargs + ["rev-parse", "--absolute-git-dir"], cwd)
             if out is not None and out.strip():
                 git_dir = os.path.normpath(out.strip())
@@ -1538,13 +1543,21 @@ def _task_ids_from_commit_message_file(path, cwd):
     return set(_RE_TASK_ID.findall(text))
 
 
-def _task_ids_from_commit_subject_ref(ref, cwd=None, git_args=None):
+def _task_ids_from_commit_ref(ref, fmt, cwd=None, git_args=None):
     if not ref:
         return set()
-    subject = _git((git_args or []) + ["show", "-s", "--format=%s", ref], cwd or os.getcwd())
-    if subject is None:
+    message = _git((git_args or []) + ["show", "-s", "--format=" + fmt, ref], cwd or os.getcwd())
+    if message is None:
         return set()
-    return set(_RE_TASK_ID.findall(subject))
+    return set(_RE_TASK_ID.findall(message))
+
+
+def _task_ids_from_commit_subject_ref(ref, cwd=None, git_args=None):
+    return _task_ids_from_commit_ref(ref, "%s", cwd, git_args)
+
+
+def _task_ids_from_commit_message_ref(ref, cwd=None, git_args=None):
+    return _task_ids_from_commit_ref(ref, "%B", cwd, git_args)
 
 
 def _fixup_source_ref(value):
@@ -1643,7 +1656,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
         if tok in _COMMIT_REUSE_MESSAGE_OPTS:
             replaces_message = True
             if i + 1 < len(args):
-                out.update(_task_ids_from_commit_subject_ref(args[i + 1], cwd, git_args))
+                out.update(_task_ids_from_commit_message_ref(args[i + 1], cwd, git_args))
             i += 2
             continue
         if tok in _COMMIT_GENERATED_MESSAGE_OPTS:
@@ -1673,7 +1686,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
             continue
         if tok.startswith("--reuse-message=") or tok.startswith("--reedit-message="):
             replaces_message = True
-            out.update(_task_ids_from_commit_subject_ref(tok.split("=", 1)[1], cwd, git_args))
+            out.update(_task_ids_from_commit_message_ref(tok.split("=", 1)[1], cwd, git_args))
             i += 1
             continue
         if tok.startswith("--fixup="):
@@ -1722,16 +1735,16 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
                 opt = "C" if "C" in body else "c"
                 ref = body.split(opt, 1)[1]
                 if ref:
-                    out.update(_task_ids_from_commit_subject_ref(ref, cwd, git_args))
+                    out.update(_task_ids_from_commit_message_ref(ref, cwd, git_args))
                     i += 1
                 else:
                     if i + 1 < len(args):
-                        out.update(_task_ids_from_commit_subject_ref(args[i + 1], cwd, git_args))
+                        out.update(_task_ids_from_commit_message_ref(args[i + 1], cwd, git_args))
                     i += 2
                 continue
         i += 1
     if not replaces_message and _commit_reuses_head_subject(args):
-        out.update(_task_ids_from_commit_subject_ref("HEAD", cwd, git_args))
+        out.update(_task_ids_from_commit_message_ref("HEAD", cwd, git_args))
     return sorted(out)
 
 
@@ -2099,7 +2112,7 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
         if live_paths is None:
             return None
         worktree_paths.update(live_paths - excluded_worktree_paths)
-    if all_mode:
+    if all_mode and not only_mode:
         return {"base": _COMMIT_TASKS_WORKTREE, "worktree_paths": set()}
     return {
         "base": (
