@@ -1105,6 +1105,14 @@ def _shell_command_should_run(separator, last_status):
     return True
 
 
+def _shell_command_run_is_certain(separator, last_status):
+    if separator == "&&":
+        return last_status is True
+    if separator == "||":
+        return last_status is False
+    return True
+
+
 def _known_shell_status(name):
     if name == "true":
         return True
@@ -1507,7 +1515,7 @@ def _split_commit_invocations(command, cwd):
             function_def = _shell_function_definition(tokens, i)
             if function_def is not None:
                 name, body, next_i = function_def
-                shell_functions[name] = (body, shell_cwd)
+                shell_functions[name] = body
                 i = next_i
                 command_start = True
                 current_command = None
@@ -1568,6 +1576,7 @@ def _split_commit_invocations(command, cwd):
         if _is_shell_redirection(tok):
             i += 2 if _redirection_consumes_next(tok) else 1
             continue
+        command_certain = _shell_command_run_is_certain(previous_separator, last_status)
         command_cwd = scoped_command_cwd or shell_cwd
         if command_start and tok_name == "!":
             invert_next_status = not invert_next_status
@@ -1578,8 +1587,8 @@ def _split_commit_invocations(command, cwd):
             if stdout_text is not None:
                 pending_pipe_stdout = stdout_text
         if command_start and tok_name in shell_functions:
-            body, body_cwd = shell_functions[tok_name]
-            invocations = _split_commit_invocations(body, body_cwd)
+            body = shell_functions[tok_name]
+            invocations = _split_commit_invocations(body, command_cwd)
             if invocations:
                 nested.extend(invocations)
             i += 1
@@ -1709,7 +1718,7 @@ def _split_commit_invocations(command, cwd):
             while k < len(tokens) and not _is_shell_separator(tokens[k]):
                 add_args.append(tokens[k])
                 k += 1
-            if _git_add_touches_live_tasks(add_args, gargs, git_cwd):
+            if command_certain and _git_add_touches_live_tasks(add_args, gargs, git_cwd):
                 root = _commit_invocation_root({"git_args": gargs, "args": [], "cwd": git_cwd}, cwd)
                 if root:
                     index_tasks_mutated_roots.add(os.path.realpath(root))
@@ -1728,7 +1737,7 @@ def _split_commit_invocations(command, cwd):
             while k < len(tokens) and not _is_shell_separator(tokens[k]):
                 rm_args.append(tokens[k])
                 k += 1
-            if _git_rm_touches_live_tasks(rm_args, gargs, git_cwd):
+            if command_certain and _git_rm_touches_live_tasks(rm_args, gargs, git_cwd):
                 root = _commit_invocation_root({"git_args": gargs, "args": [], "cwd": git_cwd}, cwd)
                 if root:
                     index_tasks_mutated_roots.add(os.path.realpath(root))

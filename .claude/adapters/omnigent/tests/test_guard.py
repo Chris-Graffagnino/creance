@@ -319,6 +319,22 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+    def test_conditionally_skipped_prior_git_add_tasks_does_not_skip_index_check(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'test -f /no/such && git add specs/010-fixture/tasks.md; '
+                'git commit -m "feat: [T987] do the thing"',
+                cwd=cwd,
+            )),
+            "commit-tasks-drift",
+        )
+
     def test_prior_git_rm_tasks_before_plain_commit_allows_deletion(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1587,6 +1603,28 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                     self.pol(_event("sys_os_shell", command, cwd=cwd)),
                     "commit-tasks-drift",
                 )
+
+    def test_invoked_shell_function_body_uses_caller_cwd(self):
+        clean = self.repo("feature/clean")
+        self._seed_tasks(clean, "- [x] T987 fixture task\n")
+        drifted = self.repo("feature/drifted")
+        self._seed_tasks(drifted, "- [ ] T987 fixture task\n")
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'f(){ git commit -m "feat: [T987] do the thing"; }; cd %s; f' % drifted,
+                cwd=clean,
+            )),
+            "commit-tasks-drift",
+        )
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'f(){ git commit -m "feat: [T987] do the thing"; }; cd %s; f' % clean,
+                cwd=drifted,
+            ))
+        )
 
     def test_skipped_compound_group_commit_invocations_are_not_scanned(self):
         cwd = self.repo("feature/x")
