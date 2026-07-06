@@ -256,6 +256,26 @@ jobs:
       - name: Gate branch-restore backstop tests
         run: bash .claude/hooks/restore-task-branch.test.sh
 
+      # T639 review-mode gate HEAD-stability diff helper (#240): in REVIEW mode the §7
+      # [orchestrated run] audited the SHARED working tree's inferred `git diff main..HEAD`, so a
+      # CONCURRENT session that switched the shared checkout between dispatch and fan-out made the
+      # auditors grade the WRONG branch's diff — a vacuous / wrong-diff pass. gate-diff.sh closes
+      # that class: it emits the committed diff ONLY while the shared tree's HEAD still matches the
+      # task branch, and otherwise a distinct mismatch marker + no diff, so the gate fails LOUD
+      # (gate-loop.js classifies the marker and dispatches no reviewer). The .test.sh is a real-git
+      # harness reproducing the race red→green: on the task branch it emits the real diff + the
+      # completion marker (green); after a concurrent switch it emits the mismatch marker and NOT the
+      # concurrent branch's diff (green), with the OLD bare `git diff main..HEAD && echo <marker>`
+      # asserted to grade the wrong branch on the SAME tree (the documented pre-fix red — not a
+      # tautology). It also asserts a fix-round commit stays stable (HEAD advances WITH the branch
+      # tip), the fail-loud aborts, and the P2 wiring: the markers agree with gate-loop.js,
+      # gate-loop.js invokes the hook, and CI runs this test. Distinct from T622/#140 (the loop's own
+      # agents' drift) and #214 (dispatcher outside the repo); extends T612 gate-in-place to review
+      # mode. Adapter-side (hooks/ is the Claude Code binding), so a CI change, not a workflow/**
+      # change — no constitution P1 concern.
+      - name: Gate HEAD-stability diff helper tests
+        run: bash .claude/hooks/gate-diff.test.sh
+
       # AGENTS.md residency (#91): AGENTS.md is imported into every session
       # (CLAUDE.md -> @AGENTS.md), so it is the L1 "always resident" tier and its
       # size is a per-turn token tax on every task (DESIGN-NOTES §11). This check
