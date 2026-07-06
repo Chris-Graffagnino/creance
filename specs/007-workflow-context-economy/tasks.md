@@ -9,7 +9,7 @@
 
 ## Phase 1 — The measurement substrate
 
-- [ ] T1201 [strong] Repository token-budget check — per-file and per-bundle counts over
+- [x] T1201 [strong] Repository token-budget check — per-file and per-bundle counts over
       the named context artifacts/bundles that exist at landing time; documented
       owner-ratified budgets (initial values from #166) with an explicit override path,
       budgets for later-landing surfaces (compact packet, stage cards, task index,
