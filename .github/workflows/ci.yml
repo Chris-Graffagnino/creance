@@ -313,6 +313,21 @@ jobs:
       - name: Telemetry encoding tests
         run: bash .claude/hooks/telemetry-docs.test.sh
 
+      # T634 effective-fix-rate tests (#209, spec 001 US9): the effective-fix rate —
+      # flips (a reviewer FAIL that cleared to PASS/JUSTIFY on re-dispatch) over
+      # FAIL-triggered re-dispatches — is a READ-ONLY derivation over the existing
+      # gate-run records (no new record type/schema/writer). This test BOTH drives the
+      # concrete recipe (.claude/hooks/effective-fix-rate.sh) over a PLANTED telemetry
+      # stream, asserting the numerator/denominator EXACTLY per instance incl. both empty
+      # states and the genuine-0-of-N distinction (US9.AC3), AND pins the neutral metric
+      # definition (telemetry.md § Consumers) + the numerator/denominator render (triage.md
+      # "Gate trends" + §4) + the observe-only framing (US9.AC1/AC2/AC4), with the
+      # neutrality grep over the two neutral docs. Observe-only (constitution P5): the
+      # recipe writes nothing and feeds no gate/tier/guard/selection path. Adapter-side
+      # recipe + neutral-doc definition — the P3 determinism backstop for the derivation.
+      - name: Effective-fix-rate tests
+        run: bash .claude/hooks/effective-fix-rate.test.sh
+
       # T401 probe-fingerprint encoding tests (#85, US5.AC1): the conformance-probe
       # recording convention requires a content-hash fingerprint of the guard machinery
       # (guard script + hook wiring) recorded alongside probe results, so a later

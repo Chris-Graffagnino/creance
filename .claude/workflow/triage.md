@@ -148,6 +148,19 @@ procedure is safe to run unattended because it cannot change the repo.
   - **Tier-escalation events:** within a single record's `rounds`, a later round
     dispatching an auditor at a higher tier than an earlier round dispatched the same
     auditor — list each as `<task_id>: <auditor> <from-tier> → <to-tier>`.
+  - **Effective-fix rate (submission efficiency):** over the window, the fraction of
+    FAIL-triggered reviewer re-dispatches that **flipped** — a reviewer FAIL in round *n*
+    that cleared to PASS or JUSTIFY in round *n+1* of the same record (defined in
+    `workflow/telemetry.md` § Consumers). Render it **with its numerator and denominator
+    shown — never a bare percentage** — as `<flips>/<re-dispatches>` (a percentage may
+    accompany it) for the window and broken out per auditor, computed by a **deterministic
+    recipe a non-scorer can re-run** (constitution P3 — never model estimation; the concrete
+    recipe is the adapter's to supply). It has two explicit empty states, neither silently
+    omitted nor rendered as an error: **"no fix rounds in window"** when the window holds
+    `gate-run` records but **no FAIL-triggered re-dispatch** (denominator zero) —
+    **distinguished from a genuine 0-of-N rate**, which renders as `0/<n>` because reviewers
+    were re-dispatched but none flipped — and the existing **"no data yet"** state when the
+    window holds no `gate-run` records at all.
   This derivation is **read-only over telemetry** (per `workflow/telemetry.md`, telemetry
   observes and never decides — trends inform the human, never a gate or tier). When the
   stream is absent, empty, or has no `gate-run` records in the window, the section still
@@ -335,7 +348,8 @@ shape:
 - FAIL counts by auditor: <auditor>: <n> …   (or "none in window")
 - Non-convergence stops: <task-id> …   (or "none in window")
 - Tier escalations: <task-id>: <auditor> <from-tier> → <to-tier> …   (or "none in window")
-- <"no data yet — telemetry stream absent/empty at <path>" replaces the three lines above
+- Effective-fix rate: <flips>/<re-dispatches> (<pct>%) for the window; per auditor <auditor>: <n>/<d> …   (or "no fix rounds in window" when there were gate-run records but no FAIL-triggered re-dispatch — distinct from a genuine 0-of-N, which shows 0/<n>)
+- <"no data yet — telemetry stream absent/empty at <path>" replaces the four lines above
   when §2's gate-trends derivation found no gate-run records>
 - <"skipped malformed lines: <n>" — present only when nonzero, whether or not data was found>
 
