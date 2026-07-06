@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 116 rows.
+Manifest source inventory: 118 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -112,6 +112,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/backlog-loop.test.sh` | KEEP | Backlog-loop stop-condition/activation regression tests (exact-transcript paired proofs). Verbatim. |
 | `hooks/check-tasks-consistency.sh` | KEEP | Tasks-file consistency and drift gate. Verbatim. |
 | `hooks/check-tasks-consistency.test.sh` | KEEP | Regression tests proving the tasks-file consistency gate fires and avoids false positives. Verbatim. |
+| `hooks/effective-fix-rate.sh` | KEEP | Adapter-side deterministic effective-fix-rate derivation over the telemetry stream — flips (a reviewer FAIL cleared to PASS/JUSTIFY on re-dispatch) over FAIL-triggered re-dispatches, per window and per auditor; read-only, observe-only (prints one JSON object, writes nothing to the stream). Verbatim. |
+| `hooks/effective-fix-rate.test.sh` | KEEP | Fixture-backed + docs-encoding tests for the effective-fix-rate derivation — exact per-instance numerator/denominator over a planted stream, both empty states and the genuine-0-of-N distinction, plus the neutral-doc/adapter/CI-wiring pins. Verbatim. |
 | `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register. Keep structural/neutrality/extraction checks; drop only instance-coupled real-escape assertions when the register is reset. |
 | `hooks/extraction-manifest.test.sh` | KEEP | Completeness backstop for this cut-list. Verbatim. |
 | `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
