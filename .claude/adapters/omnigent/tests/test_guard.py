@@ -617,6 +617,22 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             ))
         )
 
+    def test_unmatched_negative_pathspec_excludes_nothing(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+
+        for command in (
+            'git commit . :!no/such -m "feat: [T987] do the thing"',
+            'git commit . ":(exclude)no/such" -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
     def test_pathspec_commit_excluding_tasks_reads_head_tasks_view(self):
         cwd = self.repo("feature/x")
         path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -655,6 +671,31 @@ class TestPendingCommitTasksDrift(GuardTestBase):
         ):
             with self.subTest(command=command):
                 self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
+
+    def test_unsupported_shell_control_flow_fails_open(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'if true; then echo ok; else git commit -m "feat: [T987] no"; fi',
+            'if false; then git commit -m "feat: [T987] no"; fi',
+            'while false; do git commit -m "feat: [T987] no"; done',
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
+
+    def test_unsupported_shell_control_flow_preserves_prior_commit_scan(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit -m "feat: [T987] do the thing"; if true; then echo ok; fi',
+                cwd=cwd,
+            )),
+            "commit-tasks-drift",
+        )
 
     def test_pathspec_magic_exclude_removes_tasks_from_worktree_selection(self):
         cwd = self.repo("feature/x")

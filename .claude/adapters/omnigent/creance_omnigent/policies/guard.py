@@ -314,6 +314,9 @@ _GIT_GLOBALS_NO_ARG = {
     "--paginate", "--no-pager", "--bare", "--literal-pathspecs", "--no-optional-locks", "-p",
 }
 _SHELL_COMMAND_PREFIXES = {"if", "then", "do", "while", "until", "else", "elif", "time", "!"}
+_SHELL_UNSUPPORTED_CONTROL_FLOW = {
+    "case", "do", "done", "elif", "else", "esac", "fi", "for", "if", "then", "until", "while",
+}
 _SHELL_COMMAND_WRAPPERS = {"command", "exec", "env", "sudo"}
 _SHELL_C_WRAPPERS = {"bash", "sh", "zsh"}
 _ENV_OPTIONS_WITH_ARG = {
@@ -1099,6 +1102,8 @@ def _split_commit_invocations(command, cwd):
             invert_next_status = not invert_next_status
             i += 1
             continue
+        if command_start and tok_name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+            return out + nested or None
         if command_start and scoped_command_cwd is None and tok_name == "cd":
             if i + 1 < len(tokens) and not _is_shell_separator(tokens[i + 1]):
                 new_cwd = _resolve_existing_shell_cd(shell_cwd, tokens[i + 1])
@@ -1489,7 +1494,7 @@ def _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd):
     }
 
 
-def _pathspec_live_tasks_paths(pathspec, git_args, cwd):
+def _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=False):
     out = _git(git_args + ["ls-files", "--full-name", "--", pathspec], cwd)
     if out is None:
         return None
@@ -1508,7 +1513,7 @@ def _pathspec_live_tasks_paths(pathspec, git_args, cwd):
     if exact is not None:
         paths.add(exact)
     if not matched_index and not paths:
-        return None
+        return set() if allow_unmatched else None
     return paths
 
 
@@ -1686,6 +1691,7 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
         exclude_payload = _exclude_pathspec_payload(pathspec)
         live_paths = _pathspec_live_tasks_paths(
             exclude_payload if exclude_payload is not None else pathspec, git_args, cwd,
+            allow_unmatched=exclude_payload is not None,
         )
         if live_paths is None:
             return False
