@@ -1571,6 +1571,10 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             'git commit --short -m "feat: [T987] do the thing"',
             'git commit --long -m "feat: [T987] do the thing"',
             'git commit --porcelain --no-dry-run -m "feat: [T987] do the thing"',
+            'git commit -z -m "feat: [T987] do the thing"',
+            'git commit -z --no-dry-run -m "feat: [T987] do the thing"',
+            'git commit -z --no-porcelain -m "feat: [T987] do the thing"',
+            'git commit -az -m "feat: [T987] do the thing"',
         ):
             with self.subTest(command=command):
                 self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
@@ -1623,10 +1627,14 @@ class TestPendingCommitTasksDrift(GuardTestBase):
     def test_commit_message_stdin_task_id_denied(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        stdin_file = os.path.join(cwd, "stdin-message.txt")
+        with open(stdin_file, "w") as f:
+            f.write("feat: [T987] do the thing\n")
 
         for command in (
             'git commit -F - <<EOF\nfeat: [T987] do the thing\nEOF',
             'git commit --file=- <<< "feat: [T987] do the thing"',
+            "git commit -F - < stdin-message.txt",
         ):
             with self.subTest(command=command):
                 self.assertDeny(

@@ -1593,7 +1593,7 @@ def _commit_reuses_head_subject(args):
     return amend and no_edit
 
 
-def _task_ids_from_commit_stdin(args, stdin_text=None):
+def _task_ids_from_commit_stdin(args, stdin_text=None, cwd=None):
     if stdin_text:
         return set(_RE_TASK_ID.findall(stdin_text))
     i = 0
@@ -1604,6 +1604,14 @@ def _task_ids_from_commit_stdin(args, stdin_text=None):
             if not text and i + 1 < len(args):
                 text = args[i + 1]
             return set(_RE_TASK_ID.findall(text or ""))
+        if op in ("<", "<>"):
+            path = rest
+            if not path and i + 1 < len(args):
+                path = args[i + 1]
+            return _task_ids_from_commit_message_file(path, cwd)
+        if op is not None:
+            i += 2 if rest == "" else 1
+            continue
         i += 1
     return set()
 
@@ -1627,7 +1635,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
             replaces_message = True
             if i + 1 < len(args):
                 if args[i + 1] == "-":
-                    out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                    out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
                 else:
                     out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
             i += 2
@@ -1658,7 +1666,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
             replaces_message = True
             msg_file = tok.split("=", 1)[1]
             if msg_file == "-":
-                out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
             else:
                 out.update(_task_ids_from_commit_message_file(msg_file, cwd))
             i += 1
@@ -1697,14 +1705,14 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
                 msg_file = body.split("F", 1)[1]
                 if msg_file:
                     if msg_file == "-":
-                        out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                        out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
                     else:
                         out.update(_task_ids_from_commit_message_file(msg_file, cwd))
                     i += 1
                 else:
                     if i + 1 < len(args):
                         if args[i + 1] == "-":
-                            out.update(_task_ids_from_commit_stdin(args, stdin_text))
+                            out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
                         else:
                             out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
                     i += 2
@@ -2106,6 +2114,7 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
 def _commit_is_dry_run(args):
     dry_run = False
     status_dry_run = False
+    nul_status_dry_run = False
     i = 0
     while i < len(args):
         tok = args[i]
@@ -2121,7 +2130,9 @@ def _commit_is_dry_run(args):
             i += 1
             continue
         if tok.startswith("-") and not tok.startswith("--"):
-            _, consumes_next = _short_option_flags_before_value(tok)
+            flags, consumes_next = _short_option_flags_before_value(tok)
+            if flags and "z" in flags:
+                nul_status_dry_run = True
             i += 2 if consumes_next else 1
             continue
         if tok == "--dry-run":
@@ -2133,7 +2144,7 @@ def _commit_is_dry_run(args):
         elif tok in _COMMIT_STATUS_DRY_RUN_NEGATED_OPTS:
             status_dry_run = False
         i += 1
-    return dry_run or status_dry_run
+    return dry_run or status_dry_run or nul_status_dry_run
 
 
 def _shared_unchecked_task_patterns():
