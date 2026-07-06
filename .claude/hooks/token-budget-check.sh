@@ -128,6 +128,7 @@ EOF
   esac
 
   files=""
+  unmatched=""
   comp_tokens="$(printf '%s\n' "$c_composition" | grep -o '`[^`]*`' | tr -d '\140')"
   while IFS= read -r tok; do
     [ -n "$tok" ] || continue
@@ -135,6 +136,8 @@ EOF
     if [ -n "$matched" ]; then
       files="$files$matched
 "
+    else
+      unmatched="$unmatched $tok"
     fi
   done <<EOF
 $comp_tokens
@@ -142,11 +145,20 @@ EOF
 
   echo "surface $surface (mode: $mode, budget: $budget tokens, gating: $gating)"
 
-  if [ -z "$files" ]; then
+  # An active surface may not silently under-count: ANY composition token that
+  # matches no file (a renamed artifact, a typo'd path) FAILs loud rather than
+  # letting the remaining files pass a gate the full surface might not.
+  if [ -n "$unmatched" ]; then
     if [ "$gating" = "active" ]; then
-      echo "FAIL: surface '$surface': gating is active but its composition matches no files (repair: fix the row's composition in $REGISTRY, or land the artifact)" >&2
+      echo "FAIL: surface '$surface': gating is active but composition token(s)$unmatched match no files (repair: fix the row's composition in $REGISTRY, or land the artifact)" >&2
       failures=$((failures + 1))
     else
+      echo "  (unmatched composition token(s)$unmatched — registered, not yet landed)"
+    fi
+  fi
+
+  if [ -z "$files" ]; then
+    if [ "$gating" != "active" ]; then
       echo "  (not yet landed — registered, no matching files)"
     fi
     continue

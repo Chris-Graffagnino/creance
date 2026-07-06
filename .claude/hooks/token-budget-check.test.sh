@@ -131,6 +131,20 @@ mkfixture "$F" '| `future` | `total` | `100` | `active` | `not-yet.md` |'
 run_check "$F"
 if [ "$GOT" -eq 1 ]; then ok; else bad "F active surface with no files must FAIL loud (got $GOT)"; fi
 
+# --- F2: partial composition miss — an ACTIVE surface with one matched file
+#     and one unmatched token FAILs naming the token (a renamed/typo'd path
+#     must never silently under-count past a gate); the same partial miss on a
+#     deferred surface passes with a note. ----------------------------------
+F2="$TMP/f2-partial"
+mkfixture "$F2" '| `bundle` | `total` | `100000` | `active` | `real.md` `renamed-away.md` |'
+printf 'the file that still exists\n' > "$F2/real.md"
+run_check "$F2"
+if [ "$GOT" -eq 1 ]; then ok; else bad "F2 active surface with an unmatched token must FAIL (got $GOT)"; fi
+if printf '%s' "$OUT" | grep -q 'renamed-away.md match no files'; then ok; else bad "F2 failure must name the unmatched token"; fi
+mkfixture "$F2" '| `bundle` | `total` | `100000` | `deferred` | `real.md` `renamed-away.md` |'
+run_check "$F2"
+if [ "$GOT" -eq 0 ] && printf '%s' "$OUT" | grep -q 'unmatched composition token'; then ok; else bad "F2 deferred partial miss must pass with a note (got $GOT)"; fi
+
 # --- G: registry-shape guards — missing registry, empty table, bad
 #     mode/gating/budget all FAIL loud naming the repair target. ------------
 G="$TMP/g-shape"
