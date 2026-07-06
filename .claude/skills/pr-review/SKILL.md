@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: Verified review of an open PR — fetch the diff AND every inline reviewer comment (including bot/automated inline findings), verify each finding against current source (file:line) and run the project's checks where relevant, then post one structured, severity-ranked review comment. Never declares "no findings" until every inline comment is adjudicated and every finding is grounded to source. Project specifics from .claude/PROJECT.md. Use when the user says "review PR #N", "review this PR", "/pr-review <url>", or asks to review an existing/external pull request end-to-end. Read-then-comment only — never merges, closes, or pushes.
+description: Verified review of an open PR — fetch the diff AND every inline reviewer comment (including bot/automated inline findings), verify each finding against current source (file:line) and run the project's checks where relevant, then post one structured, severity-ranked review comment. Never declares "no findings" until every inline comment is adjudicated and every finding is grounded to source. Project specifics from the profile. Use when the user says "review PR #N", "review this PR", "/pr-review <url>", or asks to review an existing/external pull request end-to-end. Read-then-comment only — never merges, closes, or pushes.
 ---
 
 # /pr-review — Claude Code binding

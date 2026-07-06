@@ -1,6 +1,6 @@
 ---
 name: intake
-description: Convert owner-filed GitHub issues into the tasks-file backlog via PR (project specifics from .claude/PROJECT.md). Classifies each unmapped issue (no task ID in title, unreferenced by any live tasks file) into spec work / repo-maintenance / bug / duplicate / underspecified, screens it against the constitution, drafts the backlog entry on a branch, and lands it as a PR the owner ratifies by merging. Use when the user says "intake", "run intake", "convert issue #N to a task", or when the triage snapshot's "Unmapped tracker work" section says to run /intake. Writes the repo only on an intake branch; never closes issues or merges PRs.
+description: Convert owner-filed GitHub issues into the tasks-file backlog via PR (project specifics from the profile). Classifies each unmapped issue (no task ID in title, unreferenced by any live tasks file) into spec work / repo-maintenance / bug / duplicate / underspecified, screens it against the constitution, drafts the backlog entry on a branch, and lands it as a PR the owner ratifies by merging. Use when the user says "intake", "run intake", "convert issue #N to a task", or when the triage snapshot's "Unmapped tracker work" section says to run /intake. Writes the repo only on an intake branch; never closes issues or merges PRs.
 ---
 
 # /intake — Claude Code binding

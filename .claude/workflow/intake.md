@@ -11,10 +11,12 @@ trackers remain the owner's whole interface: file an issue in plain language, ge
 small PR that formalizes it, merge to admit it into the build.
 
 > Runtime-neutral: roles in **[brackets]** are defined in `workflow/README.md` →
-> "The binding contract". Project specifics come from `.claude/PROJECT.md` — the tasks
-> file(s), spec paths, task-ID format, tier-tag format, and title conventions. Below,
-> *the profile* means that file. Intake composes existing roles only — it introduces no
-> new binding-contract row.
+> "The binding contract". Project specifics come from the profile (`.claude/PROJECT.md`,
+> the source of truth) — the tasks file(s), spec paths, task-ID format, tier-tag format,
+> and title conventions. Below, *the profile* means that file, and the active binding
+> governs how it is read (it may default to a drift-checked compacted view and escalate to
+> the full profile for omitted facts). Intake composes existing roles only — it introduces
+> no new binding-contract row.
 
 ## Write posture (the hard bounds)
 

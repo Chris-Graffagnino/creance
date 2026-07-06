@@ -145,6 +145,40 @@ else
   bad "B invariant-backstops failure must name the drifted script"
 fi
 
+# every active routing fact the packet carries is drift-checked (PR #249): a
+# packet-only edit to repo-model / merge-gate / task-id-format / tier-tags /
+# issue-lifecycle must FAIL naming its field, not pass vacuously.
+mkfixture "$B"
+sed -i.bak 's/^- Repo model: direct/- Repo model: fork/' "$B/.claude/PROJECT.compact.md"
+run_check "$B"
+expect_field_fail "B repo-model drift" "repo-model"
+
+mkfixture "$B"
+sed -i.bak 's/merge gate: none/merge gate: auto/' "$B/.claude/PROJECT.compact.md"
+run_check "$B"
+expect_field_fail "B merge-gate drift" "merge-gate"
+
+mkfixture "$B"
+sed -i.bak 's/`T` + 3/`T` + 9/' "$B/.claude/PROJECT.compact.md"
+run_check "$B"
+expect_field_fail "B task-id-format drift" "task-id-format"
+
+mkfixture "$B"
+sed -i.bak 's/`\[cheap\]`/`[budget]`/' "$B/.claude/PROJECT.compact.md"
+run_check "$B"
+expect_field_fail "B tier-tags drift" "tier-tags"
+if printf '%s' "$OUT" | grep -q 'cheap'; then ok; else bad "B tier-tags failure must name the dropped tag"; fi
+
+mkfixture "$B"
+sed -i.bak 's/create-on-demand/create-upfront/' "$B/.claude/PROJECT.compact.md"
+run_check "$B"
+expect_field_fail "B issue-lifecycle policy drift" "issue-lifecycle"
+
+mkfixture "$B"
+sed -i.bak 's/`Closes #<n>`/`Closes #<num>`/' "$B/.claude/PROJECT.compact.md"
+run_check "$B"
+expect_field_fail "B issue-lifecycle close-directive drift" "issue-lifecycle"
+
 # --- C: PROFILE-side drift — the profile moves, the packet stays: a new
 #     checker-map row and a new enforcement-mapping row appear only in the
 #     profile copy. The check must fail; a summary that only tracks packet edits
@@ -161,6 +195,13 @@ printf '| A brand-new invariant | judgment | none yet — judgment-only |\n' > "
 sed -i.bak '/^| Maker-eval is observe-only/r '"$TMP/c-inv.txt" "$C/.claude/PROJECT.md"
 run_check "$C"
 expect_field_fail "C profile-side invariant row" "invariant-count"
+
+# a new-field scalar drifts the PROFILE side (repo model switched to fork there, packet
+# unchanged): the check must fail — proving both directions for the PR #249 fields too.
+mkfixture "$C"
+sed -i.bak 's/^- \*\*Repo model:\*\* direct/- **Repo model:** fork/' "$C/.claude/PROJECT.md"
+run_check "$C"
+expect_field_fail "C profile-side repo-model" "repo-model"
 
 # --- D: anchor rot fails LOUD, never a vacuous pass — a profile whose "## Paths"
 #     heading was renamed yields zero extracted spec paths. --------------------
@@ -229,6 +270,22 @@ if grep -qE '^\| `compact-packet` \| `total` \| `[0-9]+` \| `active` \|' "$REPO_
   ok
 else
   bad "H the compact-packet budget row must be gating 'active' (US3.AC1)"
+fi
+
+# --- I: the packet-first default is actually in force on the ORDINARY path, not just
+#     asserted as prose (PR #249: the split-contract regression). next-task's per-gate
+#     telemetry-append resolves the stream path from the packet, and must NOT route that
+#     ordinary-path read back to the full profile.
+NT="$REPO_ROOT/.claude/skills/next-task/SKILL.md"
+if grep -qF 'stream path from the packet' "$NT"; then
+  ok
+else
+  bad "I next-task's telemetry-append must resolve the stream path from the packet"
+fi
+if grep -qF 'stream path from `.claude/PROJECT.md`' "$NT"; then
+  bad "I next-task must not resolve telemetry from the full profile on the ordinary path"
+else
+  ok
 fi
 
 printf 'compact-packet-drift.test.sh: %d passed, %d failed\n' "$pass" "$fail"

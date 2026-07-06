@@ -13,14 +13,18 @@
 # was restructured) FAILs loud as the same field — never a vacuous pass.
 #
 # Covered fields (US3.AC1's routing-fact list):
-#   base-branch, required-check, autonomy-opt-in, constitution-path, telemetry-path,
-#   spec-paths, tasks-paths, title-conventions, branch-convention, blocked-tasks,
+#   base-branch, required-check, merge-gate, repo-model, autonomy-opt-in,
+#   constitution-path, telemetry-path, spec-paths, tasks-paths, title-conventions,
+#   branch-convention, task-id-format, tier-tags, issue-lifecycle, blocked-tasks,
 #   review-passes, checker-map, invariant-count, invariant-backstops
 #
-# blocked-tasks is compared as a none/present classification (the live profile lists
-# none; if entries ever appear, the mismatch forces the packet update and this check
-# then needs the deeper per-entry comparison). Anything in the packet outside the
-# covered fields is deliberately-uncovered prose — keep it minimal.
+# Every active routing fact the packet carries is covered here — if a fact is worth
+# putting in the packet it is worth drift-checking, so a packet-only edit to it fails
+# rather than passing vacuously (the silently-dead-guard class this whole check exists
+# to close; PR #249 review). blocked-tasks is compared as a none/present classification
+# (the live profile lists none; if entries ever appear, the mismatch forces the packet
+# update and this check then needs the deeper per-entry comparison). Anything in the
+# packet outside the covered fields is deliberately-uncovered prose — keep it minimal.
 #
 # Resolves paths relative to CWD (the same CWD contract token-budget-check.sh uses;
 # CI runs it from the repo root). Bash + grep/sed/awk only — no git, no network.
@@ -103,6 +107,12 @@ p_check="$(grep '^- \*\*Required check:\*\*' "$PROFILE" | head -1 | tokens | hea
 k_check="$(line_tokens "$PACKET" "- Required check:" | head -1)"
 compare_scalar "required-check" "$p_check" "$k_check"
 
+# --- merge-gate (the ruleset value; the packet folds it onto the required-check
+#     line as "merge gate: <value>") ------------------------------------------
+p_merge="$(sed -n 's/^- \*\*Merge-gate ruleset:\*\* *\([A-Za-z]*\).*/\1/p' "$PROFILE" | head -1)"
+k_merge="$(sed -n 's/.*merge gate: *\([A-Za-z]*\).*/\1/p' "$PACKET" | head -1)"
+compare_scalar "merge-gate" "$p_merge" "$k_merge"
+
 # --- autonomy-opt-in (the autonomy-mode.sh code-span grammar: comment lines
 #     dropped, exactly one genuine declaration expected) -----------------------
 p_auto_values="$(grep -vE '^[[:space:]]*#|<!--' "$PROFILE" \
@@ -120,6 +130,12 @@ fi
 p_con="$(section "$PROFILE" "## Paths" | grep 'Constitution' | head -1 | tokens | head -1)"
 k_con="$(line_tokens "$PACKET" "- Constitution:" | head -1)"
 compare_scalar "constitution-path" "$p_con" "$k_con"
+
+# --- repo-model (direct|fork — the tracker-remote model; a switch away from the
+#     packet's value would point ordinary runs at the wrong remote) -----------
+p_repo="$(sed -n 's/^- \*\*Repo model:\*\* *\([A-Za-z]*\).*/\1/p' "$PROFILE" | head -1)"
+k_repo="$(sed -n 's/^- Repo model: *\([A-Za-z]*\).*/\1/p' "$PACKET" | head -1)"
+compare_scalar "repo-model" "$p_repo" "$k_repo"
 
 # --- telemetry-path (the stream token, wherever it sits in the Paths bullets) --
 p_tel="$(section "$PROFILE" "## Paths" | tokens | grep -E 'telemetry\.jsonl$' | head -1)"
@@ -144,6 +160,27 @@ compare_sets "title-conventions" "$p_title" "$k_title"
 p_branch="$(section "$PROFILE" "## Task & branch conventions" | tokens | grep '^<type>/')"
 k_branch="$(section "$PACKET" "## Conventions" | tokens | grep '^<type>/')"
 compare_sets "branch-convention" "$p_branch" "$k_branch"
+
+# --- task-id-format (the `T` + N–M digit signature) --------------------------
+p_tid="$(sed -n "s/.*\(${BT}T${BT} + [0-9].*[0-9] digits\).*/\1/p" "$PROFILE" | head -1)"
+k_tid="$(sed -n "s/.*\(${BT}T${BT} + [0-9].*[0-9] digits\).*/\1/p" "$PACKET" | head -1)"
+compare_scalar "task-id-format" "$p_tid" "$k_tid"
+
+# --- tier-tags (the per-task minimum-capability tags the selector resolves) ----
+p_tiers="$(section "$PROFILE" "## Task & branch conventions" | tokens | grep -E '^\[(frontier|strong|cheap)\]$')"
+k_tiers="$(section "$PACKET" "## Conventions" | tokens | grep -E '^\[(frontier|strong|cheap)\]$')"
+compare_sets "tier-tags" "$p_tiers" "$k_tiers"
+
+# --- issue-lifecycle (open-before-first-edit / close-by-PR): the create-on-demand
+#     policy word and the `Closes #<n>` PR-close directive, compared as a set. ----
+lifecycle_sig() { # <file> <section prefix>
+  local sec; sec="$(section "$1" "$2")"
+  printf '%s\n' "$sec" | grep -o 'create-on-demand'
+  printf '%s\n' "$sec" | grep -o "${BT}Closes #<n>${BT}" | tr -d '\140'
+}
+p_life="$(lifecycle_sig "$PROFILE" "## Task & branch conventions")"
+k_life="$(lifecycle_sig "$PACKET" "## Conventions")"
+compare_sets "issue-lifecycle" "$p_life" "$k_life"
 
 # --- blocked-tasks (none/present classification; see the header note) ----------
 classify_blocked() { # <file>

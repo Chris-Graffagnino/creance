@@ -8,10 +8,13 @@ do not merge.**
 > **[strong tier]**) are defined in `workflow/README.md` → "binding contract" and mapped to
 > concrete mechanisms by the active adapter.
 
-**Project specifics come from `.claude/PROJECT.md`** — paths (tasks/spec/contracts/
-constitution), task-ID format, blocked-task list, architecture boundaries, invariant
-checklist, CI check, and merge gate. Read it once at the start; below, *the profile* means
-that file. (If it's absent, fall back to conventions: `specs/*/tasks.md`, `specs/*/spec.md`,
+**Project specifics come from the profile (`.claude/PROJECT.md`, the source of truth)** —
+paths (tasks/spec/contracts/constitution), task-ID format, blocked-task list, architecture
+boundaries, invariant checklist, CI check, and merge gate. Below, *the profile* means that
+file. **How the profile is read is the active binding's call** — it may resolve the default
+read to a drift-checked compacted view of these routing facts and escalate to the full
+profile for anything that view omits; read the binding for the concrete read set. (If the
+profile is absent, fall back to conventions: `specs/*/tasks.md`, `specs/*/spec.md`,
 `specs/*/contracts/`, `memory/constitution.md`.)
 
 ## Context discipline (one task → one clean window)
