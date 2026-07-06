@@ -190,6 +190,21 @@ run_fence 1 "$S_WRAP" "FIRES: maker-eval-emit + complete WRAPPED across a line-c
 T_FP="$TMP/binding-invokes-fingerprint"; mkfix "$T_FP" ".claude/skills/maker-eval/SKILL.md" 'Recompute via `bash .claude/hooks/maker-eval-emit.sh fingerprint` — the maker-behavior field.'
 run_fence 0 "$T_FP" "no false fire: maker-eval-emit fingerprint (no channel I/O) in the run binding"
 
+# (u) the dir-name token is TERMINAL (T1203): a live spec directory whose name merely
+#     CONTAINS the words and continues (`specs/003-maker-eval-corpus/…`) is not a channel
+#     reference — a paths-listing artifact (the compact project packet, a task index) must
+#     be able to name it without firing the fence…
+U_SPEC="$TMP/spec-dir-not-channel"; mkfix "$U_SPEC" ".claude/PROJECT.compact.md" '- Tasks: `specs/003-maker-eval-corpus/tasks.md` (backlog)'
+run_fence 0 "$U_SPEC" "no false fire: specs/003-maker-eval-corpus path in a non-allowlisted doc"
+
+# (v) …while the REAL terminal channel-dir forms still FIRE in a non-allowlisted file, on
+#     the dir token ALONE (no records.jsonl / seam alongside): followed by `/`, by a
+#     closing quote, and at end-of-line.
+V_SLASH="$TMP/dir-terminal-slash"; mkfix "$V_SLASH" ".claude/MODELS.md" 'read scores from ~/.claude/triage/creance-maker-eval/latest for the tier'
+run_fence 1 "$V_SLASH" "FIRES: terminal -maker-eval/ dir form (token alone) in MODELS.md"
+V_EOL="$TMP/dir-terminal-eol"; mkfix "$V_EOL" ".claude/workflow/next-task.md" 'resolve the channel at ~/.claude/triage/creance-maker-eval'
+run_fence 1 "$V_EOL" "FIRES: terminal -maker-eval at end-of-line in next-task.md"
+
 # ── fail-closed: an unscannable root is a LOUD failure, never a silent pass (P2) ─
 run_fence 2 "$TMP/does-not-exist" "fail-closed: empty/unscannable root exits loud"
 
