@@ -22,9 +22,10 @@
 #
 # Output contract (consumed by gate-loop.js `classifyProvidedDiff` — the two markers are the SAME
 # literals that file checks; gate-diff.test.sh pins that agreement):
-#   stable HEAD  -> the committed `git diff <base>..HEAD`, then GATE-DIFF-COMPLETE   (exit 0)
-#   drifted HEAD -> a one-line diagnostic, then GATE-HEAD-MISMATCH                   (exit 3)
-#   abort        -> a one-line diagnostic, then GATE-HEAD-MISMATCH                   (exit 1)
+#   stable HEAD  -> the committed `git diff <base>..<branch-tip>`, then GATE-DIFF-COMPLETE  (exit 0)
+#   drifted HEAD -> a one-line diagnostic, then GATE-HEAD-MISMATCH                          (exit 3)
+#   abort        -> a one-line diagnostic, then GATE-HEAD-MISMATCH                          (exit 1)
+#                   (unreadable git, a missing ref, or a `git diff` that failed mid-patch)
 # The gate keys on the FINAL stdout line (the marker), never the exit code — but the exit code is
 # distinct so a human or CI running the hook directly still gets a loud non-zero on any refusal.
 #
@@ -71,9 +72,18 @@ if [ -z "$head_sha" ] || [ "$head_sha" != "$branch_sha" ]; then
   refuse 3 "HEAD-stability check failed — expected the shared working tree on '$branch' (${branch_sha:-unknown}) but HEAD is '$current' (${head_sha:-unknown}); a concurrent session switched the shared checkout (issue #240)"
 fi
 
-# Stable: the shared tree is on the task branch. Emit the committed diff versus the base, then the
-# completion marker as the FINAL line. (An empty diff — a wrong/empty branch — still emits only the
-# completion marker; gate-loop.js's classifier fails that closed as a vacuous grade.)
-git diff "$base..HEAD"
+# Stable: the shared tree is on the task branch. Emit the committed diff, then the completion marker
+# as the FINAL line. Two guards keep the marker HONEST — it crowns ONLY a complete, correct diff:
+#   * Pin the diff to the already-verified $branch_sha (== the just-checked $head_sha), never live
+#     HEAD. Between the SHA check above and this command a concurrent session could still switch the
+#     shared checkout; re-resolving HEAD here would grade the OTHER branch's patch and reintroduce
+#     the very #240 race this hook closes. A pinned commit object is immune to a checkout switch.
+#   * Print the completion marker ONLY if `git diff` exits 0. A diff driver that dies mid-patch (e.g.
+#     a failing GIT_EXTERNAL_DIFF) leaves a truncated patch on stdout and exits non-zero; crowning
+#     that with the marker would hand the reviewers a partial diff as "verified". On failure, refuse
+#     loud (mismatch marker, NO completion marker) so the gate fails closed, not on a partial patch.
+# (An empty diff — a wrong/empty branch — still emits only the completion marker; gate-loop.js's
+# classifier fails THAT closed as a vacuous grade.)
+git diff "$base..$branch_sha" || refuse 1 "git diff '$base..$branch_sha' exited non-zero (a truncated or unreliable patch)"
 printf '%s\n' "$DIFF_COMPLETE_MARKER"
 exit 0

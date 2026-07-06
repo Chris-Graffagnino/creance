@@ -17,9 +17,9 @@
 #        stays stable, so the check does not false-positive on the gate's own fixes.
 #   DW4 (scoped, non-regressing) — the stable control grades the real diff; an empty diff still
 #        emits only the completion marker (gate-loop.js's classifier fails THAT closed, not the hook).
-# Plus the fail-LOUD aborts (unreadable git / missing refs), usage guards, and the P2
-# "machinery proves it is live" wiring: the markers agree with gate-loop.js, gate-loop.js invokes
-# the hook, and CI runs this test. Bash + git only, <1s; wired into the `verify` CI job.
+# Plus the fail-LOUD aborts (unreadable git / missing refs / a `git diff` that dies mid-patch),
+# usage guards, and the P2 "machinery proves it is live" wiring: the markers agree with gate-loop.js,
+# gate-loop.js invokes the hook, and CI runs this test. Bash + git only, <1s; wired into `verify`.
 # Run: bash .claude/hooks/gate-diff.test.sh
 set -u
 
@@ -112,6 +112,22 @@ run_hook "$D" feat/x
 [ "$(last_line "$OUT")" = "$DIFF_COMPLETE" ] && ok || bad "post-fix: completion marker after a fix commit"
 has "$OUT" 'FIX' && ok || bad "post-fix: emits the updated diff including the fix"
 
+# ── Fail loud (the diff command dies mid-patch): the completion marker must crown ONLY a diff that
+#    `git diff` produced cleanly. A GIT_EXTERNAL_DIFF driver that emits a partial patch then exits
+#    non-zero makes `git diff` write output AND exit non-zero — a truncated patch. The helper must
+#    refuse (mismatch marker, exit 1) and NEVER print the completion marker over that partial patch;
+#    otherwise reviewers grade an incomplete diff as verified. (Codex P2 + craft finding, PR #245.)
+#    RED on the pre-fix hook: the bare `git diff` continued to the unconditional completion marker,
+#    so RC=0 and the last line was the completion marker over the partial patch.
+DIEDIFF="$TMP/diediff.sh"
+printf '#!/usr/bin/env bash\nprintf "diff --git a/f b/f\\n@@ partial hunk @@\\n"\nexit 1\n' > "$DIEDIFF"
+chmod +x "$DIEDIFF"
+OUT="$( cd "$D" && GIT_EXTERNAL_DIFF="$DIEDIFF" bash "$SCRIPT" feat/x 2>/dev/null )" && RC=0 || RC=$?
+[ "$RC" -eq 1 ] && ok || bad "diff-fail: a diff command that dies mid-patch exits 1 (got $RC)"
+has "$OUT" '@@ partial hunk @@' && ok || bad "diff-fail: the partial patch reached stdout (a real mid-patch failure, not a pre-output abort)"
+[ "$(last_line "$OUT")" = "$HEAD_MISMATCH" ] && ok || bad "diff-fail: stdout ends with the mismatch marker when git diff fails"
+has "$OUT" "$DIFF_COMPLETE" && bad "diff-fail: must NOT crown a truncated patch with the completion marker" || ok
+
 # ── DW4: a stable branch with NO commits ahead of base emits only the completion marker (empty
 #    diff). The helper does not itself block an empty diff — gate-loop.js's classifier fails THAT
 #    closed as a vacuous grade; here we only prove the helper emits a clean empty-diff + marker.
@@ -144,6 +160,13 @@ run_hook "$D" a b c; [ "$RC" -eq 2 ] && ok || bad "usage: too many arguments exi
 # ── Self-consistency: the helper carries the two marker literals the gate classifier keys on.
 grep -qF -- "$DIFF_COMPLETE" "$SCRIPT" && ok || bad "self: gate-diff.sh carries the completion marker literal"
 grep -qF -- "$HEAD_MISMATCH" "$SCRIPT" && ok || bad "self: gate-diff.sh carries the mismatch marker literal"
+
+# ── Codex P2 (PR #245) — the diff is pinned to the VERIFIED $branch_sha, never live HEAD, so a
+#    concurrent checkout switch in the TOCTOU window AFTER the stability check cannot swap the graded
+#    patch. That race is not deterministically reproducible, so pin the property at the source: the
+#    emission must diff the captured SHA, and must NOT re-resolve live HEAD.
+grep -qE 'git diff "\$base\.\.\$branch_sha"' "$SCRIPT" && ok || bad "pin: the emitted diff targets the verified \$branch_sha"
+grep -qE 'git diff "\$base\.\.HEAD"' "$SCRIPT" && bad "pin: must NOT emit the diff against live HEAD (TOCTOU race, #240)" || ok
 
 # ── Wiring (P2 "machinery proves it is live"): the markers AGREE with gate-loop.js, gate-loop.js
 #    INVOKES the hook (else it is dead machinery), and CI RUNS this test (else its own proof is dead).
