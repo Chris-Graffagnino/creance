@@ -941,6 +941,31 @@ def _shell_tail_line(tokens, index):
     return _render_shell_line(tokens[index:end]), end
 
 
+def _token_opens_shell_substitution_arg(token):
+    return token in ("$", "<") or token.endswith("$") or token.endswith("<")
+
+
+def _append_balanced_shell_group(tokens, index, out):
+    if index >= len(tokens) or tokens[index] != "(":
+        return index
+    depth = 0
+    while index < len(tokens):
+        tok = tokens[index]
+        out.append(tok)
+        if tok == "(":
+            depth += 1
+        elif tok == ")":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return index
+
+
+def _skip_balanced_shell_group(tokens, index):
+    return _append_balanced_shell_group(tokens, index, [])
+
+
 def _read_heredoc_bodies(tokens, index, heredocs):
     bodies = []
     for delim, executable in heredocs:
@@ -1439,7 +1464,12 @@ def _split_commit_invocations(command, cwd):
         if j < len(tokens) and tokens[j] == "commit":
             k = j + 1
             args = []
-            while k < len(tokens) and not _is_shell_separator(tokens[k]):
+            while k < len(tokens):
+                if _is_shell_separator(tokens[k]):
+                    if tokens[k] == "(" and args and _token_opens_shell_substitution_arg(args[-1]):
+                        k = _append_balanced_shell_group(tokens, k, args)
+                        continue
+                    break
                 args.append(tokens[k])
                 k += 1
             stdin_text = None
@@ -1629,6 +1659,41 @@ def _task_ids_from_commit_stdin(args, stdin_text=None, cwd=None):
     return set()
 
 
+def _task_ids_from_shell_expansion_tokens(args, index, value=None):
+    text = args[index] if value is None and index < len(args) else (value or "")
+    out = set(_RE_TASK_ID.findall(text))
+    if text in ("$", "<") and index + 1 < len(args) and args[index + 1] == "(":
+        depth = 1
+        j = index + 2
+        body = []
+        while j < len(args):
+            tok = args[j]
+            if tok == "(":
+                depth += 1
+            elif tok == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            body.append(tok)
+            j += 1
+        if depth == 0:
+            out.update(_RE_TASK_ID.findall(" ".join(body)))
+    return out
+
+
+def _task_ids_from_commit_message_arg(args, index, value=None):
+    return _task_ids_from_shell_expansion_tokens(args, index, value)
+
+
+def _task_ids_from_commit_file_arg(args, index, value, cwd=None, stdin_text=None):
+    if value == "-":
+        return _task_ids_from_commit_stdin(args, stdin_text, cwd)
+    expanded = _task_ids_from_shell_expansion_tokens(args, index, value)
+    if expanded:
+        return expanded
+    return _task_ids_from_commit_message_file(value, cwd)
+
+
 def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None):
     out = set()
     replaces_message = False
@@ -1641,16 +1706,13 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
             if tok != "--trailer":
                 replaces_message = True
             if i + 1 < len(args):
-                out.update(_RE_TASK_ID.findall(args[i + 1]))
+                out.update(_task_ids_from_commit_message_arg(args, i + 1))
             i += 2
             continue
         if tok in _COMMIT_MESSAGE_FILE_OPTS:
             replaces_message = True
             if i + 1 < len(args):
-                if args[i + 1] == "-":
-                    out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
-                else:
-                    out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
+                out.update(_task_ids_from_commit_file_arg(args, i + 1, args[i + 1], cwd, stdin_text))
             i += 2
             continue
         if tok in _COMMIT_REUSE_MESSAGE_OPTS:
@@ -1668,7 +1730,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
             continue
         if tok.startswith("--message="):
             replaces_message = True
-            out.update(_RE_TASK_ID.findall(tok.split("=", 1)[1]))
+            out.update(_task_ids_from_commit_message_arg(args, i, tok.split("=", 1)[1]))
             i += 1
             continue
         if tok.startswith("--trailer="):
@@ -1678,10 +1740,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
         if tok.startswith("--file="):
             replaces_message = True
             msg_file = tok.split("=", 1)[1]
-            if msg_file == "-":
-                out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
-            else:
-                out.update(_task_ids_from_commit_message_file(msg_file, cwd))
+            out.update(_task_ids_from_commit_file_arg(args, i, msg_file, cwd, stdin_text))
             i += 1
             continue
         if tok.startswith("--reuse-message=") or tok.startswith("--reedit-message="):
@@ -1706,28 +1765,26 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
                 replaces_message = True
                 msg = body.split("m", 1)[1]
                 if msg:
-                    out.update(_RE_TASK_ID.findall(msg))
+                    out.update(_task_ids_from_commit_message_arg(args, i, msg))
                     i += 1
                 else:
                     if i + 1 < len(args):
-                        out.update(_RE_TASK_ID.findall(args[i + 1]))
+                        out.update(_task_ids_from_commit_message_arg(args, i + 1))
                     i += 2
                 continue
             if "F" in body:
                 replaces_message = True
                 msg_file = body.split("F", 1)[1]
                 if msg_file:
-                    if msg_file == "-":
-                        out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
-                    else:
-                        out.update(_task_ids_from_commit_message_file(msg_file, cwd))
+                    out.update(_task_ids_from_commit_file_arg(args, i, msg_file, cwd, stdin_text))
                     i += 1
                 else:
                     if i + 1 < len(args):
-                        if args[i + 1] == "-":
-                            out.update(_task_ids_from_commit_stdin(args, stdin_text, cwd))
-                        else:
-                            out.update(_task_ids_from_commit_message_file(args[i + 1], cwd))
+                        out.update(
+                            _task_ids_from_commit_file_arg(
+                                args, i + 1, args[i + 1], cwd, stdin_text
+                            )
+                        )
                     i += 2
                 continue
             if "C" in body or "c" in body:
@@ -1928,7 +1985,7 @@ def _commit_pathspec_mode(args):
             continue
         if tok == "--":
             break
-        if tok == "--include" or tok.startswith("--include="):
+        if tok == "--include":
             include_mode = True
             only_mode = False
             i += 1
@@ -1944,6 +2001,14 @@ def _commit_pathspec_mode(args):
             continue
         if tok == "--no-only":
             only_mode = False
+            i += 1
+            continue
+        if (
+            tok.startswith("--include=")
+            or tok.startswith("--only=")
+            or tok.startswith("--no-include=")
+            or tok.startswith("--no-only=")
+        ):
             i += 1
             continue
         if tok in _COMMIT_VALUE_OPTS:
@@ -2045,6 +2110,9 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
         if _is_shell_redirection(tok):
             i += 2 if _redirection_consumes_next(tok) else 1
             continue
+        if tok == "(":
+            i = _skip_balanced_shell_group(args, i)
+            continue
         if after_double_dash:
             if not add_pathspec(tok, include_mode):
                 return None
@@ -2081,11 +2149,13 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
         if tok in {"--include", "--no-include", "--only", "--no-only"}:
             i += 1
             continue
-        if tok.startswith("--include="):
-            if not add_pathspec(tok.split("=", 1)[1], True):
-                return None
-            i += 1
-            continue
+        if (
+            tok.startswith("--include=")
+            or tok.startswith("--only=")
+            or tok.startswith("--no-include=")
+            or tok.startswith("--no-only=")
+        ):
+            return None
         if tok in _COMMIT_VALUE_OPTS:
             i += 2
             continue

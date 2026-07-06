@@ -563,6 +563,21 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             with self.subTest(command=command):
                 self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
 
+    def test_attached_include_value_is_invalid_and_fails_open(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("pending\n")
+        _git(["add", "seed.txt"], cwd)
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit --include=seed.txt -m "feat: [T987] do the thing"',
+                cwd=cwd,
+            ))
+        )
+
     def test_pathspec_from_file_tasks_path_reads_worktree_tasks_view(self):
         cwd = self.repo("feature/x")
         path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1611,6 +1626,21 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             self.pol(_event("sys_os_shell", 'git commit -m "chore: no task" && echo "[T987]"', cwd=cwd))
         )
 
+    def test_commit_message_shell_expansion_task_id_denied(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'git commit -m $(echo "[T987]")',
+            'git commit -m$(echo "[T987]")',
+            'git commit --message=$(echo "[T987]")',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
     def test_git_token_as_argument_fails_open(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1686,6 +1716,9 @@ class TestPendingCommitTasksDrift(GuardTestBase):
         for command in (
             "git commit -F message.txt",
             "git commit --file=message.txt",
+            'git commit -F <(echo "feat: [T987] do the thing")',
+            'git commit -F<(echo "feat: [T987] do the thing")',
+            'git commit --file=<(echo "feat: [T987] do the thing")',
         ):
             with self.subTest(command=command):
                 self.assertDeny(
