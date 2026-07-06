@@ -19,6 +19,33 @@ This procedure is **read-only on the repo**: no `Edit`/`Write`/`MultiEdit` under
 root, no `git add/commit/push`, no `gh issue/pr create`. The PreToolUse guard
 (`.claude/hooks/guard.sh`) is the deterministic backstop.
 
+## Gate-trends effective-fix rate — concrete instantiation (`triage.md` §2 / §4)
+
+`triage.md`'s **"Gate trends"** section defers the effective-fix rate's concrete recipe to
+the adapter (constitution P3 — a non-scorer re-runs a deterministic recipe, never a model
+estimate). This is that recipe. All reads are **read-only**; triage writes nothing to the
+stream.
+
+- **The recipe.** `bash .claude/hooks/effective-fix-rate.sh <telemetry-stream> [--since <ISO>] [--until <ISO>]`
+  reads the profile → "Paths" → **Telemetry** stream (the same
+  `<triage inbox dir>/<repo-basename>-telemetry.jsonl` the other gate-trends reads resolve),
+  filters `gate-run` records to the snapshot window by their `timestamp` (inclusive bounds;
+  ISO-8601 UTC sorts lexicographically, so it is a plain string compare), and prints **one
+  compact JSON object** — never appending to the stream. Malformed lines are skipped and
+  surfaced as `.skipped_malformed`.
+- **Render the numerator and denominator, never a bare percentage** (US9.AC2). The object
+  carries `.numerator` (flips), `.denominator` (FAIL-triggered re-dispatches), `.pct` (a
+  convenience percentage), and `.by_auditor{<auditor>:{numerator,denominator}}`. Render the
+  window line as `<numerator>/<denominator> (<pct>%)` and one `<auditor>: <n>/<d>` per
+  `by_auditor` entry.
+- **The two explicit empty states** map to `.state`: `"no-data"` → the "no data yet —
+  telemetry stream absent/empty" line; `"no-fix-rounds"` → the "no fix rounds in window"
+  line (gate-run records but denominator zero). `"rate"` renders the numbers — including a
+  genuine 0-of-N (`.numerator` 0 with `.denominator` > 0), which is **not** the
+  "no-fix-rounds" state.
+- **Observe-only** (`telemetry.md` law / US9.AC4): the recipe reads the stream and prints;
+  it feeds no gate, tier, guard, or selection path, and writes nothing.
+
 ## Verification-machinery freshness — concrete instantiation (`triage.md` §1.7 / §2)
 
 `triage.md`'s **PROBES-STALE** check needs two adapter facts the neutral doc defers:

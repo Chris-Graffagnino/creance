@@ -459,7 +459,7 @@
 
 ## Phase 15 — Environment-learning intake (EdgeBench deltas, #209/#210)
 
-- [ ] T634 [cheap] Effective-fix-rate trend: define the read-only flip/re-dispatch
+- [x] T634 [cheap] Effective-fix-rate trend: define the read-only flip/re-dispatch
       derivation in `workflow/telemetry.md` → Consumers (a flip = FAIL in round *n*,
       PASS/JUSTIFY in round *n+1*; no new record type, no schema or writer change);
       render it in the triage "Gate trends" section with numerator/denominator shown,

@@ -99,6 +99,20 @@ envelope:
 
 - The triage [workflow]'s trend surfacing reads this stream **read-only** and renders an
   explicit no-data state when the file is absent or empty.
+- The triage [workflow] also derives the **effective-fix rate** from these `gate-run`
+  records, read-only: a **flip** is a [reviewer] whose `verdict` is FAIL in round *n* and
+  PASS or JUSTIFY in round *n+1* of the same record's `rounds`. Because the gate loop
+  re-dispatches only the prior round's failures, a [reviewer] that is FAIL in round *n* and
+  present in round *n+1* is exactly a **FAIL-triggered re-dispatch**. The rate is **flips
+  over FAIL-triggered re-dispatches**, aggregated per snapshot window and broken out per
+  auditor — a read-only derivation over the records the gate loop already emits, introducing
+  **no new record type, no schema change, and no writer change**. A non-convergence FAIL
+  that never cleared still contributes its re-dispatches to the denominator but nothing to
+  the numerator; a pass-first-try run contributes to neither. Like every consumer here it
+  **observes and never decides** (§ "The law this file lives under"): the rate is surfaced
+  by triage and citable by the retrospective, and no gate, [reviewer] dispatch, tier
+  resolution, guard, or selection path reads it. The concrete deterministic recipe is the
+  adapter's to supply (never model estimation).
 - The retrospective [workflow] cites `fail_reports` as evidence; it proposes changes via
   PR only — telemetry never feeds an automatic rewrite of reviewer specs, guards, or the
   constitution.
