@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 120 rows.
+Manifest source inventory: 123 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -91,6 +91,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `agents/contract-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-quality-auditor.md` | KEEP | Subagent binding. Verbatim. |
+| `context-budgets.md` | GENERICIZE | Owner-ratified token-budget registry the context token-budget check reads (T1201). Keep the table shape, column semantics, and deferred-activation model; reset the budgets/compositions to the adopter's own surfaces (the shipped values are this repo's #166 ratification). |
 | `hooks/agents-residency-check.sh` | KEEP | Deterministic residency budget for the always-resident `AGENTS.md`. Verbatim. |
 | `hooks/agents-residency-check.test.sh` | KEEP | Regression + CI-wiring test for the residency check. Verbatim. |
 | `hooks/announce-task-selection.sh` | KEEP | Runtime [selection announce-and-confirm] decision (announce/confirm/announce-only) for /next-task. Verbatim. |
@@ -152,6 +153,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/spec-lint.sh` | KEEP | Deterministic spec-content lint over `specs/*/spec.md` (the mechanizable spec-quality smells). Verbatim. |
 | `hooks/spec-lint.test.sh` | KEEP | Regression + CI-wiring tests for the spec-content lint. Verbatim. |
 | `hooks/telemetry-docs.test.sh` | KEEP | Encoding test for telemetry docs and neutral-boundary constraints. Verbatim. |
+| `hooks/token-budget-check.sh` | KEEP | Context token-budget check over the registry's named surfaces (per-file/per-bundle counts, active/deferred gating, fail-open with `--require-counter` for CI; T1201). Verbatim. |
+| `hooks/token-budget-check.test.sh` | KEEP | Two-sided falsification + CI-wiring tests for the token-budget check. Verbatim. |
 | `hooks/triage-freshness-docs.test.sh` | KEEP | Encoding test for PROBES-STALE / GUARD-SILENT machinery freshness surfacing. Verbatim. |
 | `hooks/triage-maker-eval-docs.test.sh` | KEEP | Encoding test for the triage "Maker eval" differential-regression surfacing (US2.AC2 — threshold, packet link, MAKER-EVAL-STALE / JUDGE-CHANGED / INSTRUMENT-CHANGED / JUDGE-MISCALIBRATED, empty states). Verbatim. |
 | `settings.json` | GENERICIZE | Keep the guard hook wiring exactly; replace this repo's permission/toolchain allowlist with template placeholders. |
@@ -241,7 +244,9 @@ must be described in the template's docs or they'll be silently dropped:
    `AGENTS.md`/`CLAUDE.md`.
 2. **Copy the KEEP files** (§2) verbatim into the new `.claude/`.
 3. **Ship the TEMPLATE profile:** copy `PROJECT.template.md`; do **not** copy `PROJECT.md`.
-4. **GENERICIZE** `README.md`, `settings.json`, `MODELS.md`, the evasion-register pair
+4. **GENERICIZE** `README.md`, `settings.json`, `MODELS.md`, `context-budgets.md`
+   (keep the registry's table shape and deferred-activation model; reset the budgets and
+   compositions to the adopter's own surfaces), the evasion-register pair
    (`workflow/reviewers/evasion-register.md` + `hooks/evasion-register-docs.test.sh`), and the
    isolated-workspace trio (`hooks/isolated-workspace.sh` + the coupled
    `hooks/isolated-workspace.test.sh` and `hooks/isolation-falsification.test.sh`) per §2

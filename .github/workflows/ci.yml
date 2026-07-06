@@ -289,6 +289,30 @@ jobs:
       - name: AGENTS.md residency tests
         run: bash .claude/hooks/agents-residency-check.test.sh
 
+      # Context token budgets (T1201, spec 007 US1; epic #166): measures the
+      # named context artifacts/bundles against the owner-ratified budgets in
+      # .claude/context-budgets.md (per-file + per-bundle counts; gating starts
+      # deferred — each of US2-US5 activates its own surface's gate in the diff
+      # that lands/restructures it). The counter (tiktoken, o200k_base — a
+      # project/adapter fact documented beside the budgets, never in
+      # workflow/**) is installed first, and the check runs with
+      # --require-counter so CI can never fail open into a silently unmeasured
+      # green (P2). The .test.sh proves both directions (planted over-budget
+      # FAILs naming artifact + count; within-budget control passes) AND this
+      # wiring, same discipline as the residency check above.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the token counter (tiktoken)
+        run: python3 -m pip install --quiet tiktoken
+
+      - name: Context token-budget check
+        run: bash .claude/hooks/token-budget-check.sh --require-counter
+
+      - name: Context token-budget tests
+        run: bash .claude/hooks/token-budget-check.test.sh
+
       # US6 intake/triage encoding tests (T501): the triage "Unmapped tracker
       # work" section + snapshot output shape (incl. the explicit empty state)
       # and intake's write-posture / retitle / marked-comment invariants. The
