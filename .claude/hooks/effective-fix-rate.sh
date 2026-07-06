@@ -44,7 +44,10 @@
 #                     (denominator 0) — DISTINCT from a genuine 0-of-N rate, which is
 #                     "rate" with numerator 0 and denominator > 0
 #   "rate"          — denominator > 0 (numerator may be 0: a real 0-of-N)
-# Exit 2 on a usage error (no stream path, unknown option, jq absent).
+# Exit 2 when the run cannot proceed: a usage error (no stream path, unknown option, a
+# --since/--until given with no following value, jq absent) OR the stream is present but
+# unreadable — an unreadable source is a broken channel, never silently reported as
+# no-data. Only an ABSENT or EMPTY stream is the no-data state.
 #
 # Run the tests: bash .claude/hooks/effective-fix-rate.test.sh
 set -u
@@ -58,8 +61,12 @@ since=""
 until_=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --since) since="${2:-}"; shift 2 ;;
-    --until) until_="${2:-}"; shift 2 ;;
+    --since)
+      [ $# -ge 2 ] || { echo "effective-fix-rate: --since requires a value" >&2; usage; exit 2; }
+      since="$2"; shift 2 ;;
+    --until)
+      [ $# -ge 2 ] || { echo "effective-fix-rate: --until requires a value" >&2; usage; exit 2; }
+      until_="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     --) shift; break ;;
     -*) echo "effective-fix-rate: unknown option: $1" >&2; usage; exit 2 ;;
@@ -88,6 +95,15 @@ if [ ! -s "$stream" ]; then
   printf '{"state":"no-data","numerator":0,"denominator":0,"pct":null,"by_auditor":{},"skipped_malformed":0,"window":{"since":"%s","until":"%s"}}\n' \
     "$since" "$until_"
   exit 0
+fi
+
+# A present, non-empty but UNREADABLE stream is a broken source, not "no data yet":
+# collapsing it to no-data would mask the failure and report an empty metric over a file
+# we never actually read. Fail loud (same posture as jq-absent above) — only the absent
+# or empty file is the documented no-data state.
+if [ ! -r "$stream" ]; then
+  echo "effective-fix-rate: stream not readable: $stream" >&2
+  exit 2
 fi
 
 # Stage 1: classify each non-blank line as a parsed record or a malformed marker so

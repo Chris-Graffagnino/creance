@@ -54,6 +54,24 @@ command -v jq >/dev/null 2>&1 || { echo "FAIL: jq required by this test" >&2; ex
 run() { bash "$RECIPE" "$@"; }
 # jf <captured-json> <jq-filter> — pull an exact field from the recipe's JSON output.
 jf() { printf '%s' "$1" | jq -r "$2"; }
+# run_bounded <secs> <recipe-args...> — run the recipe under a hard time cap, portably
+# (no GNU `timeout`): a background watchdog SIGKILLs the run if it overruns. Returns the
+# recipe's own exit status, or 124 if the cap fired. A regression that loops forever on a
+# dangling option value trips the cap → 124, so the exit-2 assertion below goes RED. The
+# fixed path exits at once, so the watchdog is cancelled and the suite stays fast.
+run_bounded() {
+  local secs="$1"; shift
+  bash "$RECIPE" "$@" >/dev/null 2>&1 &
+  local rpid=$!
+  ( sleep "$secs"; kill -9 "$rpid" 2>/dev/null ) &
+  local wpid=$!
+  local st=0
+  wait "$rpid" 2>/dev/null || st=$?
+  kill "$wpid" 2>/dev/null   # cancel the watchdog on a timely exit
+  wait "$wpid" 2>/dev/null
+  [ "$st" -ge 128 ] && st=124   # killed by the watchdog (128+signal) → timeout sentinel
+  return "$st"
+}
 
 # ── The canonical planted stream (US9.AC3's four required run types + a non-gate-run) ──────
 #   T900 FAIL→PASS  (constitution-auditor)  : 1 re-dispatch, 1 flip
@@ -103,6 +121,22 @@ eq "no-data: empty file"                 "no-data" "$(jf "$(run "$TMP/empty.json
 printf '{"record":"block","timestamp":"2026-07-05T14:00:00Z","rule":"x","tool":"Bash"}\n' > "$TMP/blockonly.jsonl"
 eq "no-data: stream with no gate-run records" "no-data" "$(jf "$(run "$TMP/blockonly.jsonl")" '.state')"
 
+# ── CONTRAST: a present, non-empty but UNREADABLE stream is a LOUD error, NOT silent no-data ─
+# Only an absent/empty file is the no-data state; an unreadable source is a broken channel, so
+# the recipe exits non-zero and prints no JSON rather than reporting an empty metric over a
+# file it never read. (Skips if read permission cannot be dropped — e.g. the suite runs as root.)
+UNREAD="$TMP/unreadable.jsonl"
+cp "$CANON" "$UNREAD"
+chmod 000 "$UNREAD"
+if [ -r "$UNREAD" ]; then
+  printf 'SKIP unreadable-stream case: cannot drop read permission here (running as root?)\n' >&2
+else
+  ur_out="$(run "$UNREAD" 2>/dev/null)"; ur_code=$?
+  eq "unreadable stream: exits 2 (loud), not 0"                 "2" "$ur_code"
+  eq "unreadable stream: prints no JSON (not a silent no-data)" ""  "$ur_out"
+fi
+chmod 644 "$UNREAD"
+
 # ── AC2/AC3 empty state 2: "no fix rounds in window" — gate-runs but denominator 0 ─────────
 printf '{"record":"gate-run","timestamp":"2026-07-05T10:00:00Z","task_id":"T1","rounds":[[{"auditor":"spec-auditor","tier":"cheap","verdict":"PASS"}]],"fix_rounds_used":0,"outcome":"pass"}\n' > "$TMP/nofix.jsonl"
 NF="$(run "$TMP/nofix.jsonl")"
@@ -140,6 +174,11 @@ after="$(shasum "$CANON" | cut -d' ' -f1)"
 eq "observe-only: the stream is byte-identical after derivation (writes nothing)" "$before" "$after"
 # A usage error (no stream path) exits non-zero and writes nothing to stdout.
 run >/dev/null 2>&1; eq "usage: no stream path exits 2" "2" "$?"
+# A dangling --since / --until (option given with no following value) is a usage error, never
+# an infinite loop: the recipe returns the documented exit 2, BOUNDED — a regression that
+# re-processes the same arg forever trips run_bounded's cap (124) and this goes RED.
+run_bounded 5 "$CANON" --since; eq "usage: dangling --since exits 2 (no hang)" "2" "$?"
+run_bounded 5 "$CANON" --until; eq "usage: dangling --until exits 2 (no hang)" "2" "$?"
 
 # ── DOCS-ENCODING: telemetry.md § Consumers defines the metric (US9.AC1) ───────────────────
 flat() { tr -s '[:space:]' ' ' < "$1"; }
