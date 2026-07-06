@@ -808,6 +808,21 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+    def test_unsupported_shell_control_flow_preserves_following_commit_scan(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'if true; then echo ok; fi; git commit -m "feat: [T987] do the thing"',
+            'case x in x) echo ok;; esac; git commit -m "feat: [T987] do the thing"',
+            'while false; do echo ok; done; git commit -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
     def test_pathspec_magic_exclude_removes_tasks_from_worktree_selection(self):
         cwd = self.repo("feature/x")
         path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")

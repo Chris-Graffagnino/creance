@@ -317,6 +317,13 @@ _SHELL_COMMAND_PREFIXES = {"if", "then", "do", "while", "until", "else", "elif",
 _SHELL_UNSUPPORTED_CONTROL_FLOW = {
     "case", "do", "done", "elif", "else", "esac", "fi", "for", "if", "then", "until", "while",
 }
+_SHELL_UNSUPPORTED_FLOW_END = {
+    "case": "esac",
+    "for": "done",
+    "if": "fi",
+    "until": "done",
+    "while": "done",
+}
 _SHELL_COMMAND_WRAPPERS = {"command", "exec", "env", "sudo"}
 _SHELL_C_WRAPPERS = {"bash", "sh", "zsh"}
 _ENV_OPTIONS_WITH_ARG = {
@@ -966,6 +973,36 @@ def _skip_balanced_shell_group(tokens, index):
     return _append_balanced_shell_group(tokens, index, [])
 
 
+def _skip_unsupported_shell_control_flow(tokens, index):
+    end = _SHELL_UNSUPPORTED_FLOW_END.get(_shell_command_name(tokens[index]))
+    if end is None:
+        return None
+    stack = [end]
+    command_start = False
+    i = index + 1
+    while i < len(tokens):
+        tok = tokens[i]
+        name = _shell_command_name(tok)
+        if _is_shell_separator(tok):
+            command_start = True
+            i += 1
+            continue
+        if command_start:
+            nested_end = _SHELL_UNSUPPORTED_FLOW_END.get(name)
+            if nested_end is not None:
+                stack.append(nested_end)
+            elif stack and name == stack[-1]:
+                stack.pop()
+                i += 1
+                if not stack:
+                    return i
+                command_start = False
+                continue
+            command_start = False
+        i += 1
+    return None
+
+
 def _read_heredoc_bodies(tokens, index, heredocs):
     bodies = []
     for delim, executable in heredocs:
@@ -1362,7 +1399,17 @@ def _split_commit_invocations(command, cwd):
             i += 1
             continue
         if command_start and tok_name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
-            return out + nested or None
+            skipped = _skip_unsupported_shell_control_flow(tokens, i)
+            if skipped is None:
+                return out + nested or None
+            i = skipped
+            command_start = True
+            current_command = None
+            previous_separator = None
+            scoped_command_cwd = None
+            last_status = _apply_shell_status(None, invert_next_status)
+            invert_next_status = False
+            continue
         if command_start and scoped_command_cwd is None and tok_name == "cd":
             if i + 1 < len(tokens) and not _is_shell_separator(tokens[i + 1]):
                 new_cwd = _resolve_existing_shell_cd(shell_cwd, tokens[i + 1])
