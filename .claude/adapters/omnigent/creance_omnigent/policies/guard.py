@@ -1286,13 +1286,14 @@ def _shell_c_string(tokens, index):
     return None, index
 
 
-def _skip_command_wrapper(tokens, index):
+def _skip_command_wrapper(tokens, index, shell_cwd):
     name = _shell_command_name(tokens[index])
     index += 1
+    wrapper_cwd = shell_cwd
     while index < len(tokens) and not _is_shell_separator(tokens[index]):
         tok = tokens[index]
         if tok == "--":
-            return index + 1
+            return index + 1, wrapper_cwd
         if name == "command":
             if tok == "-p":
                 index += 1
@@ -1301,7 +1302,7 @@ def _skip_command_wrapper(tokens, index):
         if name == "exec":
             if tok == "-a":
                 if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
-                    return len(tokens)
+                    return len(tokens), wrapper_cwd
                 index += 2
                 continue
             if tok in ("-c", "-l"):
@@ -1309,9 +1310,19 @@ def _skip_command_wrapper(tokens, index):
                 continue
             break
         if name == "sudo":
+            if tok in ("-D", "--chdir"):
+                if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
+                    return len(tokens), wrapper_cwd
+                wrapper_cwd = _resolve_shell_cd(wrapper_cwd, tokens[index + 1])
+                index += 2
+                continue
+            if tok.startswith("--chdir="):
+                wrapper_cwd = _resolve_shell_cd(wrapper_cwd, tok.split("=", 1)[1])
+                index += 1
+                continue
             if tok in _SUDO_OPTIONS_WITH_ARG:
                 if index + 1 >= len(tokens) or _is_shell_separator(tokens[index + 1]):
-                    return len(tokens)
+                    return len(tokens), wrapper_cwd
                 index += 2
                 continue
             if any(
@@ -1326,7 +1337,7 @@ def _skip_command_wrapper(tokens, index):
                 continue
             break
         break
-    return index
+    return index, wrapper_cwd
 
 
 def _skip_command_prefix(tokens, index):
@@ -1510,7 +1521,7 @@ def _split_commit_invocations(command, cwd):
         if command_start and (
             tok_name in _SHELL_COMMAND_WRAPPERS
         ):
-            i = _skip_command_wrapper(tokens, i)
+            i, scoped_command_cwd = _skip_command_wrapper(tokens, i, command_cwd)
             continue
         if command_start and tok_name in _SHELL_COMMAND_PREFIXES:
             i = _skip_command_prefix(tokens, i)
@@ -1689,13 +1700,13 @@ def _task_ids_from_commit_message_ref(ref, cwd=None, git_args=None):
     return _task_ids_from_commit_ref(ref, "%B", cwd, git_args)
 
 
-def _fixup_source_ref(value):
+def _task_ids_from_fixup_ref(value, cwd=None, git_args=None):
     if not value:
-        return None
+        return set()
     for prefix in ("amend:", "reword:"):
         if value.startswith(prefix):
-            return value[len(prefix):] or None
-    return value
+            return _task_ids_from_commit_message_ref(value[len(prefix):], cwd, git_args)
+    return _task_ids_from_commit_subject_ref(value, cwd, git_args)
 
 
 def _commit_reuses_head_subject(args):
@@ -1824,8 +1835,10 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
         if tok in _COMMIT_GENERATED_MESSAGE_OPTS:
             replaces_message = True
             if i + 1 < len(args):
-                ref = _fixup_source_ref(args[i + 1]) if tok == "--fixup" else args[i + 1]
-                out.update(_task_ids_from_commit_subject_ref(ref, cwd, git_args))
+                if tok == "--fixup":
+                    out.update(_task_ids_from_fixup_ref(args[i + 1], cwd, git_args))
+                else:
+                    out.update(_task_ids_from_commit_subject_ref(args[i + 1], cwd, git_args))
             i += 2
             continue
         if tok.startswith("--message="):
@@ -1850,8 +1863,7 @@ def _task_ids_from_commit_message(args, cwd=None, git_args=None, stdin_text=None
             continue
         if tok.startswith("--fixup="):
             replaces_message = True
-            ref = _fixup_source_ref(tok.split("=", 1)[1])
-            out.update(_task_ids_from_commit_subject_ref(ref, cwd, git_args))
+            out.update(_task_ids_from_fixup_ref(tok.split("=", 1)[1], cwd, git_args))
             i += 1
             continue
         if tok.startswith("--squash="):

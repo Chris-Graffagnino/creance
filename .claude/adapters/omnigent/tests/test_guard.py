@@ -396,6 +396,10 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "git commit -c %s" % body_source_sha,
             "git commit --reuse-message=%s" % body_source_sha,
             "git commit --reedit-message=%s" % body_source_sha,
+            "git commit --fixup=amend:%s" % body_source_sha,
+            "git commit --fixup=reword:%s" % body_source_sha,
+            "git commit --fixup amend:%s" % body_source_sha,
+            "git commit --fixup reword:%s" % body_source_sha,
         ):
             with self.subTest(command=command):
                 self.assertDeny(
@@ -1282,6 +1286,30 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                     self.pol(_event("sys_os_shell", command, cwd=cwd)),
                     "commit-tasks-drift",
                 )
+
+    def test_sudo_chdir_wrapped_commit_reads_target_repo_tasks(self):
+        clean = self.repo("feature/clean")
+        drifted = self.repo("feature/drifted")
+        self._seed_tasks(drifted, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'sudo -D %s git commit -m "feat: [T987] do the thing"' % drifted,
+            'sudo --chdir %s git commit -m "feat: [T987] do the thing"' % drifted,
+            'sudo --chdir=%s git commit -m "feat: [T987] do the thing"' % drifted,
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=clean)),
+                    "commit-tasks-drift",
+                )
+
+        for command in (
+            'sudo -D %s git commit -m "feat: [T987] do the thing"' % clean,
+            'sudo --chdir %s git commit -m "feat: [T987] do the thing"' % clean,
+            'sudo --chdir=%s git commit -m "feat: [T987] do the thing"' % clean,
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=drifted)))
 
     def test_compound_command_scopes_task_id_to_matching_commit(self):
         clean = self.repo("feature/clean")
