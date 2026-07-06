@@ -475,6 +475,74 @@
       `DESIGN-NOTES.md` entry on identical-starts vs experience retention; two-sided
       conformance probe (posts on non-convergence, silent on PASS) (#210) (US10)
 
+## Phase 16 — Harness self-description & gate-execution intake (owner-filed)
+
+> Four owner-filed issues converted via intake (`workflow/intake.md`): three
+> repo-maintenance features hardening the runtime-neutral split and harness
+> observability — an adapter-neutral **write-intent / safe-output** [role] family so
+> neutral docs name permitted writes as intents, not concrete tracker commands (#232); a
+> deterministic **generated harness manifest** (a committed lock artifact) with a `verify`
+> drift check (#233); and a read-only, **observe-only** harness **status map** (#234) —
+> plus one **gate-execution bug**: the review-mode §7 `[orchestrated run]` audits the
+> shared tree's inferred HEAD, so a concurrent session's branch switch makes the auditors
+> grade the wrong diff (#240). Each is rubric'd by the done-when criteria carried on its
+> issue's intake cross-link comment (the acceptance reviewer grades against those exactly
+> as a `US#`); no new `US#`. T638 reads T637's manifest when present but is valuable
+> independently (soft, not a hard blocker). T639 is **distinct** from T622/#140 (the
+> loop's *own* read-only auditor relocating the shared tree) and #214 (a dispatcher rooted
+> *outside* the repo); it extends the T612 gate-in-place mechanism as the proven remedy.
+> #232/#233 add deterministic checks that change no `[guard]` behavior; #240 protects the
+> gate-execution boundary (constitution P1/P3/P4/P5).
+
+- [ ] T636 [strong] Define an adapter-neutral **write-intent / safe-output [role] family**
+      — a closed, documented set of named write intents in `.claude/workflow/README.md` →
+      the binding contract; each writing workflow **declares** its allowed intents
+      (profile-declared in `.claude/PROJECT.md` / `PROJECT.template.md`, not baked into
+      neutral prose); the active adapter (`.claude/README.md` + adapter specs) maps **every**
+      declared intent to a concrete mechanism or a documented degradation; neutral
+      `workflow/**` docs stop naming concrete tracker write commands where an intent exists
+      (constitution P1); a **deterministic check** fails on a missing intent→mechanism
+      mapping **and** on a forbidden neutral-doc write-command leak, each with a planted
+      positive + passing control (P3); preserves every existing merge / base-branch
+      protection and adds no auto-merge intent (#232; repo-maintenance — done-when on issue)
+      — strong: extends the binding contract and the neutrality boundary (constitution P1/P3/P4)
+- [ ] T637 [strong] Add a **deterministic generated harness manifest** — a committed lock
+      artifact (e.g. `.claude/HARNESS.lock.json`) compiled from existing source-of-truth
+      (`PROJECT.md`, `workflow/**`, `MODELS.md`, adapter/reviewer/guard config) with an
+      **explicitly versioned schema and no timestamps**, byte-stable across repeated
+      generation on a clean tree; a generator that reads sources and prints deterministic
+      JSON with **no model API / model judgment** (P3); `verify` FAILs on a stale manifest
+      and names the regeneration command; the manifest is **compiled evidence, never
+      authority** — a deterministic fence proves no gate/tier/guard/selection/autonomy path
+      reads it (constitution P5), and source docs win on disagreement; fragile prose is
+      content-hashed with a TODO, not mis-parsed (#233; repo-maintenance — done-when on
+      issue) — strong: deterministic-governance tooling on the contract surface
+      (constitution P3/P4/P5)
+- [ ] T638 [strong] Add a **read-only, observe-only harness status map** command/workflow
+      emitting concise Markdown that mixes static profile facts with best-effort dynamic
+      repo/GitHub state (mode, branch/worktree, task/issue/PR, required gates, live
+      specs/tasks, observe-only channels); it **degrades explicitly** (`unknown`) when
+      tracker/network is unavailable, needs no network for the local static summary, and
+      **writes no tracked file** by default; **observe-only** — no gate/tier/guard/selection/
+      autonomy consumer (constitution P5); **reuses** the shared drift/selection helpers
+      rather than forking a drift definition (P2) and reads T637's manifest when present;
+      output stays under a documented budget (#234; repo-maintenance — done-when on issue;
+      soft-depends T637) — strong: governance-adjacent read surface preserving the
+      observe-only fence (constitution P2/P5)
+- [ ] T639 [strong] Make the §7 `[orchestrated run]` audit an **explicit, verified ref for
+      every dispatch**, not only autonomous ones: the invoker always passes the audited ref
+      (a `[isolated workspace]`/worktree pinned to the task branch, or a `headRef` the
+      script resolves) and the gate **verifies HEAD is still the expected sha at dispatch
+      and at each re-dispatch, failing loud on mismatch** — closing the review-mode default
+      where a concurrent session's branch switch in the **shared** working tree makes the
+      auditors grade the wrong diff (the vacuity/mismatch class the invariant checklist
+      forbids). Distinct from T622/#140 (the loop's own auditor relocating the shared tree)
+      and #214 (dispatcher rooted outside the repo); reuses T612 gate-in-place as the proven
+      remedy. Encoded by an automated test that **fails against current behavior** (a
+      simulated mid-run HEAD switch is graded wrongly / passes vacuously) and **passes after
+      the fix** (mismatch caught, run fails loud) (#240; bug — done-when on issue) — strong:
+      protects the gate-execution boundary against silent wrong-diff audits (constitution P2/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
