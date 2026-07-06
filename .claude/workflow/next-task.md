@@ -9,13 +9,10 @@ do not merge.**
 > concrete mechanisms by the active adapter.
 
 **Project specifics come from the profile (`.claude/PROJECT.md`, the source of truth)** —
-paths (tasks/spec/contracts/constitution), task-ID format, blocked-task list, architecture
-boundaries, invariant checklist, CI check, and merge gate. Below, *the profile* means that
-file. **How the profile is read is the active binding's call** — it may resolve the default
-read to a drift-checked compacted view of these routing facts and escalate to the full
-profile for anything that view omits; read the binding for the concrete read set. (If the
-profile is absent, fall back to conventions: `specs/*/tasks.md`, `specs/*/spec.md`,
-`specs/*/contracts/`, `memory/constitution.md`.)
+paths, task-ID format, blocked-task list, architecture boundaries, invariant checklist, CI
+check, merge gate. Below, *the profile* means that file; **how it is read is the binding's
+call** (default: a drift-checked compacted view, escalating to the full profile for omitted
+facts). If absent, fall back to conventions: `specs/*/tasks.md`, `specs/*/spec.md`, `specs/*/contracts/`, `memory/constitution.md`.
 
 ## Context discipline (one task → one clean window)
 A task must fit in a single context without compaction. The conversation is disposable; the
