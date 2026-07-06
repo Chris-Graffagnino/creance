@@ -1688,9 +1688,10 @@ def _task_ids_from_commit_message_arg(args, index, value=None):
 def _task_ids_from_commit_file_arg(args, index, value, cwd=None, stdin_text=None):
     if value == "-":
         return _task_ids_from_commit_stdin(args, stdin_text, cwd)
-    expanded = _task_ids_from_shell_expansion_tokens(args, index, value)
-    if expanded:
-        return expanded
+    if _token_opens_shell_substitution_arg(value):
+        expanded = _task_ids_from_shell_expansion_tokens(args, index, value)
+        if expanded:
+            return expanded
     return _task_ids_from_commit_message_file(value, cwd)
 
 

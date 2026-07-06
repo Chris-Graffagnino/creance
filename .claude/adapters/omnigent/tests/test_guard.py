@@ -1726,6 +1726,16 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                     "commit-tasks-drift",
                 )
 
+    def test_task_id_in_message_filename_is_not_message_text(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(os.path.join(cwd, "msg-[T987].txt"), "w") as f:
+            f.write("chore: no task id\n")
+
+        self.assertAllow(
+            self.pol(_event("sys_os_shell", "git commit -F msg-[T987].txt", cwd=cwd))
+        )
+
     def test_commit_message_stdin_task_id_denied(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
