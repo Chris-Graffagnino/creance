@@ -18,16 +18,18 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   `specs/002-spec-quality-gate/spec.md`; `specs/003-maker-eval-corpus/spec.md`;
   `specs/004-autonomous-backlog-loop/spec.md`; `specs/005-held-out-acceptance/spec.md`;
   `specs/006-adoption-context-preservation/spec.md`;
-  `specs/007-workflow-context-economy/spec.md`
+  `specs/007-workflow-context-economy/spec.md`;
+  `specs/008-fast-lane-workflow/spec.md`
 - **Tasks (backlog):** the live tasks files are `specs/001-harness-feedback-loop/tasks.md`,
   `specs/002-spec-quality-gate/tasks.md`, `specs/003-maker-eval-corpus/tasks.md`,
   `specs/004-autonomous-backlog-loop/tasks.md`,
   `specs/005-held-out-acceptance/tasks.md`,
-  `specs/006-adoption-context-preservation/tasks.md`, and
-  `specs/007-workflow-context-economy/tasks.md` — the
+  `specs/006-adoption-context-preservation/tasks.md`,
+  `specs/007-workflow-context-economy/tasks.md`, and
+  `specs/008-fast-lane-workflow/tasks.md` — the
   engine selects across all `specs/*/tasks.md`; task IDs are unique across them
   (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx, 004 = T9xx, 005 = T10xx, 006 = T11xx,
-  007 = T12xx).
+  007 = T12xx, 008 = T13xx).
   `specs/000-template/tasks.template.md` is a skeleton, never a backlog.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
@@ -46,7 +48,7 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
 ## Task & branch conventions
 - **Task ID format:** `T` + 3–4 digits, unique across all live `specs/*/tasks.md` — each
   spec owns a disjoint block (see Paths: 001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx,
-  004 = T9xx, 005 = T10xx, 006 = T11xx, 007 = T12xx). The 4-digit extension was owner-ratified on #213 when the
+  004 = T9xx, 005 = T10xx, 006 = T11xx, 007 = T12xx, 008 = T13xx). The 4-digit extension was owner-ratified on #213 when the
   3-digit hundreds blocks were exhausted; every deterministic consumer parses `T[0-9]+`,
   so no hook or CI change accompanies it.
 - **Model tier tag:** every task line carries `[frontier]`/`[strong]`/`[cheap]` — the
@@ -262,3 +264,8 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   neutral card inside the neutrality scan's coverage (P1), budget signals stay
   observe-and-gate-CI-only (P5's posture), and the `AGENTS.md` trim keeps the existing
   residency check live → T1201–T1206.
+- Spec 008 — the fast lane must never become a gate bypass: eligibility/escalation is
+  the deterministic checker's verdict alone, failing closed to the full workflow (P3);
+  the required review passes stay blocking and the lane changes no gate semantics,
+  roster, tier floor, autonomy behavior, or merge rule (P4); protected-path globs and
+  thresholds stay profile facts out of neutral docs (P1) → T1301–T1303.
