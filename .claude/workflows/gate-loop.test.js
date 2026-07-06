@@ -41,11 +41,22 @@ function runGateLoop(args, agentStub) {
   return fn(args, agentStub, parallel, log);
 }
 
-const baseArgs = { taskId: 'T102', strongModel: 'strong-row', cheapModel: 'cheap-row' };
+// baseArgs carries `taskBranch` because T639/#240 makes an explicit audited ref REQUIRED for every
+// dispatch — a run with neither taskBranch nor workspacePath now hard-errors (see the criterion-1
+// test). Review-mode runs pass the task branch; it is the ref the diff-provider verifies HEAD against.
+const baseArgs = {
+  taskId: 'T102',
+  strongModel: 'strong-row',
+  cheapModel: 'cheap-row',
+  taskBranch: 'fix/240-t639',
+};
 
 // The diff-provider's checked contract (mirrors gate-loop.js): output ends with the completion
 // marker and what precedes it is a non-empty `diff --git` patch.
 const DIFF_MARKER = '-----GATE-DIFF-COMPLETE-----';
+// T639: the review-mode HEAD-stability hook (gate-diff.sh) emits this instead when the shared tree
+// drifted off the task branch. MUST match gate-loop.js's HEAD_MISMATCH_MARKER literal.
+const HEAD_MISMATCH_MARKER = '-----GATE-HEAD-MISMATCH-----';
 const providedDiff = (diffBody = 'diff --git a/file b/file\n+change') =>
   `${diffBody}\n${DIFF_MARKER}`;
 const isDiffProvider = (opts) => opts.label && opts.label.startsWith('diff-provider');
@@ -533,6 +544,119 @@ await test('diff-provider contract: object (reviewer-shaped) provider return →
   assert.equal(result.gate, 'FAIL');
   assert.equal(seen.length, 0, 'no reviewer prompt was built from a stringified object');
   assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /no output/);
+});
+
+// --- 22. T639 criterion 1: an explicit audited ref is REQUIRED for every dispatch --------------
+// Before T639 a review-mode run with no workspacePath audited an inferred `git diff main..HEAD` in
+// the shared tree — the diff a concurrent session could change mid-run (#240). The inferred default
+// is removed: a run with neither taskBranch nor workspacePath hard-errors BEFORE any dispatch, so no
+// dispatch path can ever audit an unspecified working directory.
+await test('T639 c1: neither taskBranch nor workspacePath → hard error before any dispatch', async () => {
+  let dispatched = 0;
+  await assert.rejects(
+    () =>
+      runGateLoop(
+        { taskId: 'T102', strongModel: 'strong-row', cheapModel: 'cheap-row' }, // no explicit ref
+        async () => {
+          dispatched += 1;
+          return providedDiff();
+        },
+      ),
+    /explicit audited ref is required/,
+  );
+  assert.equal(dispatched, 0, 'the gate threw before dispatching anything — no inferred-CWD audit');
+});
+
+// --- 23. T639 criterion 1/2: review-mode diff-provider runs the HEAD-stability hook (pinned) ------
+// The explicit ref is enforced operationally: in review mode the diff-provider runs
+// `.claude/hooks/gate-diff.sh <taskBranch>` (shell-quoted), which verifies the shared tree's HEAD
+// still matches the task branch before emitting a diff. It never bare-`git diff && echo marker`s the
+// inferred HEAD (that is the removed default). RED before T639 (the provider was the bare command).
+await test('T639 c1/c2: review-mode diff-provider runs the HEAD-stability hook pinned to the task branch', async () => {
+  let providerPrompt = null;
+  const result = await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) {
+      providerPrompt = prompt;
+      return providedDiff();
+    }
+    return { verdict: 'PASS', report: 'ok' };
+  });
+  assert.equal(result.gate, 'PASS');
+  assert.ok(providerPrompt, 'the diff-provider was dispatched');
+  assert.match(
+    providerPrompt,
+    /bash \.claude\/hooks\/gate-diff\.sh 'fix\/240-t639'/,
+    'runs the HEAD-stability hook, shell-quoted with the task branch',
+  );
+  assert.doesNotMatch(providerPrompt, /&& echo/, 'no bare `git diff && echo marker` of an inferred HEAD in review mode');
+});
+
+// --- 24. T639 criterion 2/3: a HEAD-mismatch marker fails the gate closed and LOUD ---------------
+// The race caught: the hook returns a diagnostic ending in the HEAD-mismatch marker when a concurrent
+// session moved the shared tree off the task branch between dispatch and fan-out. The gate must fail
+// CLOSED (no reviewer dispatched) and LOUD (a HEAD-specific reason recorded), never grade the wrong
+// diff. RED before T639: the old classifier had no HEAD-mismatch branch, so it recorded the generic
+// "missing completion marker" reason instead of the HEAD-stability diagnostic asserted here.
+await test('T639 c2/c3: a HEAD-mismatch marker fails the gate closed and loud, no reviewer dispatched', async () => {
+  const dispatched = [];
+  const driftDiagnostic =
+    "expected task branch 'fix/240-t639' (aaa) but HEAD is 'chore/other' (bbb); a concurrent session switched the shared checkout (issue #240)";
+  const result = await runGateLoop(baseArgs, async (_p, opts) => {
+    if (isDiffProvider(opts)) return `${driftDiagnostic}\n${HEAD_MISMATCH_MARKER}`;
+    dispatched.push(opts.agentType || opts.label);
+    return { verdict: 'PASS', report: 'should never run' };
+  });
+  assert.equal(result.gate, 'FAIL');
+  assert.equal(dispatched.length, 0, 'no reviewer graded a wrong/mismatched diff');
+  assert.ok(result.diffUnverified, 'the run names the diff as unverified');
+  assert.deepEqual(result.notDispatched, ['spec-auditor', 'constitution-auditor']);
+  assert.match(result.telemetry.fail_reports['diff-provider:round-1'], /HEAD-stability check failed/);
+  assert.match(
+    result.telemetry.fail_reports['diff-provider:round-1'],
+    /concurrent session switched/,
+    'the hook diagnostic is carried into the fail report verbatim',
+  );
+  assert.equal(result.telemetry.outcome, 'fail');
+});
+
+// --- 25. T639 criterion 4: a STABLE HEAD grades the real diff (blocks the over-correction) --------
+// The counter-direction guard: the fix must not "make everything fail loud". A stable HEAD produces
+// a valid diff, the reviewers are dispatched, and they grade the REAL committed change — returning
+// the true verdict (PASS incl. a JUSTIFY), not a false HEAD-mismatch failure.
+await test('T639 c4: a stable HEAD grades the real task-branch diff and returns the true verdict', async () => {
+  const seen = [];
+  const result = await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) return providedDiff('diff --git a/gate-loop.js b/gate-loop.js\n+the real task change');
+    seen.push({ prompt, agentType: opts.agentType });
+    return { verdict: opts.agentType === 'constitution-auditor' ? 'JUSTIFY' : 'PASS', report: `${opts.agentType} verdict` };
+  });
+  assert.equal(result.gate, 'PASS', 'a stable HEAD is not a false fail-loud');
+  const reviewerPrompts = seen.filter((s) => s.agentType);
+  assert.ok(reviewerPrompts.length >= 2, 'both reviewers dispatched');
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /the real task change/, 'reviewers graded the REAL committed diff, not a vacuous one');
+  }
+});
+
+// --- 26. T639 criterion 4: workspace/T612 mode is UNCHANGED (no HEAD-stability hook) --------------
+// The autonomous gate-in-place path is byte-identical: the isolated worktree is immune to a
+// shared-tree switch by construction, so it keeps the plain `git -C <ws> diff main..HEAD && echo`
+// provider and never routes through the review-mode hook.
+await test('T639 c4: workspace mode is unchanged — git -C provider, never the HEAD-stability hook', async () => {
+  let providerPrompt = null;
+  await runGateLoop({ ...baseArgs, workspacePath: '/tmp/creance-ws-abc/wt' }, async (prompt, opts) => {
+    if (isDiffProvider(opts)) {
+      providerPrompt = prompt;
+      return providedDiff();
+    }
+    return { verdict: 'PASS', report: 'ok' };
+  });
+  assert.match(
+    providerPrompt,
+    /git -C '\/tmp\/creance-ws-abc\/wt' diff main\.\.HEAD && echo '-----GATE-DIFF-COMPLETE-----'/,
+    'workspace provider is the unchanged git -C command (T612)',
+  );
+  assert.doesNotMatch(providerPrompt, /gate-diff\.sh/, 'no HEAD-stability hook in workspace mode (worktree immune by construction)');
 });
 
 console.log(`\n${testsRun} tests passed`);

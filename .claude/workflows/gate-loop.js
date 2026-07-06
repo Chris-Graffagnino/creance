@@ -33,12 +33,15 @@
 //                    specs/*/spec.md (git A/M/R; a pure deletion D does not fire)
 //   maxFixRounds     (default 2) the §7 non-convergence bound
 //   fix              (default true) false → one report-only fan-out, no fix stage
-//   workspacePath    (optional) the [isolated workspace] path whose committed diff the
-//                    reviewers + fixer audit (gate-in-place under autonomous mode, T612);
-//                    absent → the main working tree (review mode, unchanged)
-//   taskBranch       (optional; review mode) the task branch the dispatcher cut — passed so the
-//                    fix step restores the SHARED working tree onto it before each fix/re-dispatch
-//                    round (#140/T622); absent under autonomous mode (the work is isolated)
+//   workspacePath    the [isolated workspace] path whose committed diff the reviewers + fixer
+//                    audit (gate-in-place under autonomous mode, T612). One of workspacePath /
+//                    taskBranch is REQUIRED (T639/#240): every dispatch audits an EXPLICIT ref,
+//                    never an inferred working directory
+//   taskBranch       the task branch the dispatcher cut (review mode). REQUIRED when workspacePath
+//                    is absent — it is the explicit ref the review-mode diff is verified against:
+//                    the fix step restores the SHARED tree onto it before each fix/re-dispatch
+//                    round (#140/T622), AND the diff-provider refuses to grade unless the shared
+//                    tree's HEAD still matches it (T639/#240). Absent under autonomous mode
 
 export const meta = {
   name: 'gate-loop',
@@ -75,6 +78,19 @@ if (!input.strongModel || !input.cheapModel) {
       'constitution floor must never depend on inherited session state.',
   );
 }
+// T639/#240 — an explicit audited ref is required for EVERY dispatch, review mode included. The
+// reviewers must never grade an inferred working directory whose HEAD a concurrent session can move
+// between dispatch and fan-out (the #240 shared-tree race). Autonomous runs pass workspacePath (an
+// isolated worktree, T612); review runs pass taskBranch (the ref the diff is verified against).
+// Absent both, there is no explicit ref to audit — fail before any dispatch rather than read a
+// stray HEAD. This removes the pre-T639 inferred-CWD default.
+if (!input.workspacePath && !input.taskBranch) {
+  throw new Error(
+    'gate-loop: an explicit audited ref is required — pass workspacePath (isolated autonomous run) ' +
+      'or taskBranch (review mode). The inferred working-directory default is removed (T639/#240): a ' +
+      'dispatch must never audit an unspecified tree whose HEAD a concurrent session can switch.',
+  );
+}
 
 const MAX_FIX_ROUNDS = input.maxFixRounds === undefined ? 2 : input.maxFixRounds;
 const APPLY_FIXES = input.fix === undefined ? true : Boolean(input.fix);
@@ -102,13 +118,15 @@ const VERDICT_SCHEMA = {
 // single quote ('\'') so the whole path stays one argument verbatim.
 const shellQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
-// Where the committed diff under review is read. Default: the main working tree (review mode).
-// Under an engaged isolated autonomous run the invoker passes `workspacePath`, and the diff is
-// read from THAT worktree via an explicit `git -C <path>` (gate-in-place, T612) — explicit
-// context, never an inferred CWD. The path is shell-quoted so a space/metacharacter cannot
-// malform the generated command.
+// Where the committed diff under review is read, as an EXPLICIT ref (T639/#240) — never an inferred
+// CWD. Under an engaged isolated autonomous run the invoker passes `workspacePath` and the diff is
+// read from THAT worktree via an explicit `git -C <path>` (gate-in-place, T612). In review mode the
+// invoker passes `taskBranch` and the diff-provider goes through the HEAD-stability hook (see
+// `provideDiff`), which emits `git diff main..HEAD` ONLY while the shared tree's HEAD still matches
+// that branch. `diffCmd` below is the provenance shown to the reviewers/fixer; the path is
+// shell-quoted so a space/metacharacter cannot malform the generated command.
 const WORKSPACE = input.workspacePath;
-const TASK_BRANCH = input.taskBranch; // review-mode fix-round restore target (#140/T622); absent under autonomous mode
+const TASK_BRANCH = input.taskBranch; // review-mode explicit audited ref: fix-round restore target (#140/T622) + HEAD-stability ref (T639/#240); absent under autonomous mode
 const diffCmd = WORKSPACE ? `git -C ${shellQuote(WORKSPACE)} diff main..HEAD` : `git diff main..HEAD`;
 const diffTarget = WORKSPACE
   ? `the committed diff of the ISOLATED WORKSPACE at ${WORKSPACE} (the autonomous run's branch, ` +
@@ -128,18 +146,37 @@ const diffTarget = WORKSPACE
 //
 // The helper's output is NOT trusted blindly (PR #200 review): what it returns is what the
 // reviewers audit, so a failure message, summary, or truncated patch fed through as "the diff"
-// would let the gate pass without the reviewers ever seeing the real change. The provider runs
-// `diffCmd && echo <marker>` — the marker prints ONLY when the diff command exits 0 — and
-// `classifyProvidedDiff` below enforces the checked, fail-closed contract on what comes back.
+// would let the gate pass without the reviewers ever seeing the real change. In WORKSPACE
+// (autonomous) mode the provider runs `diffCmd && echo <marker>` — the marker prints ONLY when the
+// diff command exits 0. In REVIEW mode it runs the HEAD-stability hook `.claude/hooks/gate-diff.sh
+// <taskBranch>` (T639/#240): the hook emits the committed diff + the completion marker ONLY while
+// the shared tree's HEAD still matches the task branch, and otherwise a diagnostic + the
+// HEAD-mismatch marker and no diff — so a concurrent session's branch switch fails the gate loud
+// instead of the reviewers grading the wrong diff. `classifyProvidedDiff` below enforces the
+// checked, fail-closed contract on either marker.
 const DIFF_COMPLETE_MARKER = '-----GATE-DIFF-COMPLETE-----';
+// Emitted by gate-diff.sh (review mode) when the shared tree drifted off the task branch (or git is
+// unreadable). MUST stay byte-identical to the hook's literal — gate-diff.test.sh pins the agreement.
+const HEAD_MISMATCH_MARKER = '-----GATE-HEAD-MISMATCH-----';
+
+// The command the diff-provider runs this round. WORKSPACE (autonomous) mode is byte-identical to
+// pre-T639 (the isolated worktree is immune to a shared-tree switch by construction — T612 unchanged);
+// REVIEW mode delegates to the HEAD-stability hook, which owns the verify-then-diff atomically.
+const providerCommand = WORKSPACE
+  ? `${diffCmd} && echo '${DIFF_COMPLETE_MARKER}'`
+  : `bash .claude/hooks/gate-diff.sh ${shellQuote(TASK_BRANCH)}`;
+const providerMarkerNote = WORKSPACE
+  ? `The last line of your message must be the ${DIFF_COMPLETE_MARKER} line the command ` +
+    `prints on success. If the command fails, return its error output instead, WITHOUT that line.`
+  : `On success the command's last line is ${DIFF_COMPLETE_MARKER}; if a concurrent session has ` +
+    `moved the shared working tree off the task branch (or git state is unreadable) it instead ` +
+    `prints a diagnostic ending in ${HEAD_MISMATCH_MARKER} and no diff. Return whatever it prints, verbatim.`;
 const provideDiff = (round) =>
   agent(
     `Output the committed diff under review for the pre-PR gate, and NOTHING else. Run exactly ` +
       `this and return its complete output verbatim as your final message — no summary, no ` +
-      `commentary, no code fence:\n\n    ${diffCmd} && echo '${DIFF_COMPLETE_MARKER}'\n\n` +
-      `The last line of your message must be the ${DIFF_COMPLETE_MARKER} line the command ` +
-      `prints on success. If the command fails, return its error output instead, WITHOUT that ` +
-      `line. Make NO change to any file or branch — this is a read-only step.`,
+      `commentary, no code fence:\n\n    ${providerCommand}\n\n` +
+      `${providerMarkerNote} Make NO change to any file or branch — this is a read-only step.`,
     { label: `diff-provider-round-${round}`, phase: 'Dispatch' },
   );
 
@@ -156,7 +193,21 @@ const classifyProvidedDiff = (raw) => {
     return { ok: false, why: 'no output — the diff-provider returned nothing usable' };
   }
   const lines = raw.trim().split('\n');
-  if (lines[lines.length - 1].trim() !== DIFF_COMPLETE_MARKER) {
+  const lastLine = lines[lines.length - 1].trim();
+  // T639/#240 — the review-mode HEAD-stability hook (gate-diff.sh) emits this marker when the shared
+  // working tree drifted off the task branch (a concurrent session switched it) or git is unreadable.
+  // Fail the gate CLOSED and LOUD with the hook's diagnostic — never grade the wrong/absent diff.
+  if (lastLine === HEAD_MISMATCH_MARKER) {
+    const detail = lines.slice(0, -1).join('\n').trim();
+    return {
+      ok: false,
+      why:
+        'HEAD-stability check failed — the audited working tree is no longer on the expected task ' +
+        'branch (a concurrent session switched the shared checkout); refusing to grade the wrong diff' +
+        (detail ? `: ${detail}` : ''),
+    };
+  }
+  if (lastLine !== DIFF_COMPLETE_MARKER) {
     return {
       ok: false,
       why:

@@ -529,7 +529,7 @@
       output stays under a documented budget (#234; repo-maintenance — done-when on issue;
       soft-depends T637) — strong: governance-adjacent read surface preserving the
       observe-only fence (constitution P2/P5)
-- [ ] T639 [strong] Make the §7 `[orchestrated run]` audit an **explicit, verified ref for
+- [x] T639 [strong] Make the §7 `[orchestrated run]` audit an **explicit, verified ref for
       every dispatch**, not only autonomous ones: the invoker always passes the audited ref
       (a `[isolated workspace]`/worktree pinned to the task branch, or a `headRef` the
       script resolves) and the gate **verifies HEAD is still the expected sha at dispatch

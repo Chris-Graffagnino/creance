@@ -61,16 +61,21 @@ The dispatcher passes every value the run must honor in the invocation itself:
   rounds").
 - **apply-fixes** — default true; false yields a single report-only fan-out (no fix step),
   for a dispatcher that wants to apply fixes itself between invocations.
-- **workspace location** — optional; under an engaged isolated autonomous run, the location of
-  the **[isolated workspace]** whose committed diff the reviewers (and the fix step) audit,
-  passed **explicitly** per the explicit-context rule. Absent → the main working tree (review
-  mode, unchanged). The loop never infers this from a working directory or env.
-- **task-branch** — optional; **review mode only**. The branch the dispatcher cut for this task,
-  passed so the **fix step** can restore the shared working tree onto it before applying a fix or
-  re-dispatching (a parallel auditor in that shared tree can leave HEAD relocated off the task
-  branch; see "The loop" and "The fix step"). Under an engaged isolated autonomous run the work
-  lives in the ephemeral **[isolated workspace]**, so there is no shared tree to restore and this
-  is absent. Passed **explicitly** per the explicit-context rule, never inferred.
+- **audited ref** — **required**: the explicit ref the run audits, never an inferred working
+  directory. A dispatch that read an inferred HEAD could grade a tree a concurrent session
+  relocated between dispatch and fan-out — the wrong-diff / vacuity class this gate exists to
+  prevent — so exactly one of these two, keyed to the mode, is always given:
+  - **workspace location** — under an engaged isolated autonomous run, the location of the
+    **[isolated workspace]** whose committed diff the reviewers (and the fix step) audit. It is
+    immune to a shared-tree switch by construction (a dedicated checkout).
+  - **task-branch** — in review mode, the branch the dispatcher cut. It is the explicit ref the
+    diff-obtaining step **verifies the shared tree's HEAD against before every dispatch** (see
+    "The loop") — a concurrent session's branch switch fails the round loud instead of grading
+    the wrong diff — AND the branch the **fix step** restores the shared tree onto before applying
+    a fix or re-dispatching (a parallel shell-holding step in that shared tree can leave HEAD
+    relocated off it; see "The fix step").
+  Both are passed **explicitly** per the explicit-context rule, never inferred from a working
+  directory or env; a run that supplies **neither** is a hard error before any dispatch.
 
 A missing required input is a hard error before any dispatch — never guessed, never
 inherited from ambient state.
@@ -118,6 +123,15 @@ pending  ← reviewers
 fix-rounds-used ← 0
 
 loop:
+    obtain the committed diff for THIS round from the audited ref. In REVIEW mode this FIRST
+        verifies the shared tree's HEAD still matches the task-branch ref — atomically, as part of
+        producing the diff — and on MISMATCH ABORTS the round loud: gate FAIL, no reviewer
+        dispatched, the mismatch recorded in the telemetry fail_reports keyed to the diff-obtaining
+        step (a concurrent session relocated the shared checkout between dispatch and fan-out;
+        grading its diff would be wrong/vacuous). This verification runs at dispatch AND at each
+        re-dispatch. (Autonomous mode reads the isolated workspace, immune by construction — no
+        HEAD check applies; the fail-closed diff contract still holds. See "Constraints inherited".)
+
     results ← dispatch every reviewer in pending IN PARALLEL — each one per its spec
               under reviewers/, on its resolved model, returning the structured verdict
               { verdict: PASS | JUSTIFY | FAIL,  report: <its full report, verbatim> }
@@ -241,7 +255,14 @@ succeeded). One record per completed gate invocation, whatever the outcome.
   recorded in the telemetry `fail_reports` keyed to the diff-providing step and round — rather than
   being embedded, so the gate can never pass on reviewers that audited something other than the real
   committed diff (the T612 vacuous-pass class, closed structurally rather than by asking a reviewer
-  to notice). The
+  to notice). When the audited tree is the **shared** working tree (review mode), that same
+  fail-closed diff-obtaining step **also verifies the shared tree's HEAD still matches the
+  task-branch ref**, atomically as part of producing the diff, **at dispatch and at each
+  re-dispatch**, and classifies a **mismatch** as unverified the same way — a concurrent session
+  relocated the shared checkout between dispatch and fan-out, so grading its diff would be
+  wrong/vacuous. This is the review-mode analogue of the isolated run's explicit `git -C <workspace>`:
+  an explicit, verified ref in place of an inferred HEAD, so neither mode audits a tree whose
+  identity it has not pinned. The
   non-switching rule is the prevention layer for the shell-holding case; the deterministic backstop —
   the restore, applied by the loop before each fix/re-dispatch step (review mode) and by the dispatcher
   after the run — heals a drifted HEAD on every path in both cases, since a shell-holding fixer or diff

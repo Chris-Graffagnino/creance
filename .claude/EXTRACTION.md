@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 118 rows.
+Manifest source inventory: 120 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -116,6 +116,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/effective-fix-rate.test.sh` | KEEP | Fixture-backed + docs-encoding tests for the effective-fix-rate derivation — exact per-instance numerator/denominator over a planted stream, both empty states and the genuine-0-of-N distinction, plus the neutral-doc/adapter/CI-wiring pins. Verbatim. |
 | `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register. Keep structural/neutrality/extraction checks; drop only instance-coupled real-escape assertions when the register is reset. |
 | `hooks/extraction-manifest.test.sh` | KEEP | Completeness backstop for this cut-list. Verbatim. |
+| `hooks/gate-diff.sh` | KEEP | Review-mode §7 gate HEAD-stability diff helper: emits the committed diff only while the shared tree's HEAD still matches the task branch, else a mismatch marker and no diff (closes the #240 concurrent-session wrong-diff race). Verbatim. |
+| `hooks/gate-diff.test.sh` | KEEP | Real-git red→green regression tests for the gate HEAD-stability diff helper (stable grades the real diff, a concurrent branch switch is refused loud, fix-round stability, fail-loud aborts, marker/invocation/CI wiring). Verbatim. |
 | `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
 | `hooks/guard.test.sh` | KEEP | Guard tests including matcher-wiring and edit-guard assertions. Verbatim. |
 | `hooks/intake-docs.test.sh` | KEEP | Encoding test for intake/triage workflow docs and skill binding. Verbatim. |
