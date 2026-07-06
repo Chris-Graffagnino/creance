@@ -20,3 +20,11 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/intake.md
 Write posture per the workflow doc: repo edits happen **only on an intake branch** (the
 PreToolUse guard blocks base-branch edits deterministically); the conversion PR carries
 **no closing keyword** for the source issue; merge is the owner's alone.
+
+**Profile read — packet first (spec 007 US3.AC3).** Read **`.claude/PROJECT.compact.md`**
+by default for the routing facts (tasks-file paths, task-ID blocks, title/branch
+conventions, required check — drift-checked by `.claude/hooks/compact-packet-drift.sh`
+in CI). **Escalate to the full `.claude/PROJECT.md` explicitly** — say you are escalating
+and why — when a classification needs a fact the packet deliberately omits (an
+invariant's full text, architecture boundaries, blocked-task detail); the full profile
+stays the source of truth.

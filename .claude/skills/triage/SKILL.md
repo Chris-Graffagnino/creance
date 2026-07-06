@@ -19,6 +19,14 @@ This procedure is **read-only on the repo**: no `Edit`/`Write`/`MultiEdit` under
 root, no `git add/commit/push`, no `gh issue/pr create`. The PreToolUse guard
 (`.claude/hooks/guard.sh`) is the deterministic backstop.
 
+**Profile read — packet first (spec 007 US3.AC3).** Read **`.claude/PROJECT.compact.md`**
+by default for the routing facts (paths, conventions, required check, autonomy status,
+blocked list — drift-checked by `.claude/hooks/compact-packet-drift.sh` in CI). The
+snapshot's look-ahead sections need profile facts the packet deliberately omits — the
+constitution-watch list and the maker-eval records path — so **escalate to the full
+`.claude/PROJECT.md` explicitly for those sections** (a named escalation case, not a
+default full read); the full profile stays the source of truth.
+
 ## Gate-trends effective-fix rate — concrete instantiation (`triage.md` §2 / §4)
 
 `triage.md`'s **"Gate trends"** section defers the effective-fix rate's concrete recipe to

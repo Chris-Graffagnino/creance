@@ -28,6 +28,17 @@ concrete Claude Code mechanisms:
 | **[environment block]** | "This environment's concrete forms" below (the single copy) |
 | **[comment marker]** | "The [comment marker] concrete form" below (the single copy) — appended to every engine-posted `gh issue comment` / `gh pr comment` body |
 
+**Profile read — packet first (spec 007 US3.AC3).** The workflow doc's "read the profile
+once at the start" resolves to **`.claude/PROJECT.compact.md`** by default — the compact
+packet of active routing facts (base branch, paths, conventions, required check, autonomy
+status, blocked list, review passes, critical invariants + backstops, the [edit guard]
+map), drift-checked against the full profile by `.claude/hooks/compact-packet-drift.sh`
+in CI `verify`. **Escalate to the full `.claude/PROJECT.md` explicitly** — say you are
+escalating and why — when a step needs a fact the packet deliberately omits (an
+invariant's full text or auditor rule, the maker-eval records path, architecture
+boundaries, constitution watch, coverage policy, autonomy rationale). The full profile
+stays the source of truth; the packet is the read optimization, never a second authority.
+
 Plan note: usage may be account-wide (interactive + heartbeat + reviewers sharing one
 pool) — apply the methodology's "Model & usage economy" tiering as written.
 

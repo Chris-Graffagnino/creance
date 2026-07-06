@@ -21,6 +21,15 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/pr-review
 | PR reads | `gh pr view <n> --json title,body,state,baseRefName,headRefName,url,comments` (the `comments` field returns the **timeline / issue-level** comments — the §2.5 owner-steering channel and any PR-level findings) and `gh pr diff <n>`, **plus the line-anchored inline findings `gh pr view` omits**: `gh api --method GET --paginate repos/{owner}/{repo}/pulls/<n>/comments` (inline review comments) and `.../pulls/<n>/reviews` (review summaries — where some bots/Codex post) — the bot/automated inline findings the timeline view misses. **`--method GET` keeps these reads write-incapable**, so their allowlist entry can't auto-approve a write. Where the **GitHub MCP server** (`mcp__github__*`) is connected, its PR review-comment / diff tools are a drop-in alternative for these reads — MCP tools are permission-gated on their own, needing no shell allowlist |
 | PR writes (additive only) | `gh pr comment <n> --body-file <tempfile>` for the structured review — **never** `gh pr merge`, never `gh pr close`, never a push to the PR branch. (The deliverable is one consolidated review comment; an optional inline reply needs a write grant beyond the read-only `gh api --method GET` entry — or the GitHub MCP server) |
 
+**Profile read — packet first (spec 007 US3.AC3).** The workflow doc's project-specifics
+read resolves to **`.claude/PROJECT.compact.md`** by default — the compact packet of
+active routing facts (base branch, conventions, required check, review passes, critical
+invariants + backstops), drift-checked against the full profile by
+`.claude/hooks/compact-packet-drift.sh` in CI `verify`. **Escalate to the full
+`.claude/PROJECT.md` explicitly** — say you are escalating and why — when the review
+needs a fact the packet deliberately omits (an invariant's full text or auditor rule,
+architecture boundaries, coverage policy). The full profile stays the source of truth.
+
 **Check out the PR head before the lens passes.** `/code-review` reads the current branch, and the
 diff you hand the `[reviewer]` subagents must be PR #N's — so before the lens passes run
 `gh pr checkout <n>` to make the working tree (and `git diff main..HEAD`) be PR #N's head. The reviewer

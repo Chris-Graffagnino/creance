@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 123 rows.
+Manifest source inventory: 126 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -69,6 +69,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `EXTRACTION.md` | KEEP | This manifest and extraction playbook. Carry so the next extraction has a complete inventory. |
 | `MODELS.md` | GENERICIZE | The adapter's only model-naming file. Keep the table shape and semantics; replace the concrete rows with sensible defaults plus a "swap per your account" note. |
 | `PROJECT.md` | TEMPLATE | Omit from extracted template; live project profile. Ship `PROJECT.template.md` for adopters to fill. |
+| `PROJECT.compact.md` | TEMPLATE | Omit from extracted template; live compact routing-facts packet mirroring `PROJECT.md` (spec 007 US3) — the adopter writes their own after filling the profile; the drift check (`hooks/compact-packet-drift.sh`) names each covered field to mirror. |
 | `PROJECT.template.md` | TEMPLATE | Fill-in-the-blanks project profile. Ship as the template's profile source. |
 | `README.md` | GENERICIZE | Adapter-layer doc is generic, but examples may name this source environment. Strip project names/examples; keep the structure. |
 | `adapters/claude-code-probes.md` | RESET | Probe instantiation + dated results are environment-specific. Reset to "instantiated, NOT yet executed" with placeholder launcher/scheduler rows. |
@@ -113,6 +114,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/backlog-loop.test.sh` | KEEP | Backlog-loop stop-condition/activation regression tests (exact-transcript paired proofs). Verbatim. |
 | `hooks/check-tasks-consistency.sh` | KEEP | Tasks-file consistency and drift gate. Verbatim. |
 | `hooks/check-tasks-consistency.test.sh` | KEEP | Regression tests proving the tasks-file consistency gate fires and avoids false positives. Verbatim. |
+| `hooks/compact-packet-drift.sh` | KEEP | Deterministic drift check between the compact project packet and the full profile — anchored per-field extraction from both files, FAILs naming the drifted field; anchor rot fails loud (spec 007 US3.AC2). Verbatim. |
+| `hooks/compact-packet-drift.test.sh` | KEEP | Two-sided drift-check tests — in-sync real-tree control, planted drift per covered field, profile-side drift, anchor rot, entrypoint packet-first declarations, CI wiring. Verbatim. |
 | `hooks/effective-fix-rate.sh` | KEEP | Adapter-side deterministic effective-fix-rate derivation over the telemetry stream — flips (a reviewer FAIL cleared to PASS/JUSTIFY on re-dispatch) over FAIL-triggered re-dispatches, per window and per auditor; read-only, observe-only (prints one JSON object, writes nothing to the stream). Verbatim. |
 | `hooks/effective-fix-rate.test.sh` | KEEP | Fixture-backed + docs-encoding tests for the effective-fix-rate derivation — exact per-instance numerator/denominator over a planted stream, both empty states and the genuine-0-of-N distinction, plus the neutral-doc/adapter/CI-wiring pins. Verbatim. |
 | `hooks/evasion-register-docs.test.sh` | GENERICIZE | Structural + runtime-neutrality backstop for the register. Keep structural/neutrality/extraction checks; drop only instance-coupled real-escape assertions when the register is reset. |
