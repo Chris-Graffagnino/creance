@@ -78,7 +78,9 @@ first_token() {
   printf '%s\n' "$1" | sed -n 's/[^`]*`\([^`]*\)`.*/\1/p'
 }
 
-# expand_paths <token>: existing files the (possibly glob) token matches, one per line.
+# expand_paths <token>: existing files the token matches, one per line. `*` is
+# the only glob syntax expanded (the registry's documented composition grammar);
+# any other token is a literal path.
 expand_paths() {
   if [ "${1#*"*"}" != "$1" ]; then
     compgen -G "$1" || true
@@ -166,8 +168,18 @@ EOF
 
   listfile="$(mktemp)"
   printf '%s' "$files" > "$listfile"
-  counts="$(count_files "$listfile")"
+  # A counting failure past the import probe (encoding fetch/load failure, an
+  # unreadable matched file) is a broken MEASUREMENT, not an unavailable
+  # counter: it FAILs hard on every surface — never a silent `total: 0` that
+  # lets --require-counter go green unmeasured.
+  count_status=0
+  counts="$(count_files "$listfile")" || count_status=$?
   rm -f "$listfile"
+  if [ "$count_status" -ne 0 ]; then
+    echo "FAIL: surface '$surface': token counting failed (exit $count_status) — the surface is unmeasured, not empty (see the counter's error above; identity per $REGISTRY)." >&2
+    failures=$((failures + 1))
+    continue
+  fi
   total=0
   while IFS="$(printf '\t')" read -r n path; do
     [ -n "$n" ] || continue

@@ -145,6 +145,20 @@ mkfixture "$F2" '| `bundle` | `total` | `100000` | `deferred` | `real.md` `renam
 run_check "$F2"
 if [ "$GOT" -eq 0 ] && printf '%s' "$OUT" | grep -q 'unmatched composition token'; then ok; else bad "F2 deferred partial miss must pass with a note (got $GOT)"; fi
 
+# --- F3: the composition grammar is `*`-only (documented in the registry) — a
+#     token using another glob metacharacter is a literal path, so it stays
+#     unmatched even when files the pattern *would* match exist. -------------
+F3="$TMP/f3-star-only"
+mkfixture "$F3" '| `bundle` | `total` | `100000` | `active` | `cards/[ab].md` |'
+mkdir -p "$F3/cards"
+printf 'exists, but only a star-glob may match me\n' > "$F3/cards/a.md"
+run_check "$F3"
+if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q 'cards/\[ab\]\.md match no files'; then
+  ok
+else
+  bad "F3 non-star glob token must stay literal (unmatched -> active FAIL; got $GOT)"
+fi
+
 # --- G: registry-shape guards — missing registry, empty table, bad
 #     mode/gating/budget all FAIL loud naming the repair target. ------------
 G="$TMP/g-shape"
@@ -180,6 +194,33 @@ fi
 GOT=0
 OUT="$( (cd "$H" && TOKEN_BUDGET_PYTHON=/nonexistent-interpreter bash "$CHECK" --require-counter) 2>&1 )" || GOT=$?
 if [ "$GOT" -eq 1 ]; then ok; else bad "H --require-counter must turn a missing counter into a hard FAIL (got $GOT)"; fi
+
+# --- K: a counting failure PAST the import probe (encoding fetch/load
+#     failure, unreadable matched file) is a hard FAIL on any surface — never
+#     a silent `total: 0` that lets --require-counter go green unmeasured. ---
+K="$TMP/k-broken-counter"
+mkfixture "$K" '| `doc` | `total` | `100000` | `active` | `doc.md` |'
+printf 'a file the broken counter never measures\n' > "$K/doc.md"
+cat > "$K/fake-python" <<'FAKE'
+#!/usr/bin/env bash
+# Passes the import probe (any -c invocation) but explodes during counting.
+for a in "$@"; do [ "$a" = "-c" ] && exit 0; done
+echo 'fake counter: counting exploded' >&2
+exit 42
+FAKE
+chmod +x "$K/fake-python"
+GOT=0
+OUT="$( (cd "$K" && TOKEN_BUDGET_PYTHON="$K/fake-python" bash "$CHECK" --require-counter) 2>&1 )" || GOT=$?
+if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q "surface 'doc': token counting failed (exit 42)"; then
+  ok
+else
+  bad "K counting failure must be a hard FAIL naming the surface and exit code (got $GOT)"
+fi
+if printf '%s' "$OUT" | grep -q 'total: 0 tokens'; then
+  bad "K an unmeasured surface must never report a zero total"
+else
+  ok
+fi
 
 # --- I: the real registry parses and carries the six US1.AC1 surfaces (the
 #     ratified registry stays structurally consumable; values themselves are

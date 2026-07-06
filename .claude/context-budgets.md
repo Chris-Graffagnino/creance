@@ -40,7 +40,9 @@ Column semantics (the check parses exactly these):
   measured and reported (registered from the start, per US1.AC1's deferred-activation
   rule) but an overage does not fail — its gate begins in the diff that lands or
   restructures the surface.
-- **composition** — the backticked paths (globs allowed) that make up the surface.
+- **composition** — the backticked paths that make up the surface. `*` is the only glob
+  syntax the check expands; a token using any other metacharacter (`?`, `[...]`) is
+  treated as a literal path.
 
 ## Deferred-activation map (who flips each row to `active`)
 
