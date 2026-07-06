@@ -666,6 +666,27 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+    def test_deleted_non_tasks_pathspec_reads_head_tasks_view(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        docs_dir = os.path.join(cwd, "docs")
+        os.makedirs(docs_dir)
+        docs_path = os.path.join(docs_dir, "x.md")
+        with open(docs_path, "w") as f:
+            f.write("x\n")
+        _git(["add", "docs/x.md"], cwd)
+        _git(["commit", "-q", "-m", "seed docs file"], cwd)
+        _git(["rm", "-q", "docs/x.md"], cwd)
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit docs/x.md -m "feat: [T987] delete docs"',
+                cwd=cwd,
+            )),
+            "commit-tasks-drift",
+        )
+
     def test_negated_status_condition_scans_possible_commit(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -742,6 +763,27 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+    def test_top_magic_exclude_from_subdir_removes_tasks_from_worktree_selection(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        subdir = os.path.join(cwd, "subdir")
+        os.makedirs(subdir)
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        _git(["add", "specs/010-fixture/tasks.md"], cwd)
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit .. ":(top,exclude)specs/010-fixture/tasks.md" '
+                '-m "feat: [T987] change seed"',
+                cwd=subdir,
+            )),
+            "commit-tasks-drift",
+        )
+
     def test_exclude_only_pathspec_can_still_land_tasks_view(self):
         cwd = self.repo("feature/x")
         path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -755,6 +797,24 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                 "sys_os_shell",
                 'git commit ":(exclude)seed.txt" -m "feat: [T987] update task"',
                 cwd=cwd,
+            ))
+        )
+
+    def test_exclude_only_pathspec_from_subdir_can_still_land_tasks_view(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        subdir = os.path.join(cwd, "subdir")
+        os.makedirs(subdir)
+        with open(os.path.join(subdir, "other.txt"), "w") as f:
+            f.write("changed\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git commit ":(exclude)seed.txt" -m "feat: [T987] update task"',
+                cwd=subdir,
             ))
         )
 
@@ -1077,6 +1137,20 @@ class TestPendingCommitTasksDrift(GuardTestBase):
         for command in (
             '>/tmp/out git commit -m "feat: [T987] do the thing"',
             '> /tmp/out git commit -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
+    def test_redirection_between_git_and_commit_is_detected(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'git >/tmp/out commit -m "feat: [T987] do the thing"',
+            'git 2>/tmp/err commit -m "feat: [T987] do the thing"',
         ):
             with self.subTest(command=command):
                 self.assertDeny(

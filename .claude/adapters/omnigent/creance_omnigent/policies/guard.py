@@ -1280,6 +1280,9 @@ def _split_commit_invocations(command, cwd):
         git_cwd = command_cwd
         while j < len(tokens) and not _is_shell_separator(tokens[j]):
             tok = tokens[j]
+            if _is_shell_redirection(tok):
+                j += 2 if _redirection_consumes_next(tok) else 1
+                continue
             if tok in _GIT_GLOBALS_WITH_ARG:
                 if j + 1 >= len(tokens):
                     break
@@ -1569,40 +1572,51 @@ def _is_live_tasks_pathspec(token, root=None):
     )
 
 
+def _root_relative_git_path(path, root, cwd):
+    path = path.replace("\\", "/")
+    if os.path.isabs(path):
+        abspath = path
+    else:
+        abspath = os.path.join(cwd or root, path)
+    try:
+        rel = os.path.relpath(
+            os.path.realpath(abspath),
+            os.path.realpath(root),
+        ).replace("\\", "/")
+    except ValueError:
+        return None
+    if rel == ".":
+        return rel
+    if rel.startswith("../") or rel == "..":
+        return None
+    return rel
+
+
 def _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd):
-    if pathspec.startswith(":") or any(ch in pathspec for ch in "*?["):
-        return set()
     root = _git(git_args + ["rev-parse", "--show-toplevel"], cwd)
     if root is None or not root.strip():
-        return None
+        return None, False
     root = root.strip()
     query = pathspec
-    if os.path.isabs(query):
-        try:
-            query = os.path.relpath(
-                os.path.realpath(query),
-                os.path.realpath(root),
-            ).replace("\\", "/")
-        except ValueError:
-            return set()
-    else:
-        try:
-            query = os.path.relpath(
-                os.path.realpath(os.path.join(cwd or os.getcwd(), query)),
-                os.path.realpath(root),
-            ).replace("\\", "/")
-        except ValueError:
-            return set()
-    if query.startswith("../") or query == "..":
-        return set()
-    out = _git(git_args + ["-C", root, "ls-tree", "-r", "--name-only", "HEAD", "--", query], cwd)
+    query_cwd = cwd or root
+    if not pathspec.startswith(":") and not any(ch in pathspec for ch in "*?["):
+        query = _root_relative_git_path(pathspec, root, query_cwd)
+        if query is None:
+            return set(), False
+        query_cwd = root
+    out = _git(git_args + ["-C", query_cwd, "ls-tree", "-r", "--name-only", "HEAD", "--", query], cwd)
     if out is None:
-        return None
-    return {
-        rel.replace("\\", "/")
-        for rel in out.splitlines()
-        if rel and _is_live_tasks_pathspec(rel)
-    }
+        return None, False
+    matched = False
+    paths = set()
+    for rel in out.splitlines():
+        if not rel:
+            continue
+        matched = True
+        normalized = _root_relative_git_path(rel, root, query_cwd)
+        if normalized and _is_live_tasks_pathspec(normalized):
+            paths.add(normalized)
+    return paths, matched
 
 
 def _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=False):
@@ -1616,14 +1630,14 @@ def _pathspec_live_tasks_paths(pathspec, git_args, cwd, allow_unmatched=False):
             matched_index = True
         if rel and _is_live_tasks_pathspec(rel):
             paths.add(rel.replace("\\", "/"))
-    head_paths = _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd)
+    head_paths, matched_head = _head_live_tasks_paths_for_pathspec(pathspec, git_args, cwd)
     if head_paths is None:
         return None
     paths.update(head_paths)
     exact = _exact_live_tasks_pathspec(pathspec, git_args, cwd)
     if exact is not None:
         paths.add(exact)
-    if not matched_index and not paths:
+    if not matched_index and not matched_head and not paths:
         return set() if allow_unmatched else None
     return paths
 
@@ -1657,10 +1671,14 @@ def _exclude_pathspec_payload(pathspec):
     end = pathspec.find(")")
     if end < 0:
         return None
-    magic = {part.strip() for part in pathspec[2:end].split(",")}
+    magic = [part.strip() for part in pathspec[2:end].split(",")]
     if "exclude" not in magic and "!" not in magic and "^" not in magic:
         return None
-    return pathspec[end + 1:] or "."
+    kept = [part for part in magic if part not in ("exclude", "!", "^")]
+    payload = pathspec[end + 1:] or "."
+    if kept:
+        return ":({}){}".format(",".join(kept), payload)
+    return payload
 
 
 def _short_option_flags_before_value(token):
@@ -1893,7 +1911,7 @@ def _commit_tasks_selection(args, root=None, pathspec_cwd=None, git_args=None, c
                 return None
         i += 1
     if explicit_pathspec and not positive_pathspec:
-        live_paths = _pathspec_live_tasks_paths(".", git_args, cwd)
+        live_paths = _pathspec_live_tasks_paths(".", git_args, root or cwd)
         if live_paths is None:
             return None
         worktree_paths.update(live_paths - excluded_worktree_paths)
