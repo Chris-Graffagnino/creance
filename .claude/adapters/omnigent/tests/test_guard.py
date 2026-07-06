@@ -282,6 +282,56 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             ))
         )
 
+    def test_prior_git_add_update_respects_pathspec_before_plain_commit(self):
+        cwd = self.repo("feature/x")
+        path = self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+        with open(path, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        with open(os.path.join(cwd, "seed.txt"), "a") as f:
+            f.write("changed\n")
+
+        for command in (
+            'git add -u seed.txt && git commit -m "feat: [T987] do the thing"',
+            'git add --update seed.txt && git commit -m "feat: [T987] do the thing"',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
+    def test_prior_git_add_tasks_state_is_scoped_to_same_repo(self):
+        clean = self.repo("feature/clean")
+        clean_tasks = self._seed_tasks(clean, "- [ ] T987 fixture task\n")
+        with open(clean_tasks, "w") as f:
+            f.write("- [x] T987 fixture task\n")
+        drifted = self.repo("feature/drifted")
+        self._seed_tasks(drifted, "- [ ] T987 fixture task\n")
+        cwd = self.tmpdir()
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'git -C %s add specs/010-fixture/tasks.md && '
+                'git -C %s commit -m "feat: [T987] do the thing"' % (clean, drifted),
+                cwd=cwd,
+            )),
+            "commit-tasks-drift",
+        )
+
+    def test_prior_git_rm_tasks_before_plain_commit_allows_deletion(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        self.assertAllow(
+            self.pol(_event(
+                "sys_os_shell",
+                'git rm -q specs/010-fixture/tasks.md && '
+                'git commit -m "feat: [T987] delete task file"',
+                cwd=cwd,
+            ))
+        )
+
     def test_plain_commit_from_subdir_reads_root_tasks_index(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1524,6 +1574,20 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             with self.subTest(command=command):
                 self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=cwd)))
 
+    def test_invoked_shell_function_body_is_scanned(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        for command in (
+            'f(){ git commit -m "feat: [T987] do the thing"; }; f',
+            'function f { git commit -m "feat: [T987] do the thing"; }; f',
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=cwd)),
+                    "commit-tasks-drift",
+                )
+
     def test_skipped_compound_group_commit_invocations_are_not_scanned(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1859,6 +1923,7 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "printf 'feat: [T987] do the thing\\n' | git commit -F -",
             "echo 'feat: [T987] do the thing' | git commit --file=-",
             "printf 'chore: no task\\n' | git commit -F - < stdin-message.txt",
+            'git commit -F - < <(echo "feat: [T987] do the thing")',
         ):
             with self.subTest(command=command):
                 self.assertDeny(
