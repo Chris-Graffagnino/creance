@@ -326,6 +326,7 @@ _SHELL_UNSUPPORTED_FLOW_END = {
 }
 _SHELL_COMMAND_WRAPPERS = {"command", "exec", "env", "sudo"}
 _SHELL_C_WRAPPERS = {"bash", "sh", "zsh"}
+_SHELL_CD_OPTIONS_NO_ARG = {"-L", "-P", "-e"}
 _ENV_OPTIONS_WITH_ARG = {
     "-C", "-P", "-S", "-u", "--argv0", "--chdir", "--path", "--split-string", "--unset",
 }
@@ -522,9 +523,10 @@ def _shell_cwd_status_after_segment(shell_cwd, segment):
             invert = not invert
         i += 1
     if i < len(tokens) and tokens[i] == "cd":
-        if i + 1 < len(tokens) and not _is_shell_separator(tokens[i + 1]):
-            new_cwd = _resolve_existing_shell_cd(shell_cwd, tokens[i + 1])
-            status = new_cwd != shell_cwd or os.path.isdir(_resolve_shell_cd(shell_cwd, tokens[i + 1]))
+        target, _ = _shell_cd_target(tokens, i)
+        if target is not None:
+            new_cwd = _resolve_existing_shell_cd(shell_cwd, target)
+            status = new_cwd != shell_cwd or os.path.isdir(_resolve_shell_cd(shell_cwd, target))
             return new_cwd, _apply_shell_status(status, invert)
     if i < len(tokens):
         return shell_cwd, _apply_shell_status(_known_shell_status(tokens[i]), invert)
@@ -746,6 +748,7 @@ def _command_substitution_sites(command, cwd):
     segment_sites = []
     previous_separator = None
     last_status = True
+    unsupported_flow = []
     single = double = False
     i = 0
 
@@ -754,10 +757,23 @@ def _command_substitution_sites(command, cwd):
         segment = command[segment_start:end]
         should_run = _shell_command_should_run(previous_separator, last_status)
         if segment.strip() and should_run:
-            if _first_shell_command_name(segment) in _SHELL_UNSUPPORTED_CONTROL_FLOW:
-                return True
-            sites.extend(segment_sites)
-            shell_cwd, last_status = _shell_cwd_status_after_segment(shell_cwd, segment)
+            name = _first_shell_command_name(segment)
+            if unsupported_flow:
+                if name == unsupported_flow[-1]:
+                    unsupported_flow.pop()
+                else:
+                    flow_end = _SHELL_UNSUPPORTED_FLOW_END.get(name)
+                    if flow_end is not None:
+                        unsupported_flow.append(flow_end)
+                last_status = None
+            elif name in _SHELL_UNSUPPORTED_CONTROL_FLOW:
+                flow_end = _SHELL_UNSUPPORTED_FLOW_END.get(name)
+                if flow_end is not None:
+                    unsupported_flow.append(flow_end)
+                last_status = None
+            else:
+                sites.extend(segment_sites)
+                shell_cwd, last_status = _shell_cwd_status_after_segment(shell_cwd, segment)
         segment_sites = []
         previous_separator = separator
         segment_start = next_start
@@ -931,6 +947,17 @@ def _heredoc_delimiter(tokens, index):
     return None, index + 1
 
 
+def _herestring_body(tokens, index):
+    op, rest = _split_shell_redirection(tokens[index])
+    if op != "<<<":
+        return None, index
+    if rest:
+        return rest, index + 1
+    if index + 1 < len(tokens) and not _is_shell_separator(tokens[index + 1]):
+        return tokens[index + 1], index + 2
+    return None, index + 1
+
+
 def _render_shell_line(tokens):
     parts = []
     for tok in tokens:
@@ -1049,6 +1076,22 @@ def _resolve_shell_cd(shell_cwd, target):
 def _resolve_existing_shell_cd(shell_cwd, target):
     path = _resolve_shell_cd(shell_cwd, target)
     return path if os.path.isdir(path) else shell_cwd
+
+
+def _shell_cd_target(tokens, index):
+    index += 1
+    while index < len(tokens) and not _is_shell_separator(tokens[index]):
+        tok = tokens[index]
+        if tok == "--":
+            index += 1
+            break
+        if tok in _SHELL_CD_OPTIONS_NO_ARG:
+            index += 1
+            continue
+        break
+    if index < len(tokens) and not _is_shell_separator(tokens[index]):
+        return tokens[index], index + 1
+    return None, index
 
 
 def _shell_command_should_run(separator, last_status):
@@ -1390,6 +1433,14 @@ def _split_commit_invocations(command, cwd):
             pending_heredocs.append((heredoc, current_command in _SHELL_C_WRAPPERS))
             i = next_i
             continue
+        herestring, next_i = _herestring_body(tokens, i)
+        if herestring is not None:
+            if current_command in _SHELL_C_WRAPPERS:
+                invocations = _split_commit_invocations(herestring, shell_cwd)
+                if invocations:
+                    nested.extend(invocations)
+            i = next_i
+            continue
         if _is_shell_redirection(tok):
             i += 2 if _redirection_consumes_next(tok) else 1
             continue
@@ -1411,12 +1462,13 @@ def _split_commit_invocations(command, cwd):
             invert_next_status = False
             continue
         if command_start and scoped_command_cwd is None and tok_name == "cd":
-            if i + 1 < len(tokens) and not _is_shell_separator(tokens[i + 1]):
-                new_cwd = _resolve_existing_shell_cd(shell_cwd, tokens[i + 1])
-                status = new_cwd != shell_cwd or os.path.isdir(_resolve_shell_cd(shell_cwd, tokens[i + 1]))
+            target, next_i = _shell_cd_target(tokens, i)
+            if target is not None:
+                new_cwd = _resolve_existing_shell_cd(shell_cwd, target)
+                status = new_cwd != shell_cwd or os.path.isdir(_resolve_shell_cd(shell_cwd, target))
                 last_status = _apply_shell_status(status, invert_next_status)
                 shell_cwd = new_cwd
-                i += 2
+                i = next_i
                 command_start = False
                 current_command = tok_name
                 previous_separator = None

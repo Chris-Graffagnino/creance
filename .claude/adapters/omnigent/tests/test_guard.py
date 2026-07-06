@@ -1229,6 +1229,16 @@ class TestPendingCommitTasksDrift(GuardTestBase):
             "commit-tasks-drift",
         )
 
+    def test_shell_fed_here_string_body_is_detected(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        command = 'bash <<< \'git commit -m "feat: [T987] do the thing"\''
+        self.assertDeny(
+            self.pol(_event("sys_os_shell", command, cwd=cwd)),
+            "commit-tasks-drift",
+        )
+
     def test_leading_redirection_before_commit_is_detected(self):
         cwd = self.repo("feature/x")
         self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
@@ -1347,6 +1357,29 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                 cwd=parent,
             ))
         )
+
+    def test_cd_options_track_commit_cwd(self):
+        clean = self.repo("feature/clean")
+        drifted = self.repo("feature/drifted")
+        self._seed_tasks(drifted, "- [ ] T987 fixture task\n")
+        parent = os.path.dirname(clean)
+
+        for command in (
+            'cd -P %s && git commit -m "feat: [T987] do the thing"' % drifted,
+            'cd -- %s && git commit -m "feat: [T987] do the thing"' % drifted,
+        ):
+            with self.subTest(command=command):
+                self.assertDeny(
+                    self.pol(_event("sys_os_shell", command, cwd=parent)),
+                    "commit-tasks-drift",
+                )
+
+        for command in (
+            'cd -P %s && git commit -m "feat: [T987] do the thing"' % clean,
+            'cd -- %s && git commit -m "feat: [T987] do the thing"' % clean,
+        ):
+            with self.subTest(command=command):
+                self.assertAllow(self.pol(_event("sys_os_shell", command, cwd=parent)))
 
     def test_skipped_conditional_cd_does_not_change_commit_cwd(self):
         clean = self.repo("feature/clean")
@@ -1499,6 +1532,20 @@ class TestPendingCommitTasksDrift(GuardTestBase):
                 "sys_os_shell",
                 'cd %s; echo "$(git commit -m \'feat: [T987] do the thing\')"' % drifted,
                 cwd=clean,
+            )),
+            "commit-tasks-drift",
+        )
+
+    def test_unsupported_shell_flow_preserves_following_command_substitution_scan(self):
+        cwd = self.repo("feature/x")
+        self._seed_tasks(cwd, "- [ ] T987 fixture task\n")
+
+        self.assertDeny(
+            self.pol(_event(
+                "sys_os_shell",
+                'if true; then echo ok; fi; '
+                'echo "$(git commit -m \'feat: [T987] do the thing\')"',
+                cwd=cwd,
             )),
             "commit-tasks-drift",
         )
