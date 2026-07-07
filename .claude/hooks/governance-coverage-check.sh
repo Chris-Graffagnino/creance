@@ -9,8 +9,11 @@
 # when an accounted row stops being true:
 #   encoded-*  -> the named check file exists, still carries the named anchor
 #                 (the carried test-case name / the load-bearing flag), and the
-#                 named wiring file still references the check file's basename
-#                 ("asserted still running" as a grep, not a promise).
+#                 named wiring file still invokes the check in an active `run:`
+#                 step ("asserted still running" — a grep of the executable
+#                 steps, not of arbitrary text: a comment that merely names the
+#                 check must NOT satisfy it, else the backstop dies silent (#253
+#                 review; the token-budget tests use the same run:-scoped idiom).
 #   prose-P3   -> the registry itself still carries that rule's
 #                 "### P3 justification — <rule>" section (never silently
 #                 dropped, US6.AC1).
@@ -63,8 +66,8 @@ while IFS='|' read -r _ f_rule f_status f_check f_anchor f_wiring _; do
       if [ ! -f "$wiring" ]; then
         echo "FAIL: rule '$rule': wiring file $wiring is missing — restore it, or update the row in $REGISTRY" >&2
         fail=1
-      elif ! grep -qF -- "$(basename "$check")" "$wiring"; then
-        echo "FAIL: rule '$rule': $wiring no longer runs $(basename "$check") — restore the verify step in $wiring, or update the row in $REGISTRY" >&2
+      elif ! grep -E '^[[:space:]]*run:[[:space:]]' "$wiring" | grep -qF -- "$check"; then
+        echo "FAIL: rule '$rule': no active run: step in $wiring invokes $check — a comment naming it does not count; restore the verify step in $wiring, or update the row in $REGISTRY" >&2
         fail=1
       fi
       ;;

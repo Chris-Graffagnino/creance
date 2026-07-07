@@ -79,7 +79,19 @@ run_case 1 "$D" "carried anchor removed -> FAIL names the check file" \
 D="$TMP/unwired"; mkfixture "$D"
 printf 'run: something else entirely\n' > "$D/.github/workflows/ci.yml"
 run_case 1 "$D" "wiring dropped -> FAIL names the wiring file" \
-  ".github/workflows/ci.yml no longer runs guard.test.sh"
+  "no active run: step in .github/workflows/ci.yml invokes .claude/hooks/guard.test.sh"
+
+# The named check must run in an ACTIVE run: step; a comment merely naming it
+# must NOT satisfy the backstop. The real ci.yml is full of "same as
+# guard.test.sh" prose, so a raw whole-file grep (the pre-#253 shape) let a
+# comment keep a removed rule reported "live" — this plants exactly that.
+D="$TMP/wiring-comment-only"; mkfixture "$D"
+printf '%s\n' \
+  '# bash .claude/hooks/guard.test.sh  # (moved out of verify but still named here)' \
+  'run: bash .claude/hooks/token-budget-check.sh --require-counter' \
+  > "$D/.github/workflows/ci.yml"
+run_case 1 "$D" "check named only in a comment (no run: step) -> FAIL" \
+  "no active run: step in .github/workflows/ci.yml invokes .claude/hooks/guard.test.sh"
 
 D="$TMP/check-gone"; mkfixture "$D"
 rm "$D/.claude/hooks/guard.test.sh"
@@ -112,16 +124,20 @@ grep -v '^|' "$D/.claude/governance-rules.md" > "$D/.claude/governance-rules.md.
 run_case 1 "$D" "registry with no table rows -> FAIL loud" \
   "no rules parsed"
 
-# --- W: CI wiring (the silent-death backstop, same discipline as the
-# token-budget tests): the required verify job must run both the check and
-# this test file, else the coverage assertion is itself silently dead (P2).
+# --- W: CI wiring (the silent-death backstop, same discipline as the token-budget
+# tests, token-budget-check.test.sh §J): the verify job must actively RUN both the
+# check and this test file in a run: step — a comment merely naming them must NOT
+# count (#253 review) — else the coverage assertion is itself silently dead (P2).
+# Scoped to the verify job body, active run: lines only (the token-budget idiom).
 CI="$REPO_ROOT/.github/workflows/ci.yml"
+verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
 for f in governance-coverage-check.sh governance-coverage-check.test.sh; do
-  if grep -qF -- "$f" "$CI"; then
+  esc="${f//./\\.}"                                  # escape dots for the -E pattern
+  if verify_steps | grep -qE "^[[:space:]]*run:[[:space:]]+bash[[:space:]]+\.claude/hooks/${esc}([[:space:]]|\$)"; then
     pass=$((pass + 1))
   else
     fail=$((fail + 1))
-    printf 'FAIL %-62s verify (ci.yml) must run %s\n' "wiring: ci.yml runs $f" "$f" >&2
+    printf 'FAIL %-62s verify (ci.yml) must actively RUN %s in a run: step\n' "wiring: ci.yml runs $f" "$f" >&2
   fi
 done
 
