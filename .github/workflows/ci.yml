@@ -385,6 +385,14 @@ jobs:
       - name: PR-review encoding tests
         run: bash .claude/hooks/pr-review-docs.test.sh
 
+      # T640 review-response encoding tests (#255): the write-direction mirror of
+      # pr-review — a fix RE-ENTERS the §7 gate (maker ≠ checker, never self-certified),
+      # behavior fixes carry red→green proof, every inline comment (bots by [bot] suffix)
+      # is enumerated with a reply ledger, and the workflow never merges. The neutral doc
+      # + skill binding are the implementation surface (the P3 determinism backstop).
+      - name: Review-response encoding tests
+        run: bash .claude/hooks/review-response-docs.test.sh
+
       # T302 retrospective skill-binding encoding tests (#72, US3.AC5): the
       # binding (.claude/skills/retrospective/SKILL.md) exposes the retrospective
       # workflow, dispatches the existing auditor roles READ-ONLY + report-only

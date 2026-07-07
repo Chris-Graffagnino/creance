@@ -543,6 +543,22 @@
       the fix** (mismatch caught, run fails loud) (#240; bug — done-when on issue) — strong:
       protects the gate-execution boundary against silent wrong-diff audits (constitution P2/P3)
 
+## Phase 17 — PR review response
+
+- [x] T640 [strong] **review-response** workflow + Claude Code skill: resolve the reviewer
+      findings on the harness's own open PR end-to-end — ingest the diff + every inline comment
+      (human AND bot/automated, matched by `[bot]` suffix, enumerate-first/filter-second),
+      verify each against current source, apply the **minimum scoped fix** with **red→green**
+      proof, **re-run the §7 gate on the fix** (maker ≠ checker — a fix is never self-certified),
+      reply to every comment (reply ledger), and confirm the head is green — **without merging**
+      (owner-only, session-explicit). The write-direction mirror of `pr-review` (T601): a WRITE
+      workflow (pushes fixes + posts replies) that **composes existing roles** (no new
+      binding-contract row). Ships neutral `workflow/review-response.md` + adapter
+      `skills/review-response/SKILL.md`, encoded by `hooks/review-response-docs.test.sh`
+      (CI-wired, mutation-proven) asserting the re-gate / red→green / enumerate-first / no-merge
+      clauses (#255; engine workflow — done-when on issue) — strong: writes to the PR branch and
+      re-runs the maker≠checker gate, guarding the review-response boundary (constitution P2/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |

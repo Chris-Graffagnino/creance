@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 131 rows.
+Manifest source inventory: 134 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -153,6 +153,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/restore-task-branch.test.sh` | KEEP | Paired real-git regression tests for the gate branch-restore backstop (DW1 fail-before/pass-after, DW2 base-read control, DW3 both outcomes, fail-loud, CI+dispatcher wiring). Verbatim. |
 | `hooks/retrospective-docs.test.sh` | KEEP | Encoding test for retrospective workflow/binding invariants. Verbatim. |
 | `hooks/review-pass-roster.test.sh` | KEEP | Drift + fence backstop for the configurable skill-backed review-pass set (profile rows vs adapter-mapped passes; the roster-auditor fence). Verbatim. |
+| `hooks/review-response-docs.test.sh` | KEEP | Encoding test for the review-response workflow + binding (#255 DW1–DW7 — the re-gate/red→green/enumerate-first/no-merge clauses, neutrality, and CI wiring). Verbatim. |
 | `hooks/reviewer-roster.test.sh` | KEEP | Drift backstop for the §7 reviewer roster and read-only agent bindings. Verbatim. |
 | `hooks/shell-lint.sh` | KEEP | Shell syntax/portability checker used by CI and the edit guard. Verbatim. |
 | `hooks/shell-lint.test.sh` | KEEP | Regression tests for the shell portability checker. Verbatim. |
@@ -173,6 +174,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `skills/next-task/SKILL.md` | KEEP | Adapter binding + the single [environment block]. Verbatim, but see §3 note on the env block's bash+PowerShell assumption. |
 | `skills/pr-review/SKILL.md` | KEEP | Claude adapter binding for PR review. Verbatim. |
 | `skills/retrospective/SKILL.md` | KEEP | Claude adapter binding for retrospectives. Verbatim. |
+| `skills/review-response/SKILL.md` | KEEP | Claude adapter binding for review-response — resolve reviewer findings on an open PR (write posture: pushes fixes + posts replies; re-gates each fix). Verbatim. |
 | `skills/triage/SKILL.md` | KEEP | Claude adapter binding for triage. Verbatim. |
 | `workflow/README.md` | KEEP | The binding contract — the spine. Verbatim. |
 | `workflow/auditor-liveness.md` | KEEP | Runtime-neutral auditor-liveness methodology. Verbatim. |
@@ -185,6 +187,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `workflow/next-task.md` | KEEP | Per-task loop. Verbatim. |
 | `workflow/pr-review.md` | KEEP | Runtime-neutral PR-review workflow. Verbatim. |
 | `workflow/retrospective.md` | KEEP | Runtime-neutral retrospective workflow. Verbatim. |
+| `workflow/review-response.md` | KEEP | Runtime-neutral review-response workflow — the write-direction mirror of pr-review (resolve findings on your own open PR; re-gate the fix). Verbatim. |
 | `workflow/reviewers/auditor-liveness-corpus.md` | KEEP | Fixture manifest for auditor-liveness. Verbatim. |
 | `workflow/reviewers/constitution-auditor.md` | KEEP | Values reviewer spec. Verbatim. |
 | `workflow/reviewers/contract-auditor.md` | KEEP | Architecture reviewer spec. Verbatim. |

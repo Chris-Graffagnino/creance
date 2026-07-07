@@ -65,6 +65,7 @@
 | T637 | strong | [ ] |  |  | Add a **deterministic generated harness manifest** |
 | T638 | strong | [ ] |  |  | Add a **read-only, observe-only harness status map** command/workflow… |
 | T639 | strong | [x] |  |  | Make the §7 `[orchestrated run]` audit an **explicit, verified ref for… |
+| T640 | strong | [x] |  |  | **review-response** workflow + Claude Code skill: resolve the reviewer… |
 
 ## specs/002-spec-quality-gate/spec.md
 
