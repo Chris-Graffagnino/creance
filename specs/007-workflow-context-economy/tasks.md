@@ -45,7 +45,7 @@
 
 ## Phase 3 — Prose to determinism
 
-- [ ] T1206 [strong] Account for the governance-rule candidate set without duplicating
+- [x] T1206 [strong] Account for the governance-rule candidate set without duplicating
       existing coverage: merge-not-pre-approved is carried by T623's existing
       `guard.test.sh` regression (cite it, assert it still runs, extend only on a found
       gap — no re-implementation); budget-checks-wired is cited from US1.AC2; any new

@@ -138,7 +138,8 @@ block conditions, and the evidence rule for approvals — lives in
 - "Work autonomously" allows implementation, PR updates, and automated-review response,
   but not merging.
 - Merge only when the user explicitly authorizes autonomous merging in the session and
-  all checks/reviews are green.
+  all checks/reviews are green. (Deterministic backstop — no allowlist entry pre-approves
+  a merge command: `guard.test.sh`; accounting: `.claude/governance-rules.md`.)
 - Verify PR status with concrete GitHub data, for example:
   `gh pr view <number> --json reviews,statusCheckRollup,mergeStateStatus`
 - If review/check status is unavailable, ambiguous, delayed, or absent, do not merge.
