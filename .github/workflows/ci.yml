@@ -348,6 +348,25 @@ jobs:
       - name: Task-index staleness tests
         run: bash .claude/hooks/task-index.test.sh
 
+      # Governance-rule coverage check (T1206, spec 007 US6; epic #166):
+      # .claude/governance-rules.md accounts for the US6 candidate set — which
+      # rules are encoded (carried: the T623 merge-pre-approval regression in
+      # guard.test.sh; cited: the US1.AC2 budget wiring) and which stay prose
+      # with an explicit P3 justification. An accounting nothing verifies is the
+      # hand-maintained-summary class spec 007 forbids (P2), so this check
+      # asserts every accounted row is still true — check file present, anchor
+      # (the carried case name) still in it, wiring still running it, the P3
+      # justification never silently dropped — failing with the repair target
+      # named (US6.AC3). The .test.sh proves both directions (planted
+      # missing-anchor / unwired / missing-file / dropped-justification each
+      # FAIL naming their target; the in-sync fixture AND the real tree pass)
+      # AND this wiring — same discipline as the drift/token-budget tests above.
+      - name: Governance-rule coverage check
+        run: bash .claude/hooks/governance-coverage-check.sh
+
+      - name: Governance-rule coverage tests
+        run: bash .claude/hooks/governance-coverage-check.test.sh
+
       # US6 intake/triage encoding tests (T501): the triage "Unmapped tracker
       # work" section + snapshot output shape (incl. the explicit empty state)
       # and intake's write-posture / retitle / marked-comment invariants. The

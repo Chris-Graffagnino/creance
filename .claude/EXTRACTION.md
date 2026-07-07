@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 128 rows.
+Manifest source inventory: 131 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -93,6 +93,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `agents/spec-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `agents/spec-quality-auditor.md` | KEEP | Subagent binding. Verbatim. |
 | `context-budgets.md` | GENERICIZE | Owner-ratified token-budget registry the context token-budget check reads (T1201). Keep the table shape, column semantics, and deferred-activation model; reset the budgets/compositions to the adopter's own surfaces (the shipped values are this repo's #166 ratification). |
+| `governance-rules.md` | KEEP | Governance-rule candidate-set accounting the coverage check reads (spec 007 US6/T1206) — which rules are encoded (carried/cited) vs prose-P3-justified, with the carried merge-pre-approval audit record. Generic harness governance; carry verbatim like the guard/check machinery it accounts for (its issue provenance is documentation, not an instance assumption). |
 | `hooks/agents-residency-check.sh` | KEEP | Deterministic residency budget for the always-resident `AGENTS.md`. Verbatim. |
 | `hooks/agents-residency-check.test.sh` | KEEP | Regression + CI-wiring test for the residency check. Verbatim. |
 | `hooks/announce-task-selection.sh` | KEEP | Runtime [selection announce-and-confirm] decision (announce/confirm/announce-only) for /next-task. Verbatim. |
@@ -122,6 +123,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/extraction-manifest.test.sh` | KEEP | Completeness backstop for this cut-list. Verbatim. |
 | `hooks/gate-diff.sh` | KEEP | Review-mode §7 gate HEAD-stability diff helper: emits the committed diff only while the shared tree's HEAD still matches the task branch, else a mismatch marker and no diff (closes the #240 concurrent-session wrong-diff race). Verbatim. |
 | `hooks/gate-diff.test.sh` | KEEP | Real-git red→green regression tests for the gate HEAD-stability diff helper (stable grades the real diff, a concurrent branch switch is refused loud, fix-round stability, fail-loud aborts, marker/invocation/CI wiring). Verbatim. |
+| `hooks/governance-coverage-check.sh` | KEEP | Deterministic coverage check over `governance-rules.md` (spec 007 US6/T1206) — asserts each accounted rule stays live (check file present, anchor still in it, wiring still runs it, P3 justification never dropped), failing with the repair target named. Verbatim. |
+| `hooks/governance-coverage-check.test.sh` | KEEP | Two-sided tests for the governance coverage check — in-sync fixture + real-tree control, planted missing-anchor/unwired/missing-file/dropped-justification/bad-status/missing-registry directions each naming their repair target, plus CI wiring. Verbatim. |
 | `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
 | `hooks/guard.test.sh` | KEEP | Guard tests including matcher-wiring and edit-guard assertions. Verbatim. |
 | `hooks/intake-docs.test.sh` | KEEP | Encoding test for intake/triage workflow docs and skill binding. Verbatim. |

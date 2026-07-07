@@ -569,21 +569,53 @@ done
 # (.claude/README.md), so a broad entry like `Bash(gh pr:*)` or `Bash(gh:*)` would
 # pre-approve merge just as surely as a literal `Bash(gh pr merge:*)` — grepping only
 # the literal token (the #175 review's craft finding) would miss those. So replay Claude
-# Code's prefix match against a representative merge command instead: extract every allow
+# Code's prefix match against representative merge commands instead: extract every allow
 # spec from the real settings.json (the same file the wiring assertions above read) and
-# FAIL if any would authorize `gh pr merge …`. A literal re-add OR a future over-broad
-# prefix both flip it red.
-# approves_merge <spec-inside-parens> -> exit 0 if it authorizes some `gh pr merge …`.
+# FAIL if any would authorize one. A literal re-add OR a future over-broad prefix both
+# flip it red.
+# T1206 (#252) audit extension: `gh pr merge` was the only representative command, but
+# the API merge route (`gh api --method PUT repos/…/pulls/N/merge`) is a merge command
+# with NO guard backstop — guard rules 3/4 wall the git-surface push-to-main path, but
+# nothing walls a pre-approved `gh api` PUT merge, so an over-broad `Bash(gh api:*)`
+# would pre-approve promptless merges the `gh pr merge` replay cannot see. The replay
+# now runs every representative command below, and any `gh api` spec naming a merge
+# endpoint is flagged directly (a literal one-shot PUT-merge spec shares no prefix with
+# the representatives). Full candidate-set accounting: .claude/governance-rules.md.
+# #253 review — endpoint-first API merge (e.g. `gh api repos/o/r/pulls/1/merge
+# --method PUT`) is NOT a separate gap. Claude's `Bash(pre:*)` match enforces a
+# WORD BOUNDARY — `:*` ≡ ` *`, so an auto-approved command must continue with a
+# space (or end) after `pre` (docs: permissions#wildcard-patterns; `Bash(ls:*)`
+# matches `ls -la`, not `lsof`). The API endpoint is one slash-delimited token,
+# so the ONLY specs that word-boundary-match an endpoint-first merge are the broad
+# `gh api:*` / `gh:*` (flagged in the loop) or one that literally spells the
+# `…merge` token (flagged by the clause below). A path-prefix like `gh api repos:*`
+# does NOT auto-approve `gh api repos/…/merge …` (no space after `repos`), so
+# flagging it would over-detect against the real semantics — the controls below pin
+# both directions.
+# approves_merge <spec-inside-parens> -> exit 0 if it authorizes some merge command.
 approves_merge() {
-  local spec="$1" pre
+  local spec="$1" pre cmd
+  # Conservative & intentional (#253 craft review): any gh api spec that NAMES a
+  # merge endpoint counts as merge-authorizing regardless of HTTP method — a
+  # `--method GET …/merge` spec is flagged too (fail-closed). We deliberately do
+  # not model per-method HTTP semantics: nothing legitimately needs a pulls-merge
+  # endpoint on the allowlist, and for a `:*` spec the trailing wildcard could
+  # carry an appended method flag, so a GET in the spec is not proof of read-only.
   case "$spec" in
-    'gh pr merge'|'gh pr merge '*) return 0 ;;   # literal merge: exact, or with args/wildcard
+    'gh api'*merge*) return 0 ;;                 # any gh api spec naming a merge endpoint
   esac
-  case "$spec" in
-    *':*')                                        # prefix wildcard: a token-prefix of `gh pr merge`?
-      pre="${spec%:\*}"
-      case 'gh pr merge' in "$pre"|"$pre "*) return 0 ;; esac ;;
-  esac
+  for cmd in 'gh pr merge' \
+             'gh api --method PUT repos/o/r/pulls/1/merge' \
+             'gh api -X PUT repos/o/r/pulls/1/merge'; do
+    case "$spec" in
+      "$cmd"|"$cmd "*) return 0 ;;               # literal merge: exact, or with args/wildcard
+    esac
+    case "$spec" in
+      *':*')                                     # prefix wildcard: a token-prefix of the command?
+        pre="${spec%:\*}"
+        case "$cmd" in "$pre"|"$pre "*) return 0 ;; esac ;;
+    esac
+  done
   return 1
 }
 merge_allows=0
@@ -594,8 +626,44 @@ done < <(grep -oE '"(Bash|PowerShell)\([^"]*\)"' "$SETTINGS" 2>/dev/null \
            | sed -E 's/^"(Bash|PowerShell)\((.*)\)"$/\2/')
 if [ "$merge_allows" -eq 0 ]; then pass=$((pass + 1)); else
   fail=$((fail + 1))
-  printf 'FAIL %-55s settings.json must not pre-approve gh pr merge (matched %s)\n' "settings #165: no gh pr merge pre-approval" "$merge_allows" >&2
+  printf 'FAIL %-55s settings.json must not pre-approve a merge command (matched %s)\n' "settings #165: no gh pr merge pre-approval" "$merge_allows" >&2
 fi
+
+# T1206 (#252): two-sided detector cases — planted violating specs are detected and
+# benign controls are not, so the replay above is proven live rather than assumed
+# (a detector that stopped matching would pass the real-settings sweep vacuously).
+t623_detect() { # t623_detect <want 0|1> <name> <spec>
+  local want="$1" name="$2" spec="$3" got=0
+  approves_merge "$spec" || got=$?
+  if [ "$got" -eq "$want" ]; then pass=$((pass + 1)); else
+    fail=$((fail + 1))
+    printf 'FAIL %-55s want %s, got %s\n' "$name" "$want" "$got" >&2
+  fi
+}
+t623_detect 0 "t623 detect: literal gh pr merge"              'gh pr merge'
+t623_detect 0 "t623 detect: gh pr merge:* wildcard"           'gh pr merge:*'
+t623_detect 0 "t623 detect: gh pr merge with args"            'gh pr merge --squash'
+t623_detect 0 "t623 detect: over-broad gh:*"                  'gh:*'
+t623_detect 0 "t623 detect: over-broad gh pr:*"               'gh pr:*'
+t623_detect 0 "t623 detect: over-broad gh api:* (API merge)"  'gh api:*'
+t623_detect 0 "t623 detect: gh api --method PUT:* prefix"     'gh api --method PUT:*'
+t623_detect 0 "t623 detect: gh api -X PUT:* prefix"           'gh api -X PUT:*'
+t623_detect 0 "t623 detect: literal API PUT-merge spec"       'gh api --method PUT repos/foo/bar/pulls/12/merge'
+t623_detect 1 "t623 control: gh api --method GET:*"           'gh api --method GET:*'
+t623_detect 1 "t623 control: gh pr view:*"                    'gh pr view:*'
+t623_detect 1 "t623 control: gh pr checks:*"                  'gh pr checks:*'
+t623_detect 1 "t623 control: git push:*"                      'git push:*'
+# #253 review — endpoint-first API merge is NOT a separate gap (word boundary, see
+# approves_merge's header): a bare path-prefix spec cannot reach the slash-delimited
+# `…/merge` token, so it is correctly NOT flagged. Codex named these two exact
+# specs — both are controls, not detects (over-detecting them would mismodel the
+# real `Bash(pre:*)` ≡ `Bash(pre *)` semantics).
+t623_detect 1 "t623 control: gh api repos:* (no boundary into /…/merge)"  'gh api repos:*'
+t623_detect 1 "t623 control: gh api /repos:* (leading slash, same)"       'gh api /repos:*'
+# #253 craft review — the conservative block: a gh api spec that NAMES a merge
+# endpoint is flagged even with --method GET (fail-closed, intentional; complements
+# the PUT literal above at a different method).
+t623_detect 0 "t623 detect: --method GET spec naming merge (conservative)"  'gh api --method GET repos/o/r/pulls/1/merge'
 
 # --- fail-open posture for unrecognized input ---
 check 0 "$FEAT" "misc allow: garbage payload" 'not json'
