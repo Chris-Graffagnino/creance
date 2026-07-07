@@ -127,7 +127,11 @@ check 2 "$FEAT" "r4 block: forced feature:main" "$(bashp 'git push --force origi
 check 2 "$FEAT" "r4 block: refs/heads/main destination" "$(bashp 'git push origin HEAD:refs/heads/main')"
 check 2 "$FEAT" "r4 block: remote delete :main" "$(bashp 'git push origin :main')"
 check 2 "$FEAT" "r4 block: HEAD:main via PowerShell" "$(pwshp 'git push origin HEAD:main')"
-check 2 "$FEAT" "r4 block: push-to-main prose in inline commit msg (fail closed)" "$(bashp 'git commit -m \"revert: git push origin main broke X\"')"
+# issue #256: a `push … main` mention INSIDE a quoted `commit -m` message is not a real
+# push — the skeleton blanks the quoted span, so this now ALLOWs (was a deliberate
+# fail-closed block). No hole: a real `git push origin main` is never inside quotes, so it
+# still blocks (lines above, and the paired mutation proof in the #256 section below).
+check 0 "$FEAT" "r4 allow: push-to-main text inside a quoted commit -m message (#256)" "$(bashp 'git commit -m \"revert: git push origin main broke X\"')"
 check 0 "$FEAT" "r4 allow: normal feature-branch push" "$(bashp 'git push -u origin chore/61-guard-tests')"
 check 0 "$FEAT" "r4 allow: HEAD:main-backup refspec" "$(bashp 'git push origin HEAD:main-backup')"
 check 0 "$FEAT" "r4 allow: branch named maintenance" "$(bashp 'git push origin maintenance')"
@@ -193,6 +197,64 @@ check 0 "$MAIN" "H1 allow: git --git-dir=<feat>/.git commit (target feature)" "$
 # locator: the real `git -C <main> commit` still resolves to main -> DENY (a boundary-less
 # locator would latch onto the decoy, find no -C, and fall back to the feature event cwd).
 check 2 "$FEAT" "P2 block: decoy git commitx then real git -C <main> commit" "$(bashp "git commitx && git -C $MAIN_ROOT commit -m x")"
+
+# --- issue #256: a commit/push VERB that appears only inside a quoted argument (an rg/grep
+# pattern, an echo string, a commit -m message) or a `#` comment no longer trips rules 3/4.
+# The rules match a blanked command SKELETON when the command carries no shell-execution
+# vector, and the RAW payload (original over-blocking behavior) when it does — a shell
+# evaluator (`bash -c "…"`), `eval`, or a command substitution (`$(…)`/backticks) that would
+# EXECUTE the quoted content. Matching stays POSITION-AGNOSTIC (no command-position anchor)
+# so a keyword/prefix/env-assignment invocation still blocks. Each false-positive-now-allowed
+# is PAIRED with a real form still blocked — the mutation proof that the fix opened no hole
+# (the #256 safety constraint). The block cases below are the exact evasions an adversarial
+# review of the first cut found (evaluator wrappers; keyword/prefix positions). ---
+# (a) quoted / commented verbs that are NOT a git command -> ALLOW on main:
+check 0 "$MAIN" "#256 allow: push verb inside a double-quoted rg pattern (the repro)" "$(bashp 'rg -n \"gh |--json|git push\" review-response.workflow.md')"
+check 0 "$MAIN" "#256 allow: rg over a .sh file (filename is not an sh-vector)" "$(bashp 'rg -n \"git commit\" .claude/hooks/guard.sh')"
+check 0 "$MAIN" "#256 allow: verb near the word 'stash' (contains 'ash', not a vector)" "$(bashp 'rg -n \"git push\" git-stash-notes.md')"
+check 0 "$MAIN" "#256 allow: verb near a .csh filename (not a csh-vector)" "$(bashp 'grep -n \"git commit\" build.csh')"
+check 0 "$MAIN" "#256 allow: commit verb inside a double-quoted echo string" "$(bashp 'echo \"remember to git commit\"')"
+check 0 "$MAIN" "#256 allow: push verb inside a single-quoted echo string" "$(bashp "echo 'then git push now'")"
+check 0 "$MAIN" "#256 allow: commit verb inside a grep pattern" "$(bashp 'grep -rn \"git commit\" .')"
+check 0 "$MAIN" "#256 allow: commit verb after a # comment" "$(bashp 'ls # git commit later')"
+check 0 "$MAIN" "#256 allow: commit verb in a trailing comment on a real command" "$(bashp 'git status # then git commit')"
+check 0 "$FEAT" "#256 allow: refspec-to-main inside a quoted rg pattern (rule 4)" "$(bashp 'rg -n \"git push origin main\" notes.md')"
+# a $(…) that does NOT contain the git verb (a scan fileset/root) is not a vector -> ALLOW,
+# while the verb stays in a blanked quoted pattern (the read-only-scan workflow #256 targets):
+check 0 "$MAIN" "#256 allow: verb in quoted pattern, fileset from \$(fd …)" "$(bashp 'rg -n \"git commit\" $(fd -e md)')"
+check 0 "$FEAT" "#256 allow: refspec pattern, root from \$(git rev-parse …) (rule 4)" "$(bashp 'rg -n \"git push origin main\" \"$(git rev-parse --show-toplevel)\"')"
+# (the quoted-commit-message allow is the flipped r4 case above, near the rule-4 block)
+# (b1) evaluator / command-substitution wrappers EXECUTE the quoted verb -> STILL BLOCK
+# (the raw-payload target; these are the adversarial family-1 holes a blank-only fix opened):
+check 2 "$MAIN" "#256 block: bash -c \"git commit …\" (double-quoted, executed)" "$(bashp 'bash -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: bash -c 'git commit …' (single-quoted, executed)" "$(bashp "bash -c 'git commit -m wip'")"
+check 2 "$MAIN" "#256 block: sh -c \"git commit …\"" "$(bashp 'sh -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: ash -c \"git commit …\" (busybox/Alpine shell)" "$(bashp 'ash -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: fish -c \"git commit …\"" "$(bashp 'fish -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: eval \"git commit …\"" "$(bashp 'eval \"git commit -m x\"')"
+check 2 "$MAIN" "#256 block: git commit inside a \$( … ) command substitution" "$(bashp 'echo \"$(git commit -m x)\"')"
+check 2 "$MAIN" "#256 block: git -C <p> commit inside \$( … ) (globals inside subst)" "$(bashp 'echo \"$(git -C /p commit -m x)\"')"
+check 2 "$MAIN" "#256 block: git commit inside a backtick substitution" "$(bashp 'echo \"\`git commit -m x\`\"')"
+check 2 "$FEAT" "#256 block: bash -c \"git push origin main\" (refspec, rule 4)" "$(bashp 'bash -c \"git push origin main\"')"
+# (b2) genuine invocations at command positions a command-position anchor would MISS -> BLOCK:
+check 2 "$MAIN" "#256 block: real git commit at command start (pairs the echo cases)" "$(bashp 'git commit -m \"wip\"')"
+check 2 "$MAIN" "#256 block: real git commit after && (genuine invocation)" "$(bashp 'git status && git commit -m x')"
+check 2 "$MAIN" "#256 block: real git push after ;" "$(bashp 'git status ; git push -u origin feature/x')"
+check 2 "$MAIN" "#256 block: real git commit after a newline" "$(bashp 'git status\ngit commit -m x')"
+check 2 "$MAIN" "#256 block: real git commit in a ( subshell )" "$(bashp '(git commit -m x)')"
+check 2 "$MAIN" "#256 block: real git commit after the 'then' keyword" "$(bashp 'if true; then git commit -m x; fi')"
+check 2 "$MAIN" "#256 block: real git commit as an if-condition" "$(bashp 'if git commit -m x; then echo ok; fi')"
+check 2 "$MAIN" "#256 block: real git push after 'do' in a loop" "$(bashp 'while true; do git push -u origin feature; done')"
+check 2 "$MAIN" "#256 block: real git commit after a GIT_*=… env-assignment prefix" "$(bashp 'GIT_AUTHOR_DATE=2020-01-01 git commit -m wip')"
+check 2 "$MAIN" "#256 block: real git commit after an env/command wrapper prefix" "$(bashp 'command git commit -m x')"
+check 2 "$FEAT" "#256 block: real refspec git push origin main after && (pairs the rg case)" "$(bashp 'git status && git push origin main')"
+check 2 "$FEAT" "#256 block: real refspec git push origin main after 'then'" "$(bashp 'if true; then git push origin main; fi')"
+# Comment-blanking must not eat a real command via a `${x#y}` parameter expansion (the `#`
+# there follows a word, not whitespace, so it is not a comment): the real commit still BLOCKs.
+check 2 "$MAIN" "#256 block: real commit after a \${x#y} parameter expansion" "$(bashp 'x=\${y#p} && git commit -m x')"
+# The target selection must not disturb the #138/#173 effective-repo resolution: a -C <main>
+# commit with a QUOTED message, event cwd on feature, still resolves to main -> BLOCK.
+check 2 "$FEAT" "#256 block: git -C <main> commit -m \"quoted\" still resolves to main" "$(bashp "git -C $MAIN_ROOT commit -m \\\"quoted msg\\\"")"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the

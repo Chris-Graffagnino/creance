@@ -16,6 +16,17 @@
 #   the branch-gated rule 3 resolves the EFFECTIVE repo (an explicit `-C <path>`
 #   or `--git-dir <path>` from the commit/push invocation, or a leading
 #   `cd <path> &&`), not only the event cwd (issues #138, #173).
+#   For rules 3-4, a `commit`/`push` verb appearing only inside a quoted argument (an
+#   rg/grep pattern, an echo string, a `commit -m` message) or a `#` comment no longer
+#   trips them (issue #256). When the command carries NO shell-execution vector, they
+#   match a command SKELETON with quoted spans and comments blanked; when it DOES carry
+#   one — a shell evaluator (`bash -c "…"`)/`eval`, or a command substitution whose body
+#   holds the verb (`$(git … commit)`), which would execute it — they match the raw
+#   payload as before (no hole). A `$(…)` WITHOUT the verb (a scan fileset/root like
+#   `$(fd -e md)` / `"$(git rev-parse --show-toplevel)"`) is not a vector. The match stays
+#   position-agnostic in both cases, so a genuine invocation after a shell keyword or an
+#   env-assignment prefix still blocks (see command_skeleton and the target-selection at
+#   rules 3-4).
 #   5. Any Agent dispatch of a strong-floored reviewer — `constitution-auditor`
 #      or `spec-quality-auditor` — whose `model` parameter is absent or names a
 #      below-strong tier (the strong floor; issues #94, #147). Tier names are
@@ -122,6 +133,41 @@ effective_branch() { # <command> -> branch of the repo the command acts on
   b="$(effective_git "$1" branch --show-current)"
   [ -n "$b" ] && { printf '%s' "$b"; return 0; }
   branch
+}
+
+# Command skeleton for the base-branch rules (3, 4): the invoked command with quoted
+# argument spans and `#` comments BLANKED (and JSON newline/tab escapes normalized), so a
+# `commit`/`push` verb that appears only inside a quoted argument (an rg/grep pattern, an
+# echo string, a `commit -m` message) or in a comment no longer trips the base-branch rules
+# (issue #256 — a recurring block on read-only `main`-branch work: issue-filing, neutrality
+# scans). SAFETY: quoted text is NOT universally inert — a shell evaluator (`bash -c "…"`)
+# or a command substitution (`$(…)`/backticks) EXECUTES quoted content, so blanking it there
+# would hide a real command. The skeleton is therefore used ONLY when the command carries no
+# such execution vector; the vector case matches the raw payload instead (see the
+# target-selection at rules 3/4). Within a vector-free command, quoted spans and comments are
+# genuinely non-executed, so blanking drops only FALSE matches — never a genuine invocation,
+# which stays unquoted and is caught position-agnostically (so `if …; then git commit` and
+# `GIT_DATE=… git commit` still match; there is deliberately no command-position anchor,
+# which would miss those). An unbalanced or backslash-bearing quote fails toward NOT blanking
+# (the pre-#256 over-block, never a new hole). Steps, in order:
+#   1. escape-aware extraction of the command value (keeps `\"` intact, unlike jstr);
+#   2. blank single-quoted `'…'` spans (shell single quotes take no escapes);
+#   3. blank double-quoted `\"…\"` spans (payload form; content with a `\` fails to blank
+#      and stays — over-block, safe);
+#   4. `\t`->space and `\n`/`\r`->`;` — a newline becomes a command separator so a comment
+#      ends at the line, WITHOUT a sed newline-in-replacement (stays BSD/GNU-portable);
+#   5. blank a `#` comment (whitespace-/line-anchored so `${x#y}`, `$#`, `${#x}` — `#` after
+#      a word or `{`/`$`, never after whitespace — are untouched) to the line's end (`;`).
+# effective_branch still reads the real $cmd, so the #138/#173 effective-repo resolution is
+# untouched.
+command_skeleton() {
+  printf '%s' "$payload" \
+    | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
+    | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//' \
+    | sed -E "s/'[^']*'/ /g" \
+    | sed -E 's/\\"[^\\"]*\\"/ /g' \
+    | sed -E 's/\\t/ /g; s/\\[nr]/;/g' \
+    | sed -E 's/(^|[[:space:]])#[^;]*/\1/g'
 }
 
 # Telemetry stream path, resolved in precedence order:
@@ -351,16 +397,49 @@ case "$tool" in
       block git-add-all "\`git add .\` / -A / --all is not allowed (AGENTS.md). Stage specific files:
    git add <path1> <path2>"
     fi
+    # Target selection for the base-branch rules (3, 4) — issue #256. If the command can
+    # EXECUTE the git verb from otherwise-blanked text, match the RAW payload (the original
+    # over-blocking behavior — no hole); else the verb inside a quoted argument or a comment is
+    # inert data, so match the blanked command_skeleton, which drops those false positives.
+    # Two execution vectors are detected:
+    #   1. a shell evaluator token (`bash`/`sh`/`dash`/`zsh`/`ksh`/`ash`/`mksh`/`csh`/`tcsh`/
+    #      `fish`, normally `… -c "…"`) or `eval` — it runs its quoted argument as shell. Each
+    #      name is word-boundaried so `.sh`/`.csh` filenames, `ssh`, `git stash`, and `git
+    #      push` do NOT false-trigger.
+    #   2. a command substitution `$(…)`/backticks whose body contains the git verb itself
+    #      (`$(git … commit)`) — that verb runs. A `$(…)` WITHOUT the verb (`$(fd -e md)`,
+    #      `"$(git rev-parse --show-toplevel)"`) is NOT a vector, so a read-only scan whose
+    #      fileset/root comes from a substitution while the verb sits in a quoted pattern is no
+    #      longer over-blocked. This can only RELAX over-blocking, never open a hole: a git
+    #      commit/push actually executed by a substitution still carries the verb inside it.
+    # A false vector hit only over-blocks (safe). NOT detected (accepted residual, documented in
+    # the PR): a NON-shell interpreter shelling out from a quoted string (`python -c
+    # "…os.system('git commit')"`, `perl -e`), `ssh host "…"`, a shell reached through a
+    # variable (`$SHELL -c "…"`), or a niche shell not in the set (`nu`/`rc`/`elvish`) — the
+    # guard backstops the agent's own ACCIDENTAL base-branch writes, not adversarial evasion,
+    # and the human merge remains the wall.
+    vsub="git${grun}"'[[:space:]]+(commit|push)'   # git + optional globals + the verb
+    if printf '%s' "$payload" | grep -qE '(^|[^[:alnum:]_.])(bash|dash|zsh|ksh|ash|mksh|csh|tcsh|fish|eval)([^[:alnum:]_]|$)|(^|[^[:alnum:]_.])sh([^[:alnum:]_]|$)|\$\([^)]*'"$vsub"'|`[^`]*'"$vsub"; then
+      target="$payload"
+    else
+      target="$(command_skeleton)"
+    fi
     # Branch-gated: resolve the EFFECTIVE repo (a `-C <path>` / `cd <path> &&` target),
     # not just the event cwd, so a commit/push into a different on-base repo is caught
     # (#138 DW2). effective_branch falls back to the event-cwd branch when unreadable.
-    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+(commit|push)([[:space:]]|\\|")' && [ "$(effective_branch "$cmd")" = "main" ]; then
+    # The pattern stays position-AGNOSTIC (no command-position anchor), so a genuine
+    # invocation after a shell keyword or an env-assignment prefix (`if …; then git commit`,
+    # `GIT_DATE=… git commit`) still matches. The trailing boundary spans both targets: the
+    # JSON `\`/`"` of the raw payload and the `;`/`&`/`|`/`)`/end-of-string of the skeleton
+    # (which has the outer JSON quote stripped, so a bare `git push` at the end needs `$`).
+    if printf '%s' "$target" | grep -qE "git${grun}"'[[:space:]]+(commit|push)([[:space:]]|[;&|)]|\\|"|$)' && [ "$(effective_branch "$cmd")" = "main" ]; then
       block commit-push-on-main "Never commit or push to 'main' (AGENTS.md). Work on a feature branch and open a PR."
     fi
     # Refspec rule: a push can target main from ANY branch (`git push origin HEAD:main`),
     # so match the destination ref, not just the current branch. [^";&|]* keeps the match
     # inside a single shell command, so `git push ... && gh pr create --base main` is allowed.
-    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
+    # Matches the same #256 target (raw payload or skeleton) as rule 3.
+    if printf '%s' "$target" | grep -qE "git${grun}"'[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
       block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
     fi
     # Rule 6: a self-colliding in-place sed substitution — the delimiter char also
