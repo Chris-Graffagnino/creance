@@ -262,6 +262,11 @@ fi
 #     run on the candidate; the adapter binding names the concrete index. ----------
 NT_DOC="$REPO_ROOT/.claude/workflow/next-task.md"
 if grep -qi 'task index' "$NT_DOC"; then ok; else bad "M next-task.md §1 must read the task index first (US5.AC3)"; fi
+# the index is framed as a PREFILTER and eligibility (not-blocked / deps-met) is confirmed
+# from the candidate's full context, not read off the index (US5.AC3; the index omits that
+# state) — the property the engineering-craft review flagged (a blocked task looks selectable).
+if grep -qi 'prefilter' "$NT_DOC"; then ok; else bad "M next-task.md §1 must frame the index as a selection prefilter (US5.AC3)"; fi
+if grep -qi 'not blocked' "$NT_DOC"; then ok; else bad "M next-task.md §1 must confirm the candidate is not blocked from its full context (US5.AC3)"; fi
 for role in 'live-state reconciliation' 'in-flight' 'announce-and-confirm'; do
   if grep -qi "$role" "$NT_DOC"; then
     ok
@@ -271,6 +276,24 @@ for role in 'live-state reconciliation' 'in-flight' 'announce-and-confirm'; do
 done
 NT_SKILL="$REPO_ROOT/.claude/skills/next-task/SKILL.md"
 if grep -qF 'specs/TASK_INDEX.md' "$NT_SKILL"; then ok; else bad "M the next-task binding must name the concrete task index (specs/TASK_INDEX.md)"; fi
+
+# --- N: the Issue/PR column is REAL, not a hardcoded blank (US5.AC1 'when known') — a task
+#     whose line ends with a `[#NNN]` marker gets that reference; a task without stays blank
+#     (honest omission), and the marker never leaks into the title. --------------------
+N="$TMP/n"
+mk_tasks "$N" "901-fixture" <<'EOF'
+# Tasks — Issue-link fixture
+
+## Phase 1 — Fixture
+
+- [ ] T9101 [cheap] Task that records its issue link [#4242] (US1)
+- [ ] T9102 [cheap] Task with no recorded issue link (US1)
+EOF
+run "$N" --write
+nidx="$N/specs/TASK_INDEX.md"
+grep -qE '^\| T9101 \| cheap \| \[ \] \| US1 \| #4242 \|' "$nidx" && ok || bad "N T9101 must carry its extracted issue link #4242 (got: $(grep -E '^\| T9101' "$nidx"))"
+grep -qE '^\| T9102 \| cheap \| \[ \] \| US1 \|  \| ' "$nidx" && ok || bad "N T9102 must leave the issue cell blank — honest omission (got: $(grep -E '^\| T9102' "$nidx"))"
+if grep -E '^\| T9101 \|' "$nidx" | grep -q '\[#4242\]'; then bad "N the [#NNN] link marker must not leak into the title"; else ok; fi
 
 printf 'task-index.test.sh: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
