@@ -85,6 +85,14 @@ check "DW3 binding: re-gate is not optional" "$SK_FLAT" \
   "Re-gate is not optional"
 check "DW3 binding: never push a fix as resolved unilaterally" "$SK_FLAT" \
   "never push a fix as"
+# The re-gate must pass the required review-mode audited ref: gate-loop.js hard-errors unless
+# `taskBranch` (or `workspacePath`) is present, so a binding that omits it makes the required
+# re-gate throw before any reviewer runs (Codex P2 / craft High on PR #257). Pin taskBranch IN
+# the documented args, and pin the reason so a future edit can't silently drop the ref.
+check "DW3 binding: re-gate args pass taskBranch (the required audited ref)" "$SK_FLAT" \
+  "dispatchSpec, taskBranch"
+check "DW3 binding: taskBranch named as the required review-mode audited ref" "$SK_FLAT" \
+  "required review-mode audited ref"
 
 # ── DW4 — red→green proof for behavior fixes; out-of-scope → discovered work, not the diff ──
 check "DW4 neutral: minimum scoped change" "$WF_FLAT" \
@@ -101,6 +109,14 @@ check "DW5 neutral: bot/automated inline findings in scope (the Codex case)" "$W
   "bot/automated inline findings"
 check "DW5 neutral: reply ledger is the none-skipped evidence" "$WF_FLAT" \
   "reply ledger"
+# Marked engine bookkeeping (gate verdicts + the workflow's own prior replies) must get a terminal
+# no-reply disposition, else §6's "reply to every §2 comment" re-replies to the workflow's own
+# marked replies on a rerun — an unbounded reply-loop (craft Medium on PR #257). Pin the
+# disposition name AND the rerun-loop it prevents.
+check "DW5 neutral: terminal bookkeeping/no-reply disposition (anti reply-loop)" "$WF_FLAT" \
+  "bookkeeping / no-reply"
+check "DW5 neutral: the no-reply disposition names the rerun reply-loop it prevents" "$WF_FLAT" \
+  "compound on every rerun"
 check "DW5 binding: fetch inline review comments endpoint" "$SK_FLAT" \
   "pulls/<n>/comments"
 check "DW5 binding: fetch review-summaries endpoint (some bots post here)" "$SK_FLAT" \

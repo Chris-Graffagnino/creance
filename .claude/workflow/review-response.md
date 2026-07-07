@@ -80,9 +80,13 @@ Read two things, not one (`pr-review.md` §2, reused):
 
 **Enumerate first, filter second.** Never pre-filter the comment reads by an author login: an
 automated reviewer's login may not match the string you expect, and an empty filtered set must
-never read as "nothing to address". Separate **inline findings** (to adjudicate) from
-**engine-marked bookkeeping** ([comment marker]) from **owner steering** (newest unmarked
-owner-login, §2.5).
+never read as "nothing to address". Separate **findings to adjudicate** (the inline review
+comments, plus any engine-authored **review-pass** finding — a craft/security/code-review pass
+posts findings even though it carries the [comment marker]) from **engine bookkeeping** (a
+[comment marker]-bearing gate/digest verdict, or a prior reply this workflow itself posted —
+neither raises a finding, and §6 gives it a terminal no-reply disposition) from **owner steering**
+(newest unmarked owner-login, §2.5). A comment carrying the marker is *not owner steering*; it is
+**not** thereby a no-op — an engine-authored review finding is still a finding.
 
 ## 3. Verify each finding against current source (before any fix)
 
@@ -139,22 +143,31 @@ count as resolved:
   (`telemetry.md`); §7 update the PR body's risk-ranked digest (near-misses / JUSTIFY / touched
   invariants, `next-task.md` §8) when the re-gate changes it.
 
-## 6. Reply to every comment (grounded, credited, marked)
+## 6. Reply to every finding (grounded, credited, marked)
 
-Post a reply on the thread of **every** comment enumerated in §2, stating its disposition:
+**Every** comment enumerated in §2 gets a disposition in the ledger. The ones that raise a
+**finding** — the inline review comments, any engine-authored review-pass finding, and owner
+steering/relays (§2.5) — additionally get a reply posted on their thread:
 
 - **resolved** — link the fix commit and cite the red→green evidence (§4);
 - **already-addressed** — cite the current `file:line` that shows it (§3);
 - **stale-anchor** — name where the line moved and the re-judgement (§3);
 - **refuted** — say why, grounded in current source (§3);
-- **filed as discovered** — link the issue (§4 / §5.5).
+- **filed as discovered** — link the issue (§4 / §5.5);
+- **bookkeeping / no-reply** — a [comment marker]-bearing engine record that raises no finding (a
+  gate/digest verdict, or a prior reply this workflow itself posted): **counted in the ledger,
+  never replied to**. A reply would answer nothing and would **compound on every rerun** — this
+  workflow writes its replies back onto the same comment surface it reads, so replying to its own
+  prior marked replies is an unbounded reply-loop, the failure this terminal disposition exists to
+  prevent. (A marker-bearing *review-pass* finding is **not** bookkeeping — it raises a finding, so
+  it is adjudicated and replied like any other.)
 
 Every engine reply carries the **[comment marker]** (§2.5); a reply endorsing an automated or
 human finding credits the original. The **reply ledger** — every §2 comment with its disposition
-— is the evidence that **none was skipped**; state it explicitly (replied / of total, the empty
-case named), so the "all addressed" conclusion is auditable rather than asserted, exactly as
-`pr-review.md` §4(a) requires of a review's enumeration. Acknowledge any owner relay explicitly
-(§2.5).
+(the bookkeeping/no-reply ones counted, not replied) — is the evidence that **none was skipped**;
+state it explicitly (replied / of total, the empty case named), so the "all addressed" conclusion
+is auditable rather than asserted, exactly as `pr-review.md` §4(a) requires of a review's
+enumeration. Acknowledge any owner relay explicitly (§2.5).
 
 ## 7. Confirm the PR is green — then STOP
 
