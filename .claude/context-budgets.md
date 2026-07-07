@@ -25,7 +25,7 @@ so verification can never go silently green without measuring.
 | `agents-resident` | `total` | `1200` | `deferred` | `AGENTS.md` |
 | `compact-packet` | `total` | `2000` | `active` | `.claude/PROJECT.compact.md` |
 | `stage-cards` | `each` | `1500` | `deferred` | `.claude/workflow/next-task/*.md` |
-| `task-index` | `total` | `4000` | `deferred` | `specs/TASK_INDEX.md` |
+| `task-index` | `total` | `4000` | `active` | `specs/TASK_INDEX.md` |
 | `next-task-bundle` | `total` | `18000` | `deferred` | `AGENTS.md` `.claude/skills/next-task/SKILL.md` `.claude/workflow/next-task.md` `.claude/workflow/README.md` `.claude/PROJECT.compact.md` `memory/constitution.md` `specs/*/spec.md` `specs/*/tasks.md` |
 | `pr-review-bundle` | `total` | `10000` | `active` | `AGENTS.md` `.claude/skills/pr-review/SKILL.md` `.claude/workflow/pr-review.md` `.claude/PROJECT.compact.md` `memory/constitution.md` |
 
@@ -58,7 +58,9 @@ measure:
   `.claude/hooks/compact-packet-drift.sh` (US3.AC2).
 - `stage-cards` → **T1204** (US4.AC1; placeholder glob, same correction rule; a
   documented per-card overage goes through the override path above).
-- `task-index` → **T1205** (US5.AC1; placeholder path, same correction rule).
+- `task-index` → **T1205** — **landed; the gate is `active`**. `specs/TASK_INDEX.md` is
+  the generated selection index (US5.AC1), generated from `specs/*/tasks.md` by
+  `.claude/hooks/task-index.py` and staleness-checked by `--check` in `verify` (US5.AC2).
 - `next-task-bundle`, `pr-review-bundle` → the diff that **restructures the bundle's
   read set** (US2–US5 as they land; final shape per the spec's target outcomes). The
   compositions above reflect **today's** declared entrypoint read sets; a restructuring

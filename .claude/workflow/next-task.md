@@ -103,9 +103,9 @@ lifecycle — plus a live probe that the isolation tier fires on a real driver �
 property (the enforcing checks are named in the profile's invariant checklist).
 
 ## 1. Select the task
-- If the user named a task ID, use it. Otherwise read the profile's **tasks file** and pick
-  the **lowest-numbered unchecked task whose dependencies are met** (task-ID format per the
-  profile).
+- If the user named a task ID, use it. Otherwise read the profile's **task index** — a
+  generated digest of each task's selection-critical fields (path per the profile) — as a
+  selection **prefilter**: take the **lowest-numbered unchecked** candidate, then load its full context (§2) and confirm it is startable there — **dependencies met, not blocked** — since the index omits that state by design. Task-ID format per the profile.
 - **Skip blocked tasks and say why.** Treat every task in the profile's **"Blocked /
   owner-only tasks"** list as non-startable — surface it, don't begin it.
 - **Reconcile the candidate against live state before committing to it

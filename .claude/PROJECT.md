@@ -31,6 +31,11 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   (001 = T1xx–T6xx, 002 = T7xx, 003 = T8xx, 004 = T9xx, 005 = T10xx, 006 = T11xx,
   007 = T12xx, 008 = T13xx).
   `specs/000-template/tasks.template.md` is a skeleton, never a backlog.
+- **Task index (selection):** `specs/TASK_INDEX.md` — a generated digest of every backlog
+  task's selection-critical fields (spec 007 US5), regenerated from `specs/*/tasks.md` by
+  `.claude/hooks/task-index.py --write` and staleness-checked (`--check`) in `verify`.
+  `/next-task` §1 reads it first to pick the candidate, then loads the selected task's full
+  spec/tasks context; it is a read optimization, never a second authority over the tasks files.
 - **Contracts dir:** none (the epic has no swappable provider seams; the workflow docs
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;

@@ -37,7 +37,7 @@
       pre-split obligation inventory (committed as a fixture the cards cannot influence)
       so a dropped obligation fails verification; existing references resolve and
       neutrality-scan coverage includes every card; blocked by T1201, T1203 (US4)
-- [ ] T1205 [strong] Generated task index — selection-critical fields only, within
+- [x] T1205 [strong] Generated task index — selection-critical fields only, within
       budget; two-sided staleness CI check (planted stale fails naming the entry /
       regenerated control passes) wired into `verify`; selection reads index-first then
       the selected task's full context with the deterministic selection preconditions
