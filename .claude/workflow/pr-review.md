@@ -22,8 +22,10 @@ and not a replacement.
 
 > Runtime-neutral: roles in **[brackets]** are defined in `README.md` → "The binding
 > contract". Project specifics — the constitution path, the invariant checklist, the
-> tasks/spec paths, the required check, the title conventions — come from
-> `.claude/PROJECT.md`; below, *the profile* means that file. This workflow
+> tasks/spec paths, the required check, the title conventions — come from the profile
+> (`.claude/PROJECT.md`, the source of truth); below, *the profile* means that file, and
+> the active binding governs how it is read (it may default to a drift-checked compacted
+> view and escalate to the full profile for omitted facts). This workflow
 > **composes existing roles only**; it introduces no new binding-contract row.
 
 ## Write posture (the hard bounds)

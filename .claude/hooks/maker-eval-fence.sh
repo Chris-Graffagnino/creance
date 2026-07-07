@@ -55,7 +55,13 @@ ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 #   reference forms fire (`packets/`, `$channel/packets` with no trailing slash, the pathlib
 #   `… / "packets"`, `'packets'`) while the bare English plural in prose (".. transcript
 #   packets are ..") does not. Matching only `packets/` let the no-trailing-slash forms
-#   evade (PR #162 Codex P2).
+#   evade (PR #162 Codex P2). The dir-name suffix is likewise matched as TERMINAL — the
+#   channel dir is `<repo>-maker-eval` exactly, so the token must be followed by a
+#   non-name character (`/`, a quote, whitespace) or end-of-line. A name that merely
+#   CONTAINS the words and continues (`specs/003-maker-eval-corpus/…` — a live spec
+#   directory every paths-listing artifact must be able to name) is not a channel
+#   reference and must not fire (T1203: the compact project packet's spec-path list was
+#   this exact false positive).
 #
 #   WRITER_INVOCATION — DRIVING the writer (`maker-eval-emit`): asking the emitter to append
 #   a record. This is the run binding's sanctioned job; it is NOT a read of the channel, so
@@ -64,7 +70,7 @@ ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 #
 # The fence scans for EITHER kind. ERE; portable constructs only — char classes and '+'/'*',
 # no awk-style {n} interval (shell-lint.sh, #97).
-CHANNEL_READ_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval'
+CHANNEL_READ_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval([^-A-Za-z0-9_]|$)'
 WRITER_INVOCATION='maker-eval-emit'
 CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
 

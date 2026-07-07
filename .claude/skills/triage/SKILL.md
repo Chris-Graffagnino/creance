@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Morning read-only triage heartbeat for the build (project specifics from .claude/PROJECT.md). Reads the tasks file, git history, and GitHub issues/PRs, then writes a fresh state snapshot to the out-of-repo inbox. Surfaces the next unblocked task, stale checkboxes, open PRs needing review, blocked/owner items, and upcoming constitution risks. Use when the user says "triage", "morning triage", "what's the state of the build", or when fired on a schedule. NEVER edits code, opens issues/PRs, or commits.
+description: Morning read-only triage heartbeat for the build (project specifics from the profile). Reads the tasks file, git history, and GitHub issues/PRs, then writes a fresh state snapshot to the out-of-repo inbox. Surfaces the next unblocked task, stale checkboxes, open PRs needing review, blocked/owner items, and upcoming constitution risks. Use when the user says "triage", "morning triage", "what's the state of the build", or when fired on a schedule. NEVER edits code, opens issues/PRs, or commits.
 ---
 
 # /triage — Claude Code binding
@@ -18,6 +18,14 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/triage.md
 This procedure is **read-only on the repo**: no `Edit`/`Write`/`MultiEdit` under the repo
 root, no `git add/commit/push`, no `gh issue/pr create`. The PreToolUse guard
 (`.claude/hooks/guard.sh`) is the deterministic backstop.
+
+**Profile read — packet first (spec 007 US3.AC3).** Read **`.claude/PROJECT.compact.md`**
+by default for the routing facts (paths, conventions, required check, autonomy status,
+blocked list — drift-checked by `.claude/hooks/compact-packet-drift.sh` in CI). The
+snapshot's look-ahead sections need profile facts the packet deliberately omits — the
+constitution-watch list and the maker-eval records path — so **escalate to the full
+`.claude/PROJECT.md` explicitly for those sections** (a named escalation case, not a
+default full read); the full profile stays the source of truth.
 
 ## Gate-trends effective-fix rate — concrete instantiation (`triage.md` §2 / §4)
 

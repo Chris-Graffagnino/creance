@@ -26,7 +26,7 @@
       a surviving pointer; guard/workflow/CI references still resolve and the existing
       line-ceiling residency check stays enforced alongside the token budget; blocked by
       T1201 (US2)
-- [ ] T1203 [strong] Compact project packet — active routing facts only, within budget;
+- [x] T1203 [strong] Compact project packet — active routing facts only, within budget;
       two-sided drift check against `.claude/PROJECT.md` (planted drift fails naming the
       field / in-sync control passes) wired into `verify`; entrypoints read the packet by
       default with full-profile escalation explicit; blocked by T1201 (US3)

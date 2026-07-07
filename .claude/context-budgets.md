@@ -23,11 +23,11 @@ so verification can never go silently green without measuring.
 | surface | mode | budget (tokens) | gating | composition |
 |---|---|---|---|---|
 | `agents-resident` | `total` | `1200` | `deferred` | `AGENTS.md` |
-| `compact-packet` | `total` | `2000` | `deferred` | `.claude/PROJECT.compact.md` |
+| `compact-packet` | `total` | `2000` | `active` | `.claude/PROJECT.compact.md` |
 | `stage-cards` | `each` | `1500` | `deferred` | `.claude/workflow/next-task/*.md` |
 | `task-index` | `total` | `4000` | `deferred` | `specs/TASK_INDEX.md` |
-| `next-task-bundle` | `total` | `18000` | `deferred` | `AGENTS.md` `.claude/skills/next-task/SKILL.md` `.claude/workflow/next-task.md` `.claude/workflow/README.md` `.claude/PROJECT.md` `memory/constitution.md` `specs/*/spec.md` `specs/*/tasks.md` |
-| `pr-review-bundle` | `total` | `10000` | `deferred` | `AGENTS.md` `.claude/skills/pr-review/SKILL.md` `.claude/workflow/pr-review.md` `.claude/PROJECT.md` `memory/constitution.md` |
+| `next-task-bundle` | `total` | `18000` | `deferred` | `AGENTS.md` `.claude/skills/next-task/SKILL.md` `.claude/workflow/next-task.md` `.claude/workflow/README.md` `.claude/PROJECT.compact.md` `memory/constitution.md` `specs/*/spec.md` `specs/*/tasks.md` |
+| `pr-review-bundle` | `total` | `10000` | `active` | `AGENTS.md` `.claude/skills/pr-review/SKILL.md` `.claude/workflow/pr-review.md` `.claude/PROJECT.compact.md` `memory/constitution.md` |
 
 Column semantics (the check parses exactly these):
 
@@ -52,8 +52,10 @@ measure:
 
 - `agents-resident` → **T1202** (US2.AC1 — today's `AGENTS.md` is over this budget by
   design; the trim and the gate land together).
-- `compact-packet` → **T1203** (US3.AC1; the composition path is a registered
-  placeholder — the landing diff corrects it if the artifact lands elsewhere).
+- `compact-packet` → **T1203** — **landed; the gate is `active`**. The packet
+  (`.claude/PROJECT.compact.md`) is the default profile read for ordinary runs
+  (US3.AC3) and is drift-checked against `.claude/PROJECT.md` by
+  `.claude/hooks/compact-packet-drift.sh` (US3.AC2).
 - `stage-cards` → **T1204** (US4.AC1; placeholder glob, same correction rule; a
   documented per-card overage goes through the override path above).
 - `task-index` → **T1205** (US5.AC1; placeholder path, same correction rule).
@@ -61,4 +63,6 @@ measure:
   read set** (US2–US5 as they land; final shape per the spec's target outcomes). The
   compositions above reflect **today's** declared entrypoint read sets; a restructuring
   diff updates the composition and activates the gate when the bundle reaches its
-  budgeted shape.
+  budgeted shape. **`pr-review-bundle` is `active`** — T1203's packet-default read
+  brought it within budget (measured 8454 ≤ 10000 at activation). `next-task-bundle`
+  stays deferred until the stage-card split (T1204) and task index (T1205) land.

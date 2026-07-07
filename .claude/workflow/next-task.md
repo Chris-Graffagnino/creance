@@ -8,11 +8,11 @@ do not merge.**
 > **[strong tier]**) are defined in `workflow/README.md` → "binding contract" and mapped to
 > concrete mechanisms by the active adapter.
 
-**Project specifics come from `.claude/PROJECT.md`** — paths (tasks/spec/contracts/
-constitution), task-ID format, blocked-task list, architecture boundaries, invariant
-checklist, CI check, and merge gate. Read it once at the start; below, *the profile* means
-that file. (If it's absent, fall back to conventions: `specs/*/tasks.md`, `specs/*/spec.md`,
-`specs/*/contracts/`, `memory/constitution.md`.)
+**Project specifics come from the profile (`.claude/PROJECT.md`, the source of truth)** —
+paths, task-ID format, blocked-task list, architecture boundaries, invariant checklist, CI
+check, merge gate. Below, *the profile* means that file; **how it is read is the binding's
+call** (default: a drift-checked compacted view, escalating to the full profile for omitted
+facts). If absent, fall back to conventions: `specs/*/tasks.md`, `specs/*/spec.md`, `specs/*/contracts/`, `memory/constitution.md`.
 
 ## Context discipline (one task → one clean window)
 A task must fit in a single context without compaction. The conversation is disposable; the

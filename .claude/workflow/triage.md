@@ -4,8 +4,11 @@ You are doing **discovery and triage only**. You surface work; you do not do it.
 procedure is safe to run unattended because it cannot change the repo.
 
 > Runtime-neutral: roles in **[brackets]** are defined in `workflow/README.md`. Project
-> specifics come from `.claude/PROJECT.md` — the tasks-file path, task-ID format, the
-> blocked-task list, and the constitution-watch map. Below, *the profile* means that file.
+> specifics come from the profile (`.claude/PROJECT.md`, the source of truth) — the
+> tasks-file path, task-ID format, the blocked-task list, and the constitution-watch map.
+> Below, *the profile* means that file, and the active binding governs how it is read (it
+> may default to a drift-checked compacted view and escalate to the full profile for
+> omitted facts).
 
 ## Hard constraints (do not cross)
 - **Read-only on the repo.** No file edits to anything under the repo root
