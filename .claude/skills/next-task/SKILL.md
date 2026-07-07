@@ -39,6 +39,19 @@ invariant's full text or auditor rule, the maker-eval records path, architecture
 boundaries, constitution watch, coverage policy, autonomy rationale). The full profile
 stays the source of truth; the packet is the read optimization, never a second authority.
 
+**Task index — selection reads it first (spec 007 US5.AC3).** §1's "read the profile's
+**task index**" resolves to **`specs/TASK_INDEX.md`** — a generated digest of every backlog
+task's selection-critical fields (id, tier, checkbox state, owning acceptance-criterion
+refs, short title; the spec path is each section's heading), regenerated from
+`specs/*/tasks.md` by `python3 .claude/hooks/task-index.py --write` and staleness-checked
+(`--check`) in CI `verify`, so it can never silently rot. Read it to pick the candidate —
+~3.5k tokens instead of every tasks file — then load only the **selected** task's full
+spec/tasks context (§2, the profile's tasks/spec paths). The §1 selection preconditions —
+`reconcile-task-selection.sh`, then `reconcile-inflight-selection.sh`, then
+`announce-task-selection.sh` — run **unchanged** on that candidate: the index changes the
+read surface, never the deterministic gates. If the index is absent or its `--check` is
+red (stale), fall back to reading `specs/*/tasks.md` directly and regenerate it.
+
 Plan note: usage may be account-wide (interactive + heartbeat + reviewers sharing one
 pool) — apply the methodology's "Model & usage economy" tiering as written.
 

@@ -331,6 +331,23 @@ jobs:
       - name: Compact project-packet drift tests
         run: bash .claude/hooks/compact-packet-drift.test.sh
 
+      # Generated task-index staleness check (T1205, spec 007 US5; epic #166):
+      # specs/TASK_INDEX.md is a GENERATED digest of the selection-critical fields
+      # of every backlog task, so /next-task selection reads ~3.5k tokens instead of
+      # every specs/*/tasks.md (~18k). A hand-maintained summary is the failure class
+      # spec 007 forbids (P2, silently-dead-guard), so task-index.py --check
+      # regenerates from the tasks files and FAILs naming the drifted entry when the
+      # committed index is stale (its US1.AC1 budget gates 'active' in the
+      # token-budget check above). python3 (stdlib only) is already set up for the
+      # token counter. The .test.sh proves both directions (planted-stale per drift
+      # shape FAILs naming the entry; a regenerated control passes) AND this wiring —
+      # same discipline as the drift/token-budget tests above.
+      - name: Task-index staleness check
+        run: python3 .claude/hooks/task-index.py --check
+
+      - name: Task-index staleness tests
+        run: bash .claude/hooks/task-index.test.sh
+
       # US6 intake/triage encoding tests (T501): the triage "Unmapped tracker
       # work" section + snapshot output shape (incl. the explicit empty state)
       # and intake's write-posture / retitle / marked-comment invariants. The

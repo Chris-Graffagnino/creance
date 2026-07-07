@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 126 rows.
+Manifest source inventory: 128 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -155,6 +155,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/shell-lint.test.sh` | KEEP | Regression tests for the shell portability checker. Verbatim. |
 | `hooks/spec-lint.sh` | KEEP | Deterministic spec-content lint over `specs/*/spec.md` (the mechanizable spec-quality smells). Verbatim. |
 | `hooks/spec-lint.test.sh` | KEEP | Regression + CI-wiring tests for the spec-content lint. Verbatim. |
+| `hooks/task-index.py` | KEEP | Generated task-index generator + staleness check over `specs/*/tasks.md` (`--write` regenerates `specs/TASK_INDEX.md`; `--check` fails naming the drifted entry; spec 007 US5). Generic and portable; python3 (already a `verify` dependency for the token counter), stdlib-only, offline. Verbatim — the adopter regenerates the index after filling their first real spec (an empty template has no live `tasks.md` yet, and `context-budgets.md`'s GENERICIZE resets the `task-index` budget row). |
+| `hooks/task-index.test.sh` | KEEP | Two-sided falsification + CI-wiring tests for the task-index staleness check (a planted-stale index per drift shape — checkbox flip, title/tier change, added/removed task — fails naming the entry; a regenerated control passes; generator determinism; fail-loud on a missing index / empty backlog). Verbatim. |
 | `hooks/telemetry-docs.test.sh` | KEEP | Encoding test for telemetry docs and neutral-boundary constraints. Verbatim. |
 | `hooks/token-budget-check.sh` | KEEP | Context token-budget check over the registry's named surfaces (per-file/per-bundle counts, active/deferred gating, fail-open with `--require-counter` for CI; T1201). Verbatim. |
 | `hooks/token-budget-check.test.sh` | KEEP | Two-sided falsification + CI-wiring tests for the token-budget check. Verbatim. |
