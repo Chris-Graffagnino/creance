@@ -3,7 +3,9 @@
 # enforces are specified in .claude/workflow/README.md → "The [guard] rules"; another
 # runtime supplies its own implementation of those same rules.
 # Enforces AGENTS.md workflow rules deterministically.
-# Pure Git-Bash: needs only cat/grep/sed/git/mktemp (no node, jq, awk, or pwsh).
+# Pure Git-Bash: needs only cat/grep/sed/awk/git/mktemp (no node, jq, or pwsh). awk is used
+# only for the quote tokenizer (quote_blank) with POSIX features (no {n} intervals), portable
+# across BSD/GNU/Git-Bash awk.
 # PreToolUse — blocks (exit 2, message on stderr) before the action runs:
 #   1. Any file edit (Edit/Write/MultiEdit/NotebookEdit) while on branch `main`.
 #   2. `git add .` / `git add -A` / `git add --all` / `git add ./` (stage
@@ -135,37 +137,79 @@ effective_branch() { # <command> -> branch of the repo the command acts on
   branch
 }
 
-# Command skeleton for the base-branch rules (3, 4): the invoked command with quoted
-# argument spans and `#` comments BLANKED (and JSON newline/tab escapes normalized), so a
-# `commit`/`push` verb that appears only inside a quoted argument (an rg/grep pattern, an
-# echo string, a `commit -m` message) or in a comment no longer trips the base-branch rules
-# (issue #256 — a recurring block on read-only `main`-branch work: issue-filing, neutrality
-# scans). SAFETY: quoted text is NOT universally inert — a shell evaluator (`bash -c "…"`)
-# or a command substitution (`$(…)`/backticks) EXECUTES quoted content, so blanking it there
-# would hide a real command. The skeleton is therefore used ONLY when the command carries no
-# such execution vector; the vector case matches the raw payload instead (see the
-# target-selection at rules 3/4). Within a vector-free command, quoted spans and comments are
-# genuinely non-executed, so blanking drops only FALSE matches — never a genuine invocation,
-# which stays unquoted and is caught position-agnostically (so `if …; then git commit` and
-# `GIT_DATE=… git commit` still match; there is deliberately no command-position anchor,
-# which would miss those). An unbalanced or backslash-bearing quote fails toward NOT blanking
-# (the pre-#256 over-block, never a new hole). Steps, in order:
-#   1. escape-aware extraction of the command value (keeps `\"` intact, unlike jstr);
-#   2. blank single-quoted `'…'` spans (shell single quotes take no escapes);
-#   3. blank double-quoted `\"…\"` spans (payload form; content with a `\` fails to blank
-#      and stays — over-block, safe);
-#   4. `\t`->space and `\n`/`\r`->`;` — a newline becomes a command separator so a comment
+# Escape-aware extraction of the JSON command value — keeps `\"` intact (unlike jstr), the
+# payload form the quote tokenizer below expects.
+cmd_value() {
+  printf '%s' "$payload" \
+    | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
+    | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//'
+}
+
+# quote_blank <mode> — blank quoted spans of the command value read on stdin, with a single
+# LEFT-TO-RIGHT pass that models shell quoting (whichever quote opens FIRST wins until it
+# closes; the other quote type is literal inside it). This replaces the earlier pair of
+# INDEPENDENT global seds (`s/'…'/` then `s/\"…\"/`), which cross-paired quotes across span
+# boundaries and silently blanked a REAL git verb: `echo "here's" && git commit -m "that's"`
+# has two apostrophes that are LITERAL (inside `"…"`), yet the single-quote sed paired them and
+# erased the commit; symmetrically a `"` inside `'…'` (`echo 'a"b' && git commit -m 'c"d'`) fooled
+# the double-quote sed. A per-type regex, in either order, always leaves one such hole; only a
+# stateful pass is correct (issue #256 review — adversarial hole-hunt on PR #258).
+#   mode=all  — blank EVERY quoted span (command_skeleton: drop quoted/commented data verbs).
+#   mode=data — blank single-quoted spans and double-quoted spans free of `$`/backtick, but
+#               KEEP a substitution-bearing double-quoted span (subst_probe: a `$(…)`/backtick
+#               there EXECUTES, so its verb must stay visible — see the vector detection).
+# Double-quote delimiter is the payload's `\"` (backslash+quote); single is `'`. An unterminated
+# span keeps its raw remainder — fail toward NOT blanking (over-block, never a new hole). The
+# quote chars are passed via -v (sq/dq) so the awk program body carries no literal quote.
+quote_blank() {
+  awk -v mode="$1" -v sq="'" -v dq='"' '
+  {
+    line=$0; out=""; st=0; i=1; n=length(line); buf=""; hassub=0
+    while (i<=n) {
+      c=substr(line,i,1); c2=substr(line,i+1,1)
+      if (st==0) {                                   # unquoted
+        if (c==sq) { out=out" "; st=1; i++ }
+        else if (c=="\\" && c2==dq) { st=2; buf=""; hassub=0; i+=2 }
+        else { out=out c; i++ }
+      } else if (st==1) {                            # single-quoted: always blank
+        if (c==sq) { out=out" "; st=0 } else out=out" "
+        i++
+      } else {                                       # double-quoted: decide at close
+        if (c=="\\" && c2==dq) {
+          if (mode=="data" && hassub) { out=out "\\" dq buf "\\" dq }   # keep: substitution runs
+          else { g=buf; gsub(/./," ",g); out=out"  " g }               # blank
+          st=0; i+=2
+        } else { buf=buf c; if (c=="$"||c=="`") hassub=1; i++ }
+      }
+    }
+    if (st==2) out=out "\\" dq buf                   # unterminated " : keep raw (over-block)
+    print out
+  }'
+}
+
+# Command skeleton for the base-branch rules (3, 4): the invoked command with quoted argument
+# spans and `#` comments BLANKED (and JSON newline/tab escapes normalized), so a `commit`/`push`
+# verb that appears only inside a quoted argument (an rg/grep pattern, an echo string, a
+# `commit -m` message) or in a comment no longer trips the base-branch rules (issue #256 — a
+# recurring block on read-only `main`-branch work: issue-filing, neutrality scans). SAFETY:
+# quoted text is NOT universally inert — a shell evaluator (`bash -c "…"`) or a command
+# substitution (`$(…)`/backticks) EXECUTES quoted content, so blanking it there would hide a real
+# command. The skeleton is therefore used ONLY when the command carries no such execution vector;
+# the vector case matches the raw payload instead (see the target-selection at rules 3/4). Within
+# a vector-free command, quoted spans and comments are genuinely non-executed, so blanking drops
+# only FALSE matches — never a genuine invocation, which stays unquoted and is caught
+# position-agnostically (so `if …; then git commit` and `GIT_DATE=… git commit` still match; there
+# is deliberately no command-position anchor, which would miss those). Steps, in order:
+#   1. cmd_value: escape-aware extraction of the command value (keeps `\"` intact);
+#   2. quote_blank all: blank quoted spans with the correct stateful pass (see quote_blank);
+#   3. `\t`->space and `\n`/`\r`->`;` — a newline becomes a command separator so a comment
 #      ends at the line, WITHOUT a sed newline-in-replacement (stays BSD/GNU-portable);
-#   5. blank a `#` comment (whitespace-/line-anchored so `${x#y}`, `$#`, `${#x}` — `#` after
+#   4. blank a `#` comment (whitespace-/line-anchored so `${x#y}`, `$#`, `${#x}` — `#` after
 #      a word or `{`/`$`, never after whitespace — are untouched) to the line's end (`;`).
 # effective_branch still reads the real $cmd, so the #138/#173 effective-repo resolution is
 # untouched.
 command_skeleton() {
-  printf '%s' "$payload" \
-    | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
-    | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//' \
-    | sed -E "s/'[^']*'/ /g" \
-    | sed -E 's/\\"[^\\"]*\\"/ /g' \
+  cmd_value | quote_blank all \
     | sed -E 's/\\t/ /g; s/\\[nr]/;/g' \
     | sed -E 's/(^|[[:space:]])#[^;]*/\1/g'
 }
@@ -431,11 +475,12 @@ case "$tool" in
     vsub="git${grun}"'[[:space:]]+(commit|push)'   # git + optional globals + the verb
     skel="$(command_skeleton)"
     evaltok='(^|[^[:alnum:]_.])(bash|dash|zsh|ksh|ash|mksh|csh|tcsh|fish|eval)([^[:alnum:]_]|$)|(^|[^[:alnum:]_.])sh([^[:alnum:]_]|$)'
-    # Substitution probe: blank inert quoted data (single-quoted spans; then double-quoted spans
-    # free of `$`/backtick), KEEP substitution-bearing spans. Merging of adjacent kept/blanked
-    # quotes can only ADD over-block, never hide a verb inside a `$(…)` (that verb is shielded by
-    # the `$`/backtick that keeps its span), so the probe stays fail-safe.
-    subst_probe="$(printf '%s' "$payload" | sed -E "s/'[^']*'/ /g" | sed -E 's/\\"[^\\"$`]*\\"/ /g')"
+    # Substitution probe (quote_blank data): blank inert quoted data — single-quoted spans, and
+    # double-quoted spans free of `$`/backtick — but KEEP a substitution-bearing double-quoted
+    # span, whose `$(…)`/backtick verb executes. Same stateful pass as the skeleton, so it inherits
+    # the correct quote handling (no apostrophe/`"` cross-pairing hole). A verb inside a live `$(…)`
+    # is shielded by the `$` that keeps its span, so the probe stays fail-safe.
+    subst_probe="$(cmd_value | quote_blank data)"
     if printf '%s' "$skel" | grep -qE "$evaltok" \
        || { printf '%s' "$subst_probe" | grep -qE '\$\(|`' && printf '%s' "$subst_probe" | grep -qE "$vsub"; }; then
       vector=1; target="$payload"

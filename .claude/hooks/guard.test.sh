@@ -278,6 +278,22 @@ check 2 "$FEAT" "#256 block: git push inside a TWICE-nested substitution, rule 4
 # bash -c / eval blocks above — the proof that this narrowing opens no hole.
 check 0 "$MAIN" "#256 allow: 'bash -c' as quoted rg search data, verb quoted too (owner Medium)" "$(bashp 'rg -n \"bash -c git commit\" docs.md')"
 check 0 "$MAIN" "#256 allow: quoted 'bash' and quoted 'git commit' as echo args (owner Medium)" "$(bashp 'echo \"bash\" \"git commit\"')"
+# (f) adversarial hole-hunt (PR #258 re-gate): the first-cut skeleton blanked quoted spans with
+# two INDEPENDENT global seds (single-quote, then double-quote), which CROSS-PAIRED quotes across
+# span boundaries and erased a REAL git verb — an apostrophe inside "…" (an English contraction),
+# or a `"` inside '…', bracketing an unquoted `git commit`/`git push`. `echo "here's" && git
+# commit -m "that's"` is an utterly ordinary shape, so this was a realistic ACCIDENTAL-write hole.
+# The stateful quote_blank pass closes it in BOTH directions. The three apostrophe-in-"…" BLOCKs
+# are exact evasions the hole-hunt confirmed (exit 0 = a real base-branch write ALLOWED on the
+# two-sed guard — red→green here). The reverse `"`-in-'…' BLOCK is the symmetric direction: the
+# first cut blanked single quotes FIRST so it happened to catch that one, but a correct pass must
+# hold both — this locks the symmetry against a reorder/regression. The paired ALLOW proves the
+# tokenizer still drops a genuinely-quoted verb (not a blunt "any apostrophe → over-block").
+check 2 "$MAIN" "#256 block: real commit, contraction apostrophes in double quotes (hole-hunt)" "$(bashp 'echo \"here'\''s the fix\" && git commit -m \"that'\''s all\"')"
+check 2 "$FEAT" "#256 block: real push origin main, contraction apostrophes (hole-hunt, rule 4)" "$(bashp 'echo \"here'\''s the release\" && git push origin main && echo \"that'\''s shipped\"')"
+check 2 "$MAIN" "#256 block: apostrophe pairing must not swallow an executed bash -c (hole-hunt)" "$(bashp 'echo \"let'\''s\" && bash -c \"git commit -m x\" && echo \"that'\''s\"')"
+check 2 "$MAIN" "#256 block: real commit, double-quote inside single quotes (reverse pairing)" "$(bashp 'echo '\''a\"b'\'' && git commit -m '\''c\"d'\''')"
+check 0 "$MAIN" "#256 allow: contraction apostrophes but NO git verb (tokenizer not blunt)" "$(bashp 'echo \"here'\''s the plan, that'\''s all\"')"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
