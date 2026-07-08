@@ -473,6 +473,7 @@ case "$tool" in
     # in the set (`nu`/`rc`/`elvish`) — the guard backstops the agent's own ACCIDENTAL
     # base-branch writes, not adversarial evasion, and the human merge remains the wall.
     vsub="git${grun}"'[[:space:]]+(commit|push)'   # git + optional globals + the verb
+    cmdv="$(cmd_value)"                             # extracted command value (reused below)
     skel="$(command_skeleton)"
     evaltok='(^|[^[:alnum:]_.])(bash|dash|zsh|ksh|ash|mksh|csh|tcsh|fish|eval)([^[:alnum:]_]|$)|(^|[^[:alnum:]_.])sh([^[:alnum:]_]|$)'
     # Substitution probe (quote_blank data): blank inert quoted data — single-quoted spans, and
@@ -480,9 +481,20 @@ case "$tool" in
     # span, whose `$(…)`/backtick verb executes. Same stateful pass as the skeleton, so it inherits
     # the correct quote handling (no apostrophe/`"` cross-pairing hole). A verb inside a live `$(…)`
     # is shielded by the `$` that keeps its span, so the probe stays fail-safe.
-    subst_probe="$(cmd_value | quote_blank data)"
+    subst_probe="$(printf '%s' "$cmdv" | quote_blank data)"
+    # Escaped-quote fail-safe. quote_blank models plain shell quoting but NOT backslash-escaping
+    # of a quote: a shell `\"`/`\'` (JSON `\\\"` / `\\'`) is a LITERAL quote, not a delimiter, and
+    # an odd number of them flips the tokenizer's quoted/unquoted parity — desyncing it so a real
+    # unquoted `git commit`/`git push` can land in a phantom span and be blanked (a hole; issue
+    # #256 review — the round-2 hole-hunt on the tokenizer). Rather than fully parse shell escaping
+    # (escaped separators/verbs are their own rabbit hole), detect the escape and match the RAW
+    # payload — over-block, never a hole. The pattern is a shell backslash (`\\`) immediately before
+    # a shell quote; a backslash before a non-quote (an escaped pipe `\|` in a BRE scan, a path
+    # `\\`) does NOT trigger, so ordinary read-only scans are unaffected.
+    esc_quote='\\\\(\\"|'\'')'
     if printf '%s' "$skel" | grep -qE "$evaltok" \
-       || { printf '%s' "$subst_probe" | grep -qE '\$\(|`' && printf '%s' "$subst_probe" | grep -qE "$vsub"; }; then
+       || { printf '%s' "$subst_probe" | grep -qE '\$\(|`' && printf '%s' "$subst_probe" | grep -qE "$vsub"; } \
+       || printf '%s' "$cmdv" | grep -qE "$esc_quote"; then
       vector=1; target="$payload"
     else
       vector=0; target="$skel"

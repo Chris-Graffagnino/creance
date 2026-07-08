@@ -294,6 +294,23 @@ check 2 "$FEAT" "#256 block: real push origin main, contraction apostrophes (hol
 check 2 "$MAIN" "#256 block: apostrophe pairing must not swallow an executed bash -c (hole-hunt)" "$(bashp 'echo \"let'\''s\" && bash -c \"git commit -m x\" && echo \"that'\''s\"')"
 check 2 "$MAIN" "#256 block: real commit, double-quote inside single quotes (reverse pairing)" "$(bashp 'echo '\''a\"b'\'' && git commit -m '\''c\"d'\''')"
 check 0 "$MAIN" "#256 allow: contraction apostrophes but NO git verb (tokenizer not blunt)" "$(bashp 'echo \"here'\''s the plan, that'\''s all\"')"
+# (g) round-2 hole-hunt (on the tokenizer): quote_blank models plain quoting but NOT backslash
+# ESCAPING of a quote. A shell `\"`/`\'` (JSON `\\\"` / `\\'`) is a LITERAL quote, not a delimiter;
+# an ODD count flips the tokenizer's quoted/unquoted parity, so a real unquoted `git commit`/`git
+# push` lands in a phantom span and is blanked -> the guard allowed a real base-branch write. The
+# esc_quote fail-safe matches the RAW payload whenever a shell-escaped quote is present (over-block,
+# never a hole). The BLOCK cases are the hole-hunt's confirmed exit-0 payloads (red on the
+# pre-fail-safe tokenizer); the ALLOWs prove the fail-safe stays NARROW — a scan with no verb, or an
+# escaped PIPE in a BRE pattern (a `\` before a non-quote), is not caught, so read-only work is spared.
+check 2 "$MAIN" "#256 block: escaped-quote parity, real commit, own -m closer (round-2 hole-hunt)" "$(bashp 'echo \"found a \\\" char\"; git commit --allow-empty -am \"fix quote\"')"
+check 2 "$MAIN" "#256 block: escaped-quote parity, trailing-echo closer (round-2 hole-hunt)" "$(bashp 'echo \"X\\\"Y\"; git commit --allow-empty -m H1; echo \"Z\"')"
+check 2 "$FEAT" "#256 block: escaped-quote parity, push origin main (round-2 hole-hunt, rule 4)" "$(bashp 'echo \"X\\\"Y\"; git push origin main; echo \"Z\"')"
+check 0 "$MAIN" "#256 allow: escaped quotes in a search pattern, NO git verb (fail-safe is narrow)" "$(bashp 'rg -n \"\\\"quoted\\\"\" notes.md')"
+check 0 "$MAIN" "#256 allow: escaped PIPE in a BRE pattern is not an escaped quote (fail-safe narrow)" "$(bashp 'rg -n \"gh \\|git push\" review-response.workflow.md')"
+# esc_quote covers the escaped-SINGLE-quote branch too: shell `\'` (JSON `\\'`) is a literal
+# quote unquoted, so `echo it\'s && git commit` really commits; the tokenizer alone would open a
+# phantom single-quote span at the bare `'` and blank the verb (red), the fail-safe forces raw (green).
+check 2 "$MAIN" "#256 block: escaped SINGLE-quote parity, real commit (fail-safe \\' branch)" "$(bashp 'echo it\\'\''s && git commit -m x')"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
