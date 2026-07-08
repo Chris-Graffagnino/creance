@@ -281,15 +281,26 @@ never a new gate.
   fixture in which a named category is genuinely **absent** reports **zero** for it (**and a
   correspondingly smaller token total** than the fully-present fixture) while present
   categories report nonzero — so a constant/hardcoded output (nonzero *or* zero, ignoring
-  its input) fails, **including a command that genuinely counts the cheap categories but
-  hard-codes the load-bearing token total**; **AND** a negative assertion that the output
-  carries **no tool-schema, MCP-config, or secret bytes** (the falsification rule). A test
-  asserting only presence-of-counts, only nonzero-ness, only the counts (leaving the total
-  unpinned), or only the privacy negative does not satisfy this criterion. The rejected
-  escapes are dumping the full inventory (privacy), emitting constant zeros (vacuity),
-  emitting constant nonzero counts (fabrication), and hard-coding the token total while
-  deriving the counts (partial fabrication); the fidelity-plus-privacy test penalizes all
-  of them.
+  its input) fails; **AND** — because (i) and (ii) both leave the total free to co-vary with
+  the counts, so a command that tokenizes **nothing** could still pass by returning `total =
+  f(per-category counts)` — a **count-independent** limb that pins the total to a real
+  measurement of the surface bytes: an **equal-count / different-content** fixture pair
+  (**identical** per-category counts, but one fixture's surface body — a server's instruction
+  text or a tool schema — materially longer) reports a **strictly larger token total for the
+  larger body**, and that total **equals the US1 counter's measurement of that fixture's
+  runtime-attached bytes** (the counter's identity an adapter fact per US1.AC4) — so any
+  total derived from the counts alone, necessarily **equal** across the equal-count pair,
+  fails the **test**, not merely the prose (this subsumes **a command that genuinely counts
+  the cheap categories but hard-codes _or_ count-derives the load-bearing token total**);
+  **AND** a negative assertion that the output carries **no tool-schema, MCP-config, or
+  secret bytes** (the falsification rule). A test asserting only presence-of-counts, only
+  nonzero-ness, only the counts (leaving the total unpinned), the total pinned **only to the
+  counts** rather than to a measurement of the surface bytes, or only the privacy negative
+  does not satisfy this criterion. The rejected escapes are dumping the full inventory
+  (privacy), emitting constant zeros (vacuity), emitting constant nonzero counts
+  (fabrication), hard-coding the token total while deriving the counts (partial fabrication),
+  and **deriving the token total from the counts by any function without tokenizing the
+  surface** (count-derived fabrication); the fidelity-plus-privacy test penalizes all of them.
 - AC2: The fresh-session runtime floor is recorded as a **named baseline** that a budget
   report can consume to render `authored surface = X`, `runtime floor = Y`,
   `real resident = X+Y`. The baseline value is **produced by the AC1 command** (traceable

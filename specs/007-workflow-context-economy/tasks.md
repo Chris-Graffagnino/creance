@@ -64,8 +64,11 @@
       context-budgets.md, so authored+floor sums like units), compact counts/totals only
       (two-sided fidelity test: counts AND token total derived from the actual inventory —
       two differing fixtures → differing counts and totals, or an absent category → zero and
-      a smaller total, so a constant stub — or one that counts categories but hard-codes the
-      total — fails / negative assertion — no schema/config/secret bytes in output); the floor recorded as a named non-gating baseline produced by that command
+      a smaller total; AND a count-independent limb — an equal-count/different-content fixture
+      pair → strictly larger total for the larger body, equal to the US1 counter's measurement
+      of those bytes — so a constant stub, or one that counts categories but hard-codes or
+      count-derives the total, fails / negative assertion — no schema/config/secret bytes in
+      output); the floor recorded as a named non-gating baseline produced by that command
       (outside the `context-budgets.md` gating table, read by no gate/tier/selection path —
       P5) consumable by the budget report to render `authored + floor = resident`; the
       command fails open/loud/never-gates on an unrecognized runtime shape (two-sided:
