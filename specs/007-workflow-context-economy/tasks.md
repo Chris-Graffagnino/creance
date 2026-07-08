@@ -54,6 +54,31 @@
       rule, resident prose reduced to a pointer at the check; all new checks name their
       repair target on failure (US6)
 
+## Phase 4 — Runtime-surface amendment (issue #259)
+
+- [ ] T1207 [strong] Budget the runtime-attached context surface (spec-007 amendment,
+      #259): an adapter-owned command (Claude Code side, beside `claude-code-probes.md`;
+      named in no `workflow/**` doc, P1) reports fresh-session per-category counts (MCP
+      servers, enabled skills, non-deferred tools, deferred-tool catalog size) + a token
+      total for the runtime-attached surface on US1's counter (identity per US1.AC4 /
+      context-budgets.md, so authored+floor sums like units), compact counts/totals only
+      (two-sided fidelity test: counts AND token total derived from the actual inventory —
+      two differing fixtures → differing counts and totals, or an absent category → zero and
+      a smaller total; AND a count-independent limb — an equal-count/different-content fixture
+      pair → strictly larger total for the larger body, equal to the US1 counter's measurement
+      of those bytes — so a constant stub, or one that counts categories but hard-codes or
+      count-derives the total, fails / negative assertion — no schema/config/secret bytes in
+      output); the floor recorded as a named non-gating baseline produced by that command
+      (outside the `context-budgets.md` gating table, read by no gate/tier/selection path —
+      P5) consumable by the budget report to render `authored + floor = resident`; the
+      command fails open/loud/never-gates on an unrecognized runtime shape (two-sided:
+      unrecognized-shape fixture → loud notice + non-failing exit / supported-shape control
+      reports counts); and an explicit ordering statement lands (constitution or
+      `governance-rules.md`) that a budget-motivated removal of auditor-relied-on context is
+      rejected — encoded with two-sided tests where deterministic, else explicit P3
+      justification per US6.AC1's posture, registered in `governance-rules.md`, never
+      silently dropped; measurement + baseline only, never a new gate; blocked by T1201 (US7)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -62,7 +87,7 @@
 | US1.AC2 | T1201 |
 | US1.AC3 | T1201 |
 | US1.AC4 | T1201 |
-| US1.AC5 | T1201–T1206 (every task, graded on its own PR body) |
+| US1.AC5 | T1201–T1207 (every task, graded on its own PR body) |
 | US2.AC1 | T1202 |
 | US2.AC2 | T1202 |
 | US2.AC3 | T1202 |
@@ -79,6 +104,10 @@
 | US6.AC1 | T1206 |
 | US6.AC2 | T1206 |
 | US6.AC3 | T1206 |
+| US7.AC1 | T1207 |
+| US7.AC2 | T1207 |
+| US7.AC3 | T1207 |
+| US7.AC4 | T1207 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 

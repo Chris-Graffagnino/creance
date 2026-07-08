@@ -19,7 +19,8 @@ generated or drift-checked artifacts, never hand-maintained summaries that silen
 outcomes from the source issue: passive residency ~2k–3k tokens, an ordinary `next-task`
 path ~12k–18k, a PR-review path ~7k–10k.
 
-The spec lands the capability in six stories: a repository token counter with documented,
+The spec lands the capability in six stories (later amended with a seventh, US7, by issue
+#259 — see **Amendment** below): a repository token counter with documented,
 owner-ratified budgets wired into standing verification (US1 — the measurement substrate
 the other stories' budgets resolve against); a lean resident `AGENTS.md` (US2); a compact,
 drift-checked project packet (US3); demand-loaded stage cards for the per-task procedure
@@ -37,6 +38,27 @@ this spec renders it as the required pre-PR review **[roles]** — the §7 gate 
 profile's review-pass set — so no runtime-specific mechanism enters a neutral surface.
 The task-ID block is **T12xx** (block assignment ratified by merging this spec's
 conversion PR).
+
+**Amendment (issue #259).** US1 budgets the surfaces the harness *authors and reads*; it
+does not account for the surface the **runtime attaches on top of them** — tool schemas,
+the MCP-server inventory and instructions, the auto-injected skill-description catalog, the
+deferred-tool list, and system-reminders — which is resident every session and can dominate
+the token floor yet appears in no budget row. **US7** extends US1's "measure before you
+claim" across the authored/runtime boundary: an adapter-owned probe measures the
+runtime-attached floor, a named baseline lets a budget report state
+`authored surface + runtime floor = real resident`, and a governance ordering rider makes
+explicit that a budget reduction removing context the adversarial auditors rely on is
+blocked (the constitution's quality invariants outrank any budget row). Because the
+runtime-attached surface is inherently runtime-specific, the probe is an **adapter fact**
+(Claude Code side, beside `.claude/adapters/claude-code-probes.md`) — it never enters a
+`workflow/**` neutral doc (constitution P1), exactly as US1.AC4 keeps the tokenizer identity
+adapter-local. Measurement and baseline **only**: the floor is never gated on (runtime
+internals are version-dependent; the probe fails open), so telemetry-observes-never-decides
+(constitution P5) holds unchanged. Provenance: intake of issue #259 (filed 2026-07-08; no
+thread comments — the body is the sole owner steering), surfaced while reviewing the
+external `sunflower-of-parchman/codex-hygiene` skill at the owner's request; parent context
+#166. US7 has no epic-#166 slice — it is a post-hoc amendment, not one of the original six
+slices.
 
 ## Non-goals
 
@@ -61,6 +83,12 @@ conversion PR).
   any lint; no budget measurement ever alters gate semantics, model tiers, or task
   selection (constitution P5's posture applied to the context surface).
 - **All restructuring lands by human-reviewed PR** (constitution P4, unchanged).
+- **The runtime-attached floor (US7) is measured and baselined only — never gated on.**
+  Runtime internals (session/log/introspection shape) are version-dependent, so the US7
+  probe fails open and loud and never blocks verification; the recorded floor is a
+  non-decisional baseline that no gate, model tier, or task-selection path reads
+  (constitution P5). US7 extends measurement past the authored boundary; it does not
+  re-implement or replace US1's authored-surface counter (`token-budget-check.sh`).
 
 ## User stories
 
@@ -228,3 +256,79 @@ rule every turn (constitution P3).
 - AC3: When any check introduced by this spec fails, its diagnostics name the source file
   or generated artifact that needs repair — a bare failure with no named repair target
   violates this criterion (the workflow must remain usable through a failure).
+
+### US7 — Budget the runtime-attached context surface (issue #259 amendment)
+As a harness operator, I want the runtime-attached context surface — tool schemas, the
+MCP-server inventory and instructions, the auto-injected skill-description catalog, the
+deferred-tool list, and system-reminders — measured and baselined as the floor the authored
+budgets sit on top of, so that the owner-ratified authored budgets (US1) are defensible
+against the real context ceiling rather than against zero. Measurement and baseline only —
+never a new gate.
+
+**Acceptance Criteria**
+- AC1: An **adapter-owned** command (a Claude Code adapter fact, beside
+  `.claude/adapters/claude-code-probes.md`; named in no `workflow/**` neutral doc, per
+  constitution P1) reports, for a fresh session, **per-category counts** — at least MCP
+  servers, enabled skills, non-deferred tools, and deferred-tool catalog size — and a
+  single **token total** for the runtime-attached surface **measured with the same counter
+  as US1's authored surface** (its identity an adapter fact per US1.AC4, documented in
+  `.claude/context-budgets.md` and never restated in a `workflow/**` neutral doc), so that
+  `real resident = X+Y` (AC2) sums like units. It emits **compact counts and totals only**.
+  Proven in the same diff by a **two-sided fidelity** test that the reported **per-category
+  counts _and_ the token total** are **derived from the actual inventory, not fabricated**:
+  either (i) two structurally different populated fixtures yield correspondingly
+  **different** per-category counts **and different token totals**, or (ii) a mixed-presence
+  fixture in which a named category is genuinely **absent** reports **zero** for it (**and a
+  correspondingly smaller token total** than the fully-present fixture) while present
+  categories report nonzero — so a constant/hardcoded output (nonzero *or* zero, ignoring
+  its input) fails; **AND** — because (i) and (ii) both leave the total free to co-vary with
+  the counts, so a command that tokenizes **nothing** could still pass by returning `total =
+  f(per-category counts)` — a **count-independent** limb that pins the total to a real
+  measurement of the surface bytes: an **equal-count / different-content** fixture pair
+  (**identical** per-category counts, but one fixture's surface body — a server's instruction
+  text or a tool schema — materially longer) reports a **strictly larger token total for the
+  larger body**, and that total **equals the US1 counter's measurement of that fixture's
+  runtime-attached bytes** (the counter's identity an adapter fact per US1.AC4) — so any
+  total derived from the counts alone, necessarily **equal** across the equal-count pair,
+  fails the **test**, not merely the prose (this subsumes **a command that genuinely counts
+  the cheap categories but hard-codes _or_ count-derives the load-bearing token total**);
+  **AND** a negative assertion that the output carries **no tool-schema, MCP-config, or
+  secret bytes** (the falsification rule). A test asserting only presence-of-counts, only
+  nonzero-ness, only the counts (leaving the total unpinned), the total pinned **only to the
+  counts** rather than to a measurement of the surface bytes, or only the privacy negative
+  does not satisfy this criterion. The rejected escapes are dumping the full inventory
+  (privacy), emitting constant zeros (vacuity), emitting constant nonzero counts
+  (fabrication), hard-coding the token total while deriving the counts (partial fabrication),
+  and **deriving the token total from the counts by any function without tokenizing the
+  surface** (count-derived fabrication); the fidelity-plus-privacy test penalizes all of them.
+- AC2: The fresh-session runtime floor is recorded as a **named baseline** that a budget
+  report can consume to render `authored surface = X`, `runtime floor = Y`,
+  `real resident = X+Y`. The baseline value is **produced by the AC1 command** (traceable
+  to a real measurement, not a hand-typed constant) and is **non-decisional**: it is
+  recorded **outside** the gating budget table (`.claude/context-budgets.md`) and **no** CI
+  gate, model-tier assignment, or task-selection path reads it (constitution P5). A baseline
+  that any gate consumes, that lives as an `active`/`deferred` row able to flip to gating,
+  or that is a static literal not regenerable from the AC1 command, does not satisfy this
+  criterion.
+- AC3: The AC1 command **fails open, loud, and never gates** when the runtime's
+  session/introspection shape is unavailable or unrecognized: an unrecognized-shape input
+  yields a **human-visible loud notice** AND a **non-failing** exit (it never fails
+  verification), mirroring how `token-budget-check.sh` fails open on a missing tiktoken
+  counter. Proven **two-sided** in the same diff: a planted unrecognized-shape fixture
+  asserts **both** the loud notice is emitted **and** verification is not failed, AND a
+  supported-shape control asserts the command **actually reports its counts** (so an
+  always-silent no-op cannot pass). The two-sided proof penalizes both the silent-green and
+  the spurious-gate directions.
+- AC4: An explicit **ordering statement** lands (in `memory/constitution.md` or
+  `.claude/governance-rules.md`) that a budget-motivated reduction which removes context the
+  adversarial auditors rely on is **rejected** — the constitution's quality invariants
+  outrank any budget row. Following **US6.AC1's exact posture**: if the rule is
+  deterministically encodable it ships as a check with **two-sided** focused tests (a
+  planted budget-motivated removal of auditor-relied-on context **fails**, AND a benign
+  budget change **passes**) and is registered in the `.claude/governance-rules.md`
+  accounting; if it is genuinely non-encodable it is documented as prose with an **explicit
+  constitution-P3 justification** in that registry — never silently prose-by-default and
+  never silently dropped. A bare ordering sentence carrying neither an encoded two-sided
+  check nor a registered P3 justification does not satisfy this criterion. (This criterion
+  drafts future work; per constitution P4 the ordering statement itself lands only by the
+  owner-reviewed T1207 implementation PR, never as a side effect of any gate run.)
