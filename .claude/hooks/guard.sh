@@ -3,7 +3,9 @@
 # enforces are specified in .claude/workflow/README.md → "The [guard] rules"; another
 # runtime supplies its own implementation of those same rules.
 # Enforces AGENTS.md workflow rules deterministically.
-# Pure Git-Bash: needs only cat/grep/sed/git/mktemp (no node, jq, awk, or pwsh).
+# Pure Git-Bash: needs only cat/grep/sed/awk/git/mktemp (no node, jq, or pwsh). awk is used
+# only for the quote tokenizer (quote_blank) with POSIX features (no {n} intervals), portable
+# across BSD/GNU/Git-Bash awk.
 # PreToolUse — blocks (exit 2, message on stderr) before the action runs:
 #   1. Any file edit (Edit/Write/MultiEdit/NotebookEdit) while on branch `main`.
 #   2. `git add .` / `git add -A` / `git add --all` / `git add ./` (stage
@@ -16,6 +18,17 @@
 #   the branch-gated rule 3 resolves the EFFECTIVE repo (an explicit `-C <path>`
 #   or `--git-dir <path>` from the commit/push invocation, or a leading
 #   `cd <path> &&`), not only the event cwd (issues #138, #173).
+#   For rules 3-4, a `commit`/`push` verb appearing only inside a quoted argument (an
+#   rg/grep pattern, an echo string, a `commit -m` message) or a `#` comment no longer
+#   trips them (issue #256). When the command carries NO shell-execution vector, they
+#   match a command SKELETON with quoted spans and comments blanked; when it DOES carry
+#   one — a shell evaluator (`bash -c "…"`)/`eval`, or a command substitution whose body
+#   holds the verb (`$(git … commit)`), which would execute it — they match the raw
+#   payload as before (no hole). A `$(…)` WITHOUT the verb (a scan fileset/root like
+#   `$(fd -e md)` / `"$(git rev-parse --show-toplevel)"`) is not a vector. The match stays
+#   position-agnostic in both cases, so a genuine invocation after a shell keyword or an
+#   env-assignment prefix still blocks (see command_skeleton and the target-selection at
+#   rules 3-4).
 #   5. Any Agent dispatch of a strong-floored reviewer — `constitution-auditor`
 #      or `spec-quality-auditor` — whose `model` parameter is absent or names a
 #      below-strong tier (the strong floor; issues #94, #147). Tier names are
@@ -122,6 +135,83 @@ effective_branch() { # <command> -> branch of the repo the command acts on
   b="$(effective_git "$1" branch --show-current)"
   [ -n "$b" ] && { printf '%s' "$b"; return 0; }
   branch
+}
+
+# Escape-aware extraction of the JSON command value — keeps `\"` intact (unlike jstr), the
+# payload form the quote tokenizer below expects.
+cmd_value() {
+  printf '%s' "$payload" \
+    | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
+    | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//'
+}
+
+# quote_blank <mode> — blank quoted spans of the command value read on stdin, with a single
+# LEFT-TO-RIGHT pass that models shell quoting (whichever quote opens FIRST wins until it
+# closes; the other quote type is literal inside it). This replaces the earlier pair of
+# INDEPENDENT global seds (`s/'…'/` then `s/\"…\"/`), which cross-paired quotes across span
+# boundaries and silently blanked a REAL git verb: `echo "here's" && git commit -m "that's"`
+# has two apostrophes that are LITERAL (inside `"…"`), yet the single-quote sed paired them and
+# erased the commit; symmetrically a `"` inside `'…'` (`echo 'a"b' && git commit -m 'c"d'`) fooled
+# the double-quote sed. A per-type regex, in either order, always leaves one such hole; only a
+# stateful pass is correct (issue #256 review — adversarial hole-hunt on PR #258).
+#   mode=all  — blank EVERY quoted span (command_skeleton: drop quoted/commented data verbs).
+#   mode=data — blank single-quoted spans and double-quoted spans free of `$`/backtick, but
+#               KEEP a substitution-bearing double-quoted span (subst_probe: a `$(…)`/backtick
+#               there EXECUTES, so its verb must stay visible — see the vector detection).
+# Double-quote delimiter is the payload's `\"` (backslash+quote); single is `'`. An unterminated
+# span keeps its raw remainder — fail toward NOT blanking (over-block, never a new hole). The
+# quote chars are passed via -v (sq/dq) so the awk program body carries no literal quote.
+quote_blank() {
+  awk -v mode="$1" -v sq="'" -v dq='"' '
+  {
+    line=$0; out=""; st=0; i=1; n=length(line); buf=""; hassub=0
+    while (i<=n) {
+      c=substr(line,i,1); c2=substr(line,i+1,1)
+      if (st==0) {                                   # unquoted
+        if (c==sq) { out=out" "; st=1; i++ }
+        else if (c=="\\" && c2==dq) { st=2; buf=""; hassub=0; i+=2 }
+        else { out=out c; i++ }
+      } else if (st==1) {                            # single-quoted: always blank
+        if (c==sq) { out=out" "; st=0 } else out=out" "
+        i++
+      } else {                                       # double-quoted: decide at close
+        if (c=="\\" && c2==dq) {
+          if (mode=="data" && hassub) { out=out "\\" dq buf "\\" dq }   # keep: substitution runs
+          else { g=buf; gsub(/./," ",g); out=out"  " g }               # blank
+          st=0; i+=2
+        } else { buf=buf c; if (c=="$"||c=="`") hassub=1; i++ }
+      }
+    }
+    if (st==2) out=out "\\" dq buf                   # unterminated " : keep raw (over-block)
+    print out
+  }'
+}
+
+# Command skeleton for the base-branch rules (3, 4): the invoked command with quoted argument
+# spans and `#` comments BLANKED (and JSON newline/tab escapes normalized), so a `commit`/`push`
+# verb that appears only inside a quoted argument (an rg/grep pattern, an echo string, a
+# `commit -m` message) or in a comment no longer trips the base-branch rules (issue #256 — a
+# recurring block on read-only `main`-branch work: issue-filing, neutrality scans). SAFETY:
+# quoted text is NOT universally inert — a shell evaluator (`bash -c "…"`) or a command
+# substitution (`$(…)`/backticks) EXECUTES quoted content, so blanking it there would hide a real
+# command. The skeleton is therefore used ONLY when the command carries no such execution vector;
+# the vector case matches the raw payload instead (see the target-selection at rules 3/4). Within
+# a vector-free command, quoted spans and comments are genuinely non-executed, so blanking drops
+# only FALSE matches — never a genuine invocation, which stays unquoted and is caught
+# position-agnostically (so `if …; then git commit` and `GIT_DATE=… git commit` still match; there
+# is deliberately no command-position anchor, which would miss those). Steps, in order:
+#   1. cmd_value: escape-aware extraction of the command value (keeps `\"` intact);
+#   2. quote_blank all: blank quoted spans with the correct stateful pass (see quote_blank);
+#   3. `\t`->space and `\n`/`\r`->`;` — a newline becomes a command separator so a comment
+#      ends at the line, WITHOUT a sed newline-in-replacement (stays BSD/GNU-portable);
+#   4. blank a `#` comment (whitespace-/line-anchored so `${x#y}`, `$#`, `${#x}` — `#` after
+#      a word or `{`/`$`, never after whitespace — are untouched) to the line's end (`;`).
+# effective_branch still reads the real $cmd, so the #138/#173 effective-repo resolution is
+# untouched.
+command_skeleton() {
+  cmd_value | quote_blank all \
+    | sed -E 's/\\t/ /g; s/\\[nr]/;/g' \
+    | sed -E 's/(^|[[:space:]])#[^;]*/\1/g'
 }
 
 # Telemetry stream path, resolved in precedence order:
@@ -351,17 +441,106 @@ case "$tool" in
       block git-add-all "\`git add .\` / -A / --all is not allowed (AGENTS.md). Stage specific files:
    git add <path1> <path2>"
     fi
+    # Target selection for the base-branch rules (3, 4) — issue #256. If the command can
+    # EXECUTE the git verb from otherwise-blanked text, match the RAW payload (the original
+    # over-blocking behavior — no hole); else the verb inside a quoted argument or a comment is
+    # inert data, so match the blanked command_skeleton, which drops those false positives.
+    # Two execution vectors are detected, on DIFFERENT targets:
+    #   1. a shell evaluator token (`bash`/`sh`/`dash`/`zsh`/`ksh`/`ash`/`mksh`/`csh`/`tcsh`/
+    #      `fish`, normally `… -c "…"`) or `eval` — it runs its quoted argument as shell.
+    #      Detected in the SKELETON, not the raw payload: a genuine evaluator name is unquoted
+    #      and survives blanking, while an evaluator word that is only quoted search DATA
+    #      (`rg "bash -c git commit"`, `echo "bash" "git commit"`) is blanked away and no longer
+    #      forces a raw match (issue #256 review finding 2 — the quoted-argument goal reached for
+    #      the evaluator token itself). Each name is word-boundaried so `.sh`/`.csh` filenames,
+    #      `ssh`, `git stash`, and `git push` do NOT false-trigger.
+    #   2. a command substitution `$(…)`/backticks whose body holds the git verb (`$(git …
+    #      commit)`) — it RUNS the body, even inside double quotes, at ANY nesting depth. Regex
+    #      cannot balance parens, so rather than match the verb inside `$(…)` we build a probe
+    #      that blanks only INERT quoted DATA — single-quoted spans, and PURE-DATA double-quoted
+    #      spans (those with no `$`/backtick) — and KEEPS substitution-bearing double-quoted
+    #      spans. If the probe still holds BOTH a substitution opener and the verb, the verb may
+    #      execute, so a nested `$(echo $(date); git commit)` is caught at any depth (issue #256
+    #      review High finding — a flat `$([^)]*…)` regex stopped at the inner `)` and hid the
+    #      verb). A `$(…)` whose body LACKS the verb while the verb sits in a now-blanked data
+    #      quote (`rg "git commit" $(fd -e md)`, `"$(git rev-parse --show-toplevel)"`) leaves no
+    #      verb in the probe — NOT a vector, so read-only scans whose fileset/root is a
+    #      substitution stay allowed.
+    # A false vector hit only over-blocks (safe). NOT detected (accepted residual, documented in
+    # the PR): a NON-shell interpreter shelling out from a quoted string (`python -c
+    # "…os.system('git commit')"`, `perl -e`), `ssh host "…"`, a shell reached through a
+    # variable (`$SHELL -c "…"` — the shell name never appears literally), or a niche shell not
+    # in the set (`nu`/`rc`/`elvish`) — the guard backstops the agent's own ACCIDENTAL
+    # base-branch writes, not adversarial evasion, and the human merge remains the wall.
+    vsub="git${grun}"'[[:space:]]+(commit|push)'   # git + optional globals + the verb
+    cmdv="$(cmd_value)"                             # extracted command value (reused below)
+    # JSON-tab normalization for the RAW-target matches. The verb/refspec regexes use
+    # `[[:space:]]`, which matches a whitespace BYTE — NOT the 2-char JSON escape `\t`. The shell
+    # DECODES `\t` to a real tab and word-splits on it, so `git\tcommit` executes; the skeleton
+    # already folds `\t`->space (command_skeleton), but the raw-payload/substitution-probe targets
+    # did not, so a `\t` between `git` and the verb slipped rules 3/4 whenever a vector (bash -c /
+    # esc_quote / a `$(…)`) routed the match onto raw (issue #256 review — round-3 hole-hunt).
+    # Fold `\t`->space on those targets too. `\n`/`\r` are NOT folded here — they decode to command
+    # SEPARATORS that split the verb, so they cannot smuggle one.
+    payload_ns="$(printf '%s' "$payload" | sed -E 's/\\t/ /g')"
+    skel="$(command_skeleton)"
+    evaltok='(^|[^[:alnum:]_.])(bash|dash|zsh|ksh|ash|mksh|csh|tcsh|fish|eval)([^[:alnum:]_]|$)|(^|[^[:alnum:]_.])sh([^[:alnum:]_]|$)'
+    # Substitution probe (quote_blank data): blank inert quoted data — single-quoted spans, and
+    # double-quoted spans free of `$`/backtick — but KEEP a substitution-bearing double-quoted
+    # span, whose `$(…)`/backtick verb executes. Same stateful pass as the skeleton, so it inherits
+    # the correct quote handling (no apostrophe/`"` cross-pairing hole). A verb inside a live `$(…)`
+    # is shielded by the `$` that keeps its span, so the probe stays fail-safe.
+    subst_probe="$(printf '%s' "$cmdv" | quote_blank data | sed -E 's/\\t/ /g')"
+    # Escaped-quote fail-safe. quote_blank models plain shell quoting but NOT backslash-escaping
+    # of a quote: a shell `\"`/`\'` (JSON `\\\"` / `\\'`) is a LITERAL quote, not a delimiter, and
+    # an odd number of them flips the tokenizer's quoted/unquoted parity — desyncing it so a real
+    # unquoted `git commit`/`git push` can land in a phantom span and be blanked (a hole; issue
+    # #256 review — the round-2 hole-hunt on the tokenizer). Rather than fully parse shell escaping
+    # (escaped separators/verbs are their own rabbit hole), detect the escape and match the RAW
+    # payload — over-block, never a hole. The pattern is a shell backslash (`\\`) immediately before
+    # a shell quote; a backslash before a non-quote (an escaped pipe `\|` in a BRE scan, a path
+    # `\\`) does NOT trigger, so ordinary read-only scans are unaffected.
+    esc_quote='\\\\(\\"|'\'')'
+    if printf '%s' "$skel" | grep -qE "$evaltok" \
+       || { printf '%s' "$subst_probe" | grep -qE '\$\(|`' && printf '%s' "$subst_probe" | grep -qE "$vsub"; } \
+       || printf '%s' "$cmdv" | grep -qE "$esc_quote"; then
+      vector=1; target="$payload_ns"
+    else
+      vector=0; target="$skel"
+    fi
     # Branch-gated: resolve the EFFECTIVE repo (a `-C <path>` / `cd <path> &&` target),
     # not just the event cwd, so a commit/push into a different on-base repo is caught
     # (#138 DW2). effective_branch falls back to the event-cwd branch when unreadable.
-    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+(commit|push)([[:space:]]|\\|")' && [ "$(effective_branch "$cmd")" = "main" ]; then
+    # The pattern stays position-AGNOSTIC (no command-position anchor), so a genuine
+    # invocation after a shell keyword or an env-assignment prefix (`if …; then git commit`,
+    # `GIT_DATE=… git commit`) still matches. The trailing boundary spans both targets: the
+    # JSON `\`/`"` of the raw payload and the `;`/`&`/`|`/`)`/end-of-string of the skeleton
+    # (which has the outer JSON quote stripped, so a bare `git push` at the end needs `$`).
+    if printf '%s' "$target" | grep -qE "git${grun}"'[[:space:]]+(commit|push)([[:space:]]|[;&|)]|\\|"|$)' && [ "$(effective_branch "$cmd")" = "main" ]; then
       block commit-push-on-main "Never commit or push to 'main' (AGENTS.md). Work on a feature branch and open a PR."
     fi
     # Refspec rule: a push can target main from ANY branch (`git push origin HEAD:main`),
     # so match the destination ref, not just the current branch. [^";&|]* keeps the match
     # inside a single shell command, so `git push ... && gh pr create --base main` is allowed.
-    if printf '%s' "$payload" | grep -qE "git${grun}"'[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'; then
-      block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
+    #
+    # A real push's DESTINATION is genuine even when the refspec is QUOTED (`git push origin
+    # 'HEAD:main'`, issue #256 review Codex P1) — the command_skeleton blanks that quoted span,
+    # so matching only the skeleton would miss it. So whenever a REAL push exists — an execution
+    # vector runs it, or an unquoted `git push` verb survives in the skeleton — ALSO match the
+    # RAW payload, where the quoted `main` is still present (`[^";&|]` spans the single quotes of
+    # 'HEAD:main' / ':main' / 'feature:main'). When the push verb is quoted DATA (`rg "git push
+    # origin main"` — no vector, no skeleton push verb), real_push stays 0 and the raw is never
+    # consulted, so the #256 read-only-scan allow is preserved. (A DOUBLE-quoted refspec
+    # `"…:main"` is a pre-existing rule-4 gap — the `[^";&|]` boundary excludes `"` to stay
+    # within one command — unchanged by #256 and out of its scope.)
+    refspec="git${grun}"'[[:space:]]+push[^";&|]*(:|[[:space:]])(refs/heads/)?main([^a-zA-Z0-9_./-]|$)'
+    real_push=0
+    [ "$vector" = 1 ] && real_push=1
+    printf '%s' "$skel" | grep -qE "git${grun}"'[[:space:]]+push([[:space:]]|[;&|)]|\\|"|$)' && real_push=1
+    if [ "$real_push" = 1 ]; then
+      if printf '%s' "$skel" | grep -qE "$refspec" || printf '%s' "$payload_ns" | grep -qE "$refspec"; then
+        block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
+      fi
     fi
     # Rule 6: a self-colliding in-place sed substitution — the delimiter char also
     # occurs in the URL operand, so the URL ends the expression early and silently

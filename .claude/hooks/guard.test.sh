@@ -127,7 +127,11 @@ check 2 "$FEAT" "r4 block: forced feature:main" "$(bashp 'git push --force origi
 check 2 "$FEAT" "r4 block: refs/heads/main destination" "$(bashp 'git push origin HEAD:refs/heads/main')"
 check 2 "$FEAT" "r4 block: remote delete :main" "$(bashp 'git push origin :main')"
 check 2 "$FEAT" "r4 block: HEAD:main via PowerShell" "$(pwshp 'git push origin HEAD:main')"
-check 2 "$FEAT" "r4 block: push-to-main prose in inline commit msg (fail closed)" "$(bashp 'git commit -m \"revert: git push origin main broke X\"')"
+# issue #256: a `push … main` mention INSIDE a quoted `commit -m` message is not a real
+# push — the skeleton blanks the quoted span, so this now ALLOWs (was a deliberate
+# fail-closed block). No hole: a real `git push origin main` is never inside quotes, so it
+# still blocks (lines above, and the paired mutation proof in the #256 section below).
+check 0 "$FEAT" "r4 allow: push-to-main text inside a quoted commit -m message (#256)" "$(bashp 'git commit -m \"revert: git push origin main broke X\"')"
 check 0 "$FEAT" "r4 allow: normal feature-branch push" "$(bashp 'git push -u origin chore/61-guard-tests')"
 check 0 "$FEAT" "r4 allow: HEAD:main-backup refspec" "$(bashp 'git push origin HEAD:main-backup')"
 check 0 "$FEAT" "r4 allow: branch named maintenance" "$(bashp 'git push origin maintenance')"
@@ -193,6 +197,132 @@ check 0 "$MAIN" "H1 allow: git --git-dir=<feat>/.git commit (target feature)" "$
 # locator: the real `git -C <main> commit` still resolves to main -> DENY (a boundary-less
 # locator would latch onto the decoy, find no -C, and fall back to the feature event cwd).
 check 2 "$FEAT" "P2 block: decoy git commitx then real git -C <main> commit" "$(bashp "git commitx && git -C $MAIN_ROOT commit -m x")"
+
+# --- issue #256: a commit/push VERB that appears only inside a quoted argument (an rg/grep
+# pattern, an echo string, a commit -m message) or a `#` comment no longer trips rules 3/4.
+# The rules match a blanked command SKELETON when the command carries no shell-execution
+# vector, and the RAW payload (original over-blocking behavior) when it does — a shell
+# evaluator (`bash -c "…"`), `eval`, or a command substitution (`$(…)`/backticks) that would
+# EXECUTE the quoted content. Matching stays POSITION-AGNOSTIC (no command-position anchor)
+# so a keyword/prefix/env-assignment invocation still blocks. Each false-positive-now-allowed
+# is PAIRED with a real form still blocked — the mutation proof that the fix opened no hole
+# (the #256 safety constraint). The block cases below are the exact evasions an adversarial
+# review of the first cut found (evaluator wrappers; keyword/prefix positions). ---
+# (a) quoted / commented verbs that are NOT a git command -> ALLOW on main:
+check 0 "$MAIN" "#256 allow: push verb inside a double-quoted rg pattern (the repro)" "$(bashp 'rg -n \"gh |--json|git push\" review-response.workflow.md')"
+check 0 "$MAIN" "#256 allow: rg over a .sh file (filename is not an sh-vector)" "$(bashp 'rg -n \"git commit\" .claude/hooks/guard.sh')"
+check 0 "$MAIN" "#256 allow: verb near the word 'stash' (contains 'ash', not a vector)" "$(bashp 'rg -n \"git push\" git-stash-notes.md')"
+check 0 "$MAIN" "#256 allow: verb near a .csh filename (not a csh-vector)" "$(bashp 'grep -n \"git commit\" build.csh')"
+check 0 "$MAIN" "#256 allow: commit verb inside a double-quoted echo string" "$(bashp 'echo \"remember to git commit\"')"
+check 0 "$MAIN" "#256 allow: push verb inside a single-quoted echo string" "$(bashp "echo 'then git push now'")"
+check 0 "$MAIN" "#256 allow: commit verb inside a grep pattern" "$(bashp 'grep -rn \"git commit\" .')"
+check 0 "$MAIN" "#256 allow: commit verb after a # comment" "$(bashp 'ls # git commit later')"
+check 0 "$MAIN" "#256 allow: commit verb in a trailing comment on a real command" "$(bashp 'git status # then git commit')"
+check 0 "$FEAT" "#256 allow: refspec-to-main inside a quoted rg pattern (rule 4)" "$(bashp 'rg -n \"git push origin main\" notes.md')"
+# a $(…) that does NOT contain the git verb (a scan fileset/root) is not a vector -> ALLOW,
+# while the verb stays in a blanked quoted pattern (the read-only-scan workflow #256 targets):
+check 0 "$MAIN" "#256 allow: verb in quoted pattern, fileset from \$(fd …)" "$(bashp 'rg -n \"git commit\" $(fd -e md)')"
+check 0 "$FEAT" "#256 allow: refspec pattern, root from \$(git rev-parse …) (rule 4)" "$(bashp 'rg -n \"git push origin main\" \"$(git rev-parse --show-toplevel)\"')"
+# (the quoted-commit-message allow is the flipped r4 case above, near the rule-4 block)
+# (b1) evaluator / command-substitution wrappers EXECUTE the quoted verb -> STILL BLOCK
+# (the raw-payload target; these are the adversarial family-1 holes a blank-only fix opened):
+check 2 "$MAIN" "#256 block: bash -c \"git commit …\" (double-quoted, executed)" "$(bashp 'bash -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: bash -c 'git commit …' (single-quoted, executed)" "$(bashp "bash -c 'git commit -m wip'")"
+check 2 "$MAIN" "#256 block: sh -c \"git commit …\"" "$(bashp 'sh -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: ash -c \"git commit …\" (busybox/Alpine shell)" "$(bashp 'ash -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: fish -c \"git commit …\"" "$(bashp 'fish -c \"git commit -m wip\"')"
+check 2 "$MAIN" "#256 block: eval \"git commit …\"" "$(bashp 'eval \"git commit -m x\"')"
+check 2 "$MAIN" "#256 block: git commit inside a \$( … ) command substitution" "$(bashp 'echo \"$(git commit -m x)\"')"
+check 2 "$MAIN" "#256 block: git -C <p> commit inside \$( … ) (globals inside subst)" "$(bashp 'echo \"$(git -C /p commit -m x)\"')"
+check 2 "$MAIN" "#256 block: git commit inside a backtick substitution" "$(bashp 'echo \"\`git commit -m x\`\"')"
+check 2 "$FEAT" "#256 block: bash -c \"git push origin main\" (refspec, rule 4)" "$(bashp 'bash -c \"git push origin main\"')"
+# (b2) genuine invocations at command positions a command-position anchor would MISS -> BLOCK:
+check 2 "$MAIN" "#256 block: real git commit at command start (pairs the echo cases)" "$(bashp 'git commit -m \"wip\"')"
+check 2 "$MAIN" "#256 block: real git commit after && (genuine invocation)" "$(bashp 'git status && git commit -m x')"
+check 2 "$MAIN" "#256 block: real git push after ;" "$(bashp 'git status ; git push -u origin feature/x')"
+check 2 "$MAIN" "#256 block: real git commit after a newline" "$(bashp 'git status\ngit commit -m x')"
+check 2 "$MAIN" "#256 block: real git commit in a ( subshell )" "$(bashp '(git commit -m x)')"
+check 2 "$MAIN" "#256 block: real git commit after the 'then' keyword" "$(bashp 'if true; then git commit -m x; fi')"
+check 2 "$MAIN" "#256 block: real git commit as an if-condition" "$(bashp 'if git commit -m x; then echo ok; fi')"
+check 2 "$MAIN" "#256 block: real git push after 'do' in a loop" "$(bashp 'while true; do git push -u origin feature; done')"
+check 2 "$MAIN" "#256 block: real git commit after a GIT_*=… env-assignment prefix" "$(bashp 'GIT_AUTHOR_DATE=2020-01-01 git commit -m wip')"
+check 2 "$MAIN" "#256 block: real git commit after an env/command wrapper prefix" "$(bashp 'command git commit -m x')"
+check 2 "$FEAT" "#256 block: real refspec git push origin main after && (pairs the rg case)" "$(bashp 'git status && git push origin main')"
+check 2 "$FEAT" "#256 block: real refspec git push origin main after 'then'" "$(bashp 'if true; then git push origin main; fi')"
+# Comment-blanking must not eat a real command via a `${x#y}` parameter expansion (the `#`
+# there follows a word, not whitespace, so it is not a comment): the real commit still BLOCKs.
+check 2 "$MAIN" "#256 block: real commit after a \${x#y} parameter expansion" "$(bashp 'x=\${y#p} && git commit -m x')"
+# The target selection must not disturb the #138/#173 effective-repo resolution: a -C <main>
+# commit with a QUOTED message, event cwd on feature, still resolves to main -> BLOCK.
+check 2 "$FEAT" "#256 block: git -C <main> commit -m \"quoted\" still resolves to main" "$(bashp "git -C $MAIN_ROOT commit -m \\\"quoted msg\\\"")"
+# --- issue #256 REVIEW (PR #258) — three findings, each a paired mutation proof ---
+# (c) Codex P1 HOLE: a real push's refspec targets main even when the refspec is SINGLE-QUOTED.
+# The skeleton blanks the quoted span, so rule 4 must re-consult the RAW payload once a real
+# push verb survives (or a vector runs it). Paired with the quoted-DATA allow above (the
+# `rg "git push origin main"` case) — the proof that consulting raw here opens no #256 hole.
+check 2 "$FEAT" "#256 block: real push, single-quoted 'HEAD:main' refspec (Codex P1)" "$(bashp "git push origin 'HEAD:main'")"
+check 2 "$FEAT" "#256 block: real push, single-quoted ':main' delete refspec (Codex P1)" "$(bashp "git push origin ':main'")"
+check 2 "$FEAT" "#256 block: real push, single-quoted 'feature:main' refspec (Codex P1)" "$(bashp "git push origin 'feature:main'")"
+# (d) owner High HOLE: a NESTED command substitution still EXECUTES the git verb, but a flat
+# `$([^)]*…)` vector regex stopped at the inner `)` and let the skeleton blank the real verb.
+# The depth-robust probe (blank inert quoted data, keep substitution-bearing spans, require a
+# substitution opener AND the verb to survive) re-blocks it at ANY depth; paired with the
+# $(fd …) scan-fileset allow above — the proof that this opens no #256 hole.
+check 2 "$MAIN" "#256 block: git commit inside a NESTED command substitution (owner High)" "$(bashp 'echo \"$(echo $(date); git commit -m x)\"')"
+check 2 "$FEAT" "#256 block: git push inside a NESTED substitution, rule 4 (owner High)" "$(bashp 'echo \"$(echo $(date); git push origin main)\"')"
+check 2 "$MAIN" "#256 block: git commit inside a TWICE-nested substitution (depth-robust)" "$(bashp 'echo \"$(echo $(echo $(date)); git commit -m x)\"')"
+check 2 "$FEAT" "#256 block: git push inside a TWICE-nested substitution, rule 4 (depth-robust)" "$(bashp 'echo \"$(echo $(echo $(date)); git push origin main)\"')"
+# (e) owner Medium OVER-BLOCK: a shell-evaluator word that is only quoted search DATA is not an
+# execution vector — evaluator tokens are detected in the SKELETON (quoted spans blanked), so
+# the quoted-argument goal is reached for the evaluator token itself. Paired with the real
+# bash -c / eval blocks above — the proof that this narrowing opens no hole.
+check 0 "$MAIN" "#256 allow: 'bash -c' as quoted rg search data, verb quoted too (owner Medium)" "$(bashp 'rg -n \"bash -c git commit\" docs.md')"
+check 0 "$MAIN" "#256 allow: quoted 'bash' and quoted 'git commit' as echo args (owner Medium)" "$(bashp 'echo \"bash\" \"git commit\"')"
+# (f) adversarial hole-hunt (PR #258 re-gate): the first-cut skeleton blanked quoted spans with
+# two INDEPENDENT global seds (single-quote, then double-quote), which CROSS-PAIRED quotes across
+# span boundaries and erased a REAL git verb — an apostrophe inside "…" (an English contraction),
+# or a `"` inside '…', bracketing an unquoted `git commit`/`git push`. `echo "here's" && git
+# commit -m "that's"` is an utterly ordinary shape, so this was a realistic ACCIDENTAL-write hole.
+# The stateful quote_blank pass closes it in BOTH directions. The three apostrophe-in-"…" BLOCKs
+# are exact evasions the hole-hunt confirmed (exit 0 = a real base-branch write ALLOWED on the
+# two-sed guard — red→green here). The reverse `"`-in-'…' BLOCK is the symmetric direction: the
+# first cut blanked single quotes FIRST so it happened to catch that one, but a correct pass must
+# hold both — this locks the symmetry against a reorder/regression. The paired ALLOW proves the
+# tokenizer still drops a genuinely-quoted verb (not a blunt "any apostrophe → over-block").
+check 2 "$MAIN" "#256 block: real commit, contraction apostrophes in double quotes (hole-hunt)" "$(bashp 'echo \"here'\''s the fix\" && git commit -m \"that'\''s all\"')"
+check 2 "$FEAT" "#256 block: real push origin main, contraction apostrophes (hole-hunt, rule 4)" "$(bashp 'echo \"here'\''s the release\" && git push origin main && echo \"that'\''s shipped\"')"
+check 2 "$MAIN" "#256 block: apostrophe pairing must not swallow an executed bash -c (hole-hunt)" "$(bashp 'echo \"let'\''s\" && bash -c \"git commit -m x\" && echo \"that'\''s\"')"
+check 2 "$MAIN" "#256 block: real commit, double-quote inside single quotes (reverse pairing)" "$(bashp 'echo '\''a\"b'\'' && git commit -m '\''c\"d'\''')"
+check 0 "$MAIN" "#256 allow: contraction apostrophes but NO git verb (tokenizer not blunt)" "$(bashp 'echo \"here'\''s the plan, that'\''s all\"')"
+# (g) round-2 hole-hunt (on the tokenizer): quote_blank models plain quoting but NOT backslash
+# ESCAPING of a quote. A shell `\"`/`\'` (JSON `\\\"` / `\\'`) is a LITERAL quote, not a delimiter;
+# an ODD count flips the tokenizer's quoted/unquoted parity, so a real unquoted `git commit`/`git
+# push` lands in a phantom span and is blanked -> the guard allowed a real base-branch write. The
+# esc_quote fail-safe matches the RAW payload whenever a shell-escaped quote is present (over-block,
+# never a hole). The BLOCK cases are the hole-hunt's confirmed exit-0 payloads (red on the
+# pre-fail-safe tokenizer); the ALLOWs prove the fail-safe stays NARROW — a scan with no verb, or an
+# escaped PIPE in a BRE pattern (a `\` before a non-quote), is not caught, so read-only work is spared.
+check 2 "$MAIN" "#256 block: escaped-quote parity, real commit, own -m closer (round-2 hole-hunt)" "$(bashp 'echo \"found a \\\" char\"; git commit --allow-empty -am \"fix quote\"')"
+check 2 "$MAIN" "#256 block: escaped-quote parity, trailing-echo closer (round-2 hole-hunt)" "$(bashp 'echo \"X\\\"Y\"; git commit --allow-empty -m H1; echo \"Z\"')"
+check 2 "$FEAT" "#256 block: escaped-quote parity, push origin main (round-2 hole-hunt, rule 4)" "$(bashp 'echo \"X\\\"Y\"; git push origin main; echo \"Z\"')"
+check 0 "$MAIN" "#256 allow: escaped quotes in a search pattern, NO git verb (fail-safe is narrow)" "$(bashp 'rg -n \"\\\"quoted\\\"\" notes.md')"
+check 0 "$MAIN" "#256 allow: escaped PIPE in a BRE pattern is not an escaped quote (fail-safe narrow)" "$(bashp 'rg -n \"gh \\|git push\" review-response.workflow.md')"
+# esc_quote covers the escaped-SINGLE-quote branch too: shell `\'` (JSON `\\'`) is a literal
+# quote unquoted, so `echo it\'s && git commit` really commits; the tokenizer alone would open a
+# phantom single-quote span at the bare `'` and blank the verb (red), the fail-safe forces raw (green).
+check 2 "$MAIN" "#256 block: escaped SINGLE-quote parity, real commit (fail-safe \\' branch)" "$(bashp 'echo it\\'\''s && git commit -m x')"
+# (h) round-3 hole-hunt: a JSON tab escape `\t` between `git` and the verb. The verb/refspec
+# regexes use `[[:space:]]` (a whitespace BYTE), which does not match the 2-char `\t`; the shell
+# DECODES `\t` to a real tab and word-splits, so `git\tcommit` executes. The skeleton folds
+# `\t`->space, but the RAW target (reached via a bash -c / esc_quote / `$(…)` vector) and the
+# substitution probe did not, so `\t` slipped rules 3/4 on those paths. Fix folds `\t`->space on
+# those targets too. Each BLOCK is a hole-hunt-confirmed exit-0 payload with a proven real write
+# (red on the pre-fix guard); the control shows the non-vector skeleton path already normalized.
+check 2 "$MAIN" "#256 block: JSON-tab git\\tcommit via bash -c vector (round-3 hole-hunt)" "$(bashp 'bash -c \"git\tcommit -am x\"')"
+check 2 "$MAIN" "#256 block: JSON-tab git\\tcommit reached via esc_quote vector (round-3 hole-hunt)" "$(bashp 'echo \"a\\\"\"; git\tcommit -am x')"
+check 2 "$FEAT" "#256 block: JSON-tab git\\tpush origin main via bash -c (round-3 hole-hunt, rule 4)" "$(bashp 'bash -c \"git\tpush origin main\"')"
+check 2 "$MAIN" "#256 block: JSON-tab verb inside a \$( … ) substitution (round-3 hole-hunt)" "$(bashp 'echo \"\$(git\tcommit -m x)\"')"
+check 2 "$MAIN" "#256 block: JSON-tab plain git\\tcommit — skeleton normalizes (control)" "$(bashp 'git\tcommit -m x')"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
