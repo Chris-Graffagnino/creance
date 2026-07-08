@@ -474,6 +474,15 @@ case "$tool" in
     # base-branch writes, not adversarial evasion, and the human merge remains the wall.
     vsub="git${grun}"'[[:space:]]+(commit|push)'   # git + optional globals + the verb
     cmdv="$(cmd_value)"                             # extracted command value (reused below)
+    # JSON-tab normalization for the RAW-target matches. The verb/refspec regexes use
+    # `[[:space:]]`, which matches a whitespace BYTE — NOT the 2-char JSON escape `\t`. The shell
+    # DECODES `\t` to a real tab and word-splits on it, so `git\tcommit` executes; the skeleton
+    # already folds `\t`->space (command_skeleton), but the raw-payload/substitution-probe targets
+    # did not, so a `\t` between `git` and the verb slipped rules 3/4 whenever a vector (bash -c /
+    # esc_quote / a `$(…)`) routed the match onto raw (issue #256 review — round-3 hole-hunt).
+    # Fold `\t`->space on those targets too. `\n`/`\r` are NOT folded here — they decode to command
+    # SEPARATORS that split the verb, so they cannot smuggle one.
+    payload_ns="$(printf '%s' "$payload" | sed -E 's/\\t/ /g')"
     skel="$(command_skeleton)"
     evaltok='(^|[^[:alnum:]_.])(bash|dash|zsh|ksh|ash|mksh|csh|tcsh|fish|eval)([^[:alnum:]_]|$)|(^|[^[:alnum:]_.])sh([^[:alnum:]_]|$)'
     # Substitution probe (quote_blank data): blank inert quoted data — single-quoted spans, and
@@ -481,7 +490,7 @@ case "$tool" in
     # span, whose `$(…)`/backtick verb executes. Same stateful pass as the skeleton, so it inherits
     # the correct quote handling (no apostrophe/`"` cross-pairing hole). A verb inside a live `$(…)`
     # is shielded by the `$` that keeps its span, so the probe stays fail-safe.
-    subst_probe="$(printf '%s' "$cmdv" | quote_blank data)"
+    subst_probe="$(printf '%s' "$cmdv" | quote_blank data | sed -E 's/\\t/ /g')"
     # Escaped-quote fail-safe. quote_blank models plain shell quoting but NOT backslash-escaping
     # of a quote: a shell `\"`/`\'` (JSON `\\\"` / `\\'`) is a LITERAL quote, not a delimiter, and
     # an odd number of them flips the tokenizer's quoted/unquoted parity — desyncing it so a real
@@ -495,7 +504,7 @@ case "$tool" in
     if printf '%s' "$skel" | grep -qE "$evaltok" \
        || { printf '%s' "$subst_probe" | grep -qE '\$\(|`' && printf '%s' "$subst_probe" | grep -qE "$vsub"; } \
        || printf '%s' "$cmdv" | grep -qE "$esc_quote"; then
-      vector=1; target="$payload"
+      vector=1; target="$payload_ns"
     else
       vector=0; target="$skel"
     fi
@@ -529,7 +538,7 @@ case "$tool" in
     [ "$vector" = 1 ] && real_push=1
     printf '%s' "$skel" | grep -qE "git${grun}"'[[:space:]]+push([[:space:]]|[;&|)]|\\|"|$)' && real_push=1
     if [ "$real_push" = 1 ]; then
-      if printf '%s' "$skel" | grep -qE "$refspec" || printf '%s' "$payload" | grep -qE "$refspec"; then
+      if printf '%s' "$skel" | grep -qE "$refspec" || printf '%s' "$payload_ns" | grep -qE "$refspec"; then
         block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
       fi
     fi

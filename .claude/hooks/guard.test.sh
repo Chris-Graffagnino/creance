@@ -311,6 +311,18 @@ check 0 "$MAIN" "#256 allow: escaped PIPE in a BRE pattern is not an escaped quo
 # quote unquoted, so `echo it\'s && git commit` really commits; the tokenizer alone would open a
 # phantom single-quote span at the bare `'` and blank the verb (red), the fail-safe forces raw (green).
 check 2 "$MAIN" "#256 block: escaped SINGLE-quote parity, real commit (fail-safe \\' branch)" "$(bashp 'echo it\\'\''s && git commit -m x')"
+# (h) round-3 hole-hunt: a JSON tab escape `\t` between `git` and the verb. The verb/refspec
+# regexes use `[[:space:]]` (a whitespace BYTE), which does not match the 2-char `\t`; the shell
+# DECODES `\t` to a real tab and word-splits, so `git\tcommit` executes. The skeleton folds
+# `\t`->space, but the RAW target (reached via a bash -c / esc_quote / `$(…)` vector) and the
+# substitution probe did not, so `\t` slipped rules 3/4 on those paths. Fix folds `\t`->space on
+# those targets too. Each BLOCK is a hole-hunt-confirmed exit-0 payload with a proven real write
+# (red on the pre-fix guard); the control shows the non-vector skeleton path already normalized.
+check 2 "$MAIN" "#256 block: JSON-tab git\\tcommit via bash -c vector (round-3 hole-hunt)" "$(bashp 'bash -c \"git\tcommit -am x\"')"
+check 2 "$MAIN" "#256 block: JSON-tab git\\tcommit reached via esc_quote vector (round-3 hole-hunt)" "$(bashp 'echo \"a\\\"\"; git\tcommit -am x')"
+check 2 "$FEAT" "#256 block: JSON-tab git\\tpush origin main via bash -c (round-3 hole-hunt, rule 4)" "$(bashp 'bash -c \"git\tpush origin main\"')"
+check 2 "$MAIN" "#256 block: JSON-tab verb inside a \$( … ) substitution (round-3 hole-hunt)" "$(bashp 'echo \"\$(git\tcommit -m x)\"')"
+check 2 "$MAIN" "#256 block: JSON-tab plain git\\tcommit — skeleton normalizes (control)" "$(bashp 'git\tcommit -m x')"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
