@@ -255,6 +255,29 @@ check 2 "$MAIN" "#256 block: real commit after a \${x#y} parameter expansion" "$
 # The target selection must not disturb the #138/#173 effective-repo resolution: a -C <main>
 # commit with a QUOTED message, event cwd on feature, still resolves to main -> BLOCK.
 check 2 "$FEAT" "#256 block: git -C <main> commit -m \"quoted\" still resolves to main" "$(bashp "git -C $MAIN_ROOT commit -m \\\"quoted msg\\\"")"
+# --- issue #256 REVIEW (PR #258) — three findings, each a paired mutation proof ---
+# (c) Codex P1 HOLE: a real push's refspec targets main even when the refspec is SINGLE-QUOTED.
+# The skeleton blanks the quoted span, so rule 4 must re-consult the RAW payload once a real
+# push verb survives (or a vector runs it). Paired with the quoted-DATA allow above (the
+# `rg "git push origin main"` case) — the proof that consulting raw here opens no #256 hole.
+check 2 "$FEAT" "#256 block: real push, single-quoted 'HEAD:main' refspec (Codex P1)" "$(bashp "git push origin 'HEAD:main'")"
+check 2 "$FEAT" "#256 block: real push, single-quoted ':main' delete refspec (Codex P1)" "$(bashp "git push origin ':main'")"
+check 2 "$FEAT" "#256 block: real push, single-quoted 'feature:main' refspec (Codex P1)" "$(bashp "git push origin 'feature:main'")"
+# (d) owner High HOLE: a NESTED command substitution still EXECUTES the git verb, but a flat
+# `$([^)]*…)` vector regex stopped at the inner `)` and let the skeleton blank the real verb.
+# The depth-robust probe (blank inert quoted data, keep substitution-bearing spans, require a
+# substitution opener AND the verb to survive) re-blocks it at ANY depth; paired with the
+# $(fd …) scan-fileset allow above — the proof that this opens no #256 hole.
+check 2 "$MAIN" "#256 block: git commit inside a NESTED command substitution (owner High)" "$(bashp 'echo \"$(echo $(date); git commit -m x)\"')"
+check 2 "$FEAT" "#256 block: git push inside a NESTED substitution, rule 4 (owner High)" "$(bashp 'echo \"$(echo $(date); git push origin main)\"')"
+check 2 "$MAIN" "#256 block: git commit inside a TWICE-nested substitution (depth-robust)" "$(bashp 'echo \"$(echo $(echo $(date)); git commit -m x)\"')"
+check 2 "$FEAT" "#256 block: git push inside a TWICE-nested substitution, rule 4 (depth-robust)" "$(bashp 'echo \"$(echo $(echo $(date)); git push origin main)\"')"
+# (e) owner Medium OVER-BLOCK: a shell-evaluator word that is only quoted search DATA is not an
+# execution vector — evaluator tokens are detected in the SKELETON (quoted spans blanked), so
+# the quoted-argument goal is reached for the evaluator token itself. Paired with the real
+# bash -c / eval blocks above — the proof that this narrowing opens no hole.
+check 0 "$MAIN" "#256 allow: 'bash -c' as quoted rg search data, verb quoted too (owner Medium)" "$(bashp 'rg -n \"bash -c git commit\" docs.md')"
+check 0 "$MAIN" "#256 allow: quoted 'bash' and quoted 'git commit' as echo args (owner Medium)" "$(bashp 'echo \"bash\" \"git commit\"')"
 
 # --- rule 5: the strong-tier floor — constitution + spec-quality reviewers ---
 # Fixture table mirrors .claude/MODELS.md's row shape; GUARD_MODELS_FILE is the
