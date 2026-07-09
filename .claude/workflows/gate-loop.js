@@ -290,6 +290,66 @@ const telemetry = (outcome) => ({
   fail_reports: failReports,
 });
 
+// T642 (#214) — resolve the roster reviewer agent types BEFORE the grading loop. The reviewers are
+// dispatched by custom agent type (`agentType: r.key`, below); the runtime resolves those types from
+// the DISPATCHER SESSION's registry (the session root's `.claude/agents/`), NOT from `workspacePath`
+// — so a dispatcher rooted outside the repo cannot resolve them. Every reviewer dispatch then returns
+// NO-RESULT, and the loop, correctly refusing to pass on no-result, would otherwise burn the WHOLE
+// `max-fix-rounds` budget grading nothing (the incident: 9x NO-RESULT across 3 rounds, outcome
+// `non-convergence`, zero grading). `workspacePath` scopes the DIFF explicitly but has no agent-type
+// equivalent, so this deterministic preflight is the missing explicit-context backstop.
+//
+// It probes each DISTINCT roster agent type with a trivial, read-only dispatch: a type that resolves
+// returns something (non-null); an unresolvable type returns null — the same NO-RESULT the full
+// fan-out would get, but paid ONCE, before round 1, at zero fix-round cost (`parallel` reports a
+// throwing/erroring dispatch as null too, so a runtime that throws on an unknown type is caught here
+// just the same). If ANY type is unresolvable, abort BEFORE any reviewer dispatch — and before the
+// diff is even produced — with a diagnostic DERIVED from the actual unresolved set that names the
+// failure mode; a run whose types all resolve proceeds to the loop unchanged (two-sided — never
+// "always abort"). Fail-closed exactly like the diff-provider contract below: no reviewer dispatched,
+// outcome `fail`, the classification recorded in `fail_reports` keyed to this pre-dispatch check.
+const probeResults = await parallel(
+  reviewers.map(
+    (r) => () =>
+      agent(
+        'Pre-PR gate preflight: reply with exactly the word READY and NOTHING else. Do NOT read ' +
+          'any file, run any command, or take any action — this dispatch only confirms your ' +
+          'reviewer role is resolvable before the gate dispatches it for real.',
+        // Pass the reviewer's resolved model, exactly as the grading dispatch below does. A
+        // strong-floored reviewer (constitution/spec-quality) dispatched model-less is blocked by
+        // guard rule 5 (`strong-floor-no-model`) — which the preflight would then misreport as an
+        // unresolvable-agent abort — so the probe carries the same tier model the real dispatch
+        // will (PR #269 review). The roster keys are unique, so this is one probe per reviewer.
+        { label: `preflight:${r.key}`, phase: 'Dispatch', agentType: r.key, model: r.model },
+      ),
+  ),
+);
+const unresolvedTypes = reviewers.filter((_r, i) => probeResults[i] == null).map((r) => r.key);
+if (unresolvedTypes.length > 0) {
+  const diagnostic =
+    `gate-loop preflight: the reviewer agent type(s) ${unresolvedTypes.join(', ')} did not ` +
+    'resolve — dispatching them returns no result. Reviewer agent types resolve from the dispatcher ' +
+    "session's registry (the session root's .claude/agents/), NOT from workspacePath, so this " +
+    'session is almost certainly rooted OUTSIDE THE REPO where those reviewer roles live ' +
+    '(workspacePath scopes the committed diff, but agent-type resolution is not workspace-scoped). ' +
+    'Aborting before any reviewer dispatch — zero fix rounds consumed — instead of fanning out to ' +
+    `NO-RESULT across ${MAX_FIX_ROUNDS + 1} rounds and burning the fix budget grading nothing. ` +
+    'Re-dispatch the [orchestrated run] from a session rooted in the repo, or fall back to the ' +
+    '§7 prose gate.';
+  failReports.preflight = diagnostic;
+  return {
+    gate: 'FAIL',
+    // The roster types that did not resolve — derived from the probe, never hardcoded.
+    preflightUnresolved: unresolvedTypes,
+    // No reviewer was dispatched — an undispatched reviewer is never a pass (the same
+    // no-verdict-is-not-a-pass rule as the diff-provider abort and NO-RESULT).
+    notDispatched: reviewers.map((r) => r.key),
+    verdicts,
+    fixRoundsUsed: 0,
+    telemetry: telemetry('fail'),
+  };
+}
+
 while (true) {
   log(
     `Gate dispatch ${fixRoundsUsed + 1}/${MAX_FIX_ROUNDS + 1}: ${pending.map((r) => r.key).join(', ')}`,

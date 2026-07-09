@@ -27,9 +27,29 @@ const body = src.replace(/^export const meta/m, 'const meta');
 // or a bare placeholder string). It also carries no agentType, so a stub that does not
 // special-case it would miscount it as the fixer/restore step. Tests 17–21 pin the abort path.
 
-function runGateLoop(args, agentStub) {
+function runGateLoop(args, agentStub, opts = {}) {
   const parallel = async (fns) => Promise.all(fns.map((fn) => fn()));
   const log = () => {};
+  // T642 preflight modelling: gate-loop probes each roster agent type with a `preflight:<key>`
+  // labelled dispatch BEFORE the grading loop, to verify the type resolves. Whether a custom
+  // agent type resolves is a RUNTIME property (is it on the dispatcher session's registry?), not a
+  // per-test grading decision — so the harness models it HERE, not in each test's grading stub: a
+  // probe resolves (returns non-null) by default, and returns null only for a type named in
+  // `opts.unresolvedTypes` (the dispatcher-rooted-outside-the-repo failure the preflight exists to
+  // catch, issue #214). The grading stub is NEVER invoked for a probe, so every pre-T642 test is
+  // insulated from the new pre-dispatch step — its counters/captures see only real reviewer/
+  // diff-provider dispatches, exactly as before.
+  const unresolved = new Set(opts.unresolvedTypes || []);
+  const agent = async (prompt, o) => {
+    if (o && o.label && o.label.startsWith('preflight:')) {
+      // Record the probe dispatch options (opt-in via opts.probeLog) so a test can assert the
+      // probe carries the reviewer's resolved model — guard rule 5 (strong-floor-no-model) blocks
+      // a strong-floored reviewer dispatched model-less, so the probe must pass one (PR #269).
+      if (opts.probeLog) opts.probeLog.push({ agentType: o.agentType, model: o.model, label: o.label });
+      return unresolved.has(o.label.slice('preflight:'.length)) ? null : 'READY';
+    }
+    return agentStub(prompt, o);
+  };
   // eslint-disable-next-line no-new-func
   const fn = new Function(
     'args',
@@ -38,7 +58,7 @@ function runGateLoop(args, agentStub) {
     'log',
     `return (async () => { ${body} })();`,
   );
-  return fn(args, agentStub, parallel, log);
+  return fn(args, agent, parallel, log);
 }
 
 // baseArgs carries `taskBranch` because T639/#240 makes an explicit audited ref REQUIRED for every
@@ -657,6 +677,102 @@ await test('T639 c4: workspace mode is unchanged — git -C provider, never the 
     'workspace provider is the unchanged git -C command (T612)',
   );
   assert.doesNotMatch(providerPrompt, /gate-diff\.sh/, 'no HEAD-stability hook in workspace mode (worktree immune by construction)');
+});
+
+// --- 27. T642: unresolvable reviewer agent types abort BEFORE any dispatch, zero fix rounds ------
+// The dispatcher-rooted-outside-the-repo bug (#214): reviewer agent types resolve from the session
+// root's registry, NOT from workspacePath, so a dispatcher outside the repo cannot resolve them,
+// every reviewer dispatch returns NO-RESULT, and the loop (correctly refusing to pass on no-result)
+// burns the WHOLE max-fix-rounds budget grading nothing. RED against pre-T642 code: with the
+// reviewer gradings returning null (the NO-RESULT the runtime yields for an unresolvable type) the
+// loop fans out across every round and returns outcome 'non-convergence' with fix_rounds_used === 2,
+// and none of the preflight fields exist. GREEN after the preflight: it probes the roster types
+// first, sees they do not resolve, and ABORTS before any reviewer — or even the diff-provider — is
+// dispatched: fix_rounds_used === 0, a diagnostic naming the DERIVED unresolved set AND the cause,
+// telemetry outcome 'fail' keyed to the pre-dispatch check.
+await test('T642: unresolvable reviewer agent types abort the gate before any dispatch, zero fix rounds', async () => {
+  const dispatched = [];
+  const result = await runGateLoop(
+    baseArgs,
+    async (_p, opts) => {
+      // Record every REAL dispatch (diff-provider + reviewer gradings). The unresolvable reviewer
+      // gradings return null — the NO-RESULT an unresolvable agent type yields at runtime (this is
+      // what makes pre-T642 code burn the budget). Probes never reach here (harness-modelled).
+      dispatched.push(opts.label || opts.agentType);
+      if (isDiffProvider(opts)) return providedDiff();
+      return null;
+    },
+    { unresolvedTypes: ['spec-auditor', 'constitution-auditor'] },
+  );
+  assert.equal(result.gate, 'FAIL');
+  assert.equal(result.fixRoundsUsed, 0, 'zero fix rounds consumed — no NO-RESULT fan-out');
+  assert.equal(result.telemetry.fix_rounds_used, 0);
+  assert.notEqual(result.telemetry.outcome, 'non-convergence', 'the budget-burning path is not taken');
+  assert.equal(result.telemetry.outcome, 'fail');
+  // Nothing was dispatched — not the reviewers, not even the diff-provider: the abort is genuinely
+  // BEFORE any reviewer dispatch (pre-T642 code would have recorded 7 dispatches: 3 diff-provider +
+  // 2 reviewers x 2 re-dispatch rounds... a non-zero count either way).
+  assert.equal(dispatched.length, 0, 'no reviewer or diff-provider dispatched — aborted at preflight');
+  assert.deepEqual(result.notDispatched, ['spec-auditor', 'constitution-auditor']);
+  assert.deepEqual(result.preflightUnresolved, ['spec-auditor', 'constitution-auditor']);
+  // The diagnostic is DERIVED from the actual unresolved set (criterion 3), not a hardcoded string,
+  // and it names the failure mode.
+  const diag = result.telemetry.fail_reports.preflight;
+  assert.match(diag, /spec-auditor/);
+  assert.match(diag, /constitution-auditor/);
+  assert.match(diag, /outside the repo/i, 'names the dispatcher-rooted-outside-the-repo failure mode');
+  assert.match(diag, /zero fix rounds|before any reviewer/i);
+});
+
+// --- 28. T642 control (criterion 4, two-sided): resolvable types proceed to dispatch unchanged ---
+// The preflight must not be trivially "always abort". When every roster agent type resolves, the
+// gate proceeds exactly as before — the diff-provider runs, the reviewers grade the REAL committed
+// diff, and the true verdict is returned. This passing control pins the two-sidedness (a single-
+// sided "always abort" fix would fail it) and is green both before and after the fix.
+await test('T642 control: all reviewer types resolve → gate proceeds to dispatch and grades the real diff', async () => {
+  const seen = [];
+  const result = await runGateLoop(baseArgs, async (prompt, opts) => {
+    if (isDiffProvider(opts)) return providedDiff('diff --git a/gate-loop.js b/gate-loop.js\n+real change');
+    seen.push({ prompt, agentType: opts.agentType });
+    return { verdict: 'PASS', report: `${opts.agentType} pass` };
+  }); // no unresolvedTypes → every probe resolves → the loop runs normally
+  assert.equal(result.gate, 'PASS');
+  assert.equal(result.fixRoundsUsed, 0);
+  assert.equal(result.telemetry.outcome, 'pass');
+  assert.ok(!result.preflightUnresolved, 'no preflight abort on a fully-resolvable roster');
+  const reviewerPrompts = seen.filter((s) => s.agentType);
+  assert.ok(reviewerPrompts.length >= 2, 'both unconditional reviewers were dispatched (not aborted)');
+  for (const { prompt } of reviewerPrompts) {
+    assert.match(prompt, /real change/, 'reviewers graded the real committed diff');
+  }
+});
+
+// --- 29. T642 (PR #269 review): preflight probes carry each reviewer's resolved model -----------
+// guard rule 5 (`.claude/hooks/guard.sh` → strong-floor-no-model) BLOCKS a strong-floored reviewer
+// (constitution-auditor / spec-quality-auditor) dispatched WITHOUT a `model` — it would inherit the
+// session model and silently break the [strong tier] floor. The preflight probes those exact agent
+// types, so a model-less probe would be guard-blocked and then misreported as an unresolvable-agent
+// abort. The probe must pass each reviewer's resolved tier model, exactly as the grading dispatch
+// does (`model: r.model`). RED before the fix: probes carried no `model` (opts.model undefined).
+await test('T642: preflight probes carry each reviewer resolved model (guard rule 5 strong floor)', async () => {
+  const probeLog = [];
+  const result = await runGateLoop(
+    { ...baseArgs, dispatchSpec: true, dispatchContract: true },
+    async (_p, opts) => (isDiffProvider(opts) ? providedDiff() : { verdict: 'PASS', report: 'ok' }),
+    { probeLog },
+  );
+  assert.equal(result.gate, 'PASS');
+  // Every rostered reviewer is probed exactly once, each with its resolved tier model — never
+  // model-less (which guard rule 5 blocks for the two strong-floored reviewers).
+  const byType = Object.fromEntries(probeLog.map((p) => [p.agentType, p.model]));
+  assert.equal(byType['spec-auditor'], 'cheap-row', 'acceptance reviewer probed at its cheap model');
+  assert.equal(byType['constitution-auditor'], 'strong-row', 'constitution reviewer probed at the strong floor');
+  assert.equal(byType['spec-quality-auditor'], 'strong-row', 'spec-quality reviewer probed at the strong floor');
+  assert.equal(byType['contract-auditor'], 'cheap-row', 'contract reviewer probed at its cheap model');
+  for (const p of probeLog) {
+    assert.ok(p.model, `probe for ${p.agentType} must carry a model (guard rule 5 strong-floor-no-model)`);
+  }
+  assert.equal(probeLog.length, 4, 'one probe per rostered reviewer (no duplicates)');
 });
 
 console.log(`\n${testsRun} tests passed`);

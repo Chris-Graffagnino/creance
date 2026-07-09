@@ -609,7 +609,7 @@
 > fact in the adapter/skill layer. Touches `.claude/workflows/gate-loop.js` +
 > `gate-loop.test.js` + `gate-loop.md`; no `[guard]` behavior change.
 
-- [ ] T642 [strong] Stop the §7 `[orchestrated run]` from dispatching **vacuously** when the
+- [x] T642 [strong] Stop the §7 `[orchestrated run]` from dispatching **vacuously** when the
       dispatcher session is rooted outside the repo: the runtime resolves custom reviewer
       agent types (`spec-auditor`, `constitution-auditor`, `spec-quality-auditor`,
       `contract-auditor`) from the **session root's** `.claude/agents/`, not the repo the
