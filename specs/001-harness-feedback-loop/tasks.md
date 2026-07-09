@@ -559,6 +559,36 @@
       clauses (#255; engine workflow — done-when on issue) — strong: writes to the PR branch and
       re-runs the maker≠checker gate, guarding the review-response boundary (constitution P2/P4)
 
+## Phase 18 — Merge-boundary guard hardening (discovered work)
+
+> One base-branch bug surfaced during the #252/PR #253 review while adjudicating the
+> `approves_merge` findings, then filed as #254. It hardens the same merge-pre-approval
+> boundary T623/#165 established and T1206/#252 audited; rubric is the done-when criteria
+> carried on the issue (the acceptance reviewer grades against those exactly as a `US#`).
+> Constitution screen: the issue's "accept + document" option is foreclosed — a promptless
+> merge command is a breach of the enforced merge boundary, not a soft P3 tradeoff — so it
+> converts as a fix; the mechanism (narrow the settings entry vs extend `approves_merge`,
+> or both) is left to implementation. Touches `.claude/hooks/guard.test.sh` +
+> `.claude/settings.json`; a guard-behavior change ships its matching test in the same diff.
+
+- [ ] T641 [strong] Close the `gh api --method GET:*` merge-boundary evasion: the committed
+      allowlist twins `Bash(gh api --method GET:*)` / `PowerShell(gh api --method GET:*)`
+      (`.claude/settings.json:21`,`:49`) word-boundary-expand to `… GET *` (Claude's
+      `Bash(pre:*)` ≡ `Bash(pre *)`), so `gh api --method GET <repos/…/pulls/N/merge> --method
+      PUT` — a last-wins pflag override to the merge endpoint — is a **promptless merge**,
+      defeating the T623/#165 boundary `approves_merge` (`guard.test.sh`) protects; the
+      detector misses it because the *spec string* names no `merge` token (the `:782` control
+      currently encodes the spec as **safe**). Close the hole (drop/narrow the settings entry
+      AND/OR extend `approves_merge` to flag a `gh api …:*` wildcard whose trailing wildcard
+      can append `--method PUT`/`-X PUT` to a merge endpoint) so the evasion class is no longer
+      auto-approved on **either** twin, without silently killing genuinely read-only `gh api`
+      use (preserve a read-only form or document dropping it). Guard-behavior change → ships
+      matching two-sided `guard.test.sh` cases (fires on the GET-wildcard-that-can-append-PUT
+      spec; passing control for a read-only spec that cannot reach a merge) and flips/removes
+      the now-incorrect `:782` safe control, with red→green evidence (#254; bug — done-when on
+      issue) — strong: changes `[guard]`/merge-boundary behavior and adds its regression
+      coverage (constitution P2/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
