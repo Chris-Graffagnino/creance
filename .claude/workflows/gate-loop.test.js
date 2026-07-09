@@ -42,6 +42,10 @@ function runGateLoop(args, agentStub, opts = {}) {
   const unresolved = new Set(opts.unresolvedTypes || []);
   const agent = async (prompt, o) => {
     if (o && o.label && o.label.startsWith('preflight:')) {
+      // Record the probe dispatch options (opt-in via opts.probeLog) so a test can assert the
+      // probe carries the reviewer's resolved model — guard rule 5 (strong-floor-no-model) blocks
+      // a strong-floored reviewer dispatched model-less, so the probe must pass one (PR #269).
+      if (opts.probeLog) opts.probeLog.push({ agentType: o.agentType, model: o.model, label: o.label });
       return unresolved.has(o.label.slice('preflight:'.length)) ? null : 'READY';
     }
     return agentStub(prompt, o);
@@ -741,6 +745,34 @@ await test('T642 control: all reviewer types resolve → gate proceeds to dispat
   for (const { prompt } of reviewerPrompts) {
     assert.match(prompt, /real change/, 'reviewers graded the real committed diff');
   }
+});
+
+// --- 29. T642 (PR #269 review): preflight probes carry each reviewer's resolved model -----------
+// guard rule 5 (`.claude/hooks/guard.sh` → strong-floor-no-model) BLOCKS a strong-floored reviewer
+// (constitution-auditor / spec-quality-auditor) dispatched WITHOUT a `model` — it would inherit the
+// session model and silently break the [strong tier] floor. The preflight probes those exact agent
+// types, so a model-less probe would be guard-blocked and then misreported as an unresolvable-agent
+// abort. The probe must pass each reviewer's resolved tier model, exactly as the grading dispatch
+// does (`model: r.model`). RED before the fix: probes carried no `model` (opts.model undefined).
+await test('T642: preflight probes carry each reviewer resolved model (guard rule 5 strong floor)', async () => {
+  const probeLog = [];
+  const result = await runGateLoop(
+    { ...baseArgs, dispatchSpec: true, dispatchContract: true },
+    async (_p, opts) => (isDiffProvider(opts) ? providedDiff() : { verdict: 'PASS', report: 'ok' }),
+    { probeLog },
+  );
+  assert.equal(result.gate, 'PASS');
+  // Every rostered reviewer is probed exactly once, each with its resolved tier model — never
+  // model-less (which guard rule 5 blocks for the two strong-floored reviewers).
+  const byType = Object.fromEntries(probeLog.map((p) => [p.agentType, p.model]));
+  assert.equal(byType['spec-auditor'], 'cheap-row', 'acceptance reviewer probed at its cheap model');
+  assert.equal(byType['constitution-auditor'], 'strong-row', 'constitution reviewer probed at the strong floor');
+  assert.equal(byType['spec-quality-auditor'], 'strong-row', 'spec-quality reviewer probed at the strong floor');
+  assert.equal(byType['contract-auditor'], 'cheap-row', 'contract reviewer probed at its cheap model');
+  for (const p of probeLog) {
+    assert.ok(p.model, `probe for ${p.agentType} must carry a model (guard rule 5 strong-floor-no-model)`);
+  }
+  assert.equal(probeLog.length, 4, 'one probe per rostered reviewer (no duplicates)');
 });
 
 console.log(`\n${testsRun} tests passed`);

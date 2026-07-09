@@ -308,19 +308,23 @@ const telemetry = (outcome) => ({
 // failure mode; a run whose types all resolve proceeds to the loop unchanged (two-sided — never
 // "always abort"). Fail-closed exactly like the diff-provider contract below: no reviewer dispatched,
 // outcome `fail`, the classification recorded in `fail_reports` keyed to this pre-dispatch check.
-const probeTypes = [...new Set(reviewers.map((r) => r.key))];
 const probeResults = await parallel(
-  probeTypes.map(
-    (key) => () =>
+  reviewers.map(
+    (r) => () =>
       agent(
         'Pre-PR gate preflight: reply with exactly the word READY and NOTHING else. Do NOT read ' +
           'any file, run any command, or take any action — this dispatch only confirms your ' +
           'reviewer role is resolvable before the gate dispatches it for real.',
-        { label: `preflight:${key}`, phase: 'Dispatch', agentType: key },
+        // Pass the reviewer's resolved model, exactly as the grading dispatch below does. A
+        // strong-floored reviewer (constitution/spec-quality) dispatched model-less is blocked by
+        // guard rule 5 (`strong-floor-no-model`) — which the preflight would then misreport as an
+        // unresolvable-agent abort — so the probe carries the same tier model the real dispatch
+        // will (PR #269 review). The roster keys are unique, so this is one probe per reviewer.
+        { label: `preflight:${r.key}`, phase: 'Dispatch', agentType: r.key, model: r.model },
       ),
   ),
 );
-const unresolvedTypes = probeTypes.filter((_key, i) => probeResults[i] == null);
+const unresolvedTypes = reviewers.filter((_r, i) => probeResults[i] == null).map((r) => r.key);
 if (unresolvedTypes.length > 0) {
   const diagnostic =
     `gate-loop preflight: the reviewer agent type(s) ${unresolvedTypes.join(', ')} did not ` +
