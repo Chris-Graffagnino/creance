@@ -80,6 +80,18 @@ The dispatcher passes every value the run must honor in the invocation itself:
 A missing required input is a hard error before any dispatch — never guessed, never
 inherited from ambient state.
 
+**Dispatch context — the reviewer [roles] must resolve.** Beyond the values above, the
+**[orchestrated run]** must be invoked in a context where each rostered reviewer **[role]** it
+will dispatch can actually be resolved. A dispatch that **cannot resolve** a reviewer **[role]**
+**fails fast** — aborting **before any reviewer dispatch**, consuming **zero fix rounds**, with a
+diagnostic naming the unresolvable **[role]**(s) — rather than fanning out to no-result and
+burning the whole `max-fix-rounds` budget grading nothing. (A no-result fan-out still refuses to
+pass — a missing verdict is never a pass — but it wastes the entire budget to reach the same
+FAIL; a run that can resolve none of its graders should say so once, loudly, not three times,
+silently.) **How** a **[role]** resolves and **what** breaks resolution is **binding-specific**
+(the active adapter's concern, named in its layer); the neutral contract is only that an
+unresolvable **[role]** is a fast, loud, zero-round failure — never a vacuous run.
+
 ## The reviewer roster (single source of truth)
 
 The gate's reviewer set — **membership, tier, and dispatch-condition** — is declared once,
