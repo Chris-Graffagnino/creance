@@ -589,6 +589,54 @@
       issue) — strong: changes `[guard]`/merge-boundary behavior and adds its regression
       coverage (constitution P2/P3/P4)
 
+## Phase 19 — Gate-loop dispatch preflight (discovered work)
+
+> One gate-execution bug surfaced while working the intake conversion for #209–#213, then
+> filed as #214. It is the sibling gap T639/#240 explicitly **excluded**: #240 closed the
+> shared-tree HEAD race (a concurrent session relocating the audited ref); #214 is a
+> *different* vacuity vector — the `[orchestrated run]` reviewer **agent types** resolve
+> from the dispatcher **session root's** `.claude/agents/`, so a dispatcher rooted outside
+> the repo dispatches every reviewer to `agent type '…' not found`, gets 9× NO-RESULT
+> across 3 rounds, and (correctly) refuses to pass but burns the whole fix budget grading
+> nothing. `workspacePath` scopes the *diff* explicitly; the agent-type registry has no
+> equivalent, so the fix adds the missing deterministic backstop. Rubric is the done-when
+> criteria carried on the issue (the acceptance reviewer grades against those exactly as a
+> `US#`). Constitution screen: the issue's option 1 (document-only) is a real but partial
+> fix — a vacuous, budget-burning gate run is a determinism gap (P3: a failure mode a
+> deterministic check can catch must have one), so it converts as a **fix** (owner's
+> recommended option 3 = both), the doc precondition alone insufficient; the neutral
+> `gate-loop.md` text stays mechanism-free (P1) with the concrete agent-type-resolution
+> fact in the adapter/skill layer. Touches `.claude/workflows/gate-loop.js` +
+> `gate-loop.test.js` + `gate-loop.md`; no `[guard]` behavior change.
+
+- [ ] T642 [strong] Stop the §7 `[orchestrated run]` from dispatching **vacuously** when the
+      dispatcher session is rooted outside the repo: the runtime resolves custom reviewer
+      agent types (`spec-auditor`, `constitution-auditor`, `spec-quality-auditor`,
+      `contract-auditor`) from the **session root's** `.claude/agents/`, not the repo the
+      diff lives in — `workspacePath` scopes the *diff* but has no agent-type equivalent — so
+      every dispatch errors `agent type '…' not found`, all reviewers return NO-RESULT, and
+      the loop correctly refuses to pass yet **burns the full `max-fix-rounds` budget returning
+      `non-convergence` with zero grading** (evidence: telemetry `gate-run` `outcome:
+      non-convergence`, 9× NO-RESULT across 3 rounds, commit `aaeec28d1358675ae403c14a252c6bb60a6e2bd0`).
+      Add a **deterministic preflight** in `gate-loop.js` that verifies the roster agent types
+      resolve **before round 1** and, on an unresolvable type, **aborts before any reviewer
+      dispatch** (zero fix rounds consumed) with a diagnostic naming the unresolvable type(s)
+      **and** this failure mode (dispatcher rooted outside the repo) — never a NO-RESULT
+      fan-out that spends the budget; a run whose types DO resolve proceeds to dispatch
+      unchanged. Document the invocation precondition **runtime-neutrally** in `gate-loop.md`
+      → Inputs (the `[orchestrated run]` must be dispatched where its reviewer `[roles]`
+      resolve; a dispatch that cannot resolve them fails fast, not vacuously — no concrete
+      mechanism named, constitution P1), with the concrete agent-type-from-session-root fact
+      in the adapter/skill layer (`skills/next-task` `[orchestrated run]` row / `.claude/README.md`).
+      Encoded by an automated `gate-loop.test.js` case that **fails against current behavior**
+      (a forced unresolvable agent type → today fans out to NO-RESULT and burns rounds) and
+      **passes after the fix** (preflight aborts before dispatch, `fix_rounds_used == 0`, the
+      diagnostic names the type + cause), plus a **passing control** (resolvable types →
+      proceeds to dispatch) so the check is not trivially "always abort", with red→green
+      evidence. Distinct from T639/#240 (shared-tree HEAD race) — this is the agent-type
+      registry gap #240 excluded (#214; bug — done-when on issue) — strong: protects the
+      gate-execution boundary against vacuous zero-grading dispatch (constitution P2/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
