@@ -722,9 +722,17 @@ done
 # does NOT auto-approve `gh api repos/…/merge …` (no space after `repos`), so
 # flagging it would over-detect against the real semantics — the controls below pin
 # both directions.
+# T641 (#254): a THIRD flagged class — a `gh api …:*` wildcard whose first token after
+# `gh api` is empty or flag-led (`--method`/`-X`/`-XGET`/`--method=GET`, any `-`-prefixed
+# token) pins no positional endpoint: the caller supplies the whole endpoint after the
+# wildcard boundary AND appends a last-wins `--method PUT`/`-X PUT`, reaching
+# `repos/…/pulls/N/merge` — a promptless merge whose spec names no `merge` token (so #252's
+# `…merge` clause misses it) and needs no `PUT` in the spec (so the loop's prefix check
+# misses it). The clause below flags it; an endpoint-PINNED `:*` (`gh api repos:*`) stays
+# word-boundary-walled and falls through.
 # approves_merge <spec-inside-parens> -> exit 0 if it authorizes some merge command.
 approves_merge() {
-  local spec="$1" pre cmd
+  local spec="$1" pre cmd mid
   # Conservative & intentional (#253 craft review): any gh api spec that NAMES a
   # merge endpoint counts as merge-authorizing regardless of HTTP method — a
   # `--method GET …/merge` spec is flagged too (fail-closed). We deliberately do
@@ -733,6 +741,29 @@ approves_merge() {
   # carry an appended method flag, so a GET in the spec is not proof of read-only.
   case "$spec" in
     'gh api'*merge*) return 0 ;;                 # any gh api spec naming a merge endpoint
+  esac
+  # T641 (#254): a `gh api …:*` wildcard that does NOT pin a positional endpoint as its
+  # first token leaves the endpoint fully caller-supplied after the word-boundary wildcard.
+  # The caller then appends `repos/…/pulls/N/merge` AND a last-wins `--method PUT`/`-X PUT`:
+  # a promptless PUT merge. A `GET` (any spelling) in the spec is not proof of read-only.
+  # Only a bare endpoint-path first token (`gh api repos:*`, `gh api /repos:*`) is
+  # word-boundary-walled from `/…/merge` and safe; every other first token — empty, or a flag
+  # in ANY spelling incl. a shell escape/quote (`gh api \--method GET:*`, `gh api "--method"
+  # GET:*` — the shell strips the escape/quote so the flag still reaches gh api, #254 Codex
+  # finding) — is flagged. Fail-closed: nothing legitimately needs an auto-approved `gh api …:*`.
+  case "$spec" in
+    'gh api'*':*')
+      mid="${spec#gh api}"; mid="${mid%:\*}"                    # region between `gh api` and the `:*`
+      while [ "$mid" != "${mid# }" ]; do mid="${mid# }"; done   # trim ALL leading spaces (padded specs too)
+      # SAFE only if the first token is a bare positional endpoint path (starts alnum or `/`).
+      # ANY other first char — empty, or a flag in any spelling (`--method`, `\--method`,
+      # `"--method"`, `'--method'`) — leaves the endpoint caller-suppliable, so flag it. The
+      # shell strips a leading escape/quote, so `gh api \--method GET …/merge --method PUT` still
+      # merges (#254 Codex finding), hence the allowlist-of-the-safe-shape rather than a dash denylist.
+      case "$mid" in
+        [A-Za-z0-9/]*) : ;;                      # bare endpoint pinned (gh api repos:* / /repos:*) ⇒ safe
+        *) return 0 ;;                           # empty / dash / escape / quote ⇒ merge-reachable ⇒ flag
+      esac ;;
   esac
   for cmd in 'gh pr merge' \
              'gh api --method PUT repos/o/r/pulls/1/merge' \
@@ -779,7 +810,19 @@ t623_detect 0 "t623 detect: over-broad gh api:* (API merge)"  'gh api:*'
 t623_detect 0 "t623 detect: gh api --method PUT:* prefix"     'gh api --method PUT:*'
 t623_detect 0 "t623 detect: gh api -X PUT:* prefix"           'gh api -X PUT:*'
 t623_detect 0 "t623 detect: literal API PUT-merge spec"       'gh api --method PUT repos/foo/bar/pulls/12/merge'
-t623_detect 1 "t623 control: gh api --method GET:*"           'gh api --method GET:*'
+# T641 (#254): the GET-wildcard-that-can-append-PUT evasion. `gh api --method GET:*`
+# ≡ `gh api --method GET *` (word boundary) auto-approves
+# `gh api --method GET repos/o/r/pulls/N/merge --method PUT` — a last-wins pflag override
+# to a PROMPTLESS PUT merge. The spec names no `merge` token and `--method GET` is not a
+# prefix of the PUT representative, so pre-T641 approves_merge missed it: this line was a
+# `t623_detect 1` SAFE control that encoded the evasion. Now a fires-on-evasion detect.
+t623_detect 0 "t623 detect: gh api --method GET:* (T641 — appends --method PUT to a merge)"  'gh api --method GET:*'
+t623_detect 0 "t623 detect: gh api -X GET:* (T641 short-flag twin)"                          'gh api -X GET:*'
+t623_detect 0 "t623 detect: gh api -XGET:* (T641 glued short flag)"                          'gh api -XGET:*'
+t623_detect 0 "t623 detect: gh api --method=GET:* (T641 =-form long flag)"                   'gh api --method=GET:*'
+t623_detect 0 "t623 detect: gh api  --method GET:* (T641 padded/double-space)"               'gh api  --method GET:*'
+t623_detect 0 "t623 detect: gh api escaped-dash flag (T641 #254 Codex)"                      'gh api \--method GET:*'
+t623_detect 0 "t623 detect: gh api quoted --method flag (T641 #254 Codex)"                   'gh api "--method" GET:*'
 t623_detect 1 "t623 control: gh pr view:*"                    'gh pr view:*'
 t623_detect 1 "t623 control: gh pr checks:*"                  'gh pr checks:*'
 t623_detect 1 "t623 control: git push:*"                      'git push:*'
@@ -790,6 +833,10 @@ t623_detect 1 "t623 control: git push:*"                      'git push:*'
 # real `Bash(pre:*)` ≡ `Bash(pre *)` semantics).
 t623_detect 1 "t623 control: gh api repos:* (no boundary into /…/merge)"  'gh api repos:*'
 t623_detect 1 "t623 control: gh api /repos:* (leading slash, same)"       'gh api /repos:*'
+# T641 (#254) control: a FULLY-PINNED (non-`:*`) GET spec has no trailing wildcard to
+# carry an appended `--method PUT`, so it is genuinely read-only and NOT flagged —
+# proving the T641 extension discriminates rather than blanket-flagging every gh api GET.
+t623_detect 1 "t623 control: gh api --method GET pinned endpoint (no :*, cannot append PUT)"  'gh api --method GET repos/o/r/pulls/1'
 # #253 craft review — the conservative block: a gh api spec that NAMES a merge
 # endpoint is flagged even with --method GET (fail-closed, intentional; complements
 # the PUT literal above at a different method).

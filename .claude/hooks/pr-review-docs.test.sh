@@ -160,11 +160,15 @@ check "scoping (binding): concrete checkout mechanism" "$SK_FLAT" \
 check "scoping (binding): names the non-main-base caveat" "$SK_FLAT" \
   "not based on \`main\`"
 
-# ── Allowlist + MCP guidance (review fix for PR #54 / codex finding) — the gh api
-#    reads are read-scoped (write-incapable) and owner-applied; MCP needs none. ────
-check "allowlist (binding): read-scoped gh api form" "$SK_FLAT" \
+# ── Allowlist + MCP guidance — T641/#254: a `gh api --method GET:*` wildcard is NOT safe
+#    to pre-approve (its trailing wildcard auto-approves an appended --method PUT merge),
+#    so the committed allowlist carries no gh api entry; the reads route through the GitHub
+#    MCP server or prompt, and the harness cannot self-grant either way. ───────────────
+check "allowlist (binding): names the read-only gh api --method GET calls" "$SK_FLAT" \
   "gh api --method GET"
-check "allowlist (binding): owner adds the entry; harness cannot self-grant" "$SK_FLAT" \
+check "allowlist (binding): T641 — GET:* wildcard flagged by its appended-PUT mechanism" "$SK_FLAT" \
+  "auto-approves an appended"
+check "allowlist (binding): harness cannot self-grant allow rules" "$SK_FLAT" \
   "The harness cannot add these itself"
 check "allowlist (binding): GitHub MCP server is the no-allowlist alternative" "$SK_FLAT" \
   "GitHub MCP server"

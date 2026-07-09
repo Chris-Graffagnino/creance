@@ -49,8 +49,10 @@ and keep every verdict verbatim (append the gate-run record per `telemetry.md`, 
 body (§5).
 
 **Write posture — the allowlist.** This skill **pushes to the PR branch and posts replies**, so
-unlike `pr-review` (read-then-comment) it needs write grants beyond the read-only `gh api
---method GET` entries: `git push` to the PR branch and `gh api --method POST .../pulls/<n>/comments/*/replies`
+unlike `pr-review` (read-then-comment) it needs write grants beyond read-only `gh api
+--method GET` reads (which — per T641/#254 — are **not** pre-approved by a `gh api --method GET:*`
+allowlist wildcard, since its trailing wildcard would auto-approve an appended `--method PUT` merge;
+they prompt or route through the GitHub MCP server): `git push` to the PR branch and `gh api --method POST .../pulls/<n>/comments/*/replies`
 (threaded replies) or `gh pr comment`. It still **never** merges or closes — `gh pr merge` / `gh pr
 close` are out of scope and must not be allowlisted by this skill. The harness cannot grant its own
 allow rules, so the **owner adds** the push/reply entries directly (or connects the **GitHub MCP
