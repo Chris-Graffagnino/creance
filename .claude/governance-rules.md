@@ -50,12 +50,28 @@ walled elsewhere or out of reach:
 - **Gap (closed):** the replay's only representative command was `gh pr merge`, but the
   GitHub **API merge route** (`gh api --method PUT repos/…/pulls/N/merge`) is a merge
   command with no guard backstop — an over-broad `Bash(gh api:*)` or `Bash(gh:*)` allow
-  would have pre-approved promptless merges the replay could not see (the committed
-  allowlist's `gh api --method GET:*` is method-scoped and safe). The T623 block now
+  would have pre-approved promptless merges the replay could not see. (This #252 record
+  originally judged the committed allowlist's `gh api --method GET:*` "method-scoped and
+  safe" — **T641/#254 later proved it is not**; see the T641 bullet below.) The T623 block now
   replays the API-merge representatives (`--method PUT` and `-X PUT` spellings), flags
   any `gh api` spec naming a merge endpoint directly (a literal one-shot PUT-merge spec
   shares no prefix with a representative), and ships two-sided detector cases (planted
   violating specs detected; benign controls not).
+- **Gap (closed) — T641/#254:** `Bash(gh api --method GET:*)` (and its PowerShell twin) was
+  itself merge-authorizing. Claude's `Bash(pre:*)` ≡ `Bash(pre *)` word boundary makes the
+  entry auto-approve `gh api --method GET repos/…/pulls/N/merge --method PUT`, whose last-wins
+  pflag method is **PUT** → a promptless merge. It named no `merge` token, so the #252 clauses
+  above missed it — and the `:782` detector control encoded it as SAFE. Closed both ways
+  (owner's recorded Option 2 + narrow): (1) **both twins were dropped** from
+  `.claude/settings.json` — no `:*` `gh api` form can be safely pre-approved, so the raw
+  `gh api --method GET` reads the `pr-review` / `review-response` skills use for inline PR
+  comments now **prompt** on an interactive run or route through the GitHub MCP server (their
+  SKILL.md guidance was corrected to drop the now-disproven "write-incapable entry" reasoning);
+  and (2) `approves_merge` was **extended** to flag any `gh api …:*` wildcard that pins no
+  positional endpoint (only `gh api`, optionally a `--method`/`-X` method flag), so any future
+  re-add of such a spec fails the sweep. Two-sided cases ship in `guard.test.sh` (fires on
+  `gh api --method GET:*` / `-X GET:*`; a fully-pinned non-`:*` GET spec stays a passing
+  control).
 - **`git merge` pre-approval — considered, not a gap:** landing a local merge requires a
   push to the base branch, and guard rules 3/4 deterministically veto any `git push`
   from `main` or any refspec targeting `main`, from any branch, including the `git -C`

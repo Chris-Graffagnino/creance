@@ -18,8 +18,8 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/pr-review
 | **[comment marker]** | the footer line defined in `.claude/skills/next-task/SKILL.md` → "The [comment marker] concrete form" (the single copy) — appended to the review comment this workflow posts |
 | **[environment block]** | `.claude/skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy — multi-line bodies via a UTF-8 temp file + `--body-file`, `gh` PATH fallback) |
 | **[headless run]** | `claude -p "/pr-review <pr>"` |
-| PR reads | `gh pr view <n> --json title,body,state,baseRefName,headRefName,url,comments` (the `comments` field returns the **timeline / issue-level** comments — the §2.5 owner-steering channel and any PR-level findings) and `gh pr diff <n>`, **plus the line-anchored inline findings `gh pr view` omits**: `gh api --method GET --paginate repos/{owner}/{repo}/pulls/<n>/comments` (inline review comments) and `.../pulls/<n>/reviews` (review summaries — where some bots/Codex post) — the bot/automated inline findings the timeline view misses. **`--method GET` keeps these reads write-incapable**, so their allowlist entry can't auto-approve a write. Where the **GitHub MCP server** (`mcp__github__*`) is connected, its PR review-comment / diff tools are a drop-in alternative for these reads — MCP tools are permission-gated on their own, needing no shell allowlist |
-| PR writes (additive only) | `gh pr comment <n> --body-file <tempfile>` for the structured review — **never** `gh pr merge`, never `gh pr close`, never a push to the PR branch. (The deliverable is one consolidated review comment; an optional inline reply needs a write grant beyond the read-only `gh api --method GET` entry — or the GitHub MCP server) |
+| PR reads | `gh pr view <n> --json title,body,state,baseRefName,headRefName,url,comments` (the `comments` field returns the **timeline / issue-level** comments — the §2.5 owner-steering channel and any PR-level findings) and `gh pr diff <n>`, **plus the line-anchored inline findings `gh pr view` omits**: `gh api --method GET --paginate repos/{owner}/{repo}/pulls/<n>/comments` (inline review comments) and `.../pulls/<n>/reviews` (review summaries — where some bots/Codex post) — the bot/automated inline findings the timeline view misses. These are read-only `--method GET` *calls*, but a `gh api --method GET:*` allowlist wildcard is **not** safe to pre-approve — T641/#254 showed its trailing wildcard auto-approves an appended `--method PUT` (a promptless merge), so the committed allowlist carries no such entry and these reads **prompt** on an interactive run. Where the **GitHub MCP server** (`mcp__github__*`) is connected, its PR review-comment / diff tools are a drop-in alternative for these reads — MCP tools are permission-gated on their own, needing no shell allowlist |
+| PR writes (additive only) | `gh pr comment <n> --body-file <tempfile>` for the structured review — **never** `gh pr merge`, never `gh pr close`, never a push to the PR branch. (The deliverable is one consolidated review comment; an optional inline reply needs a write grant beyond read-only `gh api --method GET` access — or the GitHub MCP server) |
 
 **Profile read — packet first (spec 007 US3.AC3).** The workflow doc's project-specifics
 read resolves to **`.claude/PROJECT.compact.md`** by default — the compact packet of
@@ -51,12 +51,15 @@ skips every **line-anchored** inline finding — including the bot/Codex inline 
 workflow's §2 requires. Fetching the pulls endpoints is what makes the §4 grounding gate's
 "every inline comment enumerated" clause satisfiable rather than aspirational. For an unattended
 `[headless run]` not to stall on a permission prompt before the grounding gate, the
-**[permission allowlist]** (`.claude/settings.json`) needs read-scoped entries for both shells —
-`gh api --method GET:*` and `gh pr checkout:*` (the `--method GET` form is write-incapable, so the
-entry cannot auto-approve a GitHub write). The harness cannot add these itself — granting its own
-allow rules is barred — so the **owner adds them directly**, or connects the **GitHub MCP server**
-(whose PR tools need no shell allowlist); until then an interactive run simply prompts on the first
-`gh api`.
+**[permission allowlist]** (`.claude/settings.json`) may pre-approve `gh pr checkout:*` (genuinely
+read-only), but **not** a `gh api --method GET:*` wildcard: T641/#254 showed its trailing wildcard
+auto-approves an appended `--method PUT` (a promptless merge — a `--method GET` in the *spec* is not
+proof of read-only), so the committed allowlist carries no `gh api` entry. Route the inline-comment
+reads through the **GitHub MCP server** (`mcp__github__*`, whose PR tools need no shell allowlist) —
+the preferred unattended path — or let the `gh api --method GET` calls **prompt** (safe: a prompt on
+a read, never a silent write). The harness cannot add these itself — granting its own allow rules is
+barred — so a `[headless run]` without the MCP server degrades loudly per `workflow/README.md` →
+"How an adapter degrades gracefully" rather than stalling silently.
 
 **Enumerate first, filter second — a bot-login mismatch must never read as "no findings".**
 §2's "enumerate every inline comment" and the §4 grounding gate are only satisfiable if the fetch

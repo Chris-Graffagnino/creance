@@ -571,7 +571,7 @@
 > or both) is left to implementation. Touches `.claude/hooks/guard.test.sh` +
 > `.claude/settings.json`; a guard-behavior change ships its matching test in the same diff.
 
-- [ ] T641 [strong] Close the `gh api --method GET:*` merge-boundary evasion: the committed
+- [x] T641 [strong] Close the `gh api --method GET:*` merge-boundary evasion: the committed
       allowlist twins `Bash(gh api --method GET:*)` / `PowerShell(gh api --method GET:*)`
       (`.claude/settings.json:21`,`:49`) word-boundary-expand to `… GET *` (Claude's
       `Bash(pre:*)` ≡ `Bash(pre *)`), so `gh api --method GET <repos/…/pulls/N/merge> --method
