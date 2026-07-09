@@ -742,21 +742,27 @@ approves_merge() {
   case "$spec" in
     'gh api'*merge*) return 0 ;;                 # any gh api spec naming a merge endpoint
   esac
-  # T641 (#254): a `gh api …:*` wildcard whose first token after `gh api` is NOT a pinned
-  # positional endpoint — it is empty (`gh api:*`) or flag-led (`--method`, `-X`, `-XGET`,
-  # `--method=GET`, any `-`-prefixed token) — leaves the endpoint fully caller-supplied
-  # after the word-boundary wildcard. The caller then appends `repos/…/pulls/N/merge` AND a
-  # last-wins `--method PUT`/`-X PUT`: a promptless PUT merge. A `GET` (any spelling) in the
-  # spec is not proof of read-only. A spec that pins a positional endpoint as its first
-  # token (`gh api repos:*`) is word-boundary-walled from `/…/merge` and falls through to
-  # the controls. Fail-closed: a flag-led `gh api …:*` is flagged even if a later token
-  # would pin the endpoint — nothing legitimately needs an auto-approved `gh api …:*`.
+  # T641 (#254): a `gh api …:*` wildcard that does NOT pin a positional endpoint as its
+  # first token leaves the endpoint fully caller-supplied after the word-boundary wildcard.
+  # The caller then appends `repos/…/pulls/N/merge` AND a last-wins `--method PUT`/`-X PUT`:
+  # a promptless PUT merge. A `GET` (any spelling) in the spec is not proof of read-only.
+  # Only a bare endpoint-path first token (`gh api repos:*`, `gh api /repos:*`) is
+  # word-boundary-walled from `/…/merge` and safe; every other first token — empty, or a flag
+  # in ANY spelling incl. a shell escape/quote (`gh api \--method GET:*`, `gh api "--method"
+  # GET:*` — the shell strips the escape/quote so the flag still reaches gh api, #254 Codex
+  # finding) — is flagged. Fail-closed: nothing legitimately needs an auto-approved `gh api …:*`.
   case "$spec" in
     'gh api'*':*')
       mid="${spec#gh api}"; mid="${mid%:\*}"                    # region between `gh api` and the `:*`
       while [ "$mid" != "${mid# }" ]; do mid="${mid# }"; done   # trim ALL leading spaces (padded specs too)
+      # SAFE only if the first token is a bare positional endpoint path (starts alnum or `/`).
+      # ANY other first char — empty, or a flag in any spelling (`--method`, `\--method`,
+      # `"--method"`, `'--method'`) — leaves the endpoint caller-suppliable, so flag it. The
+      # shell strips a leading escape/quote, so `gh api \--method GET …/merge --method PUT` still
+      # merges (#254 Codex finding), hence the allowlist-of-the-safe-shape rather than a dash denylist.
       case "$mid" in
-        ''|-*) return 0 ;;                       # empty or flag-led ⇒ endpoint caller-supplied
+        [A-Za-z0-9/]*) : ;;                      # bare endpoint pinned (gh api repos:* / /repos:*) ⇒ safe
+        *) return 0 ;;                           # empty / dash / escape / quote ⇒ merge-reachable ⇒ flag
       esac ;;
   esac
   for cmd in 'gh pr merge' \
@@ -815,6 +821,8 @@ t623_detect 0 "t623 detect: gh api -X GET:* (T641 short-flag twin)"             
 t623_detect 0 "t623 detect: gh api -XGET:* (T641 glued short flag)"                          'gh api -XGET:*'
 t623_detect 0 "t623 detect: gh api --method=GET:* (T641 =-form long flag)"                   'gh api --method=GET:*'
 t623_detect 0 "t623 detect: gh api  --method GET:* (T641 padded/double-space)"               'gh api  --method GET:*'
+t623_detect 0 "t623 detect: gh api escaped-dash flag (T641 #254 Codex)"                      'gh api \--method GET:*'
+t623_detect 0 "t623 detect: gh api quoted --method flag (T641 #254 Codex)"                   'gh api "--method" GET:*'
 t623_detect 1 "t623 control: gh pr view:*"                    'gh pr view:*'
 t623_detect 1 "t623 control: gh pr checks:*"                  'gh pr checks:*'
 t623_detect 1 "t623 control: git push:*"                      'git push:*'
