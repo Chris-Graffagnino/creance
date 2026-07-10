@@ -2,13 +2,13 @@
 
 A desk walkthrough of the neutral per-task procedure executing on the Codex CLI adapter
 (`adapters/codex-cli.md`), section by section. **Method and claim:** every step below
-resolves its **[roles]** through the adapter's table alone; no concrete Codex mechanism
-leaks into `workflow/**`. The standing
-`bash .claude/hooks/neutrality-scan-coverage.test.sh` check proves that boundary over
-every tracked workflow Markdown file. This is a *dry* run: building/executing a Codex
-runner is an explicit non-goal; where a step would execute, the concrete invocation is
-shown instead, and anything that can only be confirmed by a live run is listed at the
-end under "What only a live run can prove" (those are exactly the conformance probes).
+resolves its **[roles]** through the adapter's table alone; the concrete Codex commands
+shown below stay in this adapter document rather than becoming workflow instructions.
+Separately, `bash .claude/hooks/neutrality-scan-coverage.test.sh` scans every tracked workflow Markdown file for the shared banned runtime-mechanism vocabulary. This is a *dry*
+run: building/executing a Codex runner is an explicit non-goal; where a step would
+execute, the concrete invocation is shown instead, and anything that can only be
+confirmed by a live run is listed at the end under "What only a live run can prove"
+(those are exactly the conformance probes).
 
 Worked example task: `T401` (hypothetical UI-touching task line `T401 [strong] …` in the
 profile's tasks file).

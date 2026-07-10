@@ -147,6 +147,8 @@ if codex_entrypoints "$CODEX_ADAPTER" &&
   grep -qF '.claude/PROJECT.compact.md' "$CODEX_DRY_RUN" &&
   grep -qF '.claude/workflow/next-task/00-foundations.md' "$CODEX_DRY_RUN" &&
   grep -qF 'bash .claude/hooks/neutrality-scan-coverage.test.sh' "$CODEX_DRY_RUN" &&
+  grep -qF 'scans every tracked workflow Markdown file for the shared banned runtime-mechanism vocabulary' "$CODEX_DRY_RUN" &&
+  ! grep -qF 'proves that boundary' "$CODEX_DRY_RUN" &&
   ! grep -qF 'zero edits to any `workflow/**` file' "$CODEX_DRY_RUN" &&
   ! grep -qF 'Read .claude/workflow/next-task.md and execute it' "$CODEX_DRY_RUN"; then
   ok
