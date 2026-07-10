@@ -20,6 +20,10 @@ tree's. The workspace location is supplied to the gate **explicitly** (the expli
 rule: never inferred from a working directory or env), so the reviewers audit the isolated
 work even when they run from elsewhere. Review mode is unchanged: the gate reads the main
 working tree exactly as before.
+
+**Review-mode ref check.** Supply the task branch as the **explicit audited ref** and verify
+the shared-tree HEAD matches it before every dispatch and re-dispatch; a mismatch must
+**fail loud** before any reviewer grades the diff.
 1. Self-review `git diff main..HEAD` — a quick sanity pass to catch the obvious before
    spending reviewer runs. It carries no verification authority on its own.
 2. Dispatch **separate [reviewer]s** (their own context, adversarial posture, no edit

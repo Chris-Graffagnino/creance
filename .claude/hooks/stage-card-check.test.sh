@@ -30,18 +30,21 @@ PY
 
 mkfixture() {
   local root="$1"
-  mkdir -p "$root/.claude/workflow/next-task"
+  mkdir -p "$root/.claude/workflow/next-task" "$root/docs"
   {
     printf '# next-task index\n\n'
     printf '1. [Alpha](next-task/01-alpha.md)\n'
     printf '2. [Beta](next-task/02-beta.md)\n'
   } > "$root/.claude/workflow/next-task.md"
-  printf '# Alpha\n\nAlpha obligation.\n\nNext: [Beta](02-beta.md)\n' > "$root/.claude/workflow/next-task/01-alpha.md"
-  printf '# Beta\n\nBeta obligation.\n\nNext: stop.\n' > "$root/.claude/workflow/next-task/02-beta.md"
+  printf '# Alpha\n\n## 1. Alpha stage\n\nAlpha obligation.\n\nNext: [Beta](02-beta.md)\n' > "$root/.claude/workflow/next-task/01-alpha.md"
+  printf '# Beta\n\n## 2. Beta stage\n\nBeta obligation.\n\nNext: stop.\n' > "$root/.claude/workflow/next-task/02-beta.md"
+  printf 'See `.claude/workflow/next-task.md` §1.\n' > "$root/docs/reference.md"
   {
     printf '%s\t1\t%s\n' "$(block_hash '# Alpha')" '# Alpha'
+    printf '%s\t1\t%s\n' "$(block_hash '## 1. Alpha stage')" '## 1. Alpha stage'
     printf '%s\t1\t%s\n' "$(block_hash 'Alpha obligation.')" 'Alpha obligation.'
     printf '%s\t1\t%s\n' "$(block_hash '# Beta')" '# Beta'
+    printf '%s\t1\t%s\n' "$(block_hash '## 2. Beta stage')" '## 2. Beta stage'
     printf '%s\t1\t%s\n' "$(block_hash 'Beta obligation.')" 'Beta obligation.'
   } > "$root/.claude/workflow/next-task-obligations.tsv"
 }
@@ -88,7 +91,7 @@ fi
 
 # A broken next-card transition must fail before an ordinary run can dead-end.
 E="$TMP/e-transition"; mkfixture "$E"
-printf '# Alpha\n\nAlpha obligation.\n\nNext: [Missing](03-missing.md)\n' > "$E/.claude/workflow/next-task/01-alpha.md"
+printf '# Alpha\n\n## 1. Alpha stage\n\nAlpha obligation.\n\nNext: [Missing](03-missing.md)\n' > "$E/.claude/workflow/next-task/01-alpha.md"
 run_check "$E"
 if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q '01-alpha.md' && printf '%s' "$OUT" | grep -q '02-beta.md'; then
   ok
@@ -96,9 +99,49 @@ else
   bad "a wrong next-card transition must fail with current and expected cards (got $GOT: $OUT)"
 fi
 
+# A stale section reference must fail deterministically with its file and target.
+F="$TMP/f-stale-reference"; mkfixture "$F"
+printf 'See `.claude/workflow/next-task.md` §99.\n' > "$F/docs/reference.md" # stage-card-reference-fixture
+run_check "$F"
+if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q 'docs/reference.md' && printf '%s' "$OUT" | grep -q '§99'; then
+  ok
+else
+  bad "a stale next-task section reference must fail with its source and target (got $GOT: $OUT)"
+fi
+
 # The real tree is the independently captured pre-split oracle applied to all cards.
 run_check "$ROOT"
 if [ "$GOT" -eq 0 ]; then ok; else bad "real stage-card set must pass (got $GOT: $OUT)"; fi
+
+# The active binding pins the demand-loading contract, including explicit escalation.
+BINDING="$ROOT/.claude/skills/next-task/SKILL.md"
+binding_contract() {
+  local binding="$1"
+  grep -qF '.claude/PROJECT.compact.md' "$binding" &&
+    grep -qF 'next-task/00-foundations.md' "$binding" &&
+    grep -qF "follow that card's \`Next:\` link" "$binding" &&
+    grep -qF 'Do **not** preload the ordered `.claude/workflow/next-task.md`' "$binding" &&
+    grep -qF 'another card, or the old full procedure' "$binding" &&
+    grep -qF 'Escalate to the index' "$binding"
+}
+if binding_contract "$BINDING"; then ok; else bad "binding must encode compact packet + one-card demand loading"; fi
+MUTATED_BINDING="$TMP/mutated-binding.md"
+sed '/Do \*\*not\*\* preload/,/only to resume/d' "$BINDING" > "$MUTATED_BINDING"
+if binding_contract "$MUTATED_BINDING"; then
+  bad "binding contract test must reject a planted preload-policy deletion"
+else
+  ok
+fi
+
+# Review mode, like isolated mode, must dispatch against an explicit HEAD-verified ref.
+GATE_CARD="$ROOT/.claude/workflow/next-task/07-pre-pr-gate.md"
+if grep -qF 'explicit audited ref' "$GATE_CARD" &&
+  grep -qF 'before every dispatch and re-dispatch' "$GATE_CARD" &&
+  grep -qF 'fail loud' "$GATE_CARD"; then
+  ok
+else
+  bad "§7 must require an explicit, HEAD-verified ref for every review-mode dispatch"
+fi
 
 # The per-card token budget is active, and the standing counter measures every card.
 REGISTRY="$ROOT/.claude/context-budgets.md"

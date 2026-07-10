@@ -14,6 +14,9 @@ import sys
 CARD_LINK = re.compile(r"\]\(next-task/([^)/]+\.md)\)")
 NEXT_LINK = re.compile(r"^Next: \[[^]]+\]\(([^)/]+\.md)\)$", re.MULTILINE)
 BLOCK_START = re.compile(r"^(?:#{1,6} |[-*] |[0-9]+\. |\|)")
+SECTION_HEADING = re.compile(r"^##\s+(\d+(?:\.\d+)?)\b", re.MULTILINE)
+SECTION_REFERENCE = re.compile(r"§(\d+(?:\.\d+)?)")
+REFERENCE_SUFFIXES = {".js", ".md", ".py", ".sh", ".yaml", ".yml"}
 
 
 def blocks(text: str) -> list[str]:
@@ -116,6 +119,34 @@ def validate_inventory(
     return errors
 
 
+def validate_references(root: Path, cards_dir: Path) -> list[str]:
+    """Reject numeric next-task section references that no stage card defines."""
+    sections: set[str] = set()
+    for card in cards_dir.glob("*.md"):
+        sections.update(SECTION_HEADING.findall(card.read_text(encoding="utf-8")))
+
+    errors: list[str] = []
+    for path in sorted(root.rglob("*")):
+        if (
+            not path.is_file()
+            or ".git" in path.parts
+            or path.suffix not in REFERENCE_SUFFIXES
+        ):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError:
+            continue
+        for line_number, line in enumerate(lines, 1):
+            if "next-task.md" not in line or "stage-card-reference-fixture" in line:
+                continue
+            for section in SECTION_REFERENCE.findall(line):
+                if section not in sections:
+                    relative = path.relative_to(root)
+                    errors.append(f"{relative}:{line_number}: unresolved next-task.md §{section}")
+    return errors
+
+
 def check(root: Path) -> list[str]:
     workflow = root / ".claude" / "workflow"
     index = workflow / "next-task.md"
@@ -126,6 +157,7 @@ def check(root: Path) -> list[str]:
             return [f"missing required stage-card artifact: {required.relative_to(root)}"]
 
     indexed, errors = validate_index(index, cards_dir)
+    errors.extend(validate_references(root, cards_dir))
     card_hashes = count_card_blocks(indexed, cards_dir)
 
     try:
