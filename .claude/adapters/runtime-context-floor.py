@@ -36,12 +36,13 @@ def load_inventory(path: Path) -> dict[str, Any]:
     tools = runtime_context.get("tools", [])
     if any(not isinstance(tool, dict) for tool in tools):
         raise UnrecognizedShape("tools entries must be objects")
-    if any(type(tool.get("deferred")) is not bool for tool in tools):
-        raise UnrecognizedShape("every tool deferred marker must be boolean")
+    if any(tool.get("deferred") is not False for tool in tools):
+        raise UnrecognizedShape("every active tool deferred marker must be false")
     return runtime_context
 
 
 def token_count(runtime_context: dict[str, Any]) -> int:
+    # Keep this local so a missing counter fails open through measure().
     import tiktoken
 
     encoded = json.dumps(

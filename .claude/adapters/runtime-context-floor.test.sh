@@ -93,10 +93,11 @@ else
   bad "unknown category element shape did not fail open/loud"
 fi
 
-for marker_shape in missing nonboolean; do
+for marker_shape in missing nonboolean contradictory_true; do
   case "$marker_shape" in
     missing) jq '.runtime_context.tools = [{"name":"future-tool"}]' "$TMP/small.json" > "$TMP/$marker_shape.json" ;;
     nonboolean) jq '.runtime_context.tools = [{"name":"future-tool","deferred":"no"}]' "$TMP/small.json" > "$TMP/$marker_shape.json" ;;
+    contradictory_true) jq '.runtime_context.tools = [{"name":"future-tool","deferred":true}]' "$TMP/small.json" > "$TMP/$marker_shape.json" ;;
   esac
   marker_status=0
   python3 "$PROBE" measure "$TMP/$marker_shape.json" > "$TMP/$marker_shape.out" 2> "$TMP/$marker_shape.err" || marker_status=$?
