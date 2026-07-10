@@ -122,15 +122,50 @@ fi
 # The Codex adapter entrypoints obey the same compact-packet + first-card contract.
 CODEX_ADAPTER="$ROOT/.claude/adapters/codex-cli.md"
 CODEX_DRY_RUN="$ROOT/.claude/adapters/codex-cli-dry-run.md"
-if grep -qF '.claude/PROJECT.compact.md' "$CODEX_ADAPTER" &&
-  grep -qF '.claude/workflow/next-task/00-foundations.md' "$CODEX_ADAPTER" &&
-  ! grep -qF 'Read .claude/workflow/next-task.md and execute it' "$CODEX_ADAPTER" &&
+codex_entrypoints() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+on_demand = text.split("- **On-demand (user) path:**", 1)[1].split(
+    "- **Scheduler/headless path:**", 1
+)[0]
+headless = text.split("- **Scheduler/headless path:**", 1)[1].split(
+    "- **The one rule:**", 1
+)[0]
+required = (
+    ".claude/PROJECT.compact.md",
+    ".claude/workflow/next-task/00-foundations.md",
+    "Next:",
+    "preload",
+)
+raise SystemExit(0 if all(all(item in clause for item in required) for clause in (on_demand, headless)) else 1)
+PY
+}
+if codex_entrypoints "$CODEX_ADAPTER" &&
   grep -qF '.claude/PROJECT.compact.md' "$CODEX_DRY_RUN" &&
   grep -qF '.claude/workflow/next-task/00-foundations.md' "$CODEX_DRY_RUN" &&
   ! grep -qF 'Read .claude/workflow/next-task.md and execute it' "$CODEX_DRY_RUN"; then
   ok
 else
   bad "Codex entrypoints must start from the compact packet and first stage card"
+fi
+MUTATED_CODEX="$TMP/mutated-codex-adapter.md"
+python3 - "$CODEX_ADAPTER" "$MUTATED_CODEX" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+Path(sys.argv[2]).write_text(
+    source.replace(".claude/PROJECT.compact.md", ".claude/PROJECT.md", 1),
+    encoding="utf-8",
+)
+PY
+if codex_entrypoints "$MUTATED_CODEX"; then
+  bad "Codex entrypoint test must reject one regressed path while the other stays correct"
+else
+  ok
 fi
 
 # The real tree is the independently captured pre-split oracle applied to all cards.

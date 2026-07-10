@@ -62,7 +62,8 @@ trigger frontmatter. The binding is therefore **two mechanisms with one rule**:
 - **Scheduler/headless path:** `codex exec` with the procedure reference written out in
   the prompt text: `codex exec "Read .claude/PROJECT.compact.md and
   .claude/workflow/next-task/00-foundations.md; execute task T123 by following each
-  card's Next: link. Repo root: <path>. Adapter: .claude/adapters/codex-cli.md."` Whether a
+  card's Next: link without preloading the index or other cards. Repo root: <path>.
+  Adapter: .claude/adapters/codex-cli.md."` Whether a
   *named* custom prompt can be invoked non-interactively is **UNVERIFIED**, so the
   conforming path does not depend on it — the name→procedure resolution rides in the
   invocation text.
