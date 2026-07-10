@@ -313,6 +313,13 @@ jobs:
       - name: Context token-budget tests
         run: bash .claude/hooks/token-budget-check.test.sh
 
+      # Runtime-attached context floor (T1207, spec 007 US7): adapter-owned,
+      # aggregate-only measurement on the same o200k_base counter. This runs
+      # fidelity/privacy/fail-open tests only; the recorded floor is explicitly
+      # non-gating and no verify/gate/tier/selection path consumes it (P5).
+      - name: Runtime context-floor tests
+        run: bash .claude/adapters/runtime-context-floor.test.sh
+
       # Compact project-packet drift check (T1203, spec 007 US3; epic #166):
       # .claude/PROJECT.compact.md is the default profile read for ordinary
       # workflow runs (US3.AC3) — a hand-compact mirror of .claude/PROJECT.md's
