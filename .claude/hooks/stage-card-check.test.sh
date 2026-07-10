@@ -109,6 +109,16 @@ else
   bad "a stale next-task section reference must fail with its source and target (got $GOT: $OUT)"
 fi
 
+# Wrapped prose references are one logical paragraph and must not evade resolution.
+G="$TMP/g-wrapped-reference"; mkfixture "$G"
+printf 'See `.claude/workflow/next-task.md` for the rule at\n§98.\n' > "$G/docs/reference.md" # stage-card-reference-fixture
+run_check "$G"
+if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q 'docs/reference.md' && printf '%s' "$OUT" | grep -q '§98'; then
+  ok
+else
+  bad "a wrapped stale next-task reference must fail with its source and target (got $GOT: $OUT)"
+fi
+
 # The real tree is the independently captured pre-split oracle applied to all cards.
 run_check "$ROOT"
 if [ "$GOT" -eq 0 ]; then ok; else bad "real stage-card set must pass (got $GOT: $OUT)"; fi

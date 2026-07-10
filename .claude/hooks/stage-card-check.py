@@ -137,13 +137,19 @@ def validate_references(root: Path, cards_dir: Path) -> list[str]:
             lines = path.read_text(encoding="utf-8").splitlines()
         except UnicodeDecodeError:
             continue
-        for line_number, line in enumerate(lines, 1):
+        for offset, line in enumerate(lines):
             if "next-task.md" not in line or "stage-card-reference-fixture" in line:
                 continue
-            for section in SECTION_REFERENCE.findall(line):
-                if section not in sections:
-                    relative = path.relative_to(root)
-                    errors.append(f"{relative}:{line_number}: unresolved next-task.md §{section}")
+            candidates = [(offset + 1, line)]
+            if not SECTION_REFERENCE.search(line) and offset + 1 < len(lines):
+                candidates.append((offset + 2, lines[offset + 1]))
+            for reference_line, candidate in candidates:
+                for section in SECTION_REFERENCE.findall(candidate):
+                    if section not in sections:
+                        relative = path.relative_to(root)
+                        errors.append(
+                            f"{relative}:{reference_line}: unresolved next-task.md §{section}"
+                        )
     return errors
 
 
