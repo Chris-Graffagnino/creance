@@ -60,8 +60,8 @@ rule: `.claude/workflow/next-task.md` §5).
 ## Required Pre-PR Review
 The §7 gate must pass before any PR: adversarial **[reviewer]**s in their own contexts
 (maker is never the checker) plus the profile's review-pass set — the
-**[code-review pass]** always; the **[security-review pass]** when the change touches
-privacy, credentials, or payments (`.claude/PROJECT.md` → "Review passes"). Unresolved
+**[code-review pass]** always; the **[security-review pass]** on a sensitive diff, as
+the profile defines it (`.claude/PROJECT.md` → "Review passes"). Unresolved
 material findings block. Procedure:
 `.claude/workflow/next-task.md` §7–§8; standard: `.claude/workflow/README.md` → "The
 review standard". Every PR body includes `Closes #<issue-number>`; pass bodies via

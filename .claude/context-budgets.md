@@ -51,8 +51,8 @@ that lands or restructures its surface; T1201 (the substrate) gates nothing it e
 measure:
 
 - `agents-resident` → **T1202** — **landed; the gate is `active`**. `AGENTS.md` is
-  trimmed to per-turn rules + pointers (US2.AC1; measured 1958 → within budget at
-  activation), alongside the unchanged line-ceiling residency check
+  trimmed to per-turn rules + pointers (US2.AC1; measured 1180 ≤ 1200 at activation;
+  1958 before the trim), alongside the unchanged line-ceiling residency check
   (`.claude/hooks/agents-residency-check.sh` — two measures, one target, US2.AC3).
 - `compact-packet` → **T1203** — **landed; the gate is `active`**. The packet
   (`.claude/PROJECT.compact.md`) is the default profile read for ordinary runs
