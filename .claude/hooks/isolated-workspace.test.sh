@@ -44,7 +44,7 @@ SCRIPT="$HOOKS/isolated-workspace.sh"
 REPO="$(cd "$HOOKS/../.." && pwd)"
 CI="$REPO/.github/workflows/ci.yml"
 MODEL="$REPO/.claude/workflow/README.md"
-NEUTRAL="$REPO/.claude/workflow/next-task.md"
+NEUTRAL="$REPO/.claude/workflow/next-task/01-preconditions.md"
 BINDING="$REPO/.claude/skills/next-task/SKILL.md"
 
 TMP=$(mktemp -d)

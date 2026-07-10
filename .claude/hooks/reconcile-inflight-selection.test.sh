@@ -211,7 +211,7 @@ run_inflight 2 "usage: a non-task argument exits 2" not-a-task
 #        the path is wired while keeping the script name out of workflow/** (the P1 boundary).
 CI="$HOOKS/../../.github/workflows/ci.yml"
 BINDING="$HOOKS/../../.claude/skills/next-task/SKILL.md"
-NEUTRAL="$HOOKS/../../.claude/workflow/next-task.md"
+NEUTRAL="$HOOKS/../../.claude/workflow/next-task/02-select-task.md"
 verify_steps() { awk '/^  [A-Za-z]/ { inblk = ($0 ~ /^  verify:/) } inblk { print }' "$CI"; }
 if verify_steps | grep -qE '^[[:space:]]*run:[[:space:]]+bash[[:space:]]+\.claude/hooks/reconcile-inflight-selection\.test\.sh([[:space:]]|$)'; then ok
 else bad "wiring (a): verify job does not ACTIVELY run reconcile-inflight-selection.test.sh"; fi

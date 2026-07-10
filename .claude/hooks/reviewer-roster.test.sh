@@ -45,7 +45,7 @@ set -u
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 GL="$DIR/workflow/gate-loop.md"        # roster source of truth
 JS="$DIR/workflows/gate-loop.js"       # orchestrated-run mirror
-NT="$DIR/workflow/next-task.md"        # prose mirror
+NT="$DIR/workflow/next-task/07-pre-pr-gate.md" # demand-loaded §7 prose mirror
 REVDIR="$DIR/workflow/reviewers"       # reviewer specs (AC4)
 AGENTDIR="$DIR/agents"                 # adapter agent files (AC5)
 SK="$DIR/skills/next-task/SKILL.md"    # adapter [reviewer]→agent map (AC7)
