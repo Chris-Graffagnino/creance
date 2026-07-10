@@ -38,3 +38,5 @@ the owner can steer between sessions. These rules own all thread reading and ref
   and never silently ignored. Once a PR exists, quote and flag it in the PR body. In the
   pre-PR window (§2 and resume run before the PR opens), quote and flag it in a
   **marked** comment on the same thread, and carry it into the PR body when the PR opens.
+
+Next: [§3 Find the issue, §4 branch, and §4.5 plan](04-issue-and-branch.md)

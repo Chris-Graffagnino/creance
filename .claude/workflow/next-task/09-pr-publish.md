@@ -1,3 +1,5 @@
+## 8.1 Finish the body, publish evidence, and stop
+
 - **Refresh the thread before composing "your call"** (§2.5): re-read the issue/PR
   comment thread; act on any newer unmarked owner-login steering (within the §2.5
   authority bounds), do not re-ask a `Decision needed:` the owner already answered there,
@@ -10,6 +12,7 @@
   goes in the same place, with the affected surfaces listed as unverified. The concrete
   attachment mechanism (how an image reaches the PR body from this environment) comes
   from the **[environment block]**.
+- Open the PR against the base branch, titled `<type>: [<task-id>] <description>`.
 - **Attach the gate's evidence.** Post each §7 reviewer's saved verdict report to the PR as
   a comment — one comment per reviewer, verbatim, **including PASS results**, each
   carrying the **[comment marker]** (§2.5) — using a file
@@ -33,3 +36,5 @@
   tool/command output from this session — report only what you can point to evidence for; if
   something is not yet verified, say so explicitly. **Do not merge** unless the user has
   explicitly authorized autonomous merging this session.
+
+Next: stop.

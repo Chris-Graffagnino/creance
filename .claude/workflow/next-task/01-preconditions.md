@@ -30,3 +30,5 @@ authorization (§8), so an engaged autonomous run still ends at a PR, not on the
 deterministic falsification proof that an un-gated change cannot reach the base branch through the
 lifecycle — plus a live probe that the isolation tier fires on a real driver — now backs this
 property (the enforcing checks are named in the profile's invariant checklist).
+
+Next: [§1 Select the task](02-select-task.md)

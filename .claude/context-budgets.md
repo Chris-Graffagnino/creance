@@ -26,7 +26,7 @@ so verification can never go silently green without measuring.
 | `compact-packet` | `total` | `2000` | `active` | `.claude/PROJECT.compact.md` |
 | `stage-cards` | `each` | `1500` | `active` | `.claude/workflow/next-task/*.md` |
 | `task-index` | `total` | `4000` | `active` | `specs/TASK_INDEX.md` |
-| `next-task-bundle` | `total` | `18000` | `active` | `AGENTS.md` `.claude/skills/next-task/SKILL.md` `.claude/workflow/next-task/08-pr-body.md` `.claude/PROJECT.compact.md` `memory/constitution.md` `specs/TASK_INDEX.md` |
+| `next-task-bundle` | `total` | `18000` | `deferred` | `AGENTS.md` `.claude/skills/next-task/SKILL.md` `.claude/workflow/next-task/*.md` `.claude/PROJECT.compact.md` `memory/constitution.md` `specs/TASK_INDEX.md` |
 | `pr-review-bundle` | `total` | `10000` | `active` | `AGENTS.md` `.claude/skills/pr-review/SKILL.md` `.claude/workflow/pr-review.md` `.claude/PROJECT.compact.md` `memory/constitution.md` |
 
 Column semantics (the check parses exactly these):
@@ -69,8 +69,8 @@ measure:
   compositions above reflect today's declared ordinary entrypoint reads; selected-task
   spec/tasks files remain explicit stage-specific demand loads, not an eager glob over
   every backlog. **`pr-review-bundle` is `active`** — T1203's packet-default read brought
-  it within budget (measured 8454 ≤ 10000 at activation). **`next-task-bundle` is
-  `active`** after T1204 + T1205: its conservative fixed envelope uses the largest stage
-  card at activation plus the task index and constitution, and measured 13,192 ≤ 18,000.
-  Every card is separately capped at 1,500, so a different current card cannot consume
-  more than another 121 tokens beyond that recorded envelope.
+  it within budget (measured 8454 ≤ 10000 at activation). `next-task-bundle` remains
+  **deferred**: the truthful one-context composition accumulates every loaded stage card
+  and measured 21,072 > 18,000 before selected spec/tasks context. Issue #275 owns the
+  remaining reduction and activation; the deferred report stays loud rather than gating
+  a knowingly under-counted composition.

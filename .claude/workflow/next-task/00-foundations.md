@@ -68,3 +68,5 @@ model table (round up when a tier is unavailable, never down).
 - **[frontier tier]** only for genuinely long-horizon work — multi-hour autonomous scope,
   plan-and-port-scale changes. Rare: most tagged work is strong or cheap.
 - When unsure, start cheap — CI + the reviewers backstop quality, and you can escalate.
+
+Next: [§0 Preconditions and §0.5 run mode](01-preconditions.md)

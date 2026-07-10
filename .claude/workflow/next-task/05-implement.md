@@ -50,3 +50,5 @@ moment of discovery:
 The PR body (§8) lists what was filed under **"Discovered work"** (or "none"). The triage
 [workflow] resurfaces open issues without a branch/PR every run, so a filed issue cannot be
 lost — no human dispatch needed.
+
+Next: [§6 Verify and §6.5 definition of done](06-verify.md)

@@ -16,7 +16,6 @@ branch directly (P4). The numbered bullets below are the promote path (and all o
 
 - Commit your work on the branch FIRST (the §7 reviewers review `git diff main..HEAD`, empty
   until you commit). Stage specific files; never `git add .`.
-- Open the PR against the base branch, titled `<type>: [<task-id>] <description>`.
 - **Lead the body with a risk-ranked digest of what the §7 gate found** — the human
   reviewer's entry point, placed **first**, ahead of "verified automatically" and "your
   call", so scarce review time targets the riskiest parts of the diff instead of
@@ -66,3 +65,5 @@ branch directly (P4). The numbered bullets below are the promote path (and all o
   work exhausted, the exact comment-answerable choices enumerated (merge never among them;
   purely-informational items keep the `Decision needed: none (informational)` form, no
   choices), and the world-state refresh — composed alongside the §2.5 thread refresh below.
+
+Next: [§8 Finish the body, publish evidence, and stop](09-pr-publish.md)

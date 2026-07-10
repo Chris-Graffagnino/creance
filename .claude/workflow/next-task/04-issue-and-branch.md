@@ -34,3 +34,5 @@ autonomous runs do not pause on it and no reply is awaited. Its value: an alignm
 the owner can audit asynchronously; deterministic scaffolding that converges output shape
 across models; and a durable recovery source for the resume protocol (the plan survives
 context loss because it lives on the issue). **[cheap tier]** tasks skip it.
+
+Next: [§5 Implement and §5.5 discovered work](05-implement.md)

@@ -63,3 +63,5 @@ working tree exactly as before.
    report here; its intermediate FAIL report is retained verbatim in the gate-run record's
    `fail_reports` (`telemetry.md`), which is the source §8's risk-ranked digest cites for
    near-misses.
+
+Next: [§8 Prepare the PR body](08-pr-body.md)

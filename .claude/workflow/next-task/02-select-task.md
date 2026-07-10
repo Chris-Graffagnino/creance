@@ -35,3 +35,5 @@
   **degrades to announce-only**, never a stall it cannot justify. The **in-flight** axis is
   handled by the reconciliation refusal above, not by this confirm pause.
 - Confirm the selected task ID, its `path`, and its `US#` before editing anything.
+
+Next: [§2 Read context and §2.5 owner-comment channel](03-read-context.md)

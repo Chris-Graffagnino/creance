@@ -36,8 +36,8 @@ mkfixture() {
     printf '1. [Alpha](next-task/01-alpha.md)\n'
     printf '2. [Beta](next-task/02-beta.md)\n'
   } > "$root/.claude/workflow/next-task.md"
-  printf '# Alpha\n\nAlpha obligation.\n' > "$root/.claude/workflow/next-task/01-alpha.md"
-  printf '# Beta\n\nBeta obligation.\n' > "$root/.claude/workflow/next-task/02-beta.md"
+  printf '# Alpha\n\nAlpha obligation.\n\nNext: [Beta](02-beta.md)\n' > "$root/.claude/workflow/next-task/01-alpha.md"
+  printf '# Beta\n\nBeta obligation.\n\nNext: stop.\n' > "$root/.claude/workflow/next-task/02-beta.md"
   {
     printf '%s\t1\t%s\n' "$(block_hash '# Alpha')" '# Alpha'
     printf '%s\t1\t%s\n' "$(block_hash 'Alpha obligation.')" 'Alpha obligation.'
@@ -86,6 +86,16 @@ else
   bad "an unindexed card must fail naming its path (got $GOT: $OUT)"
 fi
 
+# A broken next-card transition must fail before an ordinary run can dead-end.
+E="$TMP/e-transition"; mkfixture "$E"
+printf '# Alpha\n\nAlpha obligation.\n\nNext: [Missing](03-missing.md)\n' > "$E/.claude/workflow/next-task/01-alpha.md"
+run_check "$E"
+if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q '01-alpha.md' && printf '%s' "$OUT" | grep -q '02-beta.md'; then
+  ok
+else
+  bad "a wrong next-card transition must fail with current and expected cards (got $GOT: $OUT)"
+fi
+
 # The real tree is the independently captured pre-split oracle applied to all cards.
 run_check "$ROOT"
 if [ "$GOT" -eq 0 ]; then ok; else bad "real stage-card set must pass (got $GOT: $OUT)"; fi
@@ -97,10 +107,10 @@ if grep -q '^| `stage-cards` | `each` | `1500` | `active` | `.claude/workflow/ne
 else
   bad "stage-cards must activate the owner-ratified 1,500-token gate"
 fi
-if grep -q '^| `next-task-bundle` | `total` | `18000` | `active` |' "$REGISTRY"; then
+if grep -q '^| `next-task-bundle` | `total` | `18000` | `deferred` | .*`\.claude/workflow/next-task/\*.md`' "$REGISTRY"; then
   ok
 else
-  bad "the restructured ordinary next-task bundle must activate its 18,000-token gate"
+  bad "the over-budget accumulated next-task bundle must stay truthful and deferred"
 fi
 BUDGET_OUT="$(cd "$ROOT" && bash .claude/hooks/token-budget-check.sh --require-counter 2>&1)"; BUDGET_GOT=$?
 if [ "$BUDGET_GOT" -eq 0 ]; then ok; else bad "active stage-card token budget must pass (got $BUDGET_GOT: $BUDGET_OUT)"; fi

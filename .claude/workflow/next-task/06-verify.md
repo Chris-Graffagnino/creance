@@ -55,3 +55,5 @@ not done until:
     thread-side half — already answered or settled on the issue/PR thread — is §2.5's
     "don't re-ask" and thread-refresh rules; this condition owns only the world-state
     half and does not restate them.)
+
+Next: [§7 Pre-PR gate](07-pre-pr-gate.md)

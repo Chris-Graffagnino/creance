@@ -12,6 +12,7 @@ import sys
 
 
 CARD_LINK = re.compile(r"\]\(next-task/([^)/]+\.md)\)")
+NEXT_LINK = re.compile(r"^Next: \[[^]]+\]\(([^)/]+\.md)\)$", re.MULTILINE)
 BLOCK_START = re.compile(r"^(?:#{1,6} |[-*] |[0-9]+\. |\|)")
 
 
@@ -68,7 +69,25 @@ def validate_index(index: Path, cards_dir: Path) -> tuple[list[str], list[str]]:
         errors.append(f"indexed card missing: {', '.join(missing)}")
     if unindexed:
         errors.append(f"unindexed card: {', '.join(unindexed)}")
+    errors.extend(validate_transitions(indexed, cards_dir))
     return indexed, errors
+
+
+def validate_transitions(indexed: list[str], cards_dir: Path) -> list[str]:
+    errors: list[str] = []
+    for position, name in enumerate(indexed):
+        path = cards_dir / name
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        links = NEXT_LINK.findall(text)
+        if position + 1 < len(indexed):
+            expected = indexed[position + 1]
+            if links != [expected]:
+                errors.append(f"{name}: next-card transition must target {expected}, found {links}")
+        elif links or "Next: stop." not in text:
+            errors.append(f"{name}: final card must contain 'Next: stop.' and no next-card link")
+    return errors
 
 
 def count_card_blocks(indexed: list[str], cards_dir: Path) -> Counter[str]:
