@@ -33,8 +33,11 @@ def load_inventory(path: Path) -> dict[str, Any]:
         value = runtime_context.get(category, [])
         if not isinstance(value, list):
             raise UnrecognizedShape(f"{category} must be a list when present")
-    if any(not isinstance(tool, dict) for tool in runtime_context.get("tools", [])):
+    tools = runtime_context.get("tools", [])
+    if any(not isinstance(tool, dict) for tool in tools):
         raise UnrecognizedShape("tools entries must be objects")
+    if any(type(tool.get("deferred")) is not bool for tool in tools):
+        raise UnrecognizedShape("every tool deferred marker must be boolean")
     return runtime_context
 
 

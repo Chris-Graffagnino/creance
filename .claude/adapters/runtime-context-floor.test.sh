@@ -93,6 +93,21 @@ else
   bad "unknown category element shape did not fail open/loud"
 fi
 
+for marker_shape in missing nonboolean; do
+  case "$marker_shape" in
+    missing) jq '.runtime_context.tools = [{"name":"future-tool"}]' "$TMP/small.json" > "$TMP/$marker_shape.json" ;;
+    nonboolean) jq '.runtime_context.tools = [{"name":"future-tool","deferred":"no"}]' "$TMP/small.json" > "$TMP/$marker_shape.json" ;;
+  esac
+  marker_status=0
+  python3 "$PROBE" measure "$TMP/$marker_shape.json" > "$TMP/$marker_shape.out" 2> "$TMP/$marker_shape.err" || marker_status=$?
+  if [ "$marker_status" -eq 0 ] && [ ! -s "$TMP/$marker_shape.out" ] \
+    && grep -q 'WARN: unrecognized Claude Code runtime context shape' "$TMP/$marker_shape.err"; then
+    ok "$marker_shape deferred marker fails open and loud"
+  else
+    bad "$marker_shape deferred marker was silently counted"
+  fi
+done
+
 # AC3 two-sided fail-open: unknown shape is loud/non-failing; supported shape reports.
 printf '{"format":"future-runtime/v9","runtime_context":{}}\n' > "$TMP/unknown.json"
 unknown_status=0
