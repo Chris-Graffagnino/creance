@@ -138,7 +138,7 @@ required = (
     ".claude/PROJECT.compact.md",
     ".claude/workflow/next-task/00-foundations.md",
     "Next:",
-    "preload",
+    "without preloading the index or other cards",
 )
 raise SystemExit(0 if all(all(item in clause for item in required) for clause in (on_demand, headless)) else 1)
 PY
@@ -164,6 +164,22 @@ Path(sys.argv[2]).write_text(
 PY
 if codex_entrypoints "$MUTATED_CODEX"; then
   bad "Codex entrypoint test must reject one regressed path while the other stays correct"
+else
+  ok
+fi
+INVERTED_CODEX="$TMP/inverted-codex-adapter.md"
+python3 - "$CODEX_ADAPTER" "$INVERTED_CODEX" <<'PY'
+from pathlib import Path
+import sys
+
+source = Path(sys.argv[1]).read_text(encoding="utf-8")
+Path(sys.argv[2]).write_text(
+    source.replace("without preloading", "by preloading"),
+    encoding="utf-8",
+)
+PY
+if codex_entrypoints "$INVERTED_CODEX"; then
+  bad "Codex entrypoint test must reject an inverted no-preload policy"
 else
   ok
 fi
