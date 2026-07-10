@@ -19,5 +19,7 @@ resolve through the section labels in this ordered index.
 
 The cards preserve the complete pre-split procedure. The independent frozen inventory
 at `next-task-obligations.tsv` and the standing stage-card completeness check prove that
-every original obligation appears exactly once and every card is indexed. All cards are
-runtime-neutral **[workflow]** documents and remain subject to the global neutrality scan.
+every original obligation appears exactly once and every card is indexed.
+The inventory guards preservation, not accretion; the active per-card token budget bounds new material.
+All cards are runtime-neutral **[workflow]** documents and remain subject to the global
+neutrality scan.

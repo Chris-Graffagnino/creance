@@ -188,6 +188,27 @@ fi
 run_check "$ROOT"
 if [ "$GOT" -eq 0 ]; then ok; else bad "real stage-card set must pass (got $GOT: $OUT)"; fi
 
+# The frozen oracle remains a deliberate change ratchet after the migration.
+INVENTORY="$ROOT/.claude/workflow/next-task-obligations.tsv"
+if grep -qF 'Intentional obligation edits update the corresponding row manually in the same human-reviewed PR' "$INVENTORY"; then
+  ok
+else
+  bad "frozen oracle must document its post-migration update procedure"
+fi
+
+INDEX="$ROOT/.claude/workflow/next-task.md"
+if grep -qF 'The inventory guards preservation, not accretion; the active per-card token budget bounds new material.' "$INDEX"; then
+  ok
+else
+  bad "stage-card index must document the separate preservation and growth controls"
+fi
+
+if grep -qF 'The association scan is deliberately conservative: ambiguous matches are skipped' "$CHECK"; then
+  ok
+else
+  bad "reference scanner must document its fail-open precision limit"
+fi
+
 # The active binding pins the demand-loading contract, including explicit escalation.
 BINDING="$ROOT/.claude/skills/next-task/SKILL.md"
 binding_contract() {

@@ -1,4 +1,6 @@
 # Frozen T1204 oracle captured from the pre-split next-task.md on 2026-07-10.
+# Post-migration, these rows are a deliberate change ratchet, never a generated mirror.
+# Intentional obligation edits update the corresponding row manually in the same human-reviewed PR and justify the contract change; incidental rewrites do not re-freeze the baseline.
 # sha256(normalized logical block) <TAB> expected count <TAB> diagnostic label
 106a582adbddf8550e21b380fd52dc272bd977807e5caefea311a75869c4cee7	1	# next-task — uniform per-task procedure (runtime-neutral)
 58890289804972278dd56a9698b6042f132392974c732044fe380699af56b03a	1	One task → one issue → one branch → one PR. This procedure makes every task start identically so autonomous runs are con

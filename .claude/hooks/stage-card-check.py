@@ -122,7 +122,11 @@ def validate_inventory(
 
 
 def validate_references(root: Path, cards_dir: Path) -> list[str]:
-    """Reject numeric next-task section references that no stage card defines."""
+    """Reject numeric next-task section references that no stage card defines.
+
+    The association scan is deliberately conservative: ambiguous matches are skipped,
+    so punctuation such as abbreviations can produce false negatives.
+    """
     sections: set[str] = set()
     for card in cards_dir.glob("*.md"):
         sections.update(SECTION_HEADING.findall(card.read_text(encoding="utf-8")))
