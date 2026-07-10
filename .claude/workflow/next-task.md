@@ -219,7 +219,7 @@ across models; and a durable recovery source for the resume protocol (the plan s
 context loss because it lives on the issue). **[cheap tier]** tasks skip it.
 
 ## 5. Implement (minimum scoped change)
-- Keep changes surgical; every line traces to the task. No speculative abstraction.
+- Before the first edit, define success criteria and the smallest safe verification path. Keep changes surgical; every line traces to the task. No speculative abstraction.
 - Respect the profile's **"Architecture boundaries"**: route each capability only through its
   named interface (never a vendor SDK from UI/component code), and never use a banned
   vendor/source listed there.
