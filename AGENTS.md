@@ -23,7 +23,7 @@
 ## Issue, Branch, and Scope
 - One task, one issue, one branch, one PR. An issue precedes the first file edit —
   code, docs, config, generated artifacts, and tests alike; plan-only/read-only work
-  needs none.
+  needs none (plan-only scope, review posture: `workflow/README.md` → "Work modes").
 - Identify the task ID from the tasks file (`.claude/PROJECT.md` → "Paths") before
   implementing; if none applies to PR-bound work, ask whether it is a spec task or
   repo-maintenance first.
