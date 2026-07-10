@@ -70,6 +70,18 @@ run_case 0 "$D" "in-sync fixture passes"
 
 run_case 0 "$REPO_ROOT" "real repo passes (in-sync control)"
 
+# T1207 / US7.AC4: the quality-before-budget ordering is explicitly accounted
+# as prose-P3, and the named justification cannot silently disappear.
+if grep -qF '| `auditor-context-outranks-budget` | `prose-P3` |' "$REPO_ROOT/.claude/governance-rules.md" \
+  && grep -qF '### P3 justification — auditor-context-outranks-budget' "$REPO_ROOT/.claude/governance-rules.md" \
+  && grep -qF 'budget-motivated reduction' "$REPO_ROOT/.claude/governance-rules.md" \
+  && grep -qF 'adversarial auditors rely on' "$REPO_ROOT/.claude/governance-rules.md"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL %-62s repair .claude/governance-rules.md\n' "T1207 quality-before-budget rule + P3 accounting" >&2
+fi
+
 # --- planted violations: each FAILs naming its repair target (US6.AC3) ---
 D="$TMP/anchor-gone"; mkfixture "$D"
 printf '# the case was deleted\n' > "$D/.claude/hooks/guard.test.sh"

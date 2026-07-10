@@ -56,7 +56,7 @@
 
 ## Phase 4 — Runtime-surface amendment (issue #259)
 
-- [ ] T1207 [strong] Budget the runtime-attached context surface (spec-007 amendment,
+- [x] T1207 [strong] Budget the runtime-attached context surface (spec-007 amendment,
       #259): an adapter-owned command (Claude Code side, beside `claude-code-probes.md`;
       named in no `workflow/**` doc, P1) reports fresh-session per-category counts (MCP
       servers, enabled skills, non-deferred tools, deferred-tool catalog size) + a token

@@ -1,0 +1,14 @@
+{
+  "counter": "tiktoken/o200k_base",
+  "counts": {
+    "deferred_tools": 18,
+    "enabled_skills": 73,
+    "mcp_servers": 2,
+    "non_deferred_tools": 10
+  },
+  "gating": "none",
+  "generated_by": ".claude/adapters/runtime-context-floor.py measure",
+  "name": "claude-code-fresh-session-runtime-floor",
+  "runtime_floor_tokens": 7472,
+  "runtime_version": "2.1.197 (Claude Code)"
+}

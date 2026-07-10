@@ -20,6 +20,7 @@ hand-maintained summary class spec 007 exists to prevent (P2).
 | `merge-not-pre-approved` | `encoded-carried` | `.claude/hooks/guard.test.sh` | `settings #165: no gh pr merge pre-approval` | `.github/workflows/ci.yml` |
 | `budget-checks-wired` | `encoded-cited` | `.claude/hooks/token-budget-check.sh` | `--require-counter` | `.github/workflows/ci.yml` |
 | `pr-creation-after-documented-review` | `prose-P3` | — | — | — |
+| `auditor-context-outranks-budget` | `prose-P3` | — | — | — |
 
 Column semantics (the coverage check parses exactly these): **check** — the file
 carrying the deterministic implementation; **anchor** — a literal string that must
@@ -121,6 +122,26 @@ gate-run telemetry records each dispatch (observe-only, P5 — it witnesses, it 
 gates). Model judgment is the fallback layer here because it is the only layer with
 visibility into the ordering; per constitution P3, that absence of a deterministic
 backstop is hereby explicit, not silent.
+
+## `auditor-context-outranks-budget` (prose, P3-justified; T1207/#259)
+
+**Rule.** A budget-motivated reduction that removes context the adversarial auditors rely on
+is rejected: the constitution's correctness, evidence, and review invariants outrank every
+context-budget row. Passing a size budget never justifies starving a maker or checker of
+the source-of-truth material needed to apply those invariants.
+
+### P3 justification — auditor-context-outranks-budget
+
+The load-bearing distinction is the **motivation and semantic dependency**, neither of
+which a repository-only check can infer from changed bytes. A deterministic rule could
+reject every removal from an auditor-read surface, but that would false-fire on benign
+deduplication, generated-equivalent compaction, or replacement by an equally complete
+source. It could allow any diff under budget, but then the harmful removal passes—the
+exact escape this ordering closes. The adversarial constitution/spec/contract review
+therefore judges whether required evidence was removed; deterministic drift, neutrality,
+and budget checks remain supporting signals, not a fabricated encoding of intent. The
+generic governance coverage check and its focused T1207 assertion ensure this rule and
+P3 justification cannot silently disappear.
 
 ## Resident-prose accounting (US6.AC2)
 

@@ -22,6 +22,38 @@ Placeholders: `<scheduler-task>` is your platform's scheduled entry (a Windows T
 Scheduler task, a cron entry, a launchd job); `<launcher-script>` is the out-of-repo
 launcher it runs (templates: `docs/launchers/`).
 
+## Runtime-attached context floor (T1207)
+
+`.claude/adapters/runtime-context-floor.py` is the Claude Code-side, non-gating
+measurement command for the context the runtime attaches above the authored surfaces.
+Capture a **fresh session** with the runtime's inventory exporter, normalize that export
+to the adapter-owned `claude-code-runtime-context/v1` shape below, then run:
+
+```text
+python3 .claude/adapters/runtime-context-floor.py measure <inventory.json>
+python3 .claude/adapters/runtime-context-floor.py measure <inventory.json> \
+  --write-baseline .claude/adapters/runtime-context-floor-baseline.json \
+  --runtime-version "$(claude --version)"
+python3 .claude/adapters/runtime-context-floor.py report --authored-tokens <N> \
+  --baseline .claude/adapters/runtime-context-floor-baseline.json
+```
+
+The supported inventory has a top-level `format` marker and a `runtime_context` object
+whose optional list fields are `mcp_servers`, `skills`, `tools`, `deferred_tools`, and
+`system_reminders`. Each non-deferred tool object carries `"deferred": false`; bodies
+such as MCP instructions, skill descriptions, tool schemas, deferred catalog entries,
+and reminders remain inside the input so the token total measures their actual bytes.
+The command canonicalizes that object and counts it with tiktoken `o200k_base`, the same
+counter as `.claude/context-budgets.md`. It prints only four category counts plus the
+single total; it never echoes the inventory.
+
+The runtime export is intentionally an input, not a committed artifact: it may contain
+schemas, configuration, or secrets. Delete it after measurement. The named baseline is
+safe to commit because it contains aggregates only and declares `gating: none`. It is
+read only by the explicit `report` subcommand; CI, gates, tiers, and selection do not
+consume it. If Claude Code changes or withholds the inventory shape, `measure` **fails open**
+with a loud warning and exit 0, emits no fabricated zero report, and never gates.
+
 ## Probe instantiation
 
 | Probe | Concrete action | Where the observation appears |
