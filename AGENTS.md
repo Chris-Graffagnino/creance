@@ -5,8 +5,7 @@
 > imports it). This file carries only **per-turn rules + pointers** and is resident in
 > every session, line-ceilinged and token-budget-gated (`.claude/context-budgets.md`):
 > project *facts* live in `.claude/PROJECT.md`, full *procedures* in
-> `.claude/workflow/**` behind pointers (`DESIGN-NOTES.md` §11); the per-task procedure
-> is `.claude/workflow/next-task.md`.
+> `.claude/workflow/**` behind pointers (`.claude/DESIGN-NOTES.md` §11).
 
 ## Operating Principles
 - `<specs path, e.g. specs/001-your-feature/>` is the source of truth for scope,
@@ -23,7 +22,7 @@
 ## Issue, Branch, and Scope
 - One task, one issue, one branch, one PR. An issue precedes the first file edit —
   code, docs, config, generated artifacts, and tests alike; plan-only/read-only work
-  needs none (plan-only scope, review posture: `workflow/README.md` → "Work modes").
+  needs none (plan-only scope, review posture: `.claude/workflow/README.md` → "Work modes").
 - Identify the task ID from the tasks file (`.claude/PROJECT.md` → "Paths") before
   implementing; if none applies to PR-bound work, ask whether it is a spec task or
   repo-maintenance first.
@@ -70,8 +69,8 @@ file, never inline.
 ## Autonomy and Merge Rules
 - Default mode is review mode: open PRs but do not merge. **Isolated autonomous mode**
   is **off by default** and fails *closed* to review, per the deterministic
-  **[autonomy activation]** check (`workflow/README.md` → `[isolated workspace]`;
-  `workflow/next-task.md` §0.5).
+  **[autonomy activation]** check (`.claude/workflow/README.md` → `[isolated workspace]`;
+  `.claude/workflow/next-task.md` §0.5).
 - "Work autonomously" allows implementation, PR updates, and automated-review
   response — never merging.
 - Merge only when the user explicitly authorizes autonomous merging in the session AND
