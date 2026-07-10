@@ -123,6 +123,16 @@ against. That change is reconciled here — no principle is relaxed:
   shifts a governance default, an adapter wiring it surfaces the opt-in for **owner
   ratification**, never as an engine decision.
 
+## Work modes (binding on every session)
+
+- **Plan-only work** may read/search files, inspect git state, and draft a plan or
+  proposed patch. It does not edit files, commit, push, or open PRs, and requires no
+  issue. (Implementation work's issue-before-first-edit gate stays resident:
+  `AGENTS.md` → "Issue, Branch, and Scope".)
+- **Review work** uses code-review posture: findings first, ordered by severity, with
+  file/line references and concrete risk. The full standard is "The review standard"
+  below; the PR-review procedure is `pr-review.md`.
+
 ## The review standard (binding on every review pass)
 
 Any review of PR-bound work — a [reviewer] dispatch, a [code-review pass], or a degraded

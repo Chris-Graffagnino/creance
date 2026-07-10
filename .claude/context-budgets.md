@@ -22,7 +22,7 @@ so verification can never go silently green without measuring.
 
 | surface | mode | budget (tokens) | gating | composition |
 |---|---|---|---|---|
-| `agents-resident` | `total` | `1200` | `deferred` | `AGENTS.md` |
+| `agents-resident` | `total` | `1200` | `active` | `AGENTS.md` |
 | `compact-packet` | `total` | `2000` | `active` | `.claude/PROJECT.compact.md` |
 | `stage-cards` | `each` | `1500` | `deferred` | `.claude/workflow/next-task/*.md` |
 | `task-index` | `total` | `4000` | `active` | `specs/TASK_INDEX.md` |
@@ -50,8 +50,10 @@ Per US1.AC1, each of US2–US5's AC1 owns activating its own budget gate in the 
 that lands or restructures its surface; T1201 (the substrate) gates nothing it exists to
 measure:
 
-- `agents-resident` → **T1202** (US2.AC1 — today's `AGENTS.md` is over this budget by
-  design; the trim and the gate land together).
+- `agents-resident` → **T1202** — **landed; the gate is `active`**. `AGENTS.md` is
+  trimmed to per-turn rules + pointers (US2.AC1; measured 1195 ≤ 1200 at activation;
+  1958 before the trim), alongside the unchanged line-ceiling residency check
+  (`.claude/hooks/agents-residency-check.sh` — two measures, one target, US2.AC3).
 - `compact-packet` → **T1203** — **landed; the gate is `active`**. The packet
   (`.claude/PROJECT.compact.md`) is the default profile read for ordinary runs
   (US3.AC3) and is drift-checked against `.claude/PROJECT.md` by

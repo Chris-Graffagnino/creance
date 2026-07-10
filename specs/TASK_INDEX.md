@@ -128,7 +128,7 @@
 | Task | Tier | State | Criteria | Issue/PR | Title |
 |---|---|---|---|---|---|
 | T1201 | strong | [x] | US1.AC1-AC5 |  | Repository token-budget check |
-| T1202 | strong | [ ] | US1.AC5 US2.AC1-AC3 |  | Shrink resident `AGENTS.md` to per-turn rules + pointers within its… |
+| T1202 | strong | [x] | US1.AC5 US2.AC1-AC3 |  | Shrink resident `AGENTS.md` to per-turn rules + pointers within its… |
 | T1203 | strong | [x] | US1.AC5 US3.AC1-AC3 |  | Compact project packet |
 | T1204 | strong | [ ] | US1.AC5 US4.AC1-AC4 |  | Split the per-task procedure into demand-loaded stage cards within… |
 | T1205 | strong | [x] | US1.AC5 US5.AC1-AC3 |  | Generated task index |

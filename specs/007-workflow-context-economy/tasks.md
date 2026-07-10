@@ -21,7 +21,7 @@
 
 ## Phase 2 — The compact surfaces
 
-- [ ] T1202 [strong] Shrink resident `AGENTS.md` to per-turn rules + pointers within its
+- [x] T1202 [strong] Shrink resident `AGENTS.md` to per-turn rules + pointers within its
       ratified budget; every removed rule re-homed in a named source-of-truth doc behind
       a surviving pointer; guard/workflow/CI references still resolve and the existing
       line-ceiling residency check stays enforced alongside the token budget; blocked by
