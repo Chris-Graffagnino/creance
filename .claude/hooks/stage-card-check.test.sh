@@ -146,10 +146,12 @@ PY
 if codex_entrypoints "$CODEX_ADAPTER" &&
   grep -qF '.claude/PROJECT.compact.md' "$CODEX_DRY_RUN" &&
   grep -qF '.claude/workflow/next-task/00-foundations.md' "$CODEX_DRY_RUN" &&
+  grep -qF 'bash .claude/hooks/neutrality-scan-coverage.test.sh' "$CODEX_DRY_RUN" &&
+  ! grep -qF 'zero edits to any `workflow/**` file' "$CODEX_DRY_RUN" &&
   ! grep -qF 'Read .claude/workflow/next-task.md and execute it' "$CODEX_DRY_RUN"; then
   ok
 else
-  bad "Codex entrypoints must start from the compact packet and first stage card"
+  bad "Codex entrypoints and dry-run evidence must encode the demand-loaded neutral contract"
 fi
 MUTATED_CODEX="$TMP/mutated-codex-adapter.md"
 python3 - "$CODEX_ADAPTER" "$MUTATED_CODEX" <<'PY'
