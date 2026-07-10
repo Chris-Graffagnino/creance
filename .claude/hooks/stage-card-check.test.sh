@@ -111,12 +111,26 @@ fi
 
 # Wrapped prose references are one logical paragraph and must not evade resolution.
 G="$TMP/g-wrapped-reference"; mkfixture "$G"
-printf 'See `.claude/workflow/next-task.md` for the rule at\n§98.\n' > "$G/docs/reference.md" # stage-card-reference-fixture
+printf 'See `.claude/workflow/next-task.md` for the rule in this\nwrapped citation paragraph at\n§98.\n' > "$G/docs/reference.md" # stage-card-reference-fixture
 run_check "$G"
 if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q 'docs/reference.md' && printf '%s' "$OUT" | grep -q '§98'; then
   ok
 else
   bad "a wrapped stale next-task reference must fail with its source and target (got $GOT: $OUT)"
+fi
+
+# The Codex adapter entrypoints obey the same compact-packet + first-card contract.
+CODEX_ADAPTER="$ROOT/.claude/adapters/codex-cli.md"
+CODEX_DRY_RUN="$ROOT/.claude/adapters/codex-cli-dry-run.md"
+if grep -qF '.claude/PROJECT.compact.md' "$CODEX_ADAPTER" &&
+  grep -qF '.claude/workflow/next-task/00-foundations.md' "$CODEX_ADAPTER" &&
+  ! grep -qF 'Read .claude/workflow/next-task.md and execute it' "$CODEX_ADAPTER" &&
+  grep -qF '.claude/PROJECT.compact.md' "$CODEX_DRY_RUN" &&
+  grep -qF '.claude/workflow/next-task/00-foundations.md' "$CODEX_DRY_RUN" &&
+  ! grep -qF 'Read .claude/workflow/next-task.md and execute it' "$CODEX_DRY_RUN"; then
+  ok
+else
+  bad "Codex entrypoints must start from the compact packet and first stage card"
 fi
 
 # The real tree is the independently captured pre-split oracle applied to all cards.

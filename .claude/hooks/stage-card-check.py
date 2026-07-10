@@ -16,6 +16,8 @@ NEXT_LINK = re.compile(r"^Next: \[[^]]+\]\(([^)/]+\.md)\)$", re.MULTILINE)
 BLOCK_START = re.compile(r"^(?:#{1,6} |[-*] |[0-9]+\. |\|)")
 SECTION_HEADING = re.compile(r"^##\s+(\d+(?:\.\d+)?)\b", re.MULTILINE)
 SECTION_REFERENCE = re.compile(r"§(\d+(?:\.\d+)?)")
+OTHER_DOCUMENT = re.compile(r"`[^`\n]*\.[A-Za-z0-9]+`")
+SENTENCE_BOUNDARY = re.compile(r"[.!?](?:\s|$)")
 REFERENCE_SUFFIXES = {".js", ".md", ".py", ".sh", ".yaml", ".yml"}
 
 
@@ -137,19 +139,40 @@ def validate_references(root: Path, cards_dir: Path) -> list[str]:
             lines = path.read_text(encoding="utf-8").splitlines()
         except UnicodeDecodeError:
             continue
-        for offset, line in enumerate(lines):
-            if "next-task.md" not in line or "stage-card-reference-fixture" in line:
+        paragraphs: list[tuple[int, str]] = []
+        paragraph: list[str] = []
+        start = 1
+        for line_number, line in enumerate([*lines, ""], 1):
+            if line.strip():
+                if not paragraph:
+                    start = line_number
+                paragraph.append(line)
                 continue
-            candidates = [(offset + 1, line)]
-            if not SECTION_REFERENCE.search(line) and offset + 1 < len(lines):
-                candidates.append((offset + 2, lines[offset + 1]))
-            for reference_line, candidate in candidates:
-                for section in SECTION_REFERENCE.findall(candidate):
-                    if section not in sections:
-                        relative = path.relative_to(root)
-                        errors.append(
-                            f"{relative}:{reference_line}: unresolved next-task.md §{section}"
-                        )
+            if paragraph:
+                paragraphs.append((start, "\n".join(paragraph)))
+                paragraph.clear()
+
+        for paragraph_start, text in paragraphs:
+            if "next-task.md" not in text or "stage-card-reference-fixture" in text:
+                continue
+            for token in SECTION_REFERENCE.finditer(text):
+                mention = text.rfind("next-task.md", 0, token.start())
+                if mention < 0:
+                    continue
+                between = text[mention + len("next-task.md") : token.start()]
+                if (
+                    ";" in between
+                    or OTHER_DOCUMENT.search(between)
+                    or SENTENCE_BOUNDARY.search(between)
+                ):
+                    continue
+                section = token.group(1)
+                if section not in sections:
+                    relative = path.relative_to(root)
+                    reference_line = paragraph_start + text[: token.start()].count("\n")
+                    errors.append(
+                        f"{relative}:{reference_line}: unresolved next-task.md §{section}"
+                    )
     return errors
 
 

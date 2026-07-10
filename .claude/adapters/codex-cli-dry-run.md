@@ -1,10 +1,10 @@
-# Dry run — `workflow/next-task.md` through the Codex CLI adapter
+# Dry run — demand-loaded `workflow/next-task` cards through the Codex CLI adapter
 
 A desk walkthrough of the neutral per-task procedure executing on the Codex CLI adapter
 (`adapters/codex-cli.md`), section by section. **Method and claim:** every step below
 resolves its **[roles]** through the adapter's table alone; the walkthrough required
 **zero edits to any `workflow/**` file** — checkable on this branch with
-`git diff main..HEAD -- .claude/workflow/next-task.md .claude/workflow/gate-loop.md
+`git diff main..HEAD -- .claude/workflow/next-task.md .claude/workflow/next-task/ .claude/workflow/gate-loop.md
 .claude/workflow/reviewers/` (empty). This is a *dry* run: building/executing a Codex
 runner is an explicit non-goal; where a step would execute, the concrete invocation is
 shown instead, and anything that can only be confirmed by a live run is listed at the end
@@ -21,9 +21,10 @@ explicit-context rule satisfied in the prompt text:
 ```
 codex exec -m <strong-tier row> --sandbox workspace-write --approval never \
   --output-last-message run-T401-summary.md \
-  "Read .claude/workflow/next-task.md and execute it for task T401.
+  "Read .claude/PROJECT.compact.md and .claude/workflow/next-task/00-foundations.md.
+   Execute task T401 by following each card's Next: link without preloading other cards.
    Repo root: <abs path>. Adapter: .claude/adapters/codex-cli.md.
-   Project profile: .claude/PROJECT.md."
+   Escalate to .claude/PROJECT.md only for a fact omitted from the compact packet."
 ```
 
 The model/effort flags come from the adapter's model table row for the task's `[strong]`
