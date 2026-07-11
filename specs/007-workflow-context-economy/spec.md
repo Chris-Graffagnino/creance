@@ -20,7 +20,8 @@ outcomes from the source issue: passive residency ~2k–3k tokens, an ordinary `
 path ~12k–18k, a PR-review path ~7k–10k.
 
 The spec lands the capability in six stories (later amended with a seventh, US7, by issue
-#259 — see **Amendment** below): a repository token counter with documented,
+#259, and an eighth, US8, by issue #273 — see **Amendments** below): a repository token
+counter with documented,
 owner-ratified budgets wired into standing verification (US1 — the measurement substrate
 the other stories' budgets resolve against); a lean resident `AGENTS.md` (US2); a compact,
 drift-checked project packet (US3); demand-loaded stage cards for the per-task procedure
@@ -60,6 +61,24 @@ external `sunflower-of-parchman/codex-hygiene` skill at the owner's request; par
 #166. US7 has no epic-#166 slice — it is a post-hoc amendment, not one of the original six
 slices.
 
+**Amendment (issue #273).** US2.AC2 makes reachable pointers a contract — every rule
+trimmed from `AGENTS.md` must survive behind a *surviving pointer* — but nothing in
+standing verification fails when a pointer's **target path stops existing**: a rename or
+move under `.claude/**` silently strands every reference to it. PR #272 surfaced the class
+concretely — three `AGENTS.md` pointers named bare `workflow/…` paths that do not resolve
+from the repo root (fixed there by hand), and the advisory review found the same shape
+still live in `.claude/PROJECT.md` and `.claude/PROJECT.compact.md`. **US8** adds the
+missing deterministic backstop: a `verify`-wired check that extracts the backtick-quoted
+repo-relative path pointers from the pointer-bearing surfaces and fails when one does not
+exist from the repo root — constitution P3 (a rule enforced today only by a human or the
+model *noticing* a dangling reference becomes a deterministic check) applied to the
+pointer-reachability contract US2.AC2 introduced. Scope is **path existence only**;
+section-anchor resolution (a pointer's `→ "Heading"`) is a named follow-on, not part of US8
+(see Non-goals). Provenance: intake of issue #273 (filed 2026-07-10; the sole unmarked
+owner steering is the issue body — the single thread comment is engine-authored bookkeeping
+listing the known fix targets), relayed from the engineering-craft review pass on PR #272;
+parent context #166 / US2. US8 has no epic-#166 slice — like US7 it is a post-hoc amendment.
+
 ## Non-goals
 
 - **No removal of source-of-truth workflow documentation.** Every rule or procedure
@@ -89,6 +108,13 @@ slices.
   non-decisional baseline that no gate, model tier, or task-selection path reads
   (constitution P5). US7 extends measurement past the authored boundary; it does not
   re-implement or replace US1's authored-surface counter (`token-budget-check.sh`).
+- **Doc-pointer resolution (US8) checks path existence only.** The US8 check's contract is
+  that a backtick-quoted repo-relative *path* named as a pointer exists from the repo root;
+  **section-anchor** resolution (a pointer's `→ "Heading"` naming a heading that must exist
+  in the target) is a deferred follow-on (issue #273), not part of US8. US8 adds a backstop
+  for US2.AC2's reachable-pointer contract; it does not relax or restate US2.AC2 —
+  compaction still relocates, never deletes; US8 only proves the relocation target still
+  exists.
 
 ## User stories
 
@@ -332,3 +358,81 @@ never a new gate.
   check nor a registered P3 justification does not satisfy this criterion. (This criterion
   drafts future work; per constitution P4 the ordering statement itself lands only by the
   owner-reviewed T1207 implementation PR, never as a side effect of any gate run.)
+
+### US8 — Deterministic doc-pointer resolution check (issue #273 amendment)
+As a harness operator, I want a deterministic check that fails standing verification when a
+documentation pointer names a repo-relative path that does not exist from the repo root, so
+that the reachable-pointer contract (US2.AC2) is enforced by CI instead of relying on a
+human or the model noticing a dangling reference after a file moves (constitution P3). The
+class was found on PR #272 — three `AGENTS.md` pointers to bare `workflow/…` paths that do
+not resolve from the repo root, fixed by hand there — and the same shape survives in
+`.claude/PROJECT.md` and `.claude/PROJECT.compact.md`; this story adds the missing backstop.
+Scope is **path existence only** — section-anchor resolution is a deferred follow-on (see
+Non-goals).
+
+**Acceptance Criteria**
+- AC1: A deterministic check scans the pointer-bearing documentation surfaces — **at
+  minimum** `AGENTS.md`, `.claude/PROJECT.md`, and `.claude/PROJECT.compact.md` — extracts
+  the backtick-quoted **repo-relative path pointers** they contain and **fails** when any
+  such path does not exist from the repo root, naming the offending surface, the unresolved
+  path, and its line. A path pointer is recognized by **shape** — a backtick token carrying
+  a `/` separator and a file-type suffix (e.g. `.md`/`.sh`/`.py`) — **minus** AC2's non-path
+  forms; **candidacy must not depend on the token's leading segment already existing**, so a
+  bare `workflow/…md` pointer (one that resolves only under the `.claude/` prefix — the exact
+  #272/#273 class) is extracted as a candidate and then **fails** the existence check rather
+  than being silently skipped. The extraction is **non-vacuous** and
+  **leading-segment-agnostic**, proven by a **positive-extraction assertion**: a test that
+  the unmodified extractor, run over the real scanned surfaces, recovers the **complete**
+  shape-matched pointer set present in them — including the **bare-nested,
+  non-root-resolving segments** a leading-segment-exists filter would silently drop (as of
+  drafting `workflow/`, `hooks/`, and `adapters/` in `.claude/PROJECT.md`), not a hand-picked
+  subset. An extractor that matches nothing, that is narrowed to a synthetic fixture, or that
+  keys candidacy to a fixed **allowlist of leading segments** (silently skipping a same-shape
+  pointer under an unlisted segment), does not satisfy this criterion. The positive-extraction
+  test's expected set is an **independent oracle** — hand-verified against the surface text,
+  not derived by re-running the extractor under test (a self-derived reference would reproduce
+  an omission instead of catching it, mirroring US4.AC4's oracle discipline).
+- AC2: The check does **not** flag backtick-quoted content that is not a concrete repo path
+  — globs containing `*` (`specs/*/tasks.md`, `workflow/**`), brace-expansion notations
+  (`specs/000-template/{spec,tasks}.md` and any `{…,…}` form), placeholder-bearing strings
+  (`<triage inbox dir>/…` and any `<…>`), section-anchor references (`→ "Heading"`), and
+  command/flag tokens (`gh pr create`, `git rev-parse`, `--body-file`). This is proven by a
+  **within-tree control** in which such forms are present and the check **passes**; a check
+  that flags every backtick token containing `/` (making `verify` perpetually red) does not
+  satisfy this. AC2 bounds the over-detection direction and AC1/AC3/AC4 bound
+  under-detection — complementary axes: AC2 asks "is this a path at all", AC3 asks "does the
+  path exist".
+- AC3: The check ships falsification tests in the **same diff** covering both existence
+  directions: a planted fixture containing a **dangling** repo-relative pointer **fails**,
+  naming the offending surface, the unresolved path, and its line — and the planted form
+  **includes the real-world shape found on #273** (a bare `workflow/…md` segment that
+  resolves only with the `.claude/` prefix), so the check is proven against the actual class
+  and not only a synthetic `nonexistent.md`; AND a control in which every referenced path
+  **resolves passes**. To prove the recognizer is **leading-segment-agnostic** (not keyed to
+  a fixed set of segments), the failure direction also includes a **held-out** bare-nested
+  pointer whose leading segment appears in **none** of this spec's named examples or AC4's
+  enumeration — the implementer picks it (a synthetic `<unlisted-segment>/…md` that resolves
+  only under `.claude/`) — which must also be flagged; so neither an implementation keyed to
+  the literal `workflow/` string nor one keyed to a fixed allowlist assembled from this
+  spec's named segments passes. A test exercising only one direction, or only leading
+  segments this spec enumerates, does not satisfy this.
+- AC4: The check must pass on the current tree: **every** shape-matched dangling
+  repo-relative pointer the check flags — **regardless of leading segment** — is fixed in the
+  **same diff**, rewritten to its real `.claude/…` path (with the compact-packet mirror kept
+  in sync so `compact-packet-drift.sh` stays green). Success is the **`verify`-green
+  invariant**, not a fixed edit list. The confirmed danglers are an **illustrative,
+  non-exhaustive lower bound** (≥7 across the scanned surfaces as of drafting, spanning three
+  distinct leading segments): in `.claude/PROJECT.md` — `workflow/telemetry.md`,
+  `workflow/maker-eval.md`, `workflow/reviewers/evasion-register.md`,
+  `hooks/isolated-workspace.sh`, `hooks/isolation-falsification.test.sh`,
+  `adapters/claude-code-probes.md`; and in `.claude/PROJECT.compact.md` — the mirrored
+  `workflow/telemetry.md`. A diff that fixes only an enumerated subset but leaves any other
+  flagged instance red does not satisfy this. This enumeration is deliberately **not
+  load-bearing**: the owner's #273 comment named three by eye, this spec's own round-1 draft
+  named four — the check exists precisely because by-eye enumeration misses instances, so the
+  binding requirement is the leading-segment-agnostic `verify`-green behavior, not any list.
+- AC5: The check is wired into standing verification (`verify`) with the wiring asserted — a
+  check that exists but never runs is the silently-dead-guard class (constitution P2); a
+  hand-run script with no CI wiring does not satisfy this. Its failure diagnostics name the
+  source surface and the specific unresolved path needing repair (US6.AC3's
+  workflow-usable-through-failure posture, asserted by AC3's failure-direction test).

@@ -134,6 +134,7 @@
 | T1205 | strong | [x] | US1.AC5 US5.AC1-AC3 |  | Generated task index |
 | T1206 | strong | [x] | US1.AC5 US6.AC1-AC3 |  | Account for the governance-rule candidate set without duplicating… |
 | T1207 | strong | [x] | US1.AC5 US7.AC1-AC4 |  | Budget the runtime-attached context surface (spec-007 amendment, #259)… |
+| T1208 | strong | [ ] | US1.AC5 US8.AC1-AC5 |  | Deterministic doc-pointer resolution check (spec-007 amendment, #273)… |
 
 ## specs/008-fast-lane-workflow/spec.md
 
