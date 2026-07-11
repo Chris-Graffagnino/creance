@@ -62,7 +62,7 @@
 | T634 | cheap | [x] | US9.AC1-AC4 |  | Effective-fix-rate trend: define the read-only flip/re-dispatch… |
 | T635 | strong | [ ] | US10.AC1-AC5 |  | Retry experience retention: workflow retry sub-doc (pointer from… |
 | T636 | strong | [ ] |  |  | Define an adapter-neutral **write-intent / safe-output [role] family** |
-| T637 | strong | [ ] |  |  | Add a **deterministic generated harness manifest** |
+| T637 | strong | [x] |  |  | Add a **deterministic generated harness manifest** |
 | T638 | strong | [ ] |  |  | Add a **read-only, observe-only harness status map** command/workflow… |
 | T639 | strong | [x] |  |  | Make the §7 `[orchestrated run]` audit an **explicit, verified ref for… |
 | T643 | strong | [ ] |  |  | Append one **binding-contract table row** each for the three untabled… |
