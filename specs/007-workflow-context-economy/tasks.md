@@ -79,6 +79,44 @@
       justification per US6.AC1's posture, registered in `governance-rules.md`, never
       silently dropped; measurement + baseline only, never a new gate; blocked by T1201 (US7)
 
+## Phase 5 — Doc-pointer resolution (issue #273)
+
+- [ ] T1208 [strong] Deterministic doc-pointer resolution check (spec-007 amendment, #273):
+      a `verify`-wired check that scans the pointer-bearing surfaces (at minimum `AGENTS.md`,
+      `.claude/PROJECT.md`, `.claude/PROJECT.compact.md`), extracts the backtick-quoted
+      repo-relative path pointers by shape (a `/` separator + a file-type suffix, minus AC2's
+      non-path forms AND minus non-lexically-repo-relative tokens — absolute `/…`, `..`
+      traversal, and `scheme://` URIs are out of contract, never resolved/flagged, keeping the
+      check deterministic across machines) — candidacy NOT gated on the leading segment already
+      existing AND leading-segment-agnostic (no fixed segment allowlist), so a bare
+      `workflow/…md`/`hooks/…`/`adapters/…` pointer (resolves only under `.claude/`) is a
+      candidate and then fails — and fails when one does not exist from the repo root, naming
+      surface + path + line; non-vacuity proven by a positive-extraction assertion (the
+      unmodified extractor recovers the COMPLETE real in-surface set present via a hand-verified
+      independent oracle, not a subset) while leading-segment-agnosticism is proven off the
+      mutable tree by AC3's held-out planted case (AC4 rewrites the real danglers in-diff, so
+      the bare-nested coverage cannot live on the real surfaces) (AC1); no false positives
+      on globs (`*`/`**`), brace-expansions (`{…,…}`, e.g. `specs/000-template/{spec,tasks}.md`),
+      `<…>` placeholders, `→ "Heading"` anchors, command/flag tokens, or non-repo-relative
+      tokens (absolute `/…`, `..` traversal, `scheme://` URIs) — a within-tree control
+      carrying such forms passes (AC2); two-sided falsification tests in-diff — a planted
+      dangling pointer fails naming surface/path/line, the planted form including the real
+      `workflow/…md` shape (not only a synthetic `nonexistent.md`), plus a held-out bare-nested
+      pointer under a leading segment named nowhere in the spec, also flagged, so neither a
+      `workflow/`-only hard-code nor a fixed allowlist passes / an all-resolve control passes,
+      plus a containment control (absolute `/…`, `..` traversal, `scheme://` URI) the check
+      neither resolves nor flags (AC3); check green on the current tree — fix every flagged dangling pointer regardless of
+      leading segment (illustrative non-exhaustive lower bound, ≥7 as of drafting:
+      `.claude/PROJECT.md` `workflow/telemetry.md`+`workflow/maker-eval.md`+
+      `workflow/reviewers/evasion-register.md`+`hooks/isolated-workspace.sh`+
+      `hooks/isolation-falsification.test.sh`+`adapters/claude-code-probes.md`,
+      `.claude/PROJECT.compact.md` mirror) → real `.claude/…` path, mirror kept in sync so
+      `compact-packet-drift.sh` stays green; enumeration NOT load-bearing — the `verify`-green
+      behavior is (AC4); wired into `verify` with the wiring asserted, diagnostics name the
+      repair target (AC5); path existence only — section
+      anchors deferred; carries US1.AC5 before/after token counts for the compact packet it
+      edits; blocked by T1201, T1203 (US8)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -87,7 +125,7 @@
 | US1.AC2 | T1201 |
 | US1.AC3 | T1201 |
 | US1.AC4 | T1201 |
-| US1.AC5 | T1201–T1207 (every task, graded on its own PR body) |
+| US1.AC5 | T1201–T1208 (every task, graded on its own PR body) |
 | US2.AC1 | T1202 |
 | US2.AC2 | T1202 |
 | US2.AC3 | T1202 |
@@ -108,6 +146,11 @@
 | US7.AC2 | T1207 |
 | US7.AC3 | T1207 |
 | US7.AC4 | T1207 |
+| US8.AC1 | T1208 |
+| US8.AC2 | T1208 |
+| US8.AC3 | T1208 |
+| US8.AC4 | T1208 |
+| US8.AC5 | T1208 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
