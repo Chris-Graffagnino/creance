@@ -61,6 +61,15 @@ for f in "${SURFACES[@]}"; do
     continue
   fi
   # Each backtick-quoted token with its line number; a line may carry several.
+  # grep exit 1 (no backtick spans) is a benign empty extraction; exit >1 is a
+  # read error and must FAIL loud — never a vacuous pass (constitution P2).
+  spans="$(grep -n -o '`[^`]*`' "$f")"
+  gstat=$?
+  if [ "$gstat" -gt 1 ]; then
+    echo "FAIL: surface '$f' unreadable (grep exit $gstat) (repair: fix the surface's permissions/storage or the scanned-surface list)" >&2
+    failures=$((failures + 1))
+    continue
+  fi
   while IFS= read -r rec; do
     line="${rec%%:*}"
     tok="${rec#*:}"
@@ -89,7 +98,7 @@ for f in "${SURFACES[@]}"; do
       echo "FAIL: dangling pointer: $f:$line: \`$tok\` does not exist from the repo root (repair: point it at the file's real path — the target may live under .claude/ or have moved — or restore the missing file)" >&2
       failures=$((failures + 1))
     fi
-  done < <(grep -n -o '`[^`]*`' "$f" || true)
+  done <<< "$spans"
 done
 
 if [ "$failures" -gt 0 ]; then

@@ -247,6 +247,32 @@ else
   bad "H missing surface must FAIL naming it (got $GOT): $OUT"
 fi
 
+# --- J: a surface READ ERROR (grep exit >1) FAILs loud naming the surface —
+#     never a vacuous pass (P2), and distinguished from grep exit 1 (a surface
+#     with no backtick spans stays a pass). The read error is injected
+#     deterministically via a PATH-shimmed grep that exits 2, so the case does
+#     not depend on permission semantics (chmod 000 is a no-op under root). ----
+J="$(mkbox j)"
+printf 'See `.claude/workflow/next-task.md`.\n' > "$J/doc.md"
+SHIM="$TMP/failgrep-bin"
+mkdir -p "$SHIM"
+printf '#!/bin/sh\nexit 2\n' > "$SHIM/grep"
+chmod +x "$SHIM/grep"
+GOT=0
+OUT="$( (cd "$J" && PATH="$SHIM:$PATH" bash "$CHECK" doc.md) 2>&1 )" || GOT=$?
+if [ "$GOT" -eq 1 ] && printf '%s' "$OUT" | grep -q "surface 'doc.md' unreadable (grep exit 2)"; then
+  ok
+else
+  bad "J read-error surface must FAIL naming it, never pass vacuously (got $GOT): $OUT"
+fi
+printf 'no backtick spans at all\n' > "$J/plain.md"
+run_check "$J" plain.md
+if [ "$GOT" -eq 0 ] && printf '%s' "$OUT" | grep -q 'doc-pointer check: OK (0 path pointer(s)'; then
+  ok
+else
+  bad "J no-span surface (grep exit 1) must still pass (got $GOT): $OUT"
+fi
+
 # --- I: CI wiring (US8.AC5 — wired into standing verification, wiring asserted;
 #     the compact-packet-drift.test.sh idiom, verify-job scope). ----------------
 CI="$REPO_ROOT/.github/workflows/ci.yml"
