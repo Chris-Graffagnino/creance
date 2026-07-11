@@ -643,10 +643,13 @@
 > whether the permission config pre-approves the recurring protected paths for
 > autonomous/headless runs, or the friction is a deliberate, recorded choice (#226).
 > The intake sweep corrected the issue's cold-start premise against the real tree:
-> `settings.json` already blanket-allows the `Edit`/`Write` tools, so the session-time
-> protected-path wall is the `[guard]`, not a prompt; the confirmed friction is the
-> Bash allowlist (git/gh + one guard-test entry only) and the degraded-review
-> reference-file readability in headless/worktree contexts. Rubric is the done-when
+> `settings.json` already blanket-allows the `Edit`/`Write` tools — but not
+> `MultiEdit`/`NotebookEdit`, which the hook wiring treats as the same edit-tool class —
+> so for `Edit`/`Write` the session-time protected-path wall is the `[guard]`, not a
+> prompt, while an unattended run using the other two edit tools can still stall on a
+> prompt before the `[guard]` fires; the confirmed friction is those un-pre-approved
+> edit tools, the Bash allowlist (git/gh + one guard-test entry only), and the
+> degraded-review reference-file readability in headless/worktree contexts. Rubric is the done-when
 > criteria carried on the issue's intake cross-link comment (the acceptance reviewer
 > grades against those exactly as a `US#`); no new `US#`. Either outcome (adopt or
 > reject) closes it; both halves — write pre-approval and the read-only degraded-review
@@ -655,9 +658,10 @@
 - [ ] T644 [strong] **Decide protected-path pre-approval for autonomous/headless runs**:
       adopt a scoped `permissions.allow` change or reject-with-recorded-rationale, grounded
       in the **actual** permission state (`settings.json` already blanket-allows `Edit`/`Write`
-      — the session-time protected-path wall is `guard.sh`, not a prompt; the Bash allowlist
-      covers git/gh + only `bash .claude/hooks/guard.test.sh`), not the issue's cold-start
-      premise. Whichever outcome: the write-pre-approval scope is justified against P4 (a
+      but not `MultiEdit`/`NotebookEdit` — edit tools per the hook wiring — so those two can
+      still prompt-stall an unattended run; for `Edit`/`Write` the session-time protected-path
+      wall is `guard.sh`, not a prompt; the Bash allowlist covers git/gh + only
+      `bash .claude/hooks/guard.test.sh`), not the issue's cold-start premise. Whichever outcome: the write-pre-approval scope is justified against P4 (a
       pre-approved edit still lands only via the §7-gated PR — no silent self-modification)
       and bounds what stays gated; any guard behavior change ships its `guard.test.sh` case
       (P2); and the **read-only degraded-review half** (craft/security reference files
