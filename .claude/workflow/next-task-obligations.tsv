@@ -1,0 +1,108 @@
+# Frozen T1204 oracle captured from the pre-split next-task.md on 2026-07-10.
+# Post-migration, these rows are a deliberate change ratchet, never a generated mirror.
+# Intentional obligation edits update the corresponding row manually in the same human-reviewed PR and justify the contract change; incidental rewrites do not re-freeze the baseline.
+# sha256(normalized logical block) <TAB> expected count <TAB> diagnostic label
+106a582adbddf8550e21b380fd52dc272bd977807e5caefea311a75869c4cee7	1	# next-task — uniform per-task procedure (runtime-neutral)
+58890289804972278dd56a9698b6042f132392974c732044fe380699af56b03a	1	One task → one issue → one branch → one PR. This procedure makes every task start identically so autonomous runs are con
+f6462702443c4bfae1c85dcdebf9711c202854b47b2d82876a3face250802598	1	> Runtime-neutral: roles in **[brackets]** (e.g. **[reviewer]**, **[code-review pass]**, > **[strong tier]**) are define
+7b29fc9d3588553ca810d1219bfba69348e2a39e842ee4497f149084160da2c7	1	**Project specifics come from the profile (`.claude/PROJECT.md`, the source of truth)** — paths, task-ID format, blocked
+895388975fb41f304d7d92be0a0be6ddad9aeb5c616f124dbc9f3457026bacff	1	## Context discipline (one task → one clean window) A task must fit in a single context without compaction. The conversa
+15d04f0e53ce52393b14c617186485f610837a463adca05cc8658a55fe435868	1	- **Start fresh.** Run each task in its own session/process via a **[headless run]**; don't continue a long prior chat.
+ab562f8dfd83b9ba88d458a6a3554c8ecb2b92a1997fb93c7cdf199ddb03f485	1	- **Offload bulk reading** with a **[bulk-read offload]** so file contents stay out of the main window; the **[reviewer]
+e4a14f6259ed9e1e5cdc2f4dc8c94e3353bec846efad27e1f91ffccf2e1af6e1	1	- **Read narrowly.** Prefer targeted search + ranged reads over whole-file dumps; never re-read a file you just edited.
+27fae57d416380ae5297256aa35d94c4e4828d82cc4521dda6d15e779d9d3f8e	1	- **Log-and-summarize verbose output** (tests, CI, API/JSON): capture to a temp log, print only failures + the summary.
+c29dff7a90ccfa7775ed2dc00582392e3160cef8d39a4633ea8891e273979c99	1	- **Keep the diff surgical** — small diffs mean small reviewer/review inputs.
+92cc1b21a6f388a272bc09651324213ee7cfeafb8ddba107b2eafebd3ba7ab8a	1	- **Checkpoint to disk continuously:** commit, open/update the PR, and record progress in the issue so state never lives
+c8262c9cddeb6a4a81365431173005be6fce54477e04f0e26251d9d11a4e071f	1	## Resuming an interrupted or compacted task Reconstruct from disk — do NOT trust conversation memory:
+ccf60415c0ea4cd0b68bac8dddbaa6632aa45ff44a8a7b61d566017491189e6e	1	1. `git branch --show-current` + `git status` + `git log --oneline main..HEAD` — what's committed on this branch.
+526bae3338773c05c333521d4c070a4fbb50a40f983bad9216e3961cd5d9af4d	1	2. The open PR + its issue for the current branch, **including their comment threads** (§2.5): the newest unmarked owner
+0f71f8868934ed8e9991b8a339fe080f9afa5ea5ac90024ad39cf2a007c0647d	1	3. The task's spec/contracts + its tasks-file entry + the constitution (paths in the profile). Then continue from the ne
+c46cfe6a48380cc83cb3743fee242f3b30f9c8c301522b35d63532d1f7c88098	1	## Model & usage economy Usage may be a shared pool (interactive + scheduled + reviewers). Tiers form the ordinal ladder
+cd797be14f6e0fb8c5dae8008ae9a4ac172559e3c67c375d7d004a81b7a91e7f	1	**Per-stage tier map** (deterministic — no judgment call at dispatch time):
+feea4c2961f57d6b2c1fa19ce549ac551c429d4baccddee65f51c6193e8d3dfe	1	| Stage | Tier | |-------|------| | Planning + implementation (the session itself) | the task's tier tag; untagged → jud
+346d45ac18c56a2f8fa15331c9b52bb66eedaf55e2e8c027f3907530ddf5bc62	1	- **Tier tags are authoritative.** If the task's line in the tasks file carries a tier tag (format per the profile), use
+9ce665825cf0bd4d1074bfed38c5963e3f766fe69f5d39148bda37a4b19052ef	1	- **[cheap tier]** for mechanical/low-risk work — config, scaffolding, stubs, docs, the bulk-read passes, and the contra
+0d28a110981d241215aaace72b416cd4938c862f42af04837fec9a6aed112b07	1	- **[strong tier]** for constitution-critical, architecturally foundational, or ambiguous tasks. The constitution **[rev
+ff1caff80bf49c916bf86da7b65125c62e3d3f7301d1368cd82b9fdd6710091a	1	- **[frontier tier]** only for genuinely long-horizon work — multi-hour autonomous scope, plan-and-port-scale changes. R
+b36967fa2dbf7a0aec6a09e8b0d54050a74d31526a538fbc1a1e37c28beedaa9	1	- When unsure, start cheap — CI + the reviewers backstop quality, and you can escalate.
+2c43c64748dbf9ae3130c24da1942ba7be658ce002675e012788d4d9ac04a5e5	1	## 0. Preconditions (stop if any fail)
+4dd87c00776a225e4d821b64b618c991a2a4eddcdd9c0b690e58b037c34ab8a7	1	- You're in the canonical repo working tree — `git rev-parse --show-toplevel` succeeds and is the project you intend to
+5ff5189073ad491821e5e4740c4ca0d468a0c371fc0e41002a85a29349ed5b1f	1	- `git status` is clean and you are on an up-to-date base branch. If not, resolve first.
+d8d4cf302c2b5bf29c565ceeb3516527ec7c0cdd70c1f9d8102473c4d923dcc6	1	- The issue-tracker interface named by the active adapter's **[environment block]** is authenticated using that block's
+4bbc00600d531a2a22d03e0cfc86ff61caed8733d1387a0335b39cdc1025a9fa	1	- **Usage headroom:** if you're deep into a usage window, do ONE task and stop. An interrupted task is recoverable (comm
+c2600db01d130f5a580d71334d18367e832cc0d7dbd23bc45f1bbc4062e7bf6e	1	## 0.5 Run mode — review (default) or isolated autonomous Decide the run's mode once, at the start, from the **[autonomy
+a43183843433f21b6197d3150fe5935b53597cb0fadcdde9ac30741352f59cf8	1	- **Review mode (default).** Run exactly as written below: edit in the main working tree on the task branch (§4), open t
+cccd28bfc526d97ad9ebc68ed8606bcf0fb98d8af9efcf866ef032ff8117e2af	1	- **Isolated autonomous mode** — engaged only by an explicit in-session authorization or the profile opt-in. The task ru
+24dea6768798dfb591791e304d8789bb25646f174d64f098e55968247318a74c	1	The §7 gate now reads the workspace diff and the promote/discard path is wired (the gate-in-place step). On a gate **PAS
+6549701db063b1754b61301a39e31c2b66b593c36f55b5112c2b22c36e7a6c9a	1	## 1. Select the task
+0879188427b91e5a7b720757cd9f0c245a7d2b25a54f57e3e45ce98c36956187	1	- If the user named a task ID, use it. Otherwise read the profile's **task index** — a generated digest of each task's s
+db60e9b034301e677ae45fae44d3482984d2d703e8b8aef50b865ba06370e3de	1	- **Skip blocked tasks and say why.** Treat every task in the profile's **"Blocked / owner-only tasks"** list as non-sta
+d504352a9443c5dd61d2ece6d72a6f1da0c51fe54eff90413d4a4be575ea8c10	1	- **Reconcile the candidate against live state before committing to it ([live-state reconciliation]).** A tasks-file che
+19edcb733fbacd79c529ae796368db756a0485b3ecf3faac473bb17d84d8bcb7	1	- **Announce the resolved target, and confirm an implicit pick that live state contradicts ([selection announce-and-conf
+6279d61b4176cf2fc3dc77cd5b93136f575dda11b1847e42f92b3901708e14cf	1	- Confirm the selected task ID, its `path`, and its `US#` before editing anything.
+36c0b5ce5bab8390dd9135f3097f0711738a2ebde3f30c57b8a1250a9c1e0041	1	## 2. Read the context (always, every task) Read in this order (paths from the profile), then state assumptions/ambiguit
+3776684663098ff9883dbb266584a4f4683f55c3670e972ad4c656096b7f560d	1	1. The task line in the **tasks file** and its mapped `US#` in the **spec** (acceptance criteria).
+e2a4f842322fd332c7263339a8283713baf7c56e6005438c031412faa4ad12f6	1	2. Any relevant contract under the profile's **contracts dir** for the area touched.
+fff1bd032b4e99e5d689494c5f96e0901d56782d0afaf6dfeafcd74ecc13499f	1	3. The **constitution** — it is law.
+4df62c9c56ee1ed5ef323d2ccd2f1ccb72b84d6032b7973b1247bf7d0b8b2e5e	1	4. Nearby existing code and tests in the task's `path`.
+99eb19a0f66cba4f504f850feb746e1fbe5695f25efee55fee46d9f867a4e0fd	1	5. The task's **issue/PR comment thread** — owner steering may be waiting there (§2.5).
+adc6c8280150aa630a128f3baac0cc2e7c08aff47c9260bdfa0bdf8762a49c40	1	## 2.5 The owner-comment channel (steering, provenance, bounds) For an owner-absent run, the issue/PR comment thread is
+88edb0567d06324c668364e75e06da95776e9c61e90ecde49f29f663ea9b67fc	1	- **Provenance, not author identity.** The engine may post under the owner's own login (a solo headless build shares one
+abe4af04d1cd182291b82ae7746d44fdfe20bb3a61de34d661d3621ef4b96159	1	- **Steering rule.** The newest **unmarked** comment from the owner login is authoritative steering for scope and direct
+bb754d1d1dfd652928e62e1c1eb9ba1443bd5633ee56b8bf494845a23e28ed65	1	- **Authority bounds (one-way valve).** Comment steering may redirect, narrow, halt, or answer a previously-surfaced dec
+4d0c8ef6d51328fe1b11aed8d0c375a6fe8908bb97b1ead0eeeced648ed2d4fc	1	- **Don't re-ask.** Before surfacing any `Decision needed:` item, check the thread for an existing owner answer. An answ
+ec4062c5301be6897761ce5868d9eb0cd16efe9643c818ef6963cc7a899bf322	1	- **Ambiguity is surfaced — on the surface that exists.** Unmarked owner-login comments are steering **by default**; a c
+d87ffdfd97b90f5ab7fcb7d15009f0614d9ca2fd91e8fec39713302f649779d0	1	## 3. Find the issue (before the first file edit)
+3a8f18b4944e254d561dfb1602949e9bd21e45735323def2c3d8890f0755287d	1	- **Target the right repo.** The profile's Identity section states the repo model; for a fork, issues/PRs live on your `
+41d65839b618ef1bddb08b517cf1ff48e5960034f5107b3606cf572c6f0c33ea	1	- **An issue is pre-created for every task.** Locate it (search the issue tracker for the task ID in the title). **Use t
+3c92a2b09565901ca555e351a01cd1e1a188105139b99307fe127b9e34664d9c	1	- Only if none exists, create one titled `<type>: [<task-id>] <description>` with a body covering description, acceptanc
+bc2c396c228d82dad30c19e030ff81de005b73b6a6232ff1fefa374d6eaadfdd	1	## 4. Branch
+0b238ddf280872731e71a7f44fca1724370e8fe834fcd6283771875178eea749	1	- From an up-to-date base branch: `git switch -c <type>/<task-id>-<short-description>`.
+9515ca8e370eac22990fad38c2d83294f9266a9f74afc8967797e2e0d08e8414	1	- Never commit to the base branch. Never `git add .` — stage specific files only. (The **[guard]** enforces both determi
+3804be0177085039ed73a70cdc140df1171ac548feeabc5d52df43b9e10037c9	1	- **Isolated autonomous mode (§0.5):** instead of switching the main tree, **enter** the **[isolated workspace]** for th
+f4c308cff28ad27d74a276316b3dbd60b3ba56fd6d1274816042901e80ae994a	1	## 4.5 Plan artifact ([strong tier] and above — a checkpoint, not a gate) Before the first file edit on a **[strong tier
+a02cb2d866ebe6f6e4ffc0253ef3c87bd5610e15e605543aee1766642a083ade	1	- **Approach** — a few sentences on the intended shape of the change.
+5bab945186652bca43fa3218fbbc2f3d9eca97cb071885de72c84f98eab35481	1	- **Files to touch** — the expected list.
+5d577f6505b251ce60930c5175d30add4d80db12fd59838720ce648eeaa2692e	1	- **Test plan** — which tests will encode which acceptance criteria. Then **proceed immediately. This is a checkpoint ar
+f54f61c5b7f1613ccc71a57c929b2d7e08b1b9700537cff425e2e4706a48c7f6	1	## 5. Implement (minimum scoped change)
+a144a5cbaf113e38bcd9b3d34e56919066d1fc37fde3044228213a26c6d804d5	1	- Before the first edit, define success criteria and the smallest safe verification path. Keep changes surgical; every l
+a95839bbca1ff2ad1dbec1c1080cf8c35d7cf9de7eac69318a8e5c85dafe60a7	1	- Respect the profile's **"Architecture boundaries"**: route each capability only through its named interface (never a v
+4b26affc99ade1dd5750a0c13541b03477b849152a9a5c8b1436ada33a57789c	1	- For behavior changes, add/update meaningful tests incl. negative/edge cases.
+67f86f6be7a67453162b23b3b7c573285b7b56f110cb1a639aca6d710a3b8e9e	1	- **Falsify every new/changed test:** it counts only if shown to **fail on incorrect output** (mutate or withhold the be
+fdb9e3f46c7aaf6de298f217a287aafaacb421328b426fe91ce8909ac83f6752	1	- **Blocked by an external dependency? Mock it behind the seam — never abort.** When progress is blocked by something ou
+2efd864fb6c9523f16c1551e85fa5c7535651c21c14bef0df9b1519c10e9b779	1	## 5.5 Discovered work (file it, don't fix it) Implementing one task often uncovers others — a bug, a missing test, a st
+fb0d872ff31f54482fe3014a5a559947aeed729251e8e565655607dad8445786	1	- **Blocks this task?** If it prevents meeting the task's acceptance criteria, it is part of the task: record it on the
+195b5100f4c1bd7db517f6e1c49fc1181e32d181700aa18dadbea0eb9e0f0d36	1	- **Concrete, actionable, out of scope?** Search the tracker for an existing issue first (no duplicates), and if none ex
+70e791a983ba817be3335d4d881bf6f38bdc374a3ef5a7accb6434ece188ae7a	1	- **Vague hunch or trivial nit?** Note it in the PR body under "Out of scope, observed"; don't spam the tracker.
+aadfbc508641dc4e8a489b8c900ada716bd54d1661ccff779450fddef3eb30ff	1	- **Constitution or security finding already on the base branch?** Never optional: file it AND flag it prominently in th
+6cf5c9c2498eeeb48d6c14a1816cb847380dd4d415664c873e713a54666e0b2c	1	## 6. Verify (narrow → broad)
+ac1d127b49a34eb45be32960d7c7034f9df84d12990cec2afe9408d7b7289064	1	- Run the changed file's tests first, then the type-checker and linter.
+a092921e49889ba062102b9b0ec6ab65335082ba205b0ae3516868be99b8deeb	1	- Run the full suite only once the diff is stable; log-and-summarize its output.
+219564096a22fffecdf0af7a6cd1ffaa1ffe3473a15c639612cde848b8da235a	1	## 6.5 Definition of done Engineering quality must be machine-verifiable, not taken on trust (see the profile's **review
+98e79a5249b1c259c9aba4dc556b23162f63ef65dbabf807201fdda7fe2b638b	1	- **CI is green** — the profile's **required check**. A red check blocks merge via the profile's **merge-gate ruleset**.
+e5cbd467711d6cd56d16f89caaf29f4753b14695897effc926e8930178f658d5	1	- **Behavioral changes ship tests** encoding the acceptance criteria AND every touched item from the profile's **invaria
+b071777f93e2d9b43b92f33fea77bf74dbdb8d64b3973de068772aeb6a40c1bc	1	- **Constitution-critical files carry a scoped coverage threshold** per the profile's **coverage policy**, so coverage c
+7d02ce1920cf6db6a521f8f6fa5a4a784630d2771418b752379b474b21260788	1	- **UI-touching tasks carry [visual verification] evidence.** Any task touching user-visible UI must attach machine-gene
+eaab6b3ba1605de7e1969ba1a834380f1adf88bf7db1ac4fa79ad87a1039c8c4	1	- **The PR body separates "verified automatically" (engineering) from "your call" (product/values)** so a non-developer
+0b7db661df9d4fe7e75f8ae5975c7d7276fe0ed962ac26b4ef2bf4ea4ebf3e29	1	## 7. Pre-PR gate (required) — maker is not the checker; loop until PASS You wrote this code, so you are the worst judge
+f35aa59a9e5e6456282fb09283ffaca1f1cc6f00b845647e84e0636f77706b03	1	**Where the adapter provides an [orchestrated run]**, steps 2, 4 and 5 execute as code per `workflow/gate-loop.md` — com
+ea0d129b1e6f978d4158ada8365c7bfd810d386efcd9ca2bc202b9c950f8a69a	1	**Gate-in-place under an engaged isolated autonomous run (§0.5).** When the run is isolated, the diff the **[reviewer]**
+7c4948f3eada3091110b618b3c1aa1508930e785b096d0582eac948758799123	1	1. Self-review `git diff main..HEAD` — a quick sanity pass to catch the obvious before spending reviewer runs. It carrie
+8878a6ad7971d5484c18c25537b39f56304d9c539e060f471e9a8a5073c682d4	1	2. Dispatch **separate [reviewer]s** (their own context, adversarial posture, no edit tools), in parallel; they cannot e
+b1690980f789972d12d84828aa02a3c5dcfddf520ad53f77245a35548963ab76	1	3. Run the **profile's review-pass set** — the skill-backed advisory passes declared in the profile (its "Review passes"
+8013895ef57f6ba77ede0746bef9994a9b9a443cde16eeb737d1c06686300a35	1	4. Any reviewer **FAIL** is blocking: fix it and **re-dispatch that reviewer** until it passes. Do not mark the gate pas
+eec81af1e3798c0b1445f50d91f3d704482b7011baf6f9521ff2554d853c5c5a	1	5. **Keep the verdicts.** Save each dispatched reviewer's final verdict report — the item-by-item table from its last (P
+6c4d26574421481d58a082e535a34f02f2d5275367aa7a0692e1cd5ca6bf69ab	1	## 8. Open the PR — then STOP **Review mode (default)** runs the bullets below and stops at the PR for a human merge. **
+b0228a94b989aabd75896bef74b85fc6ed686789f6c454e9bfbfab6063f67658	1	- **Gate PASS → promote.** The work is preserved and opened as a PR through the bullets below (the *same* §7-gated path)
+d4711b7d4ddade3e60a5edb03cc126a7ec81de5beb52d28c98cb8ef531545855	1	- **Gate FAIL → discard.** The **[isolated workspace]** is **discarded** — torn down together with its branch — and **no
+d49d8288b75faeb096fc0e46cb236f3b33c97b777ca1567d38d96fcf6aee87b3	1	Promotion is **only ever** the §7 gate's PASS; the isolation mechanism never writes the base branch directly (P4). The n
+f1ef481592e3dd1f8489fc7ced9a830c877cfeb437c66562ef161417abdd2d95	1	- Commit your work on the branch FIRST (the §7 reviewers review `git diff main..HEAD`, empty until you commit). Stage sp
+d7fe764292a5956b90d44f756091b9441ba4e207463fba4b34a04f3d01d7ad8c	1	- Open the PR against the base branch, titled `<type>: [<task-id>] <description>`.
+3f1b2f07dcdc027966fd979dbce4228683417019c9ffcbf3567674be41fbf141	1	- **Lead the body with a risk-ranked digest of what the §7 gate found** — the human reviewer's entry point, placed **fir
+4e74c6e94b5d72b5ec48d6e15b4cb00d13e14531fb787d03cf58fd8fca3ef12f	1	- **Pass the body via a file, never inline.** Inline bodies with embedded quotes/parens are unreliable across environmen
+4ef9742c8dfff512aa957defee36f3060247962c2494d4e63b350045e5260d63	1	- **Refresh the thread before composing "your call"** (§2.5): re-read the issue/PR comment thread; act on any newer unma
+a513cee2e76f7f40b70d72fa438908259abd53892cc249c3dda329a4f307e860	1	- **UI-touching task? The [visual verification] evidence attaches in the body's "your call" section** — screenshots/vide
+deb556a71daa40da0957d898adfef2ce32b6a018001e9986d328cd861e6c9acc	1	- **Attach the gate's evidence.** Post each §7 reviewer's saved verdict report to the PR as a comment — one comment per
+7d6add7d23f59d2219ab1d00fe1c636a590718272142945992e17dc549e67998	1	- **Then update the PR body so the digest's live-verdict links resolve.** A comment URL exists only after the comment is
+e419305aa444b7edfd9b255d491cb2c122dc90869c3e177fd6e4903921e2c960	1	- Capture the create command's output and print it; then verify the PR's state and checks (including the merge-gate stat
+00c56016d5f8c0681368da0343208b83711f34529a2e9abaa29b8cc661bfae34	1	- Report the PR link and review/check status. Before reporting, audit each claim against a tool/command output from this

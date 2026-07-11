@@ -5,9 +5,13 @@ description: Start the next unblocked task in the build with full ceremony (proj
 
 # /next-task — Claude Code binding
 
-The workflow logic is runtime-neutral and lives in **`.claude/workflow/next-task.md`** —
-**read that file now and execute it.** This file only maps its abstract **[roles]** to the
-concrete Claude Code mechanisms:
+The workflow logic is runtime-neutral and demand-loaded from
+**`.claude/workflow/next-task/*.md`**. Start with the compact project packet and
+`next-task/00-foundations.md`; when a stage completes, follow that card's `Next:` link and
+load only its successor. Do **not** preload the ordered `.claude/workflow/next-task.md`
+index, another card, or the old full procedure for ordinary work. Escalate to the index
+only to resume at an unknown stage or audit the full procedure. This file maps the cards'
+abstract **[roles]** to concrete Claude Code mechanisms:
 
 | Neutral role | Claude Code mechanism |
 |---|---|

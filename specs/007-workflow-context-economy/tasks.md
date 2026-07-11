@@ -30,7 +30,7 @@
       two-sided drift check against `.claude/PROJECT.md` (planted drift fails naming the
       field / in-sync control passes) wired into `verify`; entrypoints read the packet by
       default with full-profile escalation explicit; blocked by T1201 (US3)
-- [ ] T1204 [strong] Split the per-task procedure into demand-loaded stage cards within
+- [x] T1204 [strong] Split the per-task procedure into demand-loaded stage cards within
       budget (or documented override); entrypoint loads current card + compact packet
       only; full source stays coherent via generated assembly or index with a
       deterministic completeness/drift check compared against an independently captured

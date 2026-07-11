@@ -260,7 +260,7 @@ fi
 # --- M: index-first selection with the preconditions unchanged (US5.AC3) — the neutral
 #     procedure reads the index first, and all three deterministic preconditions still
 #     run on the candidate; the adapter binding names the concrete index. ----------
-NT_DOC="$REPO_ROOT/.claude/workflow/next-task.md"
+NT_DOC="$REPO_ROOT/.claude/workflow/next-task/02-select-task.md"
 if grep -qi 'task index' "$NT_DOC"; then ok; else bad "M next-task.md §1 must read the task index first (US5.AC3)"; fi
 # the index is framed as a PREFILTER and eligibility (not-blocked / deps-met) is confirmed
 # from the candidate's full context, not read off the index (US5.AC3; the index omits that

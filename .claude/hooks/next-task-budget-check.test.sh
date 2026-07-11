@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Regression tests for next-task-budget-check.sh (issue #93). The check bounds
-# .claude/workflow/next-task.md's line count (the harness's accretion-sink hub
-# doc). Each case runs the REAL check with a throwaway dir as CWD (containing a
+# Regression tests for next-task-budget-check.sh (issue #93, re-scoped by T1204).
+# The check bounds .claude/workflow/next-task.md's index so procedure prose cannot
+# silently be re-inlined. Each case runs the REAL check with a throwaway dir (containing a
 # fixture .claude/workflow/next-task.md of a known size), then asserts the exit
 # code. Constitution-P2 backstop: the budget gate ships with the test that proves
 # it fires AND proves it does not false-fire. Bash + wc only, <1s; wired into the

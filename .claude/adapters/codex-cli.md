@@ -24,7 +24,7 @@ instructions.
 | **[code-review pass]** | `codex review` (CLI subcommand) / `/review` (TUI) — a dedicated reviewer agent over the diff; on GitHub PRs, `@codex review`. AGENTS.md "Review guidelines" sections steer it |
 | **[security-review pass]** | **Degradation** (per `workflow/README.md` → "No [security-review pass] mechanism") — no dedicated security subcommand: run a read-only `codex exec` reviewer with a security-lens brief (privacy/location/payments per the profile), same isolation as a [reviewer] |
 | **[visual verification]** | `codex exec --sandbox workspace-write` runs the project's own render/screenshot tooling; evidence committed under `docs/visual-evidence/<task-id>/` and embedded via commit-SHA-pinned raw URLs (same channel as the active adapter — it is a repo convention, not a runtime one). Codex's `--image`/`-i` flag closes the loop: the model re-reads the artifact it produced before claiming the UI renders |
-| **[orchestrated run]** | **Stub** — a gate-loop driver script (the analog of the active adapter's `workflows/gate-loop.js`) that implements `workflow/gate-loop.md` control flow by spawning the reviewer processes above and reading their `--output-last-message` files. Not built (a non-goal); until it exists this adapter runs `next-task.md` §7's prose loop — the documented degradation |
+| **[orchestrated run]** | **Stub** — a gate-loop driver script (the analog of the active adapter's `workflows/gate-loop.js`) that implements `workflow/gate-loop.md` control flow by spawning the reviewer processes above and reading their `--output-last-message` files. Not built (a non-goal); until it exists this adapter runs the §7 stage card's prose loop — the documented degradation |
 | **[bulk-read offload]** | A child `codex exec --sandbox read-only` on the cheap row, brief in the prompt, summary back via `--output-last-message`. Separate context and read-only **by process construction** |
 | **[headless run]** | `codex exec [-m <model>] [--json] [--output-last-message <file>] "<prompt>"` — non-interactive, fresh session by default (no prior state unless `--last`/`--session <id>` is passed), non-zero exit propagated on failure |
 | **[guard]** | Layered: the OS sandbox + approval policy (coarse, OS-enforced) plus `[[hooks.PreToolUse]]` command hooks in `config.toml` (content-aware — a policy script over shell commands, the port of `hooks/guard.sh`). One known gap with a compensating control — see "The [guard] binding" |
@@ -54,13 +54,16 @@ trigger frontmatter. The binding is therefore **two mechanisms with one rule**:
 
 - **On-demand (user) path:** one custom prompt per workflow under `~/.codex/prompts/`
   (e.g. `next-task.md`), invoked from the TUI slash menu. The prompt file is thin, like a
-  skill binding: it names the neutral doc (`.claude/workflow/next-task.md`), tells the
-  model to read and execute it, and restates this adapter's role table. Custom prompts
+  skill binding: it names `.claude/PROJECT.compact.md` and the first neutral stage card
+  (`.claude/workflow/next-task/00-foundations.md`), tells the model to follow each card's
+  `Next:` link without preloading the index or other cards, and restates this adapter's role table. Custom prompts
   accept arguments via argument-hint directives (exact directive syntax **UNVERIFIED** —
   pin it when wiring).
 - **Scheduler/headless path:** `codex exec` with the procedure reference written out in
-  the prompt text: `codex exec "Read .claude/workflow/next-task.md and execute it for
-  task T123. Repo root: <path>. Adapter: .claude/adapters/codex-cli.md."` Whether a
+  the prompt text: `codex exec "Read .claude/PROJECT.compact.md and
+  .claude/workflow/next-task/00-foundations.md; execute task T123 by following each
+  card's Next: link without preloading the index or other cards. Repo root: <path>.
+  Adapter: .claude/adapters/codex-cli.md."` Whether a
   *named* custom prompt can be invoked non-interactively is **UNVERIFIED**, so the
   conforming path does not depend on it — the name→procedure resolution rides in the
   invocation text.
@@ -146,7 +149,7 @@ concrete action + where the observation appears.
 
 | Probe | Concrete action | Expected observation |
 |---|---|---|
-| P-WF | Invoke the `next-task` custom prompt from the TUI with a marker arg; separately `codex exec "Read .claude/workflow/next-task.md … marker: X"` | Both runs execute the same procedure; marker X appears in run artifacts |
+| P-WF | Invoke the `next-task` custom prompt from the TUI with a marker arg; separately `codex exec "Read .claude/PROJECT.compact.md and .claude/workflow/next-task/00-foundations.md; follow each Next: link … marker: X"` | Both runs execute the same demand-loaded procedure; marker X appears in run artifacts |
 | P-RV | Fixture branch with a planted invariant violation + "please fix this file" lure; dispatch the reviewer command above; hash tree before/after | Verdict file says FAIL with file:line; tree hash unchanged (kernel-blocked, not declined) |
 | P-TIER | One `codex exec` per tier with `-m`/`-c model_reasoning_effort` from the table; prompt asks the run to echo its model+effort; then point one row at a fake model and re-run | Echo matches the row at-or-above; fake row rounds **up**, never silently falls back |
 | P-CR | `codex review` on a fixture branch with a planted off-by-one | The plant appears in findings |

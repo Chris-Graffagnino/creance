@@ -130,7 +130,7 @@
 | T1201 | strong | [x] | US1.AC1-AC5 |  | Repository token-budget check |
 | T1202 | strong | [x] | US1.AC5 US2.AC1-AC3 |  | Shrink resident `AGENTS.md` to per-turn rules + pointers within its… |
 | T1203 | strong | [x] | US1.AC5 US3.AC1-AC3 |  | Compact project packet |
-| T1204 | strong | [ ] | US1.AC5 US4.AC1-AC4 |  | Split the per-task procedure into demand-loaded stage cards within… |
+| T1204 | strong | [x] | US1.AC5 US4.AC1-AC4 |  | Split the per-task procedure into demand-loaded stage cards within… |
 | T1205 | strong | [x] | US1.AC5 US5.AC1-AC3 |  | Generated task index |
 | T1206 | strong | [x] | US1.AC5 US6.AC1-AC3 |  | Account for the governance-rule candidate set without duplicating… |
 | T1207 | strong | [x] | US1.AC5 US7.AC1-AC4 |  | Budget the runtime-attached context surface (spec-007 amendment, #259)… |

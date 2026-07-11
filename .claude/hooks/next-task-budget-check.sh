@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-# next-task.md budget backstop (issue #93; analysis follow-up to #91).
+# next-task.md index budget backstop (issue #93; re-scoped by T1204).
 #
-# .claude/workflow/next-task.md is the largest methodology doc and the hub every
-# task touches (the per-/next-task context load): new rules gravitate to it, so it
-# is the harness's accretion sink. Unlike AGENTS.md (resident every turn, guarded
-# by agents-residency-check.sh), next-task.md loads on-demand — but it still sets
-# the per-workflow context floor, and that floor rises monotonically if nothing
-# watches it. This is the deterministic budget: a line ceiling whose crossing
-# forces a conscious "split a section into a sub-doc, or consciously raise the
-# bound in a reviewed PR" decision, instead of silent growth.
+# T1204 turned .claude/workflow/next-task.md from the monolithic procedure into
+# the ordered index for demand-loaded cards. This legacy line gate now prevents
+# procedure prose from silently being re-inlined into the index; the active token
+# budget in context-budgets.md independently caps every card.
 #
 # It is a HARD gate with generous headroom, not an exit-0 warning: an always-green
 # warning is the silently-dead-machinery anti-pattern this codebase rejects (P2;
@@ -21,11 +17,9 @@
 # it from the repo root). Run: bash .claude/hooks/next-task-budget-check.sh
 set -u
 
-# The budget. next-task.md is the on-demand hub doc, not a manual: keep sections
-# tight and split or pointer-out procedures as it grows (DESIGN-NOTES §11, the L2
-# tier). 400 lines when this check landed (#93); 500 leaves ~25% headroom (~9K
-# tokens) before it trips. Tune here only.
-CEILING=500
+# The index needs only ordering, links, and the completeness-check pointer. A
+# 100-line ceiling leaves ample navigation headroom while making re-inlining fail.
+CEILING=100
 FILE=".claude/workflow/next-task.md"
 
 if [ ! -f "$FILE" ]; then
@@ -37,8 +31,8 @@ lines=$(wc -l < "$FILE" | tr -d '[:space:]')
 if [ "$lines" -gt "$CEILING" ]; then
   {
     echo "FAIL: $FILE is $lines lines, over the $CEILING-line budget."
-    echo "      next-task.md is the per-/next-task hub doc (DESIGN-NOTES §11): split a"
-    echo "      section into a sub-doc behind a pointer, or raise CEILING in a reviewed PR."
+    echo "      next-task.md is the demand-loaded card index: move procedure prose into a"
+    echo "      stage card, or raise CEILING in a reviewed PR."
   } >&2
   exit 1
 fi

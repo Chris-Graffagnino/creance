@@ -9,7 +9,7 @@ and how to write a new one are documented in `.claude/README.md`.
 ```
 .claude/
   workflow/                 ← THIS layer: runtime-neutral methodology (portable)
-    next-task.md  triage.md  constitution-check.md  auditor-liveness.md  maker-eval.md
+    next-task.md  next-task/*.md  triage.md  constitution-check.md  auditor-liveness.md  maker-eval.md
     reviewers/constitution-auditor.md  reviewers/contract-auditor.md  reviewers/spec-auditor.md  reviewers/evasion-register.md  reviewers/auditor-liveness-corpus.md  reviewers/maker-eval-corpus.md
   PROJECT.md                ← project facts (also runtime-neutral)
   <adapter files>           ← the active runtime's binding (see .claude/README.md)
@@ -226,7 +226,8 @@ If a runtime lacks a role, the methodology still runs, more weakly:
   obey, never silently ignore). Note the degradation in the PR.
 
 ## Files
-- `next-task.md` — the per-task loop (one task → one issue → one branch → one PR).
+- `next-task.md` + `next-task/*.md` — the ordered index and demand-loaded stage cards
+  for the per-task loop (one task → one issue → one branch → one PR).
 - `gate-loop.md` — the §7 pre-PR gate loop as runtime-neutral pseudocode (the
   [orchestrated run] spec; §7's prose is its degradation path).
 - `conformance-probes.md` — one verifiable probe per role above (plus the guard rules and

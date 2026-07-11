@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 137 rows.
+Manifest source inventory: 150 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -162,6 +162,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/shell-lint.test.sh` | KEEP | Regression tests for the shell portability checker. Verbatim. |
 | `hooks/spec-lint.sh` | KEEP | Deterministic spec-content lint over `specs/*/spec.md` (the mechanizable spec-quality smells). Verbatim. |
 | `hooks/spec-lint.test.sh` | KEEP | Regression + CI-wiring tests for the spec-content lint. Verbatim. |
+| `hooks/stage-card-check.py` | KEEP | Deterministic stage-card index, transition, frozen-obligation, and section-reference checker (T1204). Verbatim. |
+| `hooks/stage-card-check.test.sh` | KEEP | Falsification tests for dropped/duplicated obligations, index/transition drift, stale references, demand-loading policy, budgets, and CI wiring. Verbatim. |
 | `hooks/task-index.py` | KEEP | Generated task-index generator + staleness check over `specs/*/tasks.md` (`--write` regenerates `specs/TASK_INDEX.md`; `--check` fails naming the drifted entry; spec 007 US5). Generic and portable; python3 (already a `verify` dependency for the token counter), stdlib-only, offline. Verbatim — the adopter regenerates the index after filling their first real spec (an empty template has no live `tasks.md` yet, and `context-budgets.md`'s GENERICIZE resets the `task-index` budget row). |
 | `hooks/task-index.test.sh` | KEEP | Two-sided falsification + CI-wiring tests for the task-index staleness check (a planted-stale index per drift shape — checkbox flip, title/tier change, added/removed task — fails naming the entry; a regenerated control passes; generator determinism; fail-loud on a missing index / empty backlog). Verbatim. |
 | `hooks/telemetry-docs.test.sh` | KEEP | Encoding test for telemetry docs and neutral-boundary constraints. Verbatim. |
@@ -187,7 +189,18 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `workflow/gate-loop.md` | KEEP | §7 gate as pseudocode. Verbatim. |
 | `workflow/intake.md` | KEEP | Runtime-neutral intake workflow. Verbatim. |
 | `workflow/maker-eval.md` | KEEP | Runtime-neutral maker-eval methodology (the maker analog of auditor-liveness). Verbatim. |
-| `workflow/next-task.md` | KEEP | Per-task loop. Verbatim. |
+| `workflow/next-task.md` | KEEP | Ordered index for the demand-loaded per-task stage cards. Verbatim. |
+| `workflow/next-task-obligations.tsv` | KEEP | Independent frozen pre-split obligation inventory used by the stage-card completeness checker. Verbatim. |
+| `workflow/next-task/00-foundations.md` | KEEP | Demand-loaded per-task foundations card. Verbatim. |
+| `workflow/next-task/01-preconditions.md` | KEEP | Demand-loaded preconditions and run-mode card. Verbatim. |
+| `workflow/next-task/02-select-task.md` | KEEP | Demand-loaded task-selection card. Verbatim. |
+| `workflow/next-task/03-read-context.md` | KEEP | Demand-loaded context and owner-comment card. Verbatim. |
+| `workflow/next-task/04-issue-and-branch.md` | KEEP | Demand-loaded issue, branch, and plan card. Verbatim. |
+| `workflow/next-task/05-implement.md` | KEEP | Demand-loaded implementation and discovered-work card. Verbatim. |
+| `workflow/next-task/06-verify.md` | KEEP | Demand-loaded verification and definition-of-done card. Verbatim. |
+| `workflow/next-task/07-pre-pr-gate.md` | KEEP | Demand-loaded pre-PR reviewer gate card. Verbatim. |
+| `workflow/next-task/08-pr-body.md` | KEEP | Demand-loaded PR-body preparation card. Verbatim. |
+| `workflow/next-task/09-pr-publish.md` | KEEP | Demand-loaded PR publication, evidence, and stop card. Verbatim. |
 | `workflow/pr-review.md` | KEEP | Runtime-neutral PR-review workflow. Verbatim. |
 | `workflow/retrospective.md` | KEEP | Runtime-neutral retrospective workflow. Verbatim. |
 | `workflow/review-response.md` | KEEP | Runtime-neutral review-response workflow — the write-direction mirror of pr-review (resolve findings on your own open PR; re-gate the fix). Verbatim. |

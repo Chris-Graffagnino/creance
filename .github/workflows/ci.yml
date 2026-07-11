@@ -313,6 +313,16 @@ jobs:
       - name: Context token-budget tests
         run: bash .claude/hooks/token-budget-check.test.sh
 
+      # T1204 / US4: the ordered stage-card index is checked against a frozen,
+      # independently captured inventory of the pre-split next-task obligations.
+      # The paired test proves dropped/duplicated obligations and unindexed cards
+      # fail while an in-sync card set passes.
+      - name: Stage-card completeness check
+        run: python3 .claude/hooks/stage-card-check.py
+
+      - name: Stage-card completeness tests
+        run: bash .claude/hooks/stage-card-check.test.sh
+
       # Runtime-attached context floor (T1207, spec 007 US7): adapter-owned,
       # aggregate-only measurement on the same o200k_base counter. This runs
       # fidelity/privacy/fail-open tests only; the recorded floor is explicitly
@@ -653,14 +663,10 @@ jobs:
       - name: Backlog-loop launcher tests
         run: bash .claude/hooks/backlog-loop-launcher.test.sh
 
-      # next-task.md budget (#93): .claude/workflow/next-task.md is the largest
-      # methodology doc and the per-/next-task hub — new rules gravitate to it, so
-      # it is the harness's accretion sink and sets the per-workflow context floor
-      # (DESIGN-NOTES §11). This check FAILs if it grows past a line budget, forcing
-      # a conscious "split into a sub-doc, or raise the bound in a reviewed PR"
-      # decision instead of silent growth. A hard gate with headroom, not an exit-0
-      # warning (an always-green warning is the P2 silently-dead anti-pattern). The
-      # .test.sh proves it fires AND is wired (P2 "machinery proves it is live").
+      # next-task.md index budget (#93, re-scoped by T1204): procedure prose lives
+      # in token-gated stage cards, while this line gate prevents it from silently
+      # being re-inlined into the ordered index. The paired test proves it fires
+      # and stays wired (P2 "machinery proves it is live").
       - name: next-task.md budget check
         run: bash .claude/hooks/next-task-budget-check.sh
 
