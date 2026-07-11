@@ -47,7 +47,7 @@
   `specs/007-workflow-context-economy/tasks.md`, `specs/008-fast-lane-workflow/tasks.md`
   — selection spans all; `specs/000-template/` is a skeleton, never a backlog
 - Telemetry stream: `<triage inbox dir>/creance-telemetry.jsonl` (out-of-repo; storage
-  convention: `workflow/telemetry.md`)
+  convention: `.claude/workflow/telemetry.md`)
 
 ## Blocked / owner-only tasks
 

@@ -40,10 +40,10 @@ itself). It doubles as a real filled example of `PROJECT.template.md`.
   themselves are the contract surface).
 - **Architecture guardrails:** `AGENTS.md` → "Architecture Guardrails" (template-level;
   no vendor seams in this repo).
-- **Telemetry:** default per `workflow/telemetry.md` — out-of-repo beside the triage
+- **Telemetry:** default per `.claude/workflow/telemetry.md` — out-of-repo beside the triage
   inbox: `<triage inbox dir>/creance-telemetry.jsonl` (design default decided by silence
   on #18).
-- **Maker-eval records:** default per `workflow/maker-eval.md` — out-of-repo beside the
+- **Maker-eval records:** default per `.claude/workflow/maker-eval.md` — out-of-repo beside the
   triage inbox in its **own channel directory, kept distinct from the telemetry stream** so
   the US2.AC3 P5 fence (T804) can scope to it: `<triage inbox dir>/creance-maker-eval/`,
   holding `records.jsonl` (append-only, one line per (corpus task × maker tier) per run) and a `packets/`
@@ -122,7 +122,7 @@ The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated wor
   (reconciled with "merge authorization is session-explicit only" in the neutral model).
 - **As of T612 (epic #81 part c) the worktree lifecycle, the activation wiring, AND gate-in-place
   all exist** — an autonomous run reads the activation decision and, when engaged, executes inside
-  an ephemeral `[isolated workspace]` (`hooks/isolated-workspace.sh` enter/exit/discard, wired in
+  an ephemeral `[isolated workspace]` (`.claude/hooks/isolated-workspace.sh` enter/exit/discard, wired in
   `next-task.md` §0.5/§4); the §7 gate reads the **workspace** diff (the path passed explicitly to
   the [orchestrated run]), and §8 **promotes on a PASS / discards on a FAIL**. But **promotion is a
   PR, not a merge** — merge stays session-explicit (§8), so even with the opt-in on, an engaged
@@ -131,12 +131,12 @@ The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated wor
   isolated worktree) and wires PASS→promote / FAIL→discard, but still not *whether* it auto-merges
   — it does not.
 - **T613 (epic #81 part d) closes the epic** with the falsification proof that an un-gated change
-  cannot reach the base branch — `hooks/isolation-falsification.test.sh`, wired into `verify`,
+  cannot reach the base branch — `.claude/hooks/isolation-falsification.test.sh`, wired into `verify`,
   adversarially proves the un-gated commit is unreachable from base after `exit`, destroyed whole by
   `discard`, that a forged `branch=main` marker cannot make `discard` delete the checked-out base,
   and that the lifecycle source carries no base-writing door — plus the live **P-IW** conformance
   probe that the isolation tier actually fires on a real driver (recorded in
-  `adapters/claude-code-probes.md`'s probe-results table). The epic umbrella #81 can close once all
+  `.claude/adapters/claude-code-probes.md`'s probe-results table). The epic umbrella #81 can close once all
   four sub-tasks (T610–T613) land.
 
 ## Edit-time checks (the [edit guard] map — `guard.sh` rule 7 reads this)
@@ -157,7 +157,7 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   Claude-Code-specific instruction inside `workflow/**` is a FAIL.
 - Project facts live in this file; engine files (`workflow/**`, skills, agents) carry no
   project facts of their own. **One documented exception:**
-  `workflow/reviewers/evasion-register.md` is a cumulative escape *log* — its real-escape
+  `.claude/workflow/reviewers/evasion-register.md` is a cumulative escape *log* — its real-escape
   exhibits cite this repo's own commits/paths by design (the catalogue's value is *this*
   project's worked escapes; the universal pattern exhibits carry no project facts). Those
   instance facts are confined to that file, labeled as such, and **reset to spec-derived

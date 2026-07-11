@@ -348,6 +348,28 @@ jobs:
       - name: Compact project-packet drift tests
         run: bash .claude/hooks/compact-packet-drift.test.sh
 
+      # Doc-pointer resolution check (T1208, spec 007 US8; issue #273): a
+      # documentation pointer naming a repo-relative path that no longer exists
+      # (the class PR #272 found — bare `workflow/…` pointers stranded by a move
+      # under .claude/) previously went undetected: US2.AC2 makes reachable
+      # pointers a contract, but nothing failed when a target path stopped
+      # existing. This check extracts the backtick-quoted repo-relative path
+      # pointers from the pointer-bearing surfaces (AGENTS.md, PROJECT.md, the
+      # compact packet) by shape — leading-segment-agnostic, non-path forms and
+      # non-lexically-repo-relative tokens excluded — and FAILs naming surface +
+      # path + line when one does not resolve from the repo root. Path existence
+      # only; section anchors are a deferred follow-on (#273). The .test.sh
+      # proves both directions (planted danglers incl. the real `workflow/…md`
+      # shape and a held-out unlisted segment FAIL naming surface/path/line;
+      # all-resolve + non-path-form + containment controls pass), the
+      # positive-extraction oracle (non-vacuity), and this wiring — same
+      # discipline as the drift tests above.
+      - name: Doc-pointer resolution check
+        run: bash .claude/hooks/doc-pointer-check.sh
+
+      - name: Doc-pointer resolution tests
+        run: bash .claude/hooks/doc-pointer-check.test.sh
+
       # Generated task-index staleness check (T1205, spec 007 US5; epic #166):
       # specs/TASK_INDEX.md is a GENERATED digest of the selection-critical fields
       # of every backlog task, so /next-task selection reads ~3.5k tokens instead of
