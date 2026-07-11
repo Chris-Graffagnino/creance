@@ -377,27 +377,42 @@ Non-goals).
   such path does not exist from the repo root, naming the offending surface, the unresolved
   path, and its line. A path pointer is recognized by **shape** — a backtick token carrying
   a `/` separator and a file-type suffix (e.g. `.md`/`.sh`/`.py`) — **minus** AC2's non-path
-  forms; **candidacy must not depend on the token's leading segment already existing**, so a
-  bare `workflow/…md` pointer (one that resolves only under the `.claude/` prefix — the exact
-  #272/#273 class) is extracted as a candidate and then **fails** the existence check rather
-  than being silently skipped. The extraction is **non-vacuous** and
-  **leading-segment-agnostic**, proven by a **positive-extraction assertion**: a test that
-  the unmodified extractor, run over the real scanned surfaces, recovers the **complete**
-  shape-matched pointer set present in them — including the **bare-nested,
-  non-root-resolving segments** a leading-segment-exists filter would silently drop (as of
-  drafting `workflow/`, `hooks/`, and `adapters/` in `.claude/PROJECT.md`), not a hand-picked
-  subset. An extractor that matches nothing, that is narrowed to a synthetic fixture, or that
-  keys candidacy to a fixed **allowlist of leading segments** (silently skipping a same-shape
-  pointer under an unlisted segment), does not satisfy this criterion. The positive-extraction
+  forms **and minus any token that is not lexically repo-relative**. **Repo-relative** is
+  defined lexically: a candidate is resolved by joining it to the repo root, so a token that
+  is an **absolute path** (a leading `/`), carries a **`..` parent-traversal segment**, or is
+  a **`scheme://` URI** is **out of contract — never resolved and never flagged** (AC2 lists
+  these among the non-path forms; AC3 controls them). This keeps the check deterministic
+  across machines — it never `test -e`s a machine-dependent absolute or escaping path — and
+  never mis-flags a documentation URL as a dangling path. **Candidacy must not depend on the
+  token's leading segment already existing**, so a bare `workflow/…md` pointer (one that
+  resolves only under the `.claude/` prefix — the exact #272/#273 class) is extracted as a
+  candidate and then **fails** the existence check rather than being silently skipped. The
+  extraction is **non-vacuous** and **leading-segment-agnostic**, proven along **two decoupled
+  axes** so neither depends on the mutable real tree AC4 rewrites. **Non-vacuity** is proven
+  by a **positive-extraction assertion**: a test that the unmodified extractor, run over the
+  real scanned surfaces, recovers the **complete** shape-matched pointer set present in them —
+  not a hand-picked subset (an extractor that matches nothing, or that is narrowed to a
+  synthetic fixture, does not satisfy this). **Leading-segment-agnosticism** is proven **off
+  the real tree**: because AC4 rewrites the real-surface bare-nested danglers to their
+  resolving `.claude/…` form **in this same diff**, the scanned surfaces no longer carry a
+  non-root-resolving segment at `verify` time, so this property is proven by **AC3's held-out
+  planted case** — a same-shape pointer whose leading segment neither resolves at the repo
+  root nor appears in any allowlist is still extracted (hence flagged). An extractor that keys
+  candidacy to a fixed **allowlist of leading segments** (silently skipping a same-shape
+  pointer under an unlisted segment) does not satisfy this criterion. The positive-extraction
   test's expected set is an **independent oracle** — hand-verified against the surface text,
   not derived by re-running the extractor under test (a self-derived reference would reproduce
   an omission instead of catching it, mirroring US4.AC4's oracle discipline).
 - AC2: The check does **not** flag backtick-quoted content that is not a concrete repo path
   — globs containing `*` (`specs/*/tasks.md`, `workflow/**`), brace-expansion notations
   (`specs/000-template/{spec,tasks}.md` and any `{…,…}` form), placeholder-bearing strings
-  (`<triage inbox dir>/…` and any `<…>`), section-anchor references (`→ "Heading"`), and
-  command/flag tokens (`gh pr create`, `git rev-parse`, `--body-file`). This is proven by a
-  **within-tree control** in which such forms are present and the check **passes**; a check
+  (`<triage inbox dir>/…` and any `<…>`), section-anchor references (`→ "Heading"`),
+  command/flag tokens (`gh pr create`, `git rev-parse`, `--body-file`), and **tokens that are
+  not lexically repo-relative** — absolute paths (a leading `/`, e.g. `/tmp/file.md`),
+  parent-traversal paths (a `..` segment, e.g. `../outside.md`), and URI-scheme tokens
+  (`scheme://…`, e.g. `https://example.com/file.md`) per AC1's repo-relative definition. This
+  is proven by a **within-tree control** in which such forms are present and the check
+  **passes**; a check
   that flags every backtick token containing `/` (making `verify` perpetually red) does not
   satisfy this. AC2 bounds the over-detection direction and AC1/AC3/AC4 bound
   under-detection — complementary axes: AC2 asks "is this a path at all", AC3 asks "does the
@@ -415,7 +430,12 @@ Non-goals).
   only under `.claude/`) — which must also be flagged; so neither an implementation keyed to
   the literal `workflow/` string nor one keyed to a fixed allowlist assembled from this
   spec's named segments passes. A test exercising only one direction, or only leading
-  segments this spec enumerates, does not satisfy this.
+  segments this spec enumerates, does not satisfy this. The falsification set additionally
+  includes a **containment control** — a within-tree or planted surface carrying an
+  **absolute** path (a leading `/`), a **parent-traversal** path (a `..` segment), and a
+  **URI-scheme** token (`scheme://…`) — asserting the check **neither resolves nor flags** any
+  of them (proving AC1/AC2's lexical-repo-relative exclusion, so machine-dependent state can
+  never make `verify` flap and a documentation URL is never mis-flagged as a dangling path).
 - AC4: The check must pass on the current tree: **every** shape-matched dangling
   repo-relative pointer the check flags — **regardless of leading segment** — is fixed in the
   **same diff**, rewritten to its real `.claude/…` path (with the compact-packet mirror kept

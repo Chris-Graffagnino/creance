@@ -85,22 +85,27 @@
       a `verify`-wired check that scans the pointer-bearing surfaces (at minimum `AGENTS.md`,
       `.claude/PROJECT.md`, `.claude/PROJECT.compact.md`), extracts the backtick-quoted
       repo-relative path pointers by shape (a `/` separator + a file-type suffix, minus AC2's
-      non-path forms) — candidacy NOT gated on the leading segment already existing AND
-      leading-segment-agnostic (no fixed segment allowlist), so a bare `workflow/…md`/`hooks/…`
-      /`adapters/…` pointer (resolves only under `.claude/`) is a candidate and then fails —
-      and fails when one does not exist from the repo root, naming surface + path + line;
-      non-vacuity proven by a positive-extraction assertion (the unmodified extractor recovers
-      the COMPLETE real in-surface set via a hand-verified independent oracle, spanning the
-      bare-nested non-root-resolving segments — today `workflow/`+`hooks/`+`adapters/` — not a
-      single-segment subset) (AC1); no false positives
+      non-path forms AND minus non-lexically-repo-relative tokens — absolute `/…`, `..`
+      traversal, and `scheme://` URIs are out of contract, never resolved/flagged, keeping the
+      check deterministic across machines) — candidacy NOT gated on the leading segment already
+      existing AND leading-segment-agnostic (no fixed segment allowlist), so a bare
+      `workflow/…md`/`hooks/…`/`adapters/…` pointer (resolves only under `.claude/`) is a
+      candidate and then fails — and fails when one does not exist from the repo root, naming
+      surface + path + line; non-vacuity proven by a positive-extraction assertion (the
+      unmodified extractor recovers the COMPLETE real in-surface set present via a hand-verified
+      independent oracle, not a subset) while leading-segment-agnosticism is proven off the
+      mutable tree by AC3's held-out planted case (AC4 rewrites the real danglers in-diff, so
+      the bare-nested coverage cannot live on the real surfaces) (AC1); no false positives
       on globs (`*`/`**`), brace-expansions (`{…,…}`, e.g. `specs/000-template/{spec,tasks}.md`),
-      `<…>` placeholders, `→ "Heading"` anchors, or command/flag tokens — a within-tree control
+      `<…>` placeholders, `→ "Heading"` anchors, command/flag tokens, or non-repo-relative
+      tokens (absolute `/…`, `..` traversal, `scheme://` URIs) — a within-tree control
       carrying such forms passes (AC2); two-sided falsification tests in-diff — a planted
       dangling pointer fails naming surface/path/line, the planted form including the real
       `workflow/…md` shape (not only a synthetic `nonexistent.md`), plus a held-out bare-nested
       pointer under a leading segment named nowhere in the spec, also flagged, so neither a
-      `workflow/`-only hard-code nor a fixed allowlist passes / an all-resolve control passes
-      (AC3); check green on the current tree — fix every flagged dangling pointer regardless of
+      `workflow/`-only hard-code nor a fixed allowlist passes / an all-resolve control passes,
+      plus a containment control (absolute `/…`, `..` traversal, `scheme://` URI) the check
+      neither resolves nor flags (AC3); check green on the current tree — fix every flagged dangling pointer regardless of
       leading segment (illustrative non-exhaustive lower bound, ≥7 as of drafting:
       `.claude/PROJECT.md` `workflow/telemetry.md`+`workflow/maker-eval.md`+
       `workflow/reviewers/evasion-register.md`+`hooks/isolated-workspace.sh`+
