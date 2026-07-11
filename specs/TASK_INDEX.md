@@ -69,6 +69,7 @@
 | T640 | strong | [x] |  |  | **review-response** workflow + Claude Code skill: resolve the reviewer… |
 | T641 | strong | [x] |  |  | Close the `gh api --method GET:*` merge-boundary evasion: the committed… |
 | T642 | strong | [x] |  |  | Stop the §7 `[orchestrated run]` from dispatching **vacuously** when… |
+| T644 | strong | [ ] |  |  | **Decide protected-path pre-approval for autonomous/headless runs**… |
 
 ## specs/002-spec-quality-gate/spec.md
 
