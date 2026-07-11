@@ -65,6 +65,7 @@
 | T637 | strong | [ ] |  |  | Add a **deterministic generated harness manifest** |
 | T638 | strong | [ ] |  |  | Add a **read-only, observe-only harness status map** command/workflow… |
 | T639 | strong | [x] |  |  | Make the §7 `[orchestrated run]` audit an **explicit, verified ref for… |
+| T643 | strong | [ ] |  |  | Append one **binding-contract table row** each for the three untabled… |
 | T640 | strong | [x] |  |  | **review-response** workflow + Claude Code skill: resolve the reviewer… |
 | T641 | strong | [x] |  |  | Close the `gh api --method GET:*` merge-boundary evasion: the committed… |
 | T642 | strong | [x] |  |  | Stop the §7 `[orchestrated run]` from dispatching **vacuously** when… |

@@ -477,12 +477,15 @@
 
 ## Phase 16 — Harness self-description & gate-execution intake (owner-filed)
 
-> Four owner-filed issues converted via intake (`workflow/intake.md`): three
-> repo-maintenance features hardening the runtime-neutral split and harness
+> Five owner-filed issues converted via intake (`workflow/intake.md`): four
+> repo-maintenance entries hardening the runtime-neutral split and harness
 > observability — an adapter-neutral **write-intent / safe-output** [role] family so
 > neutral docs name permitted writes as intents, not concrete tracker commands (#232); a
 > deterministic **generated harness manifest** (a committed lock artifact) with a `verify`
-> drift check (#233); and a read-only, **observe-only** harness **status map** (#234) —
+> drift check (#233); a read-only, **observe-only** harness **status map** (#234); and
+> binding-contract **table rows for three untabled roles** the registry already depends
+> on — `[autonomy activation]`, `[live-state reconciliation]`,
+> `[selection announce-and-confirm]` (#224) —
 > plus one **gate-execution bug**: the review-mode §7 `[orchestrated run]` audits the
 > shared tree's inferred HEAD, so a concurrent session's branch switch makes the auditors
 > grade the wrong diff (#240). Each is rubric'd by the done-when criteria carried on its
@@ -542,6 +545,23 @@
       simulated mid-run HEAD switch is graded wrongly / passes vacuously) and **passes after
       the fix** (mismatch caught, run fails loud) (#240; bug — done-when on issue) — strong:
       protects the gate-execution boundary against silent wrong-diff audits (constitution P2/P3)
+- [ ] T643 [strong] Append one **binding-contract table row** each for the three
+      untabled roles — `[autonomy activation]`, `[live-state reconciliation]`, and
+      `[selection announce-and-confirm]` — to `.claude/workflow/README.md` → "The
+      binding contract". Each row populates inputs → outputs + constraints in the
+      table's existing column shape and **points to the `next-task.md` section that
+      owns its semantics** (`[autonomy activation]` → §0.5; the two selection roles →
+      §1) so **no rule is forked** — the section stays authoritative, the row is a
+      registry entry, not a restatement. Append-only: the pre-existing role rows stay
+      unchanged (none reshaped or dropped). Keep the edited surface runtime-neutral
+      (roles only; no hook-script or mechanism named), leaving the neutrality scan and
+      the doc-pointer check green; and reconcile the `conformance-probes.md` coverage
+      map so no newly-tabled role sits silently outside its "one probe per role" framing
+      (a probe reference — `[autonomy activation]` already shares P-IW — or an explicit
+      note; no hollow placeholder probe id). Neutral `workflow/**` is the only edited
+      layer (#224; repo-maintenance — done-when on issue) — strong: extends the
+      runtime-neutral role registry (constitution P1) and must summarize §0.5/§1
+      semantics without forking them
 
 ## Phase 17 — PR review response
 
