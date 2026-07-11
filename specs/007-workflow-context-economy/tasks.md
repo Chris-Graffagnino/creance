@@ -81,7 +81,7 @@
 
 ## Phase 5 — Doc-pointer resolution (issue #273)
 
-- [ ] T1208 [strong] Deterministic doc-pointer resolution check (spec-007 amendment, #273):
+- [x] T1208 [strong] Deterministic doc-pointer resolution check (spec-007 amendment, #273):
       a `verify`-wired check that scans the pointer-bearing surfaces (at minimum `AGENTS.md`,
       `.claude/PROJECT.md`, `.claude/PROJECT.compact.md`), extracts the backtick-quoted
       repo-relative path pointers by shape (a `/` separator + a file-type suffix, minus AC2's
