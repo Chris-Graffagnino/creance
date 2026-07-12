@@ -14,7 +14,8 @@
 # The fence keys on the lock file's name (`HARNESS.lock`) — the token any referencing
 # code MUST carry. Allowlisted: the generator (writes it), the lock itself, the
 # extraction cut-list, the backlog/spec declaration surfaces (prose that names the
-# artifact by nature, no execution), every test harness, and this fence. CI is
+# artifact by nature, no execution), the two manifest test harnesses by exact name
+# (never a *.test.sh glob — tests run in the required verify job), and this fence. CI is
 # line-scoped like maker-eval-fence.sh: it may RUN the staleness check and the tests,
 # but a surviving hit (e.g. a step that parses the lock to decide a gate) is the breach.
 #
@@ -37,7 +38,7 @@ MANIFEST_TOKEN='HARNESS\.lock'
 
 # Files permitted to name the lock artifact. Everything here is either the write/check
 # surface (the generator), a non-executable declaration surface (prose naming the
-# artifact by nature), or a test harness (exercises the manifest, no runtime authority).
+# artifact by nature), or one of the two manifest test harnesses, named exactly.
 # Anything NOT matched here or line-scoped below — guard.sh, gate-loop.{js,md},
 # autonomy-mode.sh, the reconcile-*/announce-* selection hooks, backlog-loop-*, MODELS.md,
 # any future code path — is a gate/tier/guard/selection/autonomy surface, and a reference
@@ -51,7 +52,8 @@ allowed() {
     .claude/EXTRACTION.md)                   return 0 ;;  # the extraction cut-list
     specs/*/tasks.md | specs/*/spec.md | specs/TASK_INDEX.md)
                                              return 0 ;;  # backlog/spec declaration prose (no execution)
-    *.test.sh | *.test.js)                   return 0 ;;  # tests exercise the manifest (no authority)
+    .claude/hooks/harness-manifest.test.sh | .claude/hooks/harness-manifest-fence.test.sh)
+                                             return 0 ;;  # the two manifest harnesses, by exact name — tests run in the required `verify` job, so a *.test.sh glob would let any future test consume the lock unfenced (PR #283)
     *) return 1 ;;
   esac
 }

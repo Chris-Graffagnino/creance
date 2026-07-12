@@ -93,6 +93,20 @@ else
   bad "lock: no explicit schema_version"
 fi
 
+# --- multi-role binding rows: every bracketed role in a row's bold cell reaches
+#     adapter_bindings.roles, not only the first match (PR #283 review finding) ---
+for role in '[strong tier]' '[cheap tier]' '[security-review pass]'; do
+  if python3 -c "
+import json, sys
+roles = json.load(open('$TMP/clean/.claude/HARNESS.lock.json'))['adapter_bindings']['roles']
+sys.exit(0 if '$role' in roles else 1)
+"; then
+    ok
+  else
+    bad "adapter bindings: combined-row role $role missing from adapter_bindings.roles"
+  fi
+done
+
 # --- missing lock fails loud, naming the regeneration command -------------------
 F="$TMP/missing"; mkfixture "$F"
 got=0; run_gen "$F" --check || got=$?

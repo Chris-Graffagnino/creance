@@ -82,6 +82,14 @@ run_fence 1 "$TMP/e" "fires: a workflow binding reading the lock"
 mkfix "$TMP/f" ".claude/hooks/guard.sh" 'cat "$ROOT/../HARNESS.lock.json"'
 run_fence 1 "$TMP/f" "fires: a relative-path reference from the guard"
 
+# The test allowlist names the two manifest harnesses exactly — an UNRELATED test
+# file reading the lock still fires (tests run in the required `verify` job, so a
+# glob exemption would let a future test's exit status consume the lock unfenced;
+# PR #283 review finding).
+mkfix "$TMP/k" ".claude/hooks/gate-reader.test.sh" 'jq .autonomy .claude/HARNESS.lock.json'
+run_fence 1 "$TMP/k" "fires: an unrelated *.test.sh reading the lock (tests named, not globbed)" \
+  "P5 FENCE VIOLATION: .claude/hooks/gate-reader.test.sh"
+
 # --- the sanctioned surfaces do NOT fire ------------------------------------------
 mkfix "$TMP/g" ".claude/hooks/harness-manifest.py" 'LOCK_PATH = ".claude/HARNESS.lock.json"'
 addfix "$TMP/g" ".claude/HARNESS.lock.json" '{"schema_version": 1}'

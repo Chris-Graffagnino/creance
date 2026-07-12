@@ -330,10 +330,14 @@ def parse_adapter_bindings(text):
     rows = [l for l in sec.splitlines() if l.startswith("| **[")]
     roles = []
     for line in rows:
-        m = re.search(r"\[([^\]]+)\]", line)
-        if not m:
+        # A row's bold role cell may bind several roles ("[strong tier] / [cheap tier]");
+        # collect every bracketed token in it — the description cell's brackets are prose,
+        # so the scan stops at the closing ** of the first cell's bold span.
+        m = re.match(r"^\| \*\*(.+?)\*\*", line)
+        row_roles = re.findall(r"\[([^\]]+)\]", m.group(1)) if m else []
+        if not row_roles:
             die("adapter-bindings", ADAPTER, "a mapping row carries no [role] token: %r" % line[:60])
-        roles.append("[%s]" % m.group(1))
+        roles.extend("[%s]" % r for r in row_roles)
     if not roles:
         die("adapter-bindings", ADAPTER, "no '| **[role]** | …' rows under '## The shipped adapter'")
     return {
