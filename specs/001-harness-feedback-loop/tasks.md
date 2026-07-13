@@ -509,7 +509,7 @@
       positive + passing control (P3); preserves every existing merge / base-branch
       protection and adds no auto-merge intent (#232; repo-maintenance — done-when on issue)
       — strong: extends the binding contract and the neutrality boundary (constitution P1/P3/P4)
-- [ ] T637 [strong] Add a **deterministic generated harness manifest** — a committed lock
+- [x] T637 [strong] Add a **deterministic generated harness manifest** — a committed lock
       artifact (e.g. `.claude/HARNESS.lock.json`) compiled from existing source-of-truth
       (`PROJECT.md`, `workflow/**`, `MODELS.md`, adapter/reviewer/guard config) with an
       **explicitly versioned schema and no timestamps**, byte-stable across repeated

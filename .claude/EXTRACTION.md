@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 152 rows.
+Manifest source inventory: 157 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -67,6 +67,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 |---|---|---|
 | `DESIGN-NOTES.md` | KEEP | Companion rationale for the harness. Carry with this manifest; it explains why the load-bearing machinery exists. |
 | `EXTRACTION.md` | KEEP | This manifest and extraction playbook. Carry so the next extraction has a complete inventory. |
+| `HARNESS.lock.json` | RESET | Generated harness-contract lock artifact (T637) — compiled evidence, never authority: the source docs win on any disagreement, and staleness requires regeneration, never trusting the lock. Its content compiles THIS project's profile/roster/guard/tier facts, so the adopter regenerates it after filling their profile: `python3 .claude/hooks/harness-manifest.py --write`. |
 | `MODELS.md` | GENERICIZE | The adapter's only model-naming file. Keep the table shape and semantics; replace the concrete rows with sensible defaults plus a "swap per your account" note. |
 | `PROJECT.md` | TEMPLATE | Omit from extracted template; live project profile. Ship `PROJECT.template.md` for adopters to fill. |
 | `PROJECT.compact.md` | TEMPLATE | Omit from extracted template; live compact routing-facts packet mirroring `PROJECT.md` (spec 007 US3) — the adopter writes their own after filling the profile; the drift check (`hooks/compact-packet-drift.sh`) names each covered field to mirror. |
@@ -132,6 +133,10 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/governance-coverage-check.test.sh` | KEEP | Two-sided tests for the governance coverage check — in-sync fixture + real-tree control, planted missing-anchor/unwired/missing-file/dropped-justification/bad-status/missing-registry directions each naming their repair target, plus CI wiring. Verbatim. |
 | `hooks/guard.sh` | KEEP | Deterministic [guard] implementation. Verbatim. |
 | `hooks/guard.test.sh` | KEEP | Guard tests including matcher-wiring and edit-guard assertions. Verbatim. |
+| `hooks/harness-manifest-fence.sh` | KEEP | Deterministic P5 fence over the generated harness manifest (T637, the maker-eval-fence.sh pattern) — asserts no gate/tier/guard/selection/autonomy path reads `HARNESS.lock.json`; only the generator, declaration surfaces, and tests may name it (CI line-scoped). Verbatim. |
+| `hooks/harness-manifest-fence.test.sh` | KEEP | Paired plant/pass tests for the harness-manifest P5 fence — fires on a planted reference from each control-authority surface class, passes on the sanctioned surfaces and the real tree, proves the CI line-scope and fail-closed posture. Verbatim. |
+| `hooks/harness-manifest.py` | KEEP | Generated harness-manifest generator + staleness check (`--write` regenerates `HARNESS.lock.json`; `--check` fails naming the drifted field + the regeneration command; T637). Deterministic, offline, stdlib-only; compiled evidence, never authority — source docs win. Verbatim — the adopter regenerates the lock after filling their profile. |
+| `hooks/harness-manifest.test.sh` | KEEP | Two-sided falsification tests for the harness manifest — per-surface planted drift (roster, review passes, guard rules, checker map, autonomy) each fails naming its field, clean control passes, generator determinism, anchor-rot fail-loud, CI wiring. Verbatim. |
 | `hooks/intake-docs.test.sh` | KEEP | Encoding test for intake/triage workflow docs and skill binding. Verbatim. |
 | `hooks/isolated-workspace.sh` | GENERICIZE | Keep the [isolated workspace] worktree lifecycle verbatim, but the ephemeral worktree's `creance-ws-` mktemp prefix and `.creance-ws-owner` provenance-marker filename hardcode this project's name (`enter`'s `mktemp -d .../creance-ws-XXXXXX`, the marker write/read, and the `*/creance-ws-*` teardown name-guard). A verbatim clone would create `creance`-named temp dirs and marker files. On extraction, rename both to a neutral prefix (`ws-`/`harness-ws-`); update the two coupled tests below in lockstep. (Descriptive mentions of the prefix in `DESIGN-NOTES.md`, `skills/next-task/SKILL.md`, and example paths in `workflows/gate-loop.test.js` are self-contained — same this-repo flavor those KEEP files already carry — and don't break on rename.) |
 | `hooks/isolated-workspace.test.sh` | GENERICIZE | Keep the lifecycle regression tests and CI-wiring assertion verbatim, but its look-alike fixtures (`creance-ws-LOOKALIKE-*`) hardcode the prefix to exercise the `*/creance-ws-*` name-guard. Rename them in lockstep with `isolated-workspace.sh` above so the extracted test matches the genericized script. |

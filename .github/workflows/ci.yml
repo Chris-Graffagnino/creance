@@ -387,6 +387,34 @@ jobs:
       - name: Task-index staleness tests
         run: bash .claude/hooks/task-index.test.sh
 
+      # Generated harness-manifest staleness check + P5 fence (T637, issue #233):
+      # .claude/HARNESS.lock.json is a GENERATED lock artifact compiling the harness
+      # contract (profile routing facts, reviewer roster, review passes, guard rules,
+      # edit-time checker map, autonomy opt-in, model tiers, adapter bindings,
+      # constitution principles) from its source-of-truth docs — compiled EVIDENCE,
+      # never authority: the sources win on any disagreement, and staleness requires
+      # regeneration (python3 .claude/hooks/harness-manifest.py --write), never
+      # trusting the lock. The --check step regenerates in memory and FAILs naming
+      # the drifted field(s) plus that regeneration command. The .test.sh proves
+      # both directions per covered surface (a planted drift in each of reviewer
+      # roster / review-pass set / guard rules / edit-time checker map / autonomy
+      # opt-in independently fails naming that field; a clean control passes),
+      # generator determinism, fail-loud on anchor rot, and this wiring. The fence
+      # is the deterministic P5 backstop (the maker-eval-fence.sh pattern): no
+      # gate/tier/guard/selection/autonomy path may read the lock, proven by a
+      # tracked-tree token scan with a planted-reference test — never prose-only.
+      - name: Harness-manifest staleness check
+        run: python3 .claude/hooks/harness-manifest.py --check
+
+      - name: Harness-manifest tests
+        run: bash .claude/hooks/harness-manifest.test.sh
+
+      - name: Harness-manifest P5 fence
+        run: bash .claude/hooks/harness-manifest-fence.sh
+
+      - name: Harness-manifest P5 fence tests
+        run: bash .claude/hooks/harness-manifest-fence.test.sh
+
       # Governance-rule coverage check (T1206, spec 007 US6; epic #166):
       # .claude/governance-rules.md accounts for the US6 candidate set — which
       # rules are encoded (carried: the T623 merge-pre-approval regression in
