@@ -160,6 +160,36 @@ got=0; run_gen "$F" --check || got=$?
 expect 1 "$got" "could not extract 'review-passes'" \
   "anchor rot: a renamed source section fails loud naming the field"
 
+# --- a failed regeneration preserves the committed lock (PR #283 review finding):
+#     --write must not truncate the existing artifact before generation succeeds ----
+F="$TMP/write-fail"; mkfixture "$F"
+run_gen "$F" --write || bad "write-fail: fixture --write failed"
+cp "$F/.claude/HARNESS.lock.json" "$TMP/pre-fail.json"
+edit_fixture "$F/.claude/PROJECT.md" 's@^## Review passes$@## Renamed passes@'
+got=0; run_gen "$F" --write || got=$?
+if [ "$got" -ne 0 ] && cmp -s "$TMP/pre-fail.json" "$F/.claude/HARNESS.lock.json"; then
+  ok
+else
+  bad "write-fail: a failed --write must leave the existing lock byte-identical (exit $got)"
+fi
+
+# --- a stale lock with a valid non-object JSON root (e.g. [] or null) gets the
+#     stale-manifest diagnostic + regeneration command, never a crash (PR #283) ----
+for root in '[]' 'null'; do
+  F="$TMP/nonobject-$(echo "$root" | tr -d '[]')"; mkfixture "$F"
+  run_gen "$F" --write || bad "non-object root $root: fixture --write failed"
+  printf '%s\n' "$root" > "$F/.claude/HARNESS.lock.json"
+  got=0; run_gen "$F" --check || got=$?
+  expect 1 "$got" "stale relative to its source-of-truth docs" \
+    "non-object lock root $root: --check fails with the stale diagnostic"
+  if grep -qF "python3 .claude/hooks/harness-manifest.py --write" "$TMP/out" \
+    && ! grep -q "Traceback" "$TMP/out"; then
+    ok
+  else
+    bad "non-object lock root $root: expected the regeneration command and no traceback"
+  fi
+done
+
 # --- the real repo's committed lock is fresh (the same assertion CI runs) --------
 got=0; run_gen "$REPO_ROOT" --check || got=$?
 expect 0 "$got" "OK" "real tree: the committed lock matches its sources"

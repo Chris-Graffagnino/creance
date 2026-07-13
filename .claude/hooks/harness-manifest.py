@@ -425,7 +425,10 @@ def diff_fields(expected, actual):
 
 
 def cmd_write():
-    open(LOCK_PATH, "w", encoding="utf-8").write(render(build_manifest()))
+    # Render fully BEFORE opening: open(..., "w") truncates the committed lock, so a
+    # generation failure mid-build must never destroy the existing artifact.
+    text = render(build_manifest())
+    open(LOCK_PATH, "w", encoding="utf-8").write(text)
     print("harness manifest: wrote %s" % LOCK_PATH)
     return 0
 
@@ -447,6 +450,10 @@ def cmd_check():
     try:
         actual = json.loads(actual_text)
     except ValueError:
+        actual = {}
+    if not isinstance(actual, dict):
+        # Valid JSON with a non-object root ([] / null) is malformed for our purposes:
+        # diff_fields needs dicts, and the stale diagnostic must still be reachable.
         actual = {}
     problems = diff_fields(json.loads(expected_text), actual) or [
         "formatting/ordering drifted from the generator output"
