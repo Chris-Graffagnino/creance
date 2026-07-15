@@ -111,8 +111,8 @@ rediscovering those facts from scattered docs, `git`, and the tracker.
 
 It is an **orientation tool, never authority.** `PROJECT.md`, `workflow/**`, and
 `memory/constitution.md` are the source of truth and win on any disagreement — the map is a
-best-effort snapshot compiled *from* them (its static facts are read from the generated
-harness manifest, `hooks/harness-manifest.py`, which is itself compiled evidence, never
+best-effort snapshot compiled *from* them (its static facts are read from the generated lock
+artifact that `hooks/harness-manifest.py` writes, which is itself compiled evidence, never
 authority). Never cite the map in an argument about what the harness requires; go read the
 source doc.
 

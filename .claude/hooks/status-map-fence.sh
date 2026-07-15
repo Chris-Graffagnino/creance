@@ -12,22 +12,30 @@
 # exactly the hidden-control-path breach issue #234's non-goals forbid ("do not make
 # status-map output authoritative over PROJECT.md, workflow docs, or the constitution").
 #
-# WHY THE TOKEN IS THE COMMAND NAME: the map writes NO artifact — it prints to stdout and
-# nothing else (status-map.sh). So unlike the manifest fence (which keys on the lock file's
-# name, the token a reader must carry), the only way to consume this map is to NAME AND RUN
-# the command. `status-map` is therefore the complete reference surface: a consumer cannot
-# reach the output without it. Prose that says "status map" with a SPACE is not a reference
-# to the command and correctly does not fire — the backlog already carries that phrasing.
+# WHY THE TOKEN IS THE NAME: the map writes NO artifact — it prints to stdout and nothing
+# else (status-map.sh). So unlike the manifest fence (which keys on the lock file's name,
+# the token a reader must carry), the only way to consume this map is to NAME it. The token
+# therefore matches BOTH the command form (`status-map`) and the English form
+# (`status map`): in a prose-driven harness a rule that says "consult the harness status map
+# to decide X" IS an instruction to a decision path — as effective as a shell invocation and
+# exactly the class the MODELS.md / SKILL.md plants below treat as the threat. Matching only
+# the hyphen would fence the shell form and leave the prose form wide open. It is
+# deliberately CASE-SENSITIVE: a title-cased `Status-map` heading (a CI step name, a doc
+# heading) names the tool, it does not instruct anything.
 #
-# The fence keys on the command's name stem (`status-map`), which matches the fence and the
-# test harnesses too — so each is allowlisted by exact name. Allowlisted: the map itself,
-# this fence, the two status-map test harnesses by exact name (never a *.test.sh glob —
-# tests run in the required verify job, so a glob would let any future test consume the map
-# unfenced; the PR #283 lesson carried forward), the extraction cut-list, the adapter
-# doc-pointer surface (prose naming the tool by nature, no execution), and the backlog/spec
-# declaration surfaces. CI is line-scoped like maker-eval-fence.sh: it may RUN the map's
-# tests and fence, but a surviving hit (e.g. a step that pipes the map into a gate
-# decision) is the breach.
+# Allowlisted: the map itself, this fence, the two status-map test harnesses by exact name
+# (never a *.test.sh glob — tests run in the required verify job, so a glob would let any
+# future test consume the map unfenced; the PR #283 lesson carried forward), the extraction
+# cut-list, the reciprocal manifest-fence surfaces, and the backlog/spec declaration
+# surfaces. THREE surfaces are deliberately NOT whole-file trusted but line-scoped in the
+# loop below, each because it is a real surface that may name the map only narrowly:
+# (1) CI (it RUNS the map's tests but also decides the merge — CI_BENIGN_LINE); (2) the
+# shared drift lib (guard/selection source it — DRIFT_LIB_BENIGN_LINE); and (3) the adapter
+# README (its `## Orientation` prose is the sanctioned doc pointer, but the SAME file is the
+# adapter's binding-contract table — a row like `| [live-state reconciliation] | … checked
+# against status-map.sh |` would be a genuine hidden control path, and "it's only prose" is
+# no defence: MODELS.md and next-task/SKILL.md are prose too and are planted as violations
+# below — README_BENIGN_LINE).
 #
 # DETERMINISM + FAIL-CLOSED: a plain `grep` over the tracked tree (NOT ripgrep, whose user
 # config can silently skip files). An unlistable tree exits LOUD (constitution P2).
@@ -41,10 +49,11 @@ set -u
 
 ROOT="${STATUS_MAP_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 
-# The map's identifying token: the command name stem. Matching the stem (not the full path)
-# closes the relative-reference forms (`../status-map.sh`, a bare `status-map.sh` after a
-# cd) a path-anchored pattern would let evade.
-MAP_TOKEN='status-map'
+# The map's identifying token: the name stem in either the command (`status-map`) or the
+# English (`status map`) form. Matching the stem (not the full path) closes the
+# relative-reference forms (`../status-map.sh`, a bare `status-map.sh` after a cd) a
+# path-anchored pattern would let evade. Portable ERE; case-sensitive by design (above).
+MAP_TOKEN='status[ -]map'
 
 # Files permitted to name the status map. Everything here is either the map itself, its
 # fence/tests, or a non-executable declaration surface (prose naming the tool by nature).
@@ -59,7 +68,6 @@ allowed() {
     .claude/hooks/status-map.test.sh | .claude/hooks/status-map-fence.test.sh)
                                             return 0 ;;  # the two status-map harnesses, by exact name — tests run in the required `verify` job, so a *.test.sh glob would let a future test consume the map unfenced (the PR #283 lesson)
     .claude/EXTRACTION.md)                  return 0 ;;  # the extraction cut-list
-    .claude/README.md)                      return 0 ;;  # the adapter doc pointer (orientation prose, no execution)
     # The manifest fence names the map in its ALLOWLIST (the map reads the generated harness
     # manifest for its static facts, so T637's fence must sanction it by name) and its test
     # plants the same name as a fixture. A fence only ever greps: it decides nothing about
@@ -84,6 +92,15 @@ allowed() {
 # dependency never points back), so a `#` comment line is benign and anything else FIRES.
 DRIFT_LIB='.claude/hooks/lib-tasks-drift.sh'
 DRIFT_LIB_BENIGN_LINE='^[0-9]+:[[:space:]]*#'
+
+# The adapter README is likewise line-scoped rather than whole-file trusted. It is TWO
+# things in one file: the `## Orientation` section (the sanctioned doc pointer this task
+# adds — narrative prose that tells a human the tool exists) and the binding-contract table
+# (`| **[role]** | mechanism |`), which is where a role is bound to a concrete mechanism. A
+# contract ROW naming the map would bind a decision role to it — a hidden control path — so
+# rows FIRE and everything else is benign. Anchored on the leading table pipe.
+README_DOC='.claude/README.md'
+README_BENIGN_LINE='^[0-9]+:[[:space:]]*[^|]'
 
 # CI line-scope (the maker-eval-fence.sh idiom). CI is a gate surface (it decides the
 # merge), so ci.yml is scanned and each token-bearing line is a violation UNLESS benign: a
@@ -121,6 +138,10 @@ while IFS= read -r rel; do
   fi
   if [ "$rel" = "$DRIFT_LIB" ]; then
     hits="$(printf '%s\n' "$hits" | grep -vE "$DRIFT_LIB_BENIGN_LINE")"
+    [ -n "$hits" ] || continue
+  fi
+  if [ "$rel" = "$README_DOC" ]; then
+    hits="$(printf '%s\n' "$hits" | grep -vE "$README_BENIGN_LINE")"
     [ -n "$hits" ] || continue
   fi
   violations=$((violations + 1))

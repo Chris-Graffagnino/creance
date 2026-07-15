@@ -106,14 +106,43 @@ addfix "$TMP/i" "specs/001-x/spec.md" 'AC1: `status-map.sh` prints Markdown'
 addfix "$TMP/i" "specs/TASK_INDEX.md" '| T638 | strong | [ ] | | | status-map |'
 run_fence 0 "$TMP/i" "passes: the map + fence + tests + cut-list + doc pointer + backlog/spec/index"
 
-# A token-free file is never a hit.
-mkfix "$TMP/j" ".claude/hooks/guard.sh" 'echo no status map reference here'
+# A token-free file is never a hit. (The fixture body must be genuinely token-free — an
+# earlier "no status map reference here" contained the very English form the token matches.)
+mkfix "$TMP/j" ".claude/hooks/guard.sh" 'echo this hook orients itself from PROJECT.md'
 run_fence 0 "$TMP/j" "passes: a control-authority file with no map reference"
 
-# The SPACED prose form is not a reference to the command — the backlog already carries
-# "harness status map" as English, and that must never fire.
-mkfix "$TMP/k" ".claude/workflow/README.md" 'A read-only, observe-only harness status map exists.'
-run_fence 0 "$TMP/k" "passes: 'status map' as spaced prose is not a command reference"
+# The ENGLISH form is fenced too: in a prose-driven harness, telling a decision path to
+# "consult the harness status map" is as effective an instruction as invoking the command,
+# so a spaced reference from a control-authority surface must fire exactly like a shell one.
+mkfix "$TMP/k" ".claude/skills/next-task/SKILL.md" \
+  'Consult the harness status map to decide whether to promote.'
+run_fence 1 "$TMP/k" "fires: the ENGLISH form instructing a decision path (prose is an instruction here)" \
+  "P5 FENCE VIOLATION: .claude/skills/next-task/SKILL.md"
+
+mkfix "$TMP/k2" ".claude/workflow/gate-loop.md" 'Read the status map before grading.'
+run_fence 1 "$TMP/k2" "fires: the English form in the neutral gate doc"
+
+# ...but the token is CASE-SENSITIVE: a title-cased heading/step name NAMES the tool, it
+# does not instruct anything (e.g. ci.yml's `- name: Status-map tests`).
+mkfix "$TMP/k3" ".claude/hooks/autonomy-mode.sh" '# Status-Map is unrelated to this hook'
+run_fence 0 "$TMP/k3" "passes: a title-cased mention is a name, not an instruction"
+
+# --- the adapter README is line-scoped: the doc pointer is sanctioned, a contract row is not
+mkfix "$TMP/q" ".claude/README.md" '## Orientation: the status map (read-only)'
+addfix "$TMP/q" ".claude/README.md" '## Orientation: the status map (read-only)
+Run `bash .claude/hooks/status-map.sh` to orient. It is never authority.'
+run_fence 0 "$TMP/q" "passes: the README's ## Orientation doc-pointer prose"
+
+# The SAME file also carries the binding-contract table, where a row binds a role to a
+# mechanism — that IS a control path, so a row naming the map fires.
+addfix "$TMP/q" ".claude/README.md" '## Orientation: the status map (read-only)
+Run `bash .claude/hooks/status-map.sh` to orient. It is never authority.
+
+| Role | Claude Code mechanism |
+|------|----------------------|
+| **[live-state reconciliation]** | cross-checked against `status-map.sh` output |'
+run_fence 1 "$TMP/q" "fires: a README binding-contract ROW wiring a role to the map" \
+  "P5 FENCE VIOLATION: .claude/README.md"
 
 # --- the reciprocal manifest-fence surfaces are sanctioned (declaration, no execution) --
 mkfix "$TMP/r" ".claude/hooks/harness-manifest-fence.sh" \

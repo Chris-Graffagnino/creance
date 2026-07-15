@@ -66,9 +66,14 @@ cd "$ROOT" || exit 2
 # ONE python3 call emits TAB-separated key/value lines (one process, no jq dependency).
 # Any absence/parse error leaves every field empty -> rendered `unknown` below.
 LOCK='.claude/HARNESS.lock.json'
-lock_present=no
+# TRI-state, not a boolean: `absent` (the lock genuinely is not there — T638 soft-depends
+# T637) is a different fact from `unreadable` (it IS there but python3 is missing or the
+# JSON is malformed). Collapsing the two would make the map report absence it never
+# established — the one thing its own `unknown` contract forbids.
+lock_state=absent
 lock_kv=''
 if [ -f "$LOCK" ]; then
+  lock_state=unreadable
   lock_kv="$(python3 - "$LOCK" <<'PY' 2>/dev/null
 import json, sys
 
@@ -110,7 +115,7 @@ emit("edit_time_checks", ", ".join(checks))
 channels = lock.get("observe_only_channels") or {}
 emit("telemetry_path", (channels.get("telemetry") or {}).get("path"))
 PY
-  )" && [ -n "$lock_kv" ] && lock_present=yes
+  )" && [ -n "$lock_kv" ] && lock_state=present
 fi
 
 # lock_field <key> — the lock value for <key>, or `unknown` when absent/unparsed.
@@ -220,11 +225,17 @@ for d in specs/*/contracts; do
   [ -d "$d" ] && contracts='present' && break
 done
 
-manifest="absent (static profile facts unavailable)"
-[ "$lock_present" = yes ] && manifest="present (schema $schema_version)"
+# `unknown` and `absent` are different claims and the map must not conflate them: it may
+# only report absence it actually established (the file is not there), never absence it
+# merely could not disprove.
+case "$lock_state" in
+  present)    manifest="present (schema $schema_version)" ;;
+  unreadable) manifest="$UNKNOWN — present but unparseable (is python3 available?)" ;;
+  *)          manifest='absent (soft dependency; static profile facts unavailable)' ;;
+esac
 
 mode_line="review — open PRs, a human merges"
-[ "$autonomy_opt_in" = 'enabled' ] && mode_line="autonomous opt-in present — activation still fails closed to review"
+[ "$autonomy_opt_in" = 'enabled' ] && mode_line="autonomous — the profile opts in; the deterministic check below owns activation"
 [ "$autonomy_opt_in" = "$UNKNOWN" ] && mode_line="$UNKNOWN — read .claude/PROJECT.md § Autonomy"
 
 # --- render (Markdown, stdout only) ----------------------------------------------------

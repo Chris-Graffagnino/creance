@@ -219,6 +219,20 @@ rc="$(run_map "$TMP/nolock" "$TMP/nolock.out" "$GHOK")"
 [ "$rc" = 0 ] && ok || bad "lock absent: want exit 0 (soft dependency), got $rc"
 has "$TMP/nolock.out" '- harness manifest: absent' 'lock absent is stated'
 has "$TMP/nolock.out" '- required check: unknown'  'lock absent degrades static facts'
+
+# `absent` and `unknown` are DIFFERENT claims: a lock that is present but unparseable was
+# never established to be absent, so reporting `absent` there would be the map asserting a
+# fact it does not have — the one thing its `unknown` contract forbids.
+mkrepo "$TMP/badlock"
+printf 'this is not json {{{\n' > "$TMP/badlock/.claude/HARNESS.lock.json"
+rc="$(run_map "$TMP/badlock" "$TMP/badlock.out" "$GHOK")"
+[ "$rc" = 0 ] && ok || bad "lock unparseable: want exit 0 (never a crash), got $rc"
+has "$TMP/badlock.out"   '- harness manifest: unknown — present but unparseable' \
+  'an unreadable lock reports unknown, never absent'
+hasnt "$TMP/badlock.out" '- harness manifest: absent' \
+  'an unreadable lock must not be reported as absent'
+has "$TMP/badlock.out"   '- required check: unknown' 'an unreadable lock degrades static facts'
+has "$TMP/badlock.out"   '- current branch: main'    'an unreadable lock keeps local repo state'
 # ...but the map still carries its independent value (T638 soft-depends T637).
 has "$TMP/nolock.out" '- current branch: main'     'lock absent keeps local repo state'
 has "$TMP/nolock.out" '## Observe-only channels'   'lock absent keeps the full map'
