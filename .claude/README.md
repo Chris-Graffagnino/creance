@@ -50,6 +50,25 @@ changing a mapping, update both.
 | **[environment block]** | `skills/next-task/SKILL.md` → "This environment's concrete forms" (the single copy; other bindings reference it, never copy it) |
 | **[comment marker]** | Every engine-posted `gh issue comment` / `gh pr comment` body ends with the marker footer line defined in `skills/next-task/SKILL.md` → "The [comment marker] concrete form" (the single copy, alongside the [environment block]) |
 
+### Write-intent mappings (the safe-output roles)
+
+How this adapter binds each write-intent role from the contract's closed family
+(`workflow/README.md` → "Write intents (safe outputs)"). Which workflow may use which
+intent is the **profile's** declaration (`PROJECT.md` → "Write intents"), not this
+table's business — this table only supplies the mechanism, one row per family role.
+`hooks/write-intents-check.sh` fails CI when a declared intent has no row here or a
+neutral `workflow/**` doc names a concrete tracker write command directly.
+
+| Intent role | Claude Code mechanism |
+|------|----------------------|
+| **[create-issue output]** | `gh issue create` with the body passed via a file/heredoc (concrete form per the [environment block]) |
+| **[add-issue-comment output]** | `gh issue comment <n> --body-file <tempfile>` (UTF-8 temp file per the [environment block]; the [comment marker] footer appended to every body) |
+| **[add-pr-comment output]** | `gh pr comment <n> --body-file <tempfile>` (same temp-file and [comment marker] rules) |
+| **[open-pr output]** | `gh pr create --body-file <tempfile>` (never `--merge`/auto-merge flags; merge stays session-explicit) |
+| **[update-pr output]** | `gh pr edit <n> --body-file <tempfile>` (own PR's title/body only; in-place substitutions honor guard rule 6's delimiter-collision veto) |
+| **[update-issue-metadata output]** | `gh issue edit <n> --title <...>` / `--add-label <...>` (metadata only — never `gh issue close`) |
+| **[push-task-branch output]** | `git push -u origin <task-branch>` (guard rules 3–4 veto base-branch targets; no force-push, no `--delete`) |
+
 ### Assumed runtime features
 
 The mappings above bind to Claude Code built-ins whose availability varies by version

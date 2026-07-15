@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 157 rows.
+Manifest source inventory: 159 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -178,6 +178,8 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/token-budget-check.test.sh` | KEEP | Two-sided falsification + CI-wiring tests for the token-budget check. Verbatim. |
 | `hooks/triage-freshness-docs.test.sh` | KEEP | Encoding test for PROBES-STALE / GUARD-SILENT machinery freshness surfacing. Verbatim. |
 | `hooks/triage-maker-eval-docs.test.sh` | KEEP | Encoding test for the triage "Maker eval" differential-regression surfacing (US2.AC2 — threshold, packet link, MAKER-EVAL-STALE / JUDGE-CHANGED / INSTRUMENT-CHANGED / JUDGE-MISCALIBRATED, empty states). Verbatim. |
+| `hooks/write-intents-check.sh` | KEEP | Deterministic write-intent / safe-output contract check (T636/#232) — the contract's closed intent family stays non-empty; every profile-declared intent is in-family and adapter-mapped; every writing ritual has a declaration row; no neutral `workflow/**` doc names a concrete tracker write command. Verbatim. |
+| `hooks/write-intents-check.test.sh` | KEEP | Two-sided falsification + CI-wiring tests for the write-intent check — planted declared-but-unmapped intent, neutral-doc write-command leak, out-of-family intent, missing-workflow-row, empty-family plants, plus live-tree and fixture controls. Verbatim. |
 | `settings.json` | GENERICIZE | Keep the guard hook wiring exactly; replace this repo's permission/toolchain allowlist with template placeholders. |
 | `skills/auditor-liveness/SKILL.md` | KEEP | Claude adapter binding for auditor-liveness runs. Verbatim. |
 | `skills/constitution-check/SKILL.md` | KEEP | Claude adapter binding for the constitution check. Verbatim. |

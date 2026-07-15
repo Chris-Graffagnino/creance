@@ -106,6 +106,35 @@ set"). The schema and the closed column domains live in `.claude/PROJECT.templat
 - `applies-to: both` for all three: each runs at the §7 gate's advisory step **and** in
   `pr-review` (which reuses the gate's passes).
 
+## Write intents
+Which write-intent roles each writing [workflow] may use (the closed role family, each
+role's inputs/outputs/constraints, and the family-wide exclusions live in
+`.claude/workflow/README.md` → "Write intents (safe outputs)"; the schema and closed
+column domains live in `.claude/PROJECT.template.md` → "Write intents"). This table is
+the **declaration of record**: a workflow with no row here has no write authority, and
+`none` declares the empty set. Composing workflows (the [backlog-loop], the
+[orchestrated run]) write only through the rituals they run and carry no row.
+`write-intents-check.sh` verifies every declared intent against the contract family and
+the active adapter's mapping table.
+
+| workflow | allowed intents |
+|---|---|
+| `next-task` | `[create-issue output]`, `[add-issue-comment output]`, `[push-task-branch output]`, `[open-pr output]`, `[update-pr output]`, `[add-pr-comment output]` |
+| `pr-review` | `[add-pr-comment output]` |
+| `review-response` | `[push-task-branch output]`, `[add-pr-comment output]` |
+| `triage` | none |
+| `intake` | `[add-issue-comment output]`, `[update-issue-metadata output]`, `[push-task-branch output]`, `[open-pr output]`, `[update-pr output]`, `[add-pr-comment output]` |
+| `retrospective` | `[create-issue output]`, `[add-issue-comment output]`, `[push-task-branch output]`, `[open-pr output]`, `[update-pr output]`, `[add-pr-comment output]` |
+
+- `triage` is detection-only by its own write posture ("triage posts nothing, marks
+  nothing") — the empty declaration makes that auditable rather than implicit.
+- `intake` and `retrospective` reach `[open-pr output]`/`[update-pr output]`/
+  `[add-pr-comment output]` because each lands its output through the `next-task.md`
+  §3–§8 PR path; `intake` additionally retitles/labels converted issues
+  (`[update-issue-metadata output]`) and never closes one.
+- No workflow declares a merge, base-branch write, branch deletion, or review-approval
+  intent — no such intent exists in the family (the contract's family-wide exclusions).
+
 ## Autonomy (isolated autonomous mode — the [isolated workspace] activation fact)
 The runtime-neutral model is `.claude/workflow/README.md` → the `[isolated workspace]` role +
 "Isolation and the guard's fail-open posture". This section is the **project opt-in fact** the

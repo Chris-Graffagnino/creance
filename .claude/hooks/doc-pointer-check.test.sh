@@ -79,11 +79,13 @@ AGENTS.md:.claude/workflow/next-task.md
 AGENTS.md:memory/constitution.md
 .claude/PROJECT.md:.claude/MODELS.md
 .claude/PROJECT.md:.claude/PROJECT.template.md
+.claude/PROJECT.md:.claude/PROJECT.template.md
 .claude/PROJECT.md:.claude/adapters/claude-code-probes.md
 .claude/PROJECT.md:.claude/hooks/autonomy-mode.sh
 .claude/PROJECT.md:.claude/hooks/isolated-workspace.sh
 .claude/PROJECT.md:.claude/hooks/isolation-falsification.test.sh
 .claude/PROJECT.md:.claude/hooks/shell-lint.sh
+.claude/PROJECT.md:.claude/workflow/README.md
 .claude/PROJECT.md:.claude/workflow/README.md
 .claude/PROJECT.md:.claude/workflow/gate-loop.md
 .claude/PROJECT.md:.claude/workflow/maker-eval.md

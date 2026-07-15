@@ -48,6 +48,48 @@ never a mechanism — so new roles are added by appending rows, without reshapin
 | **[environment block]** | A portable rule stated in a neutral doc (e.g. "pass multi-line text via a file, as UTF-8") | The concrete OS/shell/CLI form of that rule for the active environment | Exactly **ONE copy per adapter** — every OS/shell/CLI specific (encodings, install paths, quoting, invocation forms) lives there and nowhere else; neutral docs may point to this role but never inline its contents |
 | **[comment marker]** | An engine-authored comment body bound for a task's issue/PR thread | The same body carrying a deterministic self-identification marker | The marker's concrete form is defined **exactly once, adapter-side** (never in these docs), is **visible to a non-developer reader** of the thread, and is applied to **every** engine-posted comment. Its job is provenance under a **shared login**: the engine may post under the owner's own account, so author identity cannot separate harness bookkeeping from owner steering — the marker does (third parties cannot post as the owner login, so it need only separate harness-authored from human-authored). Recognition is **deterministic and position-anchored** per the adapter's definition — marker text merely quoted or embedded mid-body neither marks a comment nor demotes an owner comment. Reading rule: a **marked** comment is engine bookkeeping and **never** carries steering authority; the newest **unmarked** owner-login comment is authoritative owner steering, within the authority bounds in `next-task.md` §2.5 |
 
+### Write intents (safe outputs) — the tracker/SCM write [role] family
+
+Every shared-surface write a [workflow] performs — a tracker write, or the push that
+publishes a task branch — is named by **exactly one** of the intent roles below. The
+family is **closed and finite**: this table is its single home; a new write appears here
+as a new role row through a reviewed PR (P4), never by widening an existing role's
+meaning; a catch-all role (a generic "tracker write") is forbidden — each role names one
+auditable operation. Local `git` operations (branch, stage, commit) stay under the
+constitution's runtime-neutral git exception and the [guard] rules; the family governs
+the surfaces other parties see.
+
+Which intents each writing [workflow] may use is **declared in the profile** (the
+profile's "Write intents" table) — a declaration, never neutral prose; a workflow with no
+declared row has no write authority, and `none` declares the empty set. Workflows that
+only compose other workflows (the [backlog-loop], the [orchestrated run]) write solely
+through the rituals they run and carry no declaration of their own. The active adapter
+maps **every** declared intent to a concrete mechanism or a documented degradation, as
+one mapping table (the active adapter's lives in `.claude/README.md`). Neutral docs name
+intents, never mechanisms (P1); a deterministic check enforces both directions — a
+declared intent with no adapter mapping, and a neutral doc naming a concrete tracker
+write command where an intent exists (P3).
+
+| Intent role | Inputs | Outputs | Constraints |
+|------|--------|---------|-------------|
+| **[create-issue output]** | A title (per the profile's conventions) plus a body | A new tracker issue | Creates only — never closes, merges, or edits an existing issue |
+| **[add-issue-comment output]** | An issue reference plus a comment body | The body appended to the issue's thread | Additive only; every engine-posted body carries the **[comment marker]**; never edits or deletes an existing comment |
+| **[add-pr-comment output]** | A PR reference plus a comment body (top-level, or an inline reply where the surface supports it) | The body appended to the PR's thread | Additive only; carries the **[comment marker]**; never edits or deletes an existing comment, never resolves another party's thread state |
+| **[open-pr output]** | A source (task) branch, the base branch, a title, and a body | A new open PR proposing the branch | A **proposal only** — carries no approval and never merges; merge authorization stays session-explicit (`next-task.md` §8) |
+| **[update-pr output]** | An open PR **the run itself opened**, plus replacement title/body content | That PR's own title/body updated (e.g. the §8 verdict-link fill) | Scoped to the run's own PR metadata; never changes PR state (open/closed/merged/draft), reviewers, or any other PR |
+| **[update-issue-metadata output]** | An issue reference plus metadata deltas (a retitle per the profile's conventions; labels where the tracker supports them) | The metadata applied | Metadata only — never the owner-authored body, never state changes (close/reopen) |
+| **[push-task-branch output]** | A non-base task branch with commits | The branch published to the shared remote | Never the base branch, never a base-targeting refspec (backstopped by [guard] rules 3–4); never rewrites shared history; **branch deletion is not included** — the gated [isolated workspace] discard path owns the only branch deletion |
+
+**Family-wide exclusions.** No intent exists — and none may be added without the reviewed
+constitutional pass P4 requires — for: merging a PR; closing a PR or an issue as a side
+effect of review; writing the base branch directly; deleting branches outside the gated
+[isolated workspace] discard path; modifying secrets, permissions, or access controls;
+approving a review on a human's behalf; or changing model tiers, gate semantics, reviewer
+specs, guards, invariants, or the constitution outside the normal PR flow. This family
+**adds no write authority** anywhere: it names and bounds the writes the workflows already
+perform, and every existing merge restriction, base-branch protection, and [guard] rule
+is unchanged by it.
+
 ### The [guard] rules (what the gate must enforce)
 The deterministic gate blocks, before execution:
 1. Any **file edit while on the base branch** (`main`) whose target is **inside the repo**
