@@ -105,6 +105,28 @@ review-pass roster test rejects):
 Carry **one row per skill-backed pass your adapter maps** (the adapter's role→skill table),
 with that pass's real `enabled` / `condition` / `applies-to` values — not a placeholder.
 
+## Write intents
+The per-workflow **write-intent declarations** — which of the closed write-intent /
+safe-output roles (`.claude/workflow/README.md` → "Write intents (safe outputs)") each
+writing [workflow] may use. The declaration lives **here in the profile**, never in
+neutral workflow prose; the adapter maps every declared intent to a concrete mechanism
+(the active adapter's mapping table). A workflow with no row has no write authority.
+
+| workflow | allowed intents |
+|---|---|
+| <a writing workflow name> | <comma-separated intent roles from the closed family, or `none`> |
+
+**Every column's domain is closed and typed** (an off-enum value is a defect the
+write-intent check rejects):
+- **`workflow`** — a workflow ritual that writes shared surfaces. Carry one row for
+  **each** of the writing rituals your harness runs (this repo's set: `next-task`,
+  `pr-review`, `review-response`, `triage`, `intake`, `retrospective`); a missing row is
+  a defect, not an implicit empty set. Composing workflows (the [backlog-loop], the
+  [orchestrated run]) carry no row — they write only through the rituals they run.
+- **`allowed intents`** — either the literal `none` (the empty set — a declared read-only
+  posture) or backtick-quoted intent roles drawn **only** from the contract's closed
+  family. An intent outside the family, or a catch-all, is rejected.
+
 ## Architecture boundaries (the only allowed seams)
 All access to these capabilities must go through the named interface — never a vendor SDK
 from UI/component code. A leaked vendor type/error/option in a public surface is a FAIL.

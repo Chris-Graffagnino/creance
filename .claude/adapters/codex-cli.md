@@ -31,6 +31,24 @@ instructions.
 | **[permission allowlist]** | The approval configuration: `approval_policy` (`untrusted` / `on-request` / `never` / `granular`) + the sandbox boundary. Unattended runs use `--approval never` **inside** `--sandbox workspace-write` — pre-approval is the sandbox boundary itself; `granular` gives per-category allow/auto-reject where finer grain is needed. Security keys are honored only in user-level `~/.codex/config.toml` (ignored in project-local config — an enforcement *feature* here) |
 | **[environment block]** | The "Environment block" section at the end of this file — this adapter's single copy |
 
+## Write-intent mappings (the safe-output roles)
+
+The contract's closed write-intent family (`workflow/README.md` → "Write intents (safe
+outputs)") binds here through the same shared tracker CLI the active adapter uses — the
+intents are tracker-side, so the mechanism is runtime-agnostic shell rather than a Codex
+feature; the sandbox/approval configuration above is what authorizes the process to run
+them. Per-workflow authorization stays the profile's declaration table.
+
+| Intent role | Codex CLI mechanism |
+|------|---------------------|
+| **[create-issue output]** | `gh issue create` with a file-passed body, run from a `workspace-write` (network-permitted) exec; degrades to surfacing the drafted body for the owner when the tracker CLI is absent |
+| **[add-issue-comment output]** | `gh issue comment <n> --body-file <file>` (marker footer per the environment block) |
+| **[add-pr-comment output]** | `gh pr comment <n> --body-file <file>` (same rules) |
+| **[open-pr output]** | `gh pr create --body-file <file>` — a proposal only; merge stays session-explicit |
+| **[update-pr output]** | `gh pr edit <n> --body-file <file>` (own PR title/body only) |
+| **[update-issue-metadata output]** | `gh issue edit <n> --title/--add-label` (never close) |
+| **[push-task-branch output]** | `git push -u origin <task-branch>` under the [guard] binding's base-branch vetoes |
+
 ## Model table (the adapter's only model-naming surface — P-MT applies)
 
 | Tier (ordinal, highest first) | Model | Effort (`model_reasoning_effort`) |

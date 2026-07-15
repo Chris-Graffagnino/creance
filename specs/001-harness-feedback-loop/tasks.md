@@ -497,7 +497,7 @@
 > #232/#233 add deterministic checks that change no `[guard]` behavior; #240 protects the
 > gate-execution boundary (constitution P1/P3/P4/P5).
 
-- [ ] T636 [strong] Define an adapter-neutral **write-intent / safe-output [role] family**
+- [x] T636 [strong] Define an adapter-neutral **write-intent / safe-output [role] family**
       — a closed, documented set of named write intents in `.claude/workflow/README.md` →
       the binding contract; each writing workflow **declares** its allowed intents
       (profile-declared in `.claude/PROJECT.md` / `PROJECT.template.md`, not baked into
