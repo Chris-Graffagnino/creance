@@ -56,8 +56,8 @@ if printf '%s' "$OUT" | grep -q 'doc-pointer check: OK'; then ok; else bad "A co
 
 # --- B: positive extraction (US8.AC1 non-vacuity) — the unmodified extractor over
 #     the real surfaces recovers the COMPLETE hand-verified (surface, path)
-#     multiset: 17 in AGENTS.md, 34 in .claude/PROJECT.md, 23 in
-#     .claude/PROJECT.compact.md (74 total as of this diff). --------------------
+#     multiset: 17 in AGENTS.md, 36 in .claude/PROJECT.md, 23 in
+#     .claude/PROJECT.compact.md (76 total as of this diff). --------------------
 ORACLE="$TMP/oracle.txt"
 sort > "$ORACLE" <<'EOF'
 AGENTS.md:.claude/DESIGN-NOTES.md
