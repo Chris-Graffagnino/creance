@@ -102,6 +102,35 @@ This adapter's conformance-probe instantiation and dated results live in
 **`adapters/claude-code-probes.md`** (the `workflow/conformance-probes.md` checklist,
 executed 2026-06-11 — re-probe per its header when a mechanism here changes).
 
+## Orientation: the status map (read-only)
+
+`bash .claude/hooks/status-map.sh` prints a one-screen Markdown snapshot to stdout — repo
+and branch, worktree state, the task/issue/PR in play, run mode, required gates, live
+specs/tasks, and the observe-only channels. Run it when picking up cold context, instead of
+rediscovering those facts from scattered docs, `git`, and the tracker.
+
+It is an **orientation tool, never authority.** `PROJECT.md`, `workflow/**`, and
+`memory/constitution.md` are the source of truth and win on any disagreement — the map is a
+best-effort snapshot compiled *from* them (its static facts are read from the generated
+harness manifest, `hooks/harness-manifest.py`, which is itself compiled evidence, never
+authority). Never cite the map in an argument about what the harness requires; go read the
+source doc.
+
+It is **observe-only** (constitution P5): no gate, tier, guard, selection, or autonomy path
+may consume its output, which `hooks/status-map-fence.sh` proves deterministically in CI
+(the `maker-eval-fence.sh` pattern, symmetric with the manifest fence) rather than leaving
+P5 to reviewer judgment. It writes no tracked file, and needs no network for the local
+static summary.
+
+**Reading `unknown`:** a field reads `unknown` when it was *not readable here* — never when
+it is absent, and never as a guess. The tracker being down renders the open-PR field
+`unknown` while every local field still prints; the manifest being absent renders the
+profile-derived fields `unknown` while the repo/branch/task fields still print. `unknown` is
+an instruction to go look, not a claim that nothing is there.
+
+**Output budget:** 60 lines (asserted by `hooks/status-map.test.sh`). The map is an
+orientation surface, not a dashboard — issue #234's non-goals rule out growing it into one.
+
 ## Reuse on a new **project** (same runtime)
 1. Copy `.claude/` into the new repo.
 2. `cp .claude/PROJECT.template.md .claude/PROJECT.md` and fill in every `<...>`.

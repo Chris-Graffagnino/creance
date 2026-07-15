@@ -430,6 +430,27 @@ jobs:
       - name: Harness-manifest P5 fence tests
         run: bash .claude/hooks/harness-manifest-fence.test.sh
 
+      # Harness status map + its P5 fence (T638, issue #234):
+      # .claude/hooks/status-map.sh prints a one-screen Markdown orientation map to
+      # STDOUT — static harness facts (read from the T637 lock, never re-parsed) mixed
+      # with best-effort dynamic repo/tracker state. It is an ORIENTATION tool, never
+      # authority: PROJECT.md / workflow / the constitution win on any disagreement.
+      # It writes no tracked file, needs no network for the local static summary, and
+      # degrades explicitly to `unknown` (never a guess, never a crash) when the tracker
+      # or the lock is unavailable — both directions proven per-case by the .test.sh.
+      # The fence is the deterministic P5 backstop (the maker-eval-fence.sh pattern,
+      # symmetric with the manifest fence above): no gate/tier/guard/selection/autonomy
+      # path may consume the map, proven by a tracked-tree token scan with a planted-
+      # reference test — never prose-only.
+      - name: Status-map tests
+        run: bash .claude/hooks/status-map.test.sh
+
+      - name: Status-map P5 fence
+        run: bash .claude/hooks/status-map-fence.sh
+
+      - name: Status-map P5 fence tests
+        run: bash .claude/hooks/status-map-fence.test.sh
+
       # Governance-rule coverage check (T1206, spec 007 US6; epic #166):
       # .claude/governance-rules.md accounts for the US6 candidate set — which
       # rules are encoded (carried: the T623 merge-pre-approval regression in
