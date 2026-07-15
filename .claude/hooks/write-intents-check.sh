@@ -63,7 +63,10 @@ has_adapter_row() {
 }
 
 # --- 2 + 3 + 4. The profile declaration table: rows shaped `| `<workflow>` | ... |`.
-decl_rows="$(grep -E '^\| \`[a-z][a-z-]*\` \|' "$PROFILE")" || decl_rows=""
+# NOTE: backticks are NOT backslash-escaped in these EREs — GNU grep/sed treat
+# `\`` as a start-of-buffer anchor (BSD treats it as a literal), so escaping
+# silently empties every match on Linux (caught by CI on PR #285).
+decl_rows="$(grep -E '^\| `[a-z][a-z-]*` \|' "$PROFILE")" || decl_rows=""
 if [ -z "$decl_rows" ]; then
   fail "profile surface '$PROFILE' carries no write-intent declaration rows (repair: restore the \"Write intents\" table)"
 fi
@@ -71,8 +74,8 @@ fi
 declared_workflows=""
 while IFS= read -r row; do
   [ -n "$row" ] || continue
-  wf="$(printf '%s' "$row" | sed -E 's/^\| \`([a-z][a-z-]*)\` \|.*/\1/')"
-  cell="$(printf '%s' "$row" | sed -E 's/^\| \`[a-z][a-z-]*\` \|(.*)\|$/\1/')"
+  wf="$(printf '%s' "$row" | sed -E 's/^\| `([a-z][a-z-]*)` \|.*/\1/')"
+  cell="$(printf '%s' "$row" | sed -E 's/^\| `[a-z][a-z-]*` \|(.*)\|$/\1/')"
   declared_workflows="$declared_workflows $wf"
   intents="$(printf '%s' "$cell" | grep -oE '\[[a-z][a-z-]* output\]')" || intents=""
   if [ -z "$intents" ]; then
