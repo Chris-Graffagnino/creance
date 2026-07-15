@@ -92,6 +92,18 @@ expect 1 "planted (a): declared intent without adapter row FAILs" \
 expect_msg "planted (a): diagnostic names the unmapped intent" \
   "[add-pr-comment output]" "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-missing.md"
 
+# --- Direction (a): a mapping row with an empty mechanism/degradation cell maps nothing
+cat > "$TMP/adapter-empty-cell.md" <<'EOF'
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+| **[add-pr-comment output]** | |
+EOF
+expect 1 "planted (a): empty adapter mechanism cell FAILs" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-empty-cell.md"
+expect_msg "planted (a): diagnostic names the empty-cell row" \
+  "empty mechanism/degradation cell" "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-empty-cell.md"
+
 # --- Direction (b): a neutral workflow doc naming a concrete tracker write command
 mkdir -p "$TMP/workflow-leak"
 cp "$TMP/workflow/clean.md" "$TMP/workflow-leak/clean.md"

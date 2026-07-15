@@ -55,8 +55,24 @@ in_family() { # in_family <[role]> -> 0/1
   printf '%s\n' "$family" | grep -qFx "$1"
 }
 
-# --- 3's input: the adapter mapping rows (same row-anchored shape).
-adapter_rows="$(grep -oE '^\| \*\*\[[a-z][a-z-]* output\]\*\*' "$ADAPTER" | grep -oE '\[[a-z][a-z-]* output\]' | sort -u)"
+# --- 3's input: the adapter mapping rows (same row-anchored shape). A mapping row
+# must carry a non-empty mechanism/degradation cell — a bare role row maps nothing
+# (the binding contract requires a concrete mechanism or a documented degradation).
+adapter_row_lines="$(grep -nE '^\| \*\*\[[a-z][a-z-]* output\]\*\*' "$ADAPTER")" || adapter_row_lines=""
+adapter_rows=""
+while IFS= read -r numbered; do
+  [ -n "$numbered" ] || continue
+  lineno="${numbered%%:*}"
+  row="${numbered#*:}"
+  role="$(printf '%s' "$row" | grep -oE '\[[a-z][a-z-]* output\]' | head -n 1)"
+  cell="$(printf '%s' "$row" | sed -E 's/^\| \*\*\[[a-z][a-z-]* output\]\*\* \|(.*)\|[[:space:]]*$/\1/')"
+  if [ "$cell" = "$row" ] || ! printf '%s' "$cell" | grep -qE '[^[:space:]]'; then
+    fail "adapter mapping row for '$role' ($ADAPTER:$lineno) has an empty mechanism/degradation cell — a bare role row maps nothing (repair: name the concrete mechanism, or the documented degradation)"
+  fi
+  adapter_rows="$adapter_rows$role
+"
+done <<< "$adapter_row_lines"
+adapter_rows="$(printf '%s' "$adapter_rows" | sort -u)"
 
 has_adapter_row() {
   printf '%s\n' "$adapter_rows" | grep -qFx "$1"
