@@ -6,6 +6,9 @@ Read in this order (paths from the profile), then state assumptions/ambiguities 
 4. Nearby existing code and tests in the task's `path`.
 5. The task's **issue/PR comment thread** — owner steering may be waiting there (§2.5).
 
+On a retry, the newest marked retry comment on that thread is consumed as maker input
+(`workflow/retry.md`, the consuming half).
+
 ## 2.5 The owner-comment channel (steering, provenance, bounds)
 For an owner-absent run, the issue/PR comment thread is the **only** channel through which
 the owner can steer between sessions. These rules own all thread reading and refreshing

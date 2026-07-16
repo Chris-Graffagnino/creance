@@ -68,4 +68,7 @@ the shared-tree HEAD matches it before every dispatch and re-dispatch; a mismatc
    `fail_reports` (`telemetry.md`), which is the source §8's risk-ranked digest cites for
    near-misses.
 
+On a step-4 **non-convergence stop**, also post the blocking verdicts verbatim to the
+task's issue for the next attempt (`workflow/retry.md`, the retry channel's posting half).
+
 Next: [§8 Prepare the PR body](08-pr-body.md)

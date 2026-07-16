@@ -522,6 +522,19 @@ jobs:
       - name: Telemetry encoding tests
         run: bash .claude/hooks/telemetry-docs.test.sh
 
+      # T635 retry-channel encoding tests (#210, spec 001 US10): the retry sub-doc
+      # (workflow/retry.md) — the non-convergence-only posting half (verbatim,
+      # keyed by auditor and round, via the [add-issue-comment output] intent with
+      # the [comment marker]), the consuming half (newest marked retry comment as
+      # maker input: no steering authority, no verdict carry-over PASS included,
+      # every rostered reviewer re-runs), the tracker-not-telemetry source boundary
+      # (P5), the DESIGN-NOTES §15 tension entry, and the two-sided P-RC probe
+      # (neutral definition + coverage-map row + adapter instantiation). Same P3
+      # determinism-backstop rationale as the other *-docs tests; the live
+      # counterpart is the P-RC conformance probe.
+      - name: Retry-channel encoding tests
+        run: bash .claude/hooks/retry-docs.test.sh
+
       # T634 effective-fix-rate tests (#209, spec 001 US9): the effective-fix rate —
       # flips (a reviewer FAIL that cleared to PASS/JUSTIFY on re-dispatch) over
       # FAIL-triggered re-dispatches — is a READ-ONLY derivation over the existing

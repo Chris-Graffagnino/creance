@@ -60,7 +60,7 @@
 | T632 | strong | [x] |  |  | Add a **maker-side falsification rule for tests** to… |
 | T633 | strong | [x] |  |  | Add a **local pre-commit tasks-consistency check** as a `[guard]` rule… |
 | T634 | cheap | [x] | US9.AC1-AC4 |  | Effective-fix-rate trend: define the read-only flip/re-dispatch… |
-| T635 | strong | [ ] | US10.AC1-AC5 |  | Retry experience retention: workflow retry sub-doc (pointer from… |
+| T635 | strong | [x] | US10.AC1-AC5 |  | Retry experience retention: workflow retry sub-doc (pointer from… |
 | T636 | strong | [x] |  |  | Define an adapter-neutral **write-intent / safe-output [role] family** |
 | T637 | strong | [x] |  |  | Add a **deterministic generated harness manifest** |
 | T638 | strong | [x] |  |  | Add a **read-only, observe-only harness status map** command/workflow… |

@@ -278,6 +278,32 @@ load-bearing and easy to "simplify" wrongly:
 
 ---
 
+## 15. Identical starts vs experience retention — feedback persists on the tracker, not in the harness
+
+Two goods pull against each other. **Identical starts** (harness determinism): every run
+begins from the same machinery — guard, gate semantics, workspace, reviewer roster, tier
+floors — so behavior is reproducible and nothing accumulates state that could drift.
+**Experience retention** (EdgeBench §5.2): under the same time budget, continuous
+experience beats independent restarts by +6.9 points — accumulated feedback history, not
+extra attempts, drives the gain. A harness that discards a failed gate run's reviewer
+verdicts on retry throws away the main performance lever without buying any safety,
+because the verdicts were never part of the machinery — they were paid-for output.
+
+The resolution (`workflow/retry.md`, spec 001 US10): **starts stay identical for the
+harness machinery; feedback history persists on the tracker.** On a gate non-convergence
+stop the dispatcher posts the blocking verdicts verbatim to the task's issue as a marked
+comment; a retry reads the newest such comment as **maker input only**. Nothing about the
+machinery changes per attempt — the comment is marked so it carries no steering authority,
+no verdict (PASS included) carries forward as a current verdict, and every reviewer
+re-runs from scratch on the retry's own diff. The line not to cross when "optimizing"
+this later: carrying verdicts forward as *current* verdicts would buy speed by collapsing
+the maker≠checker split (§2) — the retained experience is the maker's head start, never
+the checker's memo. And the channel is deliberately the tracker, not the telemetry
+stream: telemetry observes and never decides (P5), so the one artifact a retry *acts on*
+must live where the owner can read it.
+
+---
+
 ## Things that look like cruft but are not — quick index
 
 | Looks droppable | Why it stays |
