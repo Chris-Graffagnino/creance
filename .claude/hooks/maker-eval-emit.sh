@@ -646,38 +646,51 @@ do_snapshot_run() {
 
   # An unresolvable channel is a WRITE-path failure, not a caller error: the maker command
   # still runs (silent-to-the-run), just un-snapshotted, its exit code propagated.
-  local channel="" traj="" looppid=""
+  local channel="" traj="" looppid="" wakes_f=""
   channel="$(channel_dir)" || channel=""
   if [ -n "$channel" ]; then
     traj="$channel/trajectory/$run_id/$task_id/$tier"
+    # The loop's wake tally IS the elapsed-interval clock for the marking below: one byte
+    # per cadence wake, written by the same sleeps that drive capture, so "the run spanned
+    # an interval" and "a capture was due" can never disagree. A second wall clock (whole-
+    # second arithmetic) could tick across a sub-interval run's boundary and mark a run
+    # that never reached its first capture. Scratch file, never inside the channel (the
+    # blocked-channel marking case must still be able to count wakes); if mktemp fails the
+    # tally degrades to zero — marking silently never fires, a write-path degradation.
+    wakes_f="$(mktemp 2>/dev/null)" || wakes_f=""
     # The capture loop: one snapshot per elapsed cadence interval, in the background so the
     # maker command's own timing is untouched. Killed the moment the command exits.
     ( i=1
       while :; do
         sleep "$cadence" || exit 0
+        [ -z "$wakes_f" ] || printf '.' >> "$wakes_f"
         snapshot_capture "$traj" "$i" "$ws"
         i=$((i + 1))
       done ) 2>/dev/null &
     looppid=$!
   fi
 
-  local start elapsed rc
-  start=$SECONDS
+  local rc
   "$@"
   rc=$?
-  elapsed=$((SECONDS - start))
   if [ -n "$looppid" ]; then
     kill "$looppid" 2>/dev/null
     wait "$looppid" 2>/dev/null
   fi
 
   # The two-sided trajectory-incomplete marking (US3.AC1/AC2): a run spanning >= 1 declared
-  # interval with ZERO captured snapshots is recorded explicitly — "no snapshots" must never
-  # masquerade as "no intervals elapsed" — while a genuinely sub-interval run appends
-  # nothing. Counts only RENAMED interval dirs (a discarded .tmp is not a snapshot). The
-  # marking itself is an observe-only append: its write failure is silent, and `complete`
-  # never counts it as a scored record (record_present filters on record:"maker-eval").
-  if [ -n "$channel" ] && [ "$((elapsed / cadence))" -ge 1 ]; then
+  # interval (>= 1 loop wake) with ZERO captured snapshots is recorded explicitly — "no
+  # snapshots" must never masquerade as "no intervals elapsed" — while a genuinely
+  # sub-interval run (the loop never woke) appends nothing. Counts only RENAMED interval
+  # dirs (a discarded .tmp is not a snapshot). The marking itself is an observe-only
+  # append: its write failure is silent, and `complete` never counts it as a scored record
+  # (record_present filters on record:"maker-eval").
+  local intervals=0
+  if [ -n "$wakes_f" ]; then
+    intervals="$(wc -c < "$wakes_f" 2>/dev/null | tr -d '[:space:]')"
+    rm -f "$wakes_f" 2>/dev/null
+  fi
+  if [ -n "$channel" ] && [ "${intervals:-0}" -ge 1 ]; then
     local captured ts repo marker
     captured="$(find "$traj" -maxdepth 1 -type d -name 'interval-*' ! -name '*.tmp' 2>/dev/null | grep -c .)"
     if [ "${captured:-0}" -eq 0 ]; then
@@ -686,7 +699,7 @@ do_snapshot_run() {
           && repo="$(repo_basename)" \
           && marker="$(jq -cn \
                --arg ts "$ts" --arg repo "$repo" --arg run "$run_id" --arg task "$task_id" \
-               --arg tier "$tier" --argjson cad "$cadence" --argjson iv "$((elapsed / cadence))" \
+               --arg tier "$tier" --argjson cad "$cadence" --argjson iv "$intervals" \
                '{record:"maker-eval-trajectory-incomplete", timestamp:$ts, repo:$repo,
                  run_id:$run, task_id:$task, maker_tier:$tier,
                  cadence_seconds:$cad, intervals_elapsed:$iv, snapshots:0}')" \
