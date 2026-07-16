@@ -90,6 +90,13 @@ mkfix "$TMP/k" ".claude/hooks/gate-reader.test.sh" 'jq .autonomy .claude/HARNESS
 run_fence 1 "$TMP/k" "fires: an unrelated *.test.sh reading the lock (tests named, not globbed)" \
   "P5 FENCE VIOLATION: .claude/hooks/gate-reader.test.sh"
 
+# The observe-only consumer allowance (T638/#234) is scoped to the status map BY NAME:
+# a differently-named hook reading the lock is still the breach, so the allowance cannot
+# be stretched into a general hooks exemption.
+mkfix "$TMP/n" ".claude/hooks/status-summary.sh" 'jq .autonomy .claude/HARNESS.lock.json'
+run_fence 1 "$TMP/n" "fires: a lock-reading hook that is NOT the sanctioned status map" \
+  "P5 FENCE VIOLATION: .claude/hooks/status-summary.sh"
+
 # --- the sanctioned surfaces do NOT fire ------------------------------------------
 mkfix "$TMP/g" ".claude/hooks/harness-manifest.py" 'LOCK_PATH = ".claude/HARNESS.lock.json"'
 addfix "$TMP/g" ".claude/HARNESS.lock.json" '{"schema_version": 1}'
@@ -98,7 +105,11 @@ addfix "$TMP/g" "specs/001-x/tasks.md" '- [ ] T637 add `.claude/HARNESS.lock.jso
 addfix "$TMP/g" "specs/001-x/spec.md" 'AC1: `.claude/HARNESS.lock.json` exists'
 addfix "$TMP/g" "specs/TASK_INDEX.md" '| T637 | strong | [ ] | | | add HARNESS.lock.json |'
 addfix "$TMP/g" ".claude/hooks/harness-manifest.test.sh" 'grep schema_version .claude/HARNESS.lock.json'
-run_fence 0 "$TMP/g" "passes: generator + lock + cut-list + backlog/spec/index + tests"
+# The sanctioned observe-only consumer (T638/#234): the status map reads the lock for its
+# static facts and is itself P5-fenced, so it carries no control authority.
+addfix "$TMP/g" ".claude/hooks/status-map.sh" 'LOCK=".claude/HARNESS.lock.json"'
+addfix "$TMP/g" ".claude/hooks/status-map.test.sh" 'cat > "$d/.claude/HARNESS.lock.json"'
+run_fence 0 "$TMP/g" "passes: generator + lock + cut-list + backlog/spec/index + tests + the observe-only status map"
 
 # A token-free file is never a hit.
 mkfix "$TMP/h" ".claude/hooks/guard.sh" 'echo no manifest reference here'

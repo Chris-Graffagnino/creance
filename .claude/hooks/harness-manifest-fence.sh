@@ -42,8 +42,8 @@ MANIFEST_TOKEN='HARNESS\.lock'
 # Anything NOT matched here or line-scoped below — guard.sh, gate-loop.{js,md},
 # autonomy-mode.sh, the reconcile-*/announce-* selection hooks, backlog-loop-*, MODELS.md,
 # any future code path — is a gate/tier/guard/selection/autonomy surface, and a reference
-# there is the P5 violation. (A future observe-only consumer — e.g. the #234/T638 status
-# map — must be added here explicitly by PR, with its observe-only nature stated.)
+# there is the P5 violation. (A future observe-only consumer must be added here explicitly
+# by PR, with its observe-only nature stated — the status map below is the first.)
 allowed() {
   case "$1" in
     .claude/hooks/harness-manifest.py)       return 0 ;;  # the generator + staleness check (the WRITER)
@@ -54,6 +54,15 @@ allowed() {
                                              return 0 ;;  # backlog/spec declaration prose (no execution)
     .claude/hooks/harness-manifest.test.sh | .claude/hooks/harness-manifest-fence.test.sh)
                                              return 0 ;;  # the two manifest harnesses, by exact name — tests run in the required `verify` job, so a *.test.sh glob would let any future test consume the lock unfenced (PR #283)
+    # The sanctioned OBSERVE-ONLY consumer (T638, issue #234), added by PR exactly as this
+    # fence's header requires. The status map READS the lock to render static profile facts
+    # instead of re-parsing PROJECT.md — a read with no control authority: it decides
+    # nothing, prints to stdout, and is itself P5-fenced by status-map-fence.sh, which
+    # proves no gate/tier/guard/selection/autonomy path consumes IT either. So the lock
+    # cannot reach a decision path by way of the map. Its test harness is named here for
+    # the same reason the manifest harnesses are — exactly, never a *.test.sh glob.
+    .claude/hooks/status-map.sh | .claude/hooks/status-map.test.sh)
+                                             return 0 ;;  # the observe-only status map (T638) + its harness
     *) return 1 ;;
   esac
 }

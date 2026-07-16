@@ -521,7 +521,7 @@
       content-hashed with a TODO, not mis-parsed (#233; repo-maintenance — done-when on
       issue) — strong: deterministic-governance tooling on the contract surface
       (constitution P3/P4/P5)
-- [ ] T638 [strong] Add a **read-only, observe-only harness status map** command/workflow
+- [x] T638 [strong] Add a **read-only, observe-only harness status map** command/workflow
       emitting concise Markdown that mixes static profile facts with best-effort dynamic
       repo/GitHub state (mode, branch/worktree, task/issue/PR, required gates, live
       specs/tasks, observe-only channels); it **degrades explicitly** (`unknown`) when

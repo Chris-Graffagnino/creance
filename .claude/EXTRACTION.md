@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 159 rows.
+Manifest source inventory: 163 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -169,6 +169,10 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/shell-lint.test.sh` | KEEP | Regression tests for the shell portability checker. Verbatim. |
 | `hooks/spec-lint.sh` | KEEP | Deterministic spec-content lint over `specs/*/spec.md` (the mechanizable spec-quality smells). Verbatim. |
 | `hooks/spec-lint.test.sh` | KEEP | Regression + CI-wiring tests for the spec-content lint. Verbatim. |
+| `hooks/status-map.sh` | KEEP | Read-only, observe-only harness status map (T638) — prints a one-screen Markdown orientation snapshot to stdout (repo/branch/worktree, task/issue/PR, mode, required gates, live specs/tasks, observe-only channels); static facts read from `HARNESS.lock.json`, drift sourced from `lib-tasks-drift.sh`; degrades to `unknown` without tracker or lock, writes no tracked file. Verbatim. |
+| `hooks/status-map.test.sh` | KEEP | Per-case behavioral tests for the status map — base vs feature branch, clean vs dirty worktree, tracker available/failing/absent, lock present/absent, observe-only rendering, output budget, read-only, and the loud local-repo failure. Verbatim. |
+| `hooks/status-map-fence.sh` | KEEP | Deterministic P5 fence over the harness status map (T638, the maker-eval-fence.sh pattern) — asserts no gate/tier/guard/selection/autonomy path consumes the map; only the map, its fence/tests, the cut-list, the adapter doc pointer, and declaration surfaces may name it (CI line-scoped). Verbatim. |
+| `hooks/status-map-fence.test.sh` | KEEP | Paired plant/pass tests for the status-map P5 fence — fires on a planted reference from each control-authority surface class, passes on the sanctioned surfaces, spaced prose, and the real tree, proves the CI line-scope and fail-closed posture. Verbatim. |
 | `hooks/stage-card-check.py` | KEEP | Deterministic stage-card index, transition, frozen-obligation, and section-reference checker (T1204). Verbatim. |
 | `hooks/stage-card-check.test.sh` | KEEP | Falsification tests for dropped/duplicated obligations, index/transition drift, stale references, demand-loading policy, budgets, and CI wiring. Verbatim. |
 | `hooks/task-index.py` | KEEP | Generated task-index generator + staleness check over `specs/*/tasks.md` (`--write` regenerates `specs/TASK_INDEX.md`; `--check` fails naming the drifted entry; spec 007 US5). Generic and portable; python3 (already a `verify` dependency for the token counter), stdlib-only, offline. Verbatim — the adopter regenerates the index after filling their first real spec (an empty template has no live `tasks.md` yet, and `context-budgets.md`'s GENERICIZE resets the `task-index` budget row). |
