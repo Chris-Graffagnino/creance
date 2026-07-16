@@ -17,6 +17,10 @@ resolve through the section labels in this ordered index.
 9. [§8 Prepare the PR body](next-task/08-pr-body.md)
 10. [§8 Publish evidence, verify the PR, and stop](next-task/09-pr-publish.md)
 
+A §7 gate **non-convergence** stop persists its blocking verdicts for the next attempt:
+the retry channel — the posting half (§7) and the consuming half (§2/resume) — is defined
+in [retry.md](retry.md).
+
 The cards preserve the complete pre-split procedure. The independent frozen inventory
 at `next-task-obligations.tsv` and the standing stage-card completeness check prove that
 every original obligation appears exactly once and every card is indexed.

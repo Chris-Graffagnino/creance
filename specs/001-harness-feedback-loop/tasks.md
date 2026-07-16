@@ -467,7 +467,7 @@
       no-fix-rounds-vs-0-of-N and no-data states; fixture-backed test per US9.AC3
       (FAIL→PASS flip, FAIL→JUSTIFY flip, non-convergence, pass-first-try, both empty
       states); observe-only — no gate/tier/guard/selection consumer (P5) (#209) (US9)
-- [ ] T635 [strong] Retry experience retention: workflow retry sub-doc (pointer from
+- [x] T635 [strong] Retry experience retention: workflow retry sub-doc (pointer from
       `next-task.md`, budget check green) defining verbatim per-auditor/round posting of
       non-convergence verdicts as a marked issue comment + the retry-consumes-it
       procedure (maker input only — no steering authority, no verdict carry-over, every

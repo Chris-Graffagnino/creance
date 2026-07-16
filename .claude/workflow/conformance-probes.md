@@ -450,6 +450,32 @@ state; record results alongside the adapter's spec).
   proposal-PR and known-gap outputs reuse the next-task flow [P-NT] and ordinary issue
   creation, so this probe centers on the back-test posture above).
 
+### P-RC — retry channel (`retry.md`)
+Two-sided by definition: a probe **exercising only the posting path does not satisfy**
+US10.AC5 — the negative direction (a PASS posts nothing) is half the contract.
+- **Setup:** a throwaway fixture issue (never a real task's thread), plus two
+  **simulated** gate returns for a fixture task ID: one `non-convergence` return whose
+  verdict map carries at least one FAIL report with distinctive per-auditor, per-round
+  content, and one `pass` return. Simulation is deliberate: driving a real
+  non-convergence needs an unfixable plant ground through the whole fix budget, while
+  the posting half consumes only the gate's **return value** (`retry.md`) — the seam
+  this probe pins. Record the fixture issue's comment count before each action; close
+  the fixture issue after (a probe leaves no live thread).
+- **Action:** drive the retry channel's posting half (`retry.md`) once per simulated
+  return, against the fixture issue.
+- **Expect:** (a) the non-convergence return **produces the marked retry comment**:
+  exactly one new comment whose first line matches the `Retry verdicts` shape and names
+  the fixture task ID, whose body carries the blocking reports **verbatim, keyed by
+  auditor and round** (compared byte-for-byte modulo the mandatory **[comment marker]**
+  final line — the P-NT precedent: a raw byte-identity demand would false-fail on the
+  required footer), and whose final line is the marker; (b) the `pass` return produces
+  **no retry comment** — the fixture issue's comment count is unchanged by that action;
+  (c) the consuming half's discipline (maker input only, no verdict carry-over, every
+  reviewer re-runs) is exercised by live use and the §7 gate itself — this probe pins
+  the channel, not the retry run's grading.
+- **Fixtures, never live state:** the fixture issue and both simulated returns are
+  throwaway; the run leaves the repo and the tracker as it found them.
+
 ### P-EV — evasion register (`reviewers/evasion-register.md`)
 - **Setup:** a throwaway fixture branch off the base branch whose committed diff plants
   **one evasion that matches a seeded register exhibit** and that the exhibit's owning
@@ -551,6 +577,7 @@ channel as it found them.
 | intake procedure (`intake.md`) | P-IN |
 | next-task PR digest (`next-task.md` §8) | P-NT |
 | retrospective procedure (`retrospective.md`) | P-RT |
+| retry channel (`retry.md`) | P-RC |
 | evasion register (`reviewers/evasion-register.md`) | P-EV |
 | spec-quality reviewer dispatch (the `dispatch-spec` condition) | P-SQ |
 | maker-eval procedure (`maker-eval.md`) | P-ME |

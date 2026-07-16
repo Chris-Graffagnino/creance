@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 163 rows.
+Manifest source inventory: 165 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -162,6 +162,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/restore-task-branch.sh` | KEEP | Review-mode §7 gate backstop: restores the maker's HEAD if a shared-tree auditor switched it off the task branch. Verbatim. |
 | `hooks/restore-task-branch.test.sh` | KEEP | Paired real-git regression tests for the gate branch-restore backstop (DW1 fail-before/pass-after, DW2 base-read control, DW3 both outcomes, fail-loud, CI+dispatcher wiring). Verbatim. |
 | `hooks/retrospective-docs.test.sh` | KEEP | Encoding test for retrospective workflow/binding invariants. Verbatim. |
+| `hooks/retry-docs.test.sh` | KEEP | Encoding test for the retry channel (T635/#210, spec 001 US10) — the non-convergence-only posting half, the maker-input-only consuming half, the tracker-not-telemetry boundary, the DESIGN-NOTES tension entry, and the two-sided P-RC probe. Verbatim. |
 | `hooks/review-pass-roster.test.sh` | KEEP | Drift + fence backstop for the configurable skill-backed review-pass set (profile rows vs adapter-mapped passes; the roster-auditor fence). Verbatim. |
 | `hooks/review-response-docs.test.sh` | KEEP | Encoding test for the review-response workflow + binding (#255 DW1–DW7 — the re-gate/red→green/enumerate-first/no-merge clauses, neutrality, and CI wiring). Verbatim. |
 | `hooks/reviewer-roster.test.sh` | KEEP | Drift backstop for the §7 reviewer roster and read-only agent bindings. Verbatim. |
@@ -216,6 +217,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `workflow/next-task/09-pr-publish.md` | KEEP | Demand-loaded PR publication, evidence, and stop card. Verbatim. |
 | `workflow/pr-review.md` | KEEP | Runtime-neutral PR-review workflow. Verbatim. |
 | `workflow/retrospective.md` | KEEP | Runtime-neutral retrospective workflow. Verbatim. |
+| `workflow/retry.md` | KEEP | Runtime-neutral retry channel (spec 001 US10) — a gate non-convergence stop posts its blocking verdicts verbatim to the task's issue; a retry consumes them as maker input only (no steering authority, no verdict carry-over, every reviewer re-runs); tracker, never telemetry. Verbatim. |
 | `workflow/review-response.md` | KEEP | Runtime-neutral review-response workflow — the write-direction mirror of pr-review (resolve findings on your own open PR; re-gate the fix). Verbatim. |
 | `workflow/reviewers/auditor-liveness-corpus.md` | KEEP | Fixture manifest for auditor-liveness. Verbatim. |
 | `workflow/reviewers/constitution-auditor.md` | KEEP | Values reviewer spec. Verbatim. |
