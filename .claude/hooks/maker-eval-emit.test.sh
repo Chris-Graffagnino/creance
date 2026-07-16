@@ -28,7 +28,9 @@
 #        byte-identical; the trajectory-incomplete marking is TWO-SIDED (fires on a planted
 #        zero-snapshot multi-interval run, does not fire on a genuinely sub-interval run);
 #        a marker line never satisfies run completeness; caller errors are loud and never
-#        start the maker command.
+#        start the maker command; captures hold FIXED cadence boundaries under slow copies
+#        (never cadence+copy_duration drift); and the active capture child is reaped on
+#        maker exit (no orphaned copy outlives snapshot-run — PR #288 review).
 #
 # Run: bash .claude/hooks/maker-eval-emit.test.sh
 set -u
@@ -590,6 +592,53 @@ MAKER_EVAL_ROOT="$T3" MAKER_EVAL_DIR="$TMP/snap-chX" bash "$EMIT" snapshot-run \
   --run-id run-X --task ME-01 --tier strong --workspace "$SWS" -- touch "$SENT" >/dev/null 2>&1; rc=$?
 eq "US3.AC2: an instrument declaring no cadence is a loud caller error (exit 2)" "2" "$rc"
 if [ -e "$SENT" ]; then bad "US3.AC2: a rejected snapshot-run never starts the maker command" "created $SENT"; else ok; fi
+
+# (vii) FIXED CADENCE BOUNDARIES (PR #288 owner P1) — captures are scheduled against
+# deadlines derived from the LOOP START (t0 + n*cadence), so copy time never stretches the
+# sampling grid to cadence+copy_duration. A `cp` shim adds ~1s per copy; at cadence 1 a
+# ~4.7s run must still land interval-3 (a full-sleep-after-copy loop drifts to wakes at
+# ~1.0/3.05/5.1s and never reaches it).
+CPSHIM="$TMP/cp-shim"; mkdir -p "$CPSHIM"
+REALCP="$(command -v cp)"
+cat > "$CPSHIM/cp" <<EOF
+#!/bin/sh
+sleep 1
+exec "$REALCP" "\$@"
+EOF
+chmod +x "$CPSHIM/cp"
+BCH="$TMP/snap-channel-boundaries"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$BCH" PATH="$CPSHIM:$PATH" bash "$EMIT" snapshot-run \
+  --run-id run-B --task ME-01 --tier strong --workspace "$SWS" -- sleep 4.7; rc=$?
+eq "US3.AC2: the boundary-scheduled run propagates the maker exit code" "0" "$rc"
+BTRAJ="$BCH/trajectory/run-B/ME-01/strong"
+for n in 1 2 3; do
+  if [ -d "$BTRAJ/interval-$n" ]; then ok
+  else bad "US3.AC2: slow copies do not drift capture off the fixed cadence boundary (interval-$n)"; fi
+done
+
+# (viii) THE ACTIVE CAPTURE CHILD IS REAPED (PR #288 Codex P2) — when the maker command
+# exits mid-copy, the in-flight copy is killed and its partial `.tmp` discarded; no
+# orphaned child keeps writing into the trajectory dir after snapshot-run has returned.
+# A 2s `cp` shim guarantees the copy straddles the ~1.5s maker exit.
+CPSHIM2="$TMP/cp-shim-slow"; mkdir -p "$CPSHIM2"
+cat > "$CPSHIM2/cp" <<EOF
+#!/bin/sh
+sleep 2
+exec "$REALCP" "\$@"
+EOF
+chmod +x "$CPSHIM2/cp"
+RCH="$TMP/snap-channel-reap"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$RCH" PATH="$CPSHIM2:$PATH" bash "$EMIT" snapshot-run \
+  --run-id run-R --task ME-01 --tier strong --workspace "$SWS" -- sleep 1.5; rc=$?
+eq "US3.AC2: the reaped run propagates the maker exit code" "0" "$rc"
+RTRAJ="$RCH/trajectory/run-R/ME-01/strong"
+eq "US3.AC2: no in-flight .tmp capture survives the maker command's exit" "0" \
+  "$(find "$RTRAJ" -maxdepth 1 -name '*.tmp' 2>/dev/null | grep -c .)"
+# an orphaned copy would finish ~0.5s from now and resurrect the .tmp tree — prove the
+# child was killed, not merely its droppings swept once
+sleep 1.2
+eq "US3.AC2: no orphaned copy keeps writing after snapshot-run returns" "0" \
+  "$(find "$RTRAJ" -maxdepth 1 \( -name '*.tmp' -o -name 'interval-*' \) 2>/dev/null | grep -c .)"
 
 echo "maker-eval emit tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

@@ -86,7 +86,9 @@
 #
 #   snapshot-run --run-id <id> --task <ME-id> --tier <maker-tier> --workspace <dir> -- <cmd...>
 #       Run the maker command (T807, spec 003 US3.AC1/AC2), capturing a snapshot of
-#       <workspace> once per elapsed interval of the INSTRUMENT-DECLARED cadence (the corpus
+#       <workspace> once per elapsed interval of the INSTRUMENT-DECLARED cadence — scheduled
+#       against fixed boundaries from the run's start, so copy time never stretches the
+#       sampling grid (the corpus
 #       manifest's "Snapshot cadence" section — a frozen, fingerprinted value, P4) into the
 #       channel's own trajectory storage, <channel>/trajectory/<run-id>/<task>/<tier>/
 #       interval-<n>/, distinct from packets/ so the US3.AC4 fence extension can scope to it.
@@ -593,9 +595,17 @@ snapshot_capture() { # <traj-dir> <n> <workspace>
   {
     [ -e "$dest" ] && return 0
     mkdir -p "$tmp" || return 0
-    cp -R "$3/." "$tmp/" || { rm -rf "$tmp"; return 0; }
+    # The copy runs BACKGROUNDED and reaped via `wait` so the capture loop's TERM trap can
+    # fire mid-copy (a trap on a foreground child is deferred until it finishes) and kill
+    # the copy rather than orphan it past snapshot-run's return; `tmp_inflight` lets the
+    # trap discard the partial tree the killed copy leaves (PR #288 review).
+    tmp_inflight="$tmp"
+    cp -R "$3/." "$tmp/" & child=$!
+    if ! wait "$child"; then child=""; tmp_inflight=""; rm -rf "$tmp"; return 0; fi
+    child=""
     rm -rf "$tmp/.git"
     mv "$tmp" "$dest" || rm -rf "$tmp"
+    tmp_inflight=""
   } 2>/dev/null
   return 0
 }
@@ -660,9 +670,36 @@ do_snapshot_run() {
     wakes_f="$(mktemp 2>/dev/null)" || wakes_f=""
     # The capture loop: one snapshot per elapsed cadence interval, in the background so the
     # maker command's own timing is untouched. Killed the moment the command exits.
-    ( i=1
+    #
+    # Wakes are scheduled against FIXED cadence boundaries derived from the loop start
+    # (t0 + i*cadence), never a fresh full-cadence sleep after each copy — otherwise a copy
+    # taking measurable time stretches the sampling grid to cadence+copy_duration and
+    # silently drops trajectory samples (PR #288 review). A boundary already past when its
+    # turn comes (a copy overran it) sleeps zero and is captured late rather than skipped,
+    # so every elapsed boundary is accounted — one wake tick and one capture attempt each.
+    # The FIRST wake is a plain full-cadence sleep (t0 is whole-second wall time, so a
+    # t0-derived first deadline could fire up to 1s early and tick a wake on a genuinely
+    # sub-interval run — the exact false marking the wake tally exists to prevent); from
+    # boundary 2 on, <=1s of wall-clock truncation only jitters capture timing, never the
+    # tally's sub-interval judgement. The sleep is backgrounded and reaped via `wait` so
+    # the TERM trap fires immediately (never after a full pending cadence), kills the
+    # active child — the sleep, or via snapshot_capture the in-flight copy — and discards
+    # the partial `.tmp`; the parent's kill would otherwise orphan them past return.
+    ( child="" tmp_inflight=""
+      trap '[ -n "$child" ] && { kill "$child"; wait "$child"; } 2>/dev/null
+            [ -z "$tmp_inflight" ] || rm -rf "$tmp_inflight"
+            exit 0' TERM
+      t0="$(date +%s)"
+      i=1
       while :; do
-        sleep "$cadence" || exit 0
+        if [ "$i" -eq 1 ]; then rem="$cadence"
+        else
+          rem=$(( t0 + i * cadence - $(date +%s) ))
+          [ "$rem" -gt 0 ] || rem=0
+        fi
+        sleep "$rem" & child=$!
+        wait "$child" || exit 0
+        child=""
         [ -z "$wakes_f" ] || printf '.' >> "$wakes_f"
         snapshot_capture "$traj" "$i" "$ws"
         i=$((i + 1))
