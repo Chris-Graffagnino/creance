@@ -235,6 +235,25 @@ turns the judge's verdicts over this set into the recorded figure — is the neu
 (`maker-eval.md` → "Judge calibration"); this file declares the *set, the labels, and the
 floor*, the runner materializes each scenario and scores it.
 
+## Snapshot cadence (trajectory capture — part of the frozen instrument)
+
+The trajectory measurement (`../maker-eval.md` → "Trajectory measurement") captures workspace
+snapshots during each corpus task's maker run at a **fixed, instrument-declared cadence** —
+declared here, in the frozen instrument, so the interval two runs' trajectories are compared
+over is itself comparable (spec 003 US3.AC1).
+
+- **Snapshot cadence: `300` seconds.** One workspace snapshot per elapsed interval during the
+  maker's run. The value is a **frozen-instrument** artifact: this file is hashed into the
+  eval-instrument fingerprint (`../maker-eval.md` → "The triple fingerprint"), so changing the
+  cadence moves that component — the cross-run comparison renders INSTRUMENT-CHANGED /
+  not-comparable rather than silently differencing trajectories sampled at different rates —
+  and it travels **only by reviewed PR** (constitution P4).
+
+How snapshots are captured, stored under the eval channel's trajectory storage, and marked
+trajectory-incomplete is the neutral doc's contract (`../maker-eval.md` → "Trajectory
+measurement"); the concrete capture mechanism is the adapter's. This file declares only the
+*cadence* — the single number a run reads.
+
 ## Observe-only (constitution P5 — restated where it is easy to forget)
 
 A task's record, its rubric verdicts, the agreement figure, and any fingerprint movement are

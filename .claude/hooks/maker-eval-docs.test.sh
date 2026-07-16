@@ -460,6 +460,40 @@ else
   printf 'FAIL US2.AC4: P-ME results-row result cell is not PASS (got: %s)\n' "${pme_cell:-<no \`| P-ME (…)\` row>}" >&2
 fi
 
+# ── US3.AC1 (T807) — the trajectory-measurement contract in the neutral doc, and the ──────
+# cadence declared by the frozen instrument. The behavioral mechanism tests live in
+# maker-eval-emit.test.sh (US3.AC2); these pin the DOC obligations so a later edit that
+# drops one — the silent-to-the-run law, the no-maker-visible-score boundary, the explicit
+# two-sided trajectory-incomplete marking, the instrument-declared cadence — fails verify.
+check "US3.AC1: the neutral doc defines trajectory measurement" "$NEU_FLAT" \
+  "## Trajectory measurement"
+check "US3.AC1: snapshots follow the instrument-declared cadence" "$NEU_FLAT" \
+  "the cadence the frozen instrument declares"
+check "US3.AC1: capture is silent-to-the-run" "$NEU_FLAT" \
+  "never blocks, fails, or alters the maker's run"
+check "US3.AC1: no snapshot-derived score reaches a maker-visible surface" "$NEU_FLAT" \
+  "No snapshot-derived score reaches any maker-visible surface"
+check "US3.AC1: trajectory-incomplete is marked explicitly, never silently" "$NEU_FLAT" \
+  "Trajectory-incomplete is marked explicitly, never silently"
+check "US3.AC1: the marking is two-sided (a sub-interval run is not marked)" "$NEU_FLAT" \
+  "a genuinely sub-interval run (shorter than one declared interval) is **not** marked"
+check "US3.AC1: trajectory storage is distinct from packet storage (the fence can scope to it)" "$NEU_FLAT" \
+  "trajectory storage distinct from the packet storage"
+check "US3.AC1: the corpus manifest declares the snapshot cadence as frozen instrument" "$CORPUS_FLAT" \
+  "## Snapshot cadence (trajectory capture — part of the frozen instrument)"
+# Structural: the cadence parses to a positive whole number under the "## Snapshot cadence"
+# section — the same single-source parse the mechanism uses (a prose-only declaration the
+# parser cannot read would leave every run a loud cadence error).
+cadence_val="$(awk '/^## / { insec = (index($0, "Snapshot cadence") > 0); next } insec' "$CORPUS" \
+  | grep -oE 'Snapshot cadence:[[:space:]]*`[0-9]+`' | grep -oE '[0-9]+' | head -1)"
+if [ -n "$cadence_val" ] && [ "$cadence_val" -gt 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US3.AC1: no positive parseable snapshot cadence in the corpus manifest (got: %s)\n' \
+    "${cadence_val:-<none>}" >&2
+fi
+
 # ── Discoverability — the workflow README files index lists the new docs ──────────────────
 check "README: files index names the maker-eval methodology doc" "$README_FLAT" \
   "\`maker-eval.md\`"

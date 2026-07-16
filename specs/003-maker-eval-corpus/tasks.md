@@ -67,7 +67,7 @@
 
 ## Phase 3 — Trajectory & swap protocol (EdgeBench intake, #211/#212)
 
-- [ ] T807 [strong] Interval snapshot capture for corpus runs: fixed instrument-declared
+- [x] T807 [strong] Interval snapshot capture for corpus runs: fixed instrument-declared
       cadence, snapshots into the fenced eval path (US1.AC1), silent-to-the-run on
       write failure, no maker-visible scores, explicit trajectory-incomplete marking;
       tests per US3.AC2 (cadence fixture, byte-identical-on-write-failure, two-sided

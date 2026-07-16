@@ -147,6 +147,43 @@ differenced makes the comparison **not-comparable** (the regression call is supp
 than reported as a confounded delta — `triage.md`). The concrete hash recipe is the adapter's
 to supply.
 
+## Trajectory measurement (interval snapshots — captured during the run, graded after it)
+
+Endpoint records show where a maker *lands*; trajectories show how it *gets there* —
+improvement over interaction time, which is what a learning-speed comparison consumes
+(spec 003 US3/US4). A corpus run therefore also captures **interval snapshots** of the
+maker's workspace, invisible to the maker, under this contract (US3.AC1):
+
+- **A fixed, instrument-declared cadence.** Snapshots are captured at the cadence the frozen
+  instrument declares — `reviewers/maker-eval-corpus.md` → "Snapshot cadence", one snapshot
+  per elapsed interval during that task's **[headless run]** of the maker. The cadence is part
+  of the instrument, so it is fingerprinted (eval-instrument component, above) and changes
+  only by reviewed PR (constitution P4) — two trajectories are compared only when they were
+  sampled at the same declared rate.
+- **Into the eval channel's fenced path, under its own trajectory storage.** Each snapshot
+  lands inside the same fenced channel the records and packets use — under a **trajectory
+  storage distinct from the packet storage**, so the deterministic P5 fence can extend to it
+  as its own scope (US3.AC4 — the next task's). Nothing about a snapshot lives outside the
+  observe-only channel.
+- **Silent-to-the-run.** Capture is the snapshot analog of the record emitter's silent-write
+  law: a failed or partial snapshot **never blocks, fails, or alters the maker's run** — the
+  maker's outcome and artifacts are byte-identical with or without a working capture path. A
+  partial capture is discarded, never counted as a snapshot.
+- **No snapshot-derived score reaches any maker-visible surface.** During the run the maker
+  sees nothing of the capture; grading is **post-hoc** — after the run, by the pinned judge,
+  under an explicit instrument version (US3.AC3, the next task's) — so the measurement can
+  never steer the thing it measures (constitution P5, over time as well as at the end).
+- **Trajectory-incomplete is marked explicitly, never silently.** A run longer than one
+  declared interval that yields **zero** snapshots is recorded **trajectory-incomplete** — an
+  explicit observe-only marking, so "no snapshots" can never masquerade as "no intervals
+  elapsed". The marking is two-sided: a genuinely sub-interval run (shorter than one declared
+  interval) is **not** marked — it has no trajectory to be incomplete.
+
+The concrete capture mechanism — how a workspace is snapshotted, the storage layout, the
+marking's record form — is the adapter's to supply, exactly as the record emitter is; the
+snapshot tests (cadence fixture, byte-identical-on-write-failure, two-sided incomplete
+marking — US3.AC2) ship with that mechanism.
+
 ## Judge calibration (the agreement figure — the judge checked against human judgment)
 
 The differential above assumes the judge itself is meaningful. That is not assumed — it is
