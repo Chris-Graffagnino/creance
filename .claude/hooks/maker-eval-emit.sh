@@ -81,6 +81,30 @@
 #       baseline (US1.AC2): requiring the full (task × tier) grid means a single-tier run
 #       cannot clear MAKER-EVAL-STALE while a changed cheap/frontier row went un-scored
 #       (PR #164; spec 003 US2.AC1). A missing/empty stream is incomplete, never a silent baseline.
+#       Only `record:"maker-eval"` lines count — a trajectory-incomplete marking (below) shares
+#       the (run,task,tier) keys and must never stand in for a task's scored record.
+#
+#   snapshot-run --run-id <id> --task <ME-id> --tier <maker-tier> --workspace <dir> -- <cmd...>
+#       Run the maker command (T807, spec 003 US3.AC1/AC2), capturing a snapshot of
+#       <workspace> once per elapsed interval of the INSTRUMENT-DECLARED cadence — scheduled
+#       against fixed boundaries from the run's start, so copy time never stretches the
+#       sampling grid (the corpus
+#       manifest's "Snapshot cadence" section — a frozen, fingerprinted value, P4) into the
+#       channel's own trajectory storage, <channel>/trajectory/<run-id>/<task>/<tier>/
+#       interval-<n>/, distinct from packets/ so the US3.AC4 fence extension can scope to it.
+#       SILENT-TO-THE-RUN: the maker command's stdout/stderr pass through untouched and its
+#       exit code is propagated EXACTLY; a failed or partial capture (and a failed marking
+#       write) never blocks, errors, or alters it — each interval copies into a `.tmp` dir
+#       and renames only on success, so a partial capture is discarded, never counted. No
+#       snapshot-derived value reaches stdout: the subcommand returns only the maker
+#       command's own output/exit (grading is post-hoc — US3.AC3, the next task's). A run
+#       whose elapsed time spans >= 1 declared interval yet captured ZERO snapshots appends
+#       one explicit observe-only `maker-eval-trajectory-incomplete` line (run id, task, tier,
+#       cadence, intervals elapsed) to <channel>/records.jsonl — explicitly, never silently —
+#       while a genuinely sub-interval run appends nothing (the two-sided marking, US3.AC2).
+#       Malformed ids/tier, a missing workspace, or an undeclared/zero cadence are loud
+#       caller errors (exit 2, the maker command NOT started); an unresolvable channel is a
+#       write-path failure — the maker command still runs, un-snapshotted, exit propagated.
 #
 # Channel resolution (the fenced eval path), precedence:
 #   1. MAKER_EVAL_DIR — test/override seam (mirrors GUARD_TELEMETRY_FILE);
@@ -105,7 +129,7 @@ CORPUS="$WORKFLOW_DIR/reviewers/maker-eval-corpus.md"
 PROFILE="${MAKER_EVAL_PROJECT_FILE:-$CLAUDE_DIR/PROJECT.md}"
 
 usage() {
-  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | agreement --run-id <id> --verdicts <f> | complete --run-id <id>}\n' \
+  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | agreement --run-id <id> --verdicts <f> | complete --run-id <id> | snapshot-run --run-id <id> --task <ME-id> --tier <maker-tier> --workspace <dir> -- <cmd...>}\n' \
     "$(basename "$0")" >&2
 }
 
@@ -262,6 +286,19 @@ calibration_floor() {
        insec' "$CORPUS" 2>/dev/null \
     | grep -oE 'Agreement floor:[[:space:]]*`[0-9]+\.?[0-9]*`' \
     | grep -oE '[0-9]+\.?[0-9]*' | head -1
+}
+
+# ── snapshot cadence (the instrument-declared interval, T807 / US3.AC1) ──────────
+# The trajectory cadence is a frozen-instrument value: the `Snapshot cadence: \`<n>\``
+# seconds under "## Snapshot cadence" in the corpus manifest — same single-source parse
+# idiom as calibration_floor, so the mechanism can never sample at a rate the instrument
+# (and its eval_instrument fingerprint) did not declare. Whole positive seconds; empty if
+# absent (the caller then aborts loudly — never a silently-defaulted cadence).
+snapshot_cadence() {
+  awk '/^## / { insec = (index($0, "Snapshot cadence") > 0); next }
+       insec' "$CORPUS" 2>/dev/null \
+    | grep -oE 'Snapshot cadence:[[:space:]]*`[0-9]+`' \
+    | grep -oE '[0-9]+' | head -1
 }
 
 # ── record ──────────────────────────────────────────────────────────────────────
@@ -494,11 +531,14 @@ EOF
 }
 
 # ── complete ──────────────────────────────────────────────────────────────────
+# Only `record:"maker-eval"` lines count: the trajectory-incomplete marking (T807) shares
+# the (run_id, task_id, maker_tier) keys, so without the kind filter a marked-but-unscored
+# task would satisfy the completeness grid — an incomplete run silently promoted to baseline.
 record_present() { # <records-file> <run-id> <task-id> <tier>
   [ -f "$1" ] || return 1
   local n
   n="$(jq -c --arg r "$2" --arg t "$3" --arg k "$4" \
-        'select(.run_id == $r and .task_id == $t and .maker_tier == $k)' "$1" 2>/dev/null | grep -c .)"
+        'select(.record == "maker-eval" and .run_id == $r and .task_id == $t and .maker_tier == $k)' "$1" 2>/dev/null | grep -c .)"
   [ "${n:-0}" -gt 0 ]
 }
 
@@ -544,13 +584,179 @@ do_complete() {
   return 3
 }
 
+# ── snapshot-run (interval trajectory capture, T807 / US3.AC1+AC2) ───────────────
+# One interval's capture: copy the workspace into a `.tmp` dir and RENAME to
+# interval-<n> only when the whole copy landed, so a partial capture (a mid-copy kill
+# when the maker command exits, a full disk) is discarded, never counted as a snapshot.
+# VCS internals are excluded — the snapshot is the working tree the judge will grade,
+# not the repository object store. Silent on every failure (the run is observe-only).
+snapshot_capture() { # <traj-dir> <n> <workspace>
+  local dest="$1/interval-$2" tmp="$1/interval-$2.tmp"
+  {
+    [ -e "$dest" ] && return 0
+    mkdir -p "$tmp" || return 0
+    # The copy runs BACKGROUNDED and reaped via `wait` so the capture loop's TERM trap can
+    # fire mid-copy (a trap on a foreground child is deferred until it finishes) and kill
+    # the copy rather than orphan it past snapshot-run's return; `tmp_inflight` lets the
+    # trap discard the partial tree the killed copy leaves (PR #288 review).
+    tmp_inflight="$tmp"
+    cp -R "$3/." "$tmp/" & child=$!
+    if ! wait "$child"; then child=""; tmp_inflight=""; rm -rf "$tmp"; return 0; fi
+    child=""
+    rm -rf "$tmp/.git"
+    mv "$tmp" "$dest" || rm -rf "$tmp"
+    tmp_inflight=""
+  } 2>/dev/null
+  return 0
+}
+
+do_snapshot_run() {
+  local run_id="" task_id="" tier="" ws=""
+  # Dangling options are loud usage errors (the do_agreement guarded-shift idiom); `--`
+  # ends the options and everything after it is the maker command, untouched.
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --run-id)    [ "$#" -ge 2 ] || { usage; return 2; }; run_id="$2"; shift 2 ;;
+      --task)      [ "$#" -ge 2 ] || { usage; return 2; }; task_id="$2"; shift 2 ;;
+      --tier)      [ "$#" -ge 2 ] || { usage; return 2; }; tier="$2"; shift 2 ;;
+      --workspace) [ "$#" -ge 2 ] || { usage; return 2; }; ws="$2"; shift 2 ;;
+      --)          shift; break ;;
+      *) usage; return 2 ;;
+    esac
+  done
+  # Everything below `usage/return 2` is a CALLER error, checked BEFORE the maker command
+  # starts — loud, nothing run, nothing written. From the moment the command starts, every
+  # failure is a WRITE failure: silent-to-the-run (US3.AC1).
+  if [ -z "$run_id" ] || [ -z "$task_id" ] || [ -z "$tier" ] || [ -z "$ws" ] || [ "$#" -eq 0 ]; then
+    usage; return 2
+  fi
+  if ! safe_token "$run_id" || ! safe_token "$task_id"; then
+    printf 'maker-eval-emit: run id and task id must be safe path components (no "/" or ".."): run-id=[%s] task=[%s]\n' \
+      "$run_id" "$task_id" >&2
+    return 2
+  fi
+  if ! maker_tiers | grep -qxF -- "$tier"; then
+    printf 'maker-eval-emit: --tier must be a maker tier (%s): got [%s]\n' \
+      "$(maker_tiers | tr '\n' ' ')" "$tier" >&2
+    return 2
+  fi
+  if [ ! -d "$ws" ]; then
+    printf 'maker-eval-emit: workspace is not a directory: %s\n' "$ws" >&2
+    return 2
+  fi
+  # The cadence is INSTRUMENT-DECLARED (US3.AC1): an instrument that declares none (or a
+  # zero interval) cannot honestly sample a trajectory — a loud caller error, never a
+  # silently-defaulted rate the eval_instrument fingerprint knows nothing about.
+  local cadence
+  cadence="$(snapshot_cadence)"
+  if [ -z "$cadence" ] || [ "$cadence" -eq 0 ]; then
+    printf 'maker-eval-emit: no positive snapshot cadence declared by the instrument (%s -> "Snapshot cadence")\n' "$CORPUS" >&2
+    return 2
+  fi
+
+  # An unresolvable channel is a WRITE-path failure, not a caller error: the maker command
+  # still runs (silent-to-the-run), just un-snapshotted, its exit code propagated.
+  local channel="" traj="" looppid="" wakes_f=""
+  channel="$(channel_dir)" || channel=""
+  if [ -n "$channel" ]; then
+    traj="$channel/trajectory/$run_id/$task_id/$tier"
+    # The loop's wake tally IS the elapsed-interval clock for the marking below: one byte
+    # per cadence wake, written by the same sleeps that drive capture, so "the run spanned
+    # an interval" and "a capture was due" can never disagree. A second wall clock (whole-
+    # second arithmetic) could tick across a sub-interval run's boundary and mark a run
+    # that never reached its first capture. Scratch file, never inside the channel (the
+    # blocked-channel marking case must still be able to count wakes); if mktemp fails the
+    # tally degrades to zero — marking silently never fires, a write-path degradation.
+    wakes_f="$(mktemp 2>/dev/null)" || wakes_f=""
+    # The capture loop: one snapshot per elapsed cadence interval, in the background so the
+    # maker command's own timing is untouched. Killed the moment the command exits.
+    #
+    # Wakes are scheduled against FIXED cadence boundaries derived from the loop start
+    # (t0 + i*cadence), never a fresh full-cadence sleep after each copy — otherwise a copy
+    # taking measurable time stretches the sampling grid to cadence+copy_duration and
+    # silently drops trajectory samples (PR #288 review). A boundary already past when its
+    # turn comes (a copy overran it) sleeps zero and is captured late rather than skipped,
+    # so every elapsed boundary is accounted — one wake tick and one capture attempt each.
+    # The FIRST wake is a plain full-cadence sleep (t0 is whole-second wall time, so a
+    # t0-derived first deadline could fire up to 1s early and tick a wake on a genuinely
+    # sub-interval run — the exact false marking the wake tally exists to prevent); from
+    # boundary 2 on, <=1s of wall-clock truncation only jitters capture timing, never the
+    # tally's sub-interval judgement. The sleep is backgrounded and reaped via `wait` so
+    # the TERM trap fires immediately (never after a full pending cadence), kills the
+    # active child — the sleep, or via snapshot_capture the in-flight copy — and discards
+    # the partial `.tmp`; the parent's kill would otherwise orphan them past return.
+    ( child="" tmp_inflight=""
+      trap '[ -n "$child" ] && { kill "$child"; wait "$child"; } 2>/dev/null
+            [ -z "$tmp_inflight" ] || rm -rf "$tmp_inflight"
+            exit 0' TERM
+      t0="$(date +%s)"
+      i=1
+      while :; do
+        if [ "$i" -eq 1 ]; then rem="$cadence"
+        else
+          rem=$(( t0 + i * cadence - $(date +%s) ))
+          [ "$rem" -gt 0 ] || rem=0
+        fi
+        sleep "$rem" & child=$!
+        wait "$child" || exit 0
+        child=""
+        [ -z "$wakes_f" ] || printf '.' >> "$wakes_f"
+        snapshot_capture "$traj" "$i" "$ws"
+        i=$((i + 1))
+      done ) 2>/dev/null &
+    looppid=$!
+  fi
+
+  local rc
+  "$@"
+  rc=$?
+  if [ -n "$looppid" ]; then
+    kill "$looppid" 2>/dev/null
+    wait "$looppid" 2>/dev/null
+  fi
+
+  # The two-sided trajectory-incomplete marking (US3.AC1/AC2): a run spanning >= 1 declared
+  # interval (>= 1 loop wake) with ZERO captured snapshots is recorded explicitly — "no
+  # snapshots" must never masquerade as "no intervals elapsed" — while a genuinely
+  # sub-interval run (the loop never woke) appends nothing. Counts only RENAMED interval
+  # dirs (a discarded .tmp is not a snapshot). The marking itself is an observe-only
+  # append: its write failure is silent, and `complete` never counts it as a scored record
+  # (record_present filters on record:"maker-eval").
+  local intervals=0
+  if [ -n "$wakes_f" ]; then
+    intervals="$(wc -c < "$wakes_f" 2>/dev/null | tr -d '[:space:]')"
+    rm -f "$wakes_f" 2>/dev/null
+  fi
+  if [ -n "$channel" ] && [ "${intervals:-0}" -ge 1 ]; then
+    local captured ts repo marker
+    captured="$(find "$traj" -maxdepth 1 -type d -name 'interval-*' ! -name '*.tmp' 2>/dev/null | grep -c .)"
+    if [ "${captured:-0}" -eq 0 ]; then
+      {
+        ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          && repo="$(repo_basename)" \
+          && marker="$(jq -cn \
+               --arg ts "$ts" --arg repo "$repo" --arg run "$run_id" --arg task "$task_id" \
+               --arg tier "$tier" --argjson cad "$cadence" --argjson iv "$intervals" \
+               '{record:"maker-eval-trajectory-incomplete", timestamp:$ts, repo:$repo,
+                 run_id:$run, task_id:$task, maker_tier:$tier,
+                 cadence_seconds:$cad, intervals_elapsed:$iv, snapshots:0}')" \
+          && [ -n "$marker" ] \
+          && mkdir -p "$channel" \
+          && printf '%s\n' "$marker" >> "$channel/records.jsonl"
+      } 2>/dev/null || :
+    fi
+  fi
+  return "$rc"
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 cmd="${1:-}"
 [ "$#" -gt 0 ] && shift
 case "$cmd" in
-  fingerprint) fingerprint_json ;;
-  record)      do_record "$@" ;;
-  agreement)   do_agreement "$@" ;;
-  complete)    do_complete "$@" ;;
+  fingerprint)  fingerprint_json ;;
+  record)       do_record "$@" ;;
+  agreement)    do_agreement "$@" ;;
+  complete)     do_complete "$@" ;;
+  snapshot-run) do_snapshot_run "$@" ;;
   *) usage; exit 2 ;;
 esac

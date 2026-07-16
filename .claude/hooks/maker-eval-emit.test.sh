@@ -22,6 +22,15 @@
 #        (a run missing any corpus task reports incomplete; all present -> complete).
 #   Observe-only: the emitter writes only under the channel (it does not also write a
 #        telemetry stream) and invokes no gate/tier/selection control-path script.
+#   US3.AC2 (T807, interval snapshot capture): snapshots appear at the INSTRUMENT-DECLARED
+#        cadence on a fixture run (and the declared rate is obeyed, not hardcoded); a forced
+#        snapshot-write failure leaves the maker run's exit code and workspace artifacts
+#        byte-identical; the trajectory-incomplete marking is TWO-SIDED (fires on a planted
+#        zero-snapshot multi-interval run, does not fire on a genuinely sub-interval run);
+#        a marker line never satisfies run completeness; caller errors are loud and never
+#        start the maker command; captures hold FIXED cadence boundaries under slow copies
+#        (never cadence+copy_duration drift); and the active capture child is reaped on
+#        maker exit (no orphaned copy outlives snapshot-run — PR #288 review).
 #
 # Run: bash .claude/hooks/maker-eval-emit.test.sh
 set -u
@@ -89,6 +98,10 @@ The owner-labeled calibration set + the agreement floor (T806 fixture).
 ### The agreement floor
 
 - Agreement floor: `0.75`.
+
+## Snapshot cadence
+
+- Snapshot cadence: `1` seconds (T807 fixture).
 EOF
   printf 'an adapter binding prompt\n' > "$r/.claude/skills/demo/SKILL.md"
 }
@@ -456,6 +469,176 @@ eq "C: a rejected hostile id lands no record" "0" "$(grep -c . "$CCH/records.jso
 eq "C: a safe id still records" "ME-01" \
   "$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/cchannel-ok" bash "$EMIT" record \
       --run-id 2026-06-25T13-18-42Z --task ME-01 --tier strong --results "$TMP/judge.json" | jq -r .task_id)"
+
+# ── T807 (US3.AC1/AC2): interval snapshot capture — cadence, silence, two-sided marking ──
+# The fixture instrument (build_tree) declares a 1-second cadence, so a short real run
+# exercises the declared-rate contract without a slow suite.
+
+# (i) CADENCE FIXTURE — a ~2.5s maker run at cadence 1 captures interval-1 AND interval-2,
+# each snapshot carrying the workspace's bytes; the maker's exit propagates; no marker lands.
+SWS="$TMP/snap-ws"; mkdir -p "$SWS"
+printf 'workspace payload\n' > "$SWS/payload.txt"
+SCH="$TMP/snap-channel"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$SCH" bash "$EMIT" snapshot-run \
+  --run-id run-S --task ME-01 --tier strong --workspace "$SWS" -- sleep 2.5; rc=$?
+eq "US3.AC2: snapshot-run propagates the maker exit code (0)" "0" "$rc"
+STRAJ="$SCH/trajectory/run-S/ME-01/strong"
+for n in 1 2; do
+  if [ -d "$STRAJ/interval-$n" ]; then ok; else bad "US3.AC2: cadence-1 2.5s run captured interval-$n"; fi
+done
+eq "US3.AC2: a snapshot carries the workspace bytes" "workspace payload" \
+  "$(cat "$STRAJ/interval-1/payload.txt" 2>/dev/null)"
+eq "US3.AC2: a snapshotted multi-interval run lands NO trajectory-incomplete marker" "0" \
+  "$(grep -c 'trajectory-incomplete' "$SCH/records.jsonl" 2>/dev/null || echo 0)"
+
+# (ii) THE DECLARED RATE IS OBEYED — at cadence 2 the same ~2.6s run captures EXACTLY ONE
+# snapshot, not one-per-second: capture follows the instrument's declaration, never a
+# hardcoded or as-fast-as-possible rate (US3.AC1 "fixed, instrument-declared cadence").
+T2="$TMP/tree-cadence2"; build_tree "$T2"
+sed -i.bak 's/Snapshot cadence: `1`/Snapshot cadence: `2`/' \
+  "$T2/.claude/workflow/reviewers/maker-eval-corpus.md"
+rm -f "$T2/.claude/workflow/reviewers/maker-eval-corpus.md.bak"
+SCH2="$TMP/snap-channel-c2"
+MAKER_EVAL_ROOT="$T2" MAKER_EVAL_DIR="$SCH2" bash "$EMIT" snapshot-run \
+  --run-id run-S2 --task ME-01 --tier strong --workspace "$SWS" -- sleep 2.6 >/dev/null
+eq "US3.AC2: cadence 2 over a 2.6s run captures exactly one snapshot" "1" \
+  "$(find "$SCH2/trajectory/run-S2/ME-01/strong" -maxdepth 1 -type d -name 'interval-*' 2>/dev/null | grep -c .)"
+
+# (iii) BYTE-IDENTICAL ON WRITE FAILURE — the same artifact-writing maker command runs once
+# against a working channel and once against an unwritable one (parent is a regular file):
+# equal exit codes, empty wrapper stderr, and the two workspaces diff -r identical — a
+# forced snapshot-write failure never blocks, fails, or alters the maker's run (US3.AC1).
+WSA="$TMP/snap-ws-ok"; WSB="$TMP/snap-ws-fail"
+for w in "$WSA" "$WSB"; do mkdir -p "$w"; printf 'seed\n' > "$w/seed.txt"; done
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/snap-ok-ch" bash "$EMIT" snapshot-run \
+  --run-id run-F --task ME-01 --tier strong --workspace "$WSA" -- \
+  sh -c 'printf made\\n >> "$1/artifact.txt"; sleep 1.3; exit 7' _ "$WSA"; rca=$?
+printf 'i am a file, not a dir\n' > "$TMP/snap-afile"
+snap_err="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/snap-afile/sub" bash "$EMIT" snapshot-run \
+  --run-id run-F --task ME-01 --tier strong --workspace "$WSB" -- \
+  sh -c 'printf made\\n >> "$1/artifact.txt"; sleep 1.3; exit 7' _ "$WSB" 2>&1 1>/dev/null)"; rcb=$?
+eq "US3.AC2: maker exit code propagated with a working capture path" "7" "$rca"
+eq "US3.AC2: maker exit code propagated under a forced snapshot-write failure" "7" "$rcb"
+eq "US3.AC2: a forced snapshot-write failure emits nothing to stderr" "" "$snap_err"
+if diff -r "$WSA" "$WSB" >/dev/null 2>&1; then ok
+else bad "US3.AC2: workspaces byte-identical with and without a working capture path" "$(diff -r "$WSA" "$WSB" 2>&1 | head -3)"; fi
+if [ -e "$TMP/snap-afile/sub" ]; then bad "US3.AC2: a failed capture wrote nothing" "created $TMP/snap-afile/sub"; else ok; fi
+# the working-channel control run did capture (the silence above is not vacuous no-capture)
+eq "US3.AC2: the control run captured a snapshot" "ok" \
+  "$(find "$TMP/snap-ok-ch/trajectory/run-F/ME-01/strong" -maxdepth 1 -type d -name 'interval-*' 2>/dev/null | grep -q . && echo ok)"
+
+# (iv) TWO-SIDED TRAJECTORY-INCOMPLETE MARKING (US3.AC1/AC2). Firing side: a PLANTED
+# zero-snapshot multi-interval run — trajectory storage blocked (a regular file) while the
+# records stream stays writable — appends exactly ONE explicit marker line carrying the
+# (run, task, tier) and the elapsed-interval evidence.
+MCH="$TMP/snap-channel-marked"; mkdir -p "$MCH"
+printf 'blocker\n' > "$MCH/trajectory"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$MCH" bash "$EMIT" snapshot-run \
+  --run-id run-M --task ME-01 --tier strong --workspace "$SWS" -- sleep 2.2; rc=$?
+eq "US3.AC2: the marked run still propagates the maker exit code" "0" "$rc"
+eq "US3.AC2: a zero-snapshot multi-interval run lands exactly one marker line" "1" \
+  "$(grep -c . "$MCH/records.jsonl" 2>/dev/null || echo 0)"
+MLINE="$(head -1 "$MCH/records.jsonl" 2>/dev/null)"
+eq "US3.AC2: the marker is the explicit trajectory-incomplete record kind" \
+  "maker-eval-trajectory-incomplete" "$(printf '%s' "$MLINE" | jq -r .record)"
+eq "US3.AC2: the marker names the run id"    "run-M"  "$(printf '%s' "$MLINE" | jq -r .run_id)"
+eq "US3.AC2: the marker names the task"      "ME-01"  "$(printf '%s' "$MLINE" | jq -r .task_id)"
+eq "US3.AC2: the marker names the maker tier" "strong" "$(printf '%s' "$MLINE" | jq -r .maker_tier)"
+eq "US3.AC2: the marker records zero snapshots over >=1 elapsed interval" "ok" \
+  "$(printf '%s' "$MLINE" | jq -e '.snapshots == 0 and .intervals_elapsed >= 1' >/dev/null 2>&1 && echo ok)"
+# Non-firing side: a genuinely sub-interval run (shorter than one declared interval) with the
+# SAME zero snapshots appends nothing — a marking test that exercises only the firing
+# direction does not satisfy US3.AC2.
+UCH="$TMP/snap-channel-under"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$UCH" bash "$EMIT" snapshot-run \
+  --run-id run-U --task ME-01 --tier strong --workspace "$SWS" -- true >/dev/null
+eq "US3.AC2: a genuinely sub-interval run is NOT marked trajectory-incomplete" "0" \
+  "$(grep -c . "$UCH/records.jsonl" 2>/dev/null || echo 0)"
+
+# (v) THE MARKER NEVER COUNTS AS A SCORED RECORD — completeness stays honest: score every
+# (task × tier) EXCEPT ME-01@strong, land a marker for exactly that slot, and `complete`
+# must still report it missing (a marked-but-unscored task is not a baseline row — the
+# record-kind filter in record_present; US1.AC2/US2.AC1 unchanged by T807).
+KCH="$TMP/snap-channel-complete"; mkdir -p "$KCH"
+for t in ME-01 ME-02 ME-03; do
+  for k in frontier strong cheap; do
+    [ "$t@$k" = "ME-01@strong" ] && continue
+    MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$KCH" bash "$EMIT" record \
+      --run-id run-K --task "$t" --tier "$k" --results "$TMP/judge.json" >/dev/null
+  done
+done
+printf 'blocker\n' > "$KCH/trajectory"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$KCH" bash "$EMIT" snapshot-run \
+  --run-id run-K --task ME-01 --tier strong --workspace "$SWS" -- sleep 1.2 >/dev/null
+out="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$KCH" bash "$EMIT" complete --run-id run-K)"; rc=$?
+ne "US3.AC2: a trajectory-incomplete marker never satisfies completeness" "0" "$rc"
+eq "US3.AC2: the marked-but-unscored slot is still reported missing" "ok" \
+  "$(printf '%s' "$out" | grep -qF 'ME-01@strong' && echo ok)"
+
+# (vi) CALLER ERRORS ARE LOUD AND THE MAKER COMMAND IS NEVER STARTED — a bad tier, a
+# hostile id, and an instrument declaring no cadence each exit 2 BEFORE the run (the maker
+# command below would create a sentinel file; none may exist).
+SENT="$TMP/snap-sentinel"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/snap-chX" bash "$EMIT" snapshot-run \
+  --run-id run-X --task ME-01 --tier bogus --workspace "$SWS" -- touch "$SENT" >/dev/null 2>&1; rc=$?
+eq "US3.AC2: a non-maker-tier --tier is a loud caller error (exit 2)" "2" "$rc"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TMP/snap-chX" bash "$EMIT" snapshot-run \
+  --run-id '../escape' --task ME-01 --tier strong --workspace "$SWS" -- touch "$SENT" >/dev/null 2>&1; rc=$?
+eq "US3.AC2: a hostile run id is a loud caller error (exit 2)" "2" "$rc"
+T3="$TMP/tree-no-cadence"; build_tree "$T3"
+sed -i.bak '/^## Snapshot cadence/,$d' "$T3/.claude/workflow/reviewers/maker-eval-corpus.md"
+rm -f "$T3/.claude/workflow/reviewers/maker-eval-corpus.md.bak"
+MAKER_EVAL_ROOT="$T3" MAKER_EVAL_DIR="$TMP/snap-chX" bash "$EMIT" snapshot-run \
+  --run-id run-X --task ME-01 --tier strong --workspace "$SWS" -- touch "$SENT" >/dev/null 2>&1; rc=$?
+eq "US3.AC2: an instrument declaring no cadence is a loud caller error (exit 2)" "2" "$rc"
+if [ -e "$SENT" ]; then bad "US3.AC2: a rejected snapshot-run never starts the maker command" "created $SENT"; else ok; fi
+
+# (vii) FIXED CADENCE BOUNDARIES (PR #288 owner P1) — captures are scheduled against
+# deadlines derived from the LOOP START (t0 + n*cadence), so copy time never stretches the
+# sampling grid to cadence+copy_duration. A `cp` shim adds ~1s per copy; at cadence 1 a
+# ~4.7s run must still land interval-3 (a full-sleep-after-copy loop drifts to wakes at
+# ~1.0/3.05/5.1s and never reaches it).
+CPSHIM="$TMP/cp-shim"; mkdir -p "$CPSHIM"
+REALCP="$(command -v cp)"
+cat > "$CPSHIM/cp" <<EOF
+#!/bin/sh
+sleep 1
+exec "$REALCP" "\$@"
+EOF
+chmod +x "$CPSHIM/cp"
+BCH="$TMP/snap-channel-boundaries"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$BCH" PATH="$CPSHIM:$PATH" bash "$EMIT" snapshot-run \
+  --run-id run-B --task ME-01 --tier strong --workspace "$SWS" -- sleep 4.7; rc=$?
+eq "US3.AC2: the boundary-scheduled run propagates the maker exit code" "0" "$rc"
+BTRAJ="$BCH/trajectory/run-B/ME-01/strong"
+for n in 1 2 3; do
+  if [ -d "$BTRAJ/interval-$n" ]; then ok
+  else bad "US3.AC2: slow copies do not drift capture off the fixed cadence boundary (interval-$n)"; fi
+done
+
+# (viii) THE ACTIVE CAPTURE CHILD IS REAPED (PR #288 Codex P2) — when the maker command
+# exits mid-copy, the in-flight copy is killed and its partial `.tmp` discarded; no
+# orphaned child keeps writing into the trajectory dir after snapshot-run has returned.
+# A 2s `cp` shim guarantees the copy straddles the ~1.5s maker exit.
+CPSHIM2="$TMP/cp-shim-slow"; mkdir -p "$CPSHIM2"
+cat > "$CPSHIM2/cp" <<EOF
+#!/bin/sh
+sleep 2
+exec "$REALCP" "\$@"
+EOF
+chmod +x "$CPSHIM2/cp"
+RCH="$TMP/snap-channel-reap"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$RCH" PATH="$CPSHIM2:$PATH" bash "$EMIT" snapshot-run \
+  --run-id run-R --task ME-01 --tier strong --workspace "$SWS" -- sleep 1.5; rc=$?
+eq "US3.AC2: the reaped run propagates the maker exit code" "0" "$rc"
+RTRAJ="$RCH/trajectory/run-R/ME-01/strong"
+eq "US3.AC2: no in-flight .tmp capture survives the maker command's exit" "0" \
+  "$(find "$RTRAJ" -maxdepth 1 -name '*.tmp' 2>/dev/null | grep -c .)"
+# an orphaned copy would finish ~0.5s from now and resurrect the .tmp tree — prove the
+# child was killed, not merely its droppings swept once
+sleep 1.2
+eq "US3.AC2: no orphaned copy keeps writing after snapshot-run returns" "0" \
+  "$(find "$RTRAJ" -maxdepth 1 \( -name '*.tmp' -o -name 'interval-*' \) 2>/dev/null | grep -c .)"
 
 echo "maker-eval emit tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

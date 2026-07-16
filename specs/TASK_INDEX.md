@@ -93,7 +93,7 @@
 | T803 | cheap | [x] | US2.AC2 |  | Triage "Maker eval" section: score regressions vs the last *complete*… |
 | T804 | strong | [x] | US2.AC3 |  | Deterministic P5 fence: a CI assertion that the eval-record path **and… |
 | T805 | cheap | [x] | US2.AC1,AC4 |  | Claude skill binding (reuse [workflow]/[headless run]/[reviewer] |
-| T807 | strong | [ ] | US3.AC1-AC2 |  | Interval snapshot capture for corpus runs: fixed instrument-declared… |
+| T807 | strong | [x] | US3.AC1-AC2 |  | Interval snapshot capture for corpus runs: fixed instrument-declared… |
 | T808 | strong | [ ] | US3.AC3-AC4 |  | Post-hoc pinned-judge grading of snapshots + versioned schema… |
 | T809 | cheap | [ ] | US4.AC1-AC3 |  | Learning-speed swap protocol doc (matched-start selection with stated… |
 

@@ -81,8 +81,12 @@ CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
 # run's records, so naming it in the line-scoped run binding is a channel READ, not a writer
 # drive — exactly the read the binding may not do (the triage reader's job, spec 003 US2.AC3).
 # The whole-emitter line-scope this replaces let `complete` pass because it carries no explicit
-# CHANNEL_READ token (PR #164 Codex P2). `complete` is the emitter's ONLY channel-reading
-# subcommand today; a new read subcommand must be added here with a paired test. Matched over
+# CHANNEL_READ token (PR #164 Codex P2). `complete` is the emitter's ONLY subcommand that
+# RETURNS a channel-derived value to its caller; a new such subcommand must be added here with
+# a paired test. (`snapshot-run` — T807 — internally counts its own trajectory writes to decide
+# the trajectory-incomplete marking, but exposes no channel-derived value to the caller: it
+# returns only the wrapped maker command's exit, so driving it from the binding stays a
+# sanctioned WRITE, like `record`.) Matched over
 # LOGICAL lines: the run-binding scan folds shell backslash-continuations first
 # (fold_continuations below), so a `maker-eval-emit.sh \<newline> complete` wrap is one line
 # here too — not a writer drive split from a tokenless `complete` (PR #164 craft). Portable ERE.
