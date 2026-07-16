@@ -95,16 +95,20 @@ emit("base_branch", profile.get("base_branch"))
 emit("required_check", profile.get("required_check"))
 emit("merge_gate", profile.get("merge_gate"))
 emit("constitution_path", profile.get("constitution_path"))
-emit("spec_count", len(profile.get("spec_paths") or []) or None)
-emit("tasks_count", len(profile.get("tasks_paths") or []) or None)
+spec_paths = profile.get("spec_paths")
+tasks_paths = profile.get("tasks_paths")
+emit("spec_count", len(spec_paths) if isinstance(spec_paths, list) else None)
+emit("tasks_count", len(tasks_paths) if isinstance(tasks_paths, list) else None)
 emit("autonomy_opt_in", (lock.get("autonomy") or {}).get("opt_in"))
 
-passes = [
-    "%s (%s)" % (p.get("role"), p.get("condition"))
-    for p in (lock.get("review_passes") or [])
-    if str(p.get("enabled")).lower() == "true"
-]
-emit("review_passes", ", ".join(passes))
+pass_config = lock.get("review_passes")
+if isinstance(pass_config, list):
+    passes = [
+        "%s (%s)" % (p.get("role"), p.get("condition"))
+        for p in pass_config
+        if str(p.get("enabled")).lower() == "true"
+    ]
+    emit("review_passes", ", ".join(passes) or "none enabled")
 
 checks = [
     "%s -> %s" % (c.get("glob"), c.get("checker"))
@@ -149,11 +153,17 @@ slug="$UNKNOWN"
 remote="$(git remote get-url origin 2>/dev/null || true)"
 if [ -n "$remote" ]; then
   # Both remote forms -> owner/repo: git@host:owner/repo(.git) and https://host/owner/repo(.git).
-  # Two POSIX-ERE passes (strip the suffix, then take the last two segments) rather than one
-  # pattern with an optional trailing group: the lazy `+?` that would need is a Perl/GNU-ism
-  # BSD sed rejects outright — the exact BSD-vs-GNU divergence class shell-lint.sh exists for.
-  slug="$(printf '%s' "$remote" | sed -E -e 's#\.git$##' -e 's#^.*[:/]([^/:]+/[^/]+)$#\1#')"
-  [ -n "$slug" ] || slug="$UNKNOWN"
+  # Parse the transport boundary explicitly: taking the last two slash-separated segments
+  # would misread a pathless URL (`https://host/owner`) as the plausible-but-wrong host/owner.
+  trimmed="$(printf '%s' "$remote" | sed -E 's#\.git$##')"
+  case "$trimmed" in
+    *://*) candidate="$(printf '%s' "$trimmed" | sed -nE 's#^[^:]+://[^/]+/([^/]+/[^/]+)$#\1#p')" ;;
+    *:*)   candidate="$(printf '%s' "$trimmed" | sed -nE 's#^[^:]+:([^/]+/[^/]+)$#\1#p')" ;;
+    *)     candidate='' ;;
+  esac
+  if printf '%s' "$candidate" | grep -qE '^[^/:[:space:]]+/[^/[:space:]]+$'; then
+    slug="$candidate"
+  fi
 fi
 
 branch="$(git branch --show-current 2>/dev/null || true)"
@@ -195,7 +205,7 @@ fi
 pr="$UNKNOWN"
 tracker="$UNKNOWN (not reached)"
 if command -v gh >/dev/null 2>&1 && [ "$branch" != "$UNKNOWN" ]; then
-  if pr_out="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number' 2>/dev/null)"; then
+  if pr_out="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty' 2>/dev/null)"; then
     tracker='reachable'
     if [ -n "$pr_out" ]; then pr="#$pr_out"; else pr='none open'; fi
   fi

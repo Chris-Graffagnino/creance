@@ -90,17 +90,24 @@ JSON
 # run_map <root> <outfile> [PATH-override] — run the REAL map; echo its exit code.
 run_map() {
   local root="$1" out="$2" pathv="${3:-$PATH}" rc=0
-  PATH="$pathv" STATUS_MAP_ROOT="$root" bash "$MAP" > "$out" 2>"$out.err" || rc=$?
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    PATH="$pathv" STATUS_MAP_ROOT="$root" bash "$MAP" > "$out" 2>"$out.err" || rc=$?
   printf '%s' "$rc"
 }
 
-# stub_gh <dir> <mode> — a PATH dir whose `gh` either answers with a PR number (ok) or
-# fails like an unauthenticated/offline CLI (fail).
+# stub_gh <dir> <mode> — a PATH dir whose `gh` answers with a PR number (ok), returns
+# jq's empty-array sentinel (none), or fails like an unauthenticated/offline CLI (fail).
 stub_gh() {
   local d="$1" mode="$2"
   mkdir -p "$d"
   if [ "$mode" = ok ]; then
     printf '#!/bin/sh\necho 4242\n' > "$d/gh"
+  elif [ "$mode" = none ]; then
+    printf '%s\n' '#!/bin/sh' \
+      'case "$*" in' \
+      "  *'// empty'*) : ;;" \
+      '  *) echo null ;;' \
+      'esac' > "$d/gh"
   else
     printf '#!/bin/sh\necho "gh: could not connect to github.com" >&2\nexit 1\n' > "$d/gh"
   fi
@@ -154,6 +161,14 @@ git -C "$TMP/base" commit -q --allow-empty -m 'chore: [T900] do the thing'
 run_map "$TMP/base" "$TMP/task.out" "$GHOK" >/dev/null
 has "$TMP/task.out" '- task id: T900' 'task id from the branch commit subject'
 
+# A remote that does not contain an owner/repo pair is unreadable as a slug. The map's
+# contract requires `unknown`, never the raw malformed URL as a guessed repository name.
+mkrepo "$TMP/badremote"
+git -C "$TMP/badremote" remote set-url origin https://github.com/owner
+run_map "$TMP/badremote" "$TMP/badremote.out" "$GHOK" >/dev/null
+has "$TMP/badremote.out" '- slug: unknown' 'malformed remote degrades slug to unknown'
+hasnt "$TMP/badremote.out" '- slug: https://github.com/owner' 'malformed remote is never guessed as a slug'
+
 # ---------------------------------------------------------------------------------
 # clean vs dirty worktree — same repo, both states, count asserted
 # ---------------------------------------------------------------------------------
@@ -177,6 +192,13 @@ git -C "$TMP/gh" switch -qc chore/77-thing
 run_map "$TMP/gh" "$TMP/ghup.out" "$GHOK" >/dev/null
 has "$TMP/ghup.out" '- open PR: #4242'  'gh available renders the real PR number'
 has "$TMP/ghup.out" '- tracker: reachable' 'gh available marks the tracker reachable'
+
+# (a2) tracker AVAILABLE with no open PR: empty is a known state, not `unknown` or #null.
+stub_gh "$TMP/ghnone" none
+run_map "$TMP/gh" "$TMP/ghnone.out" "$TMP/ghnone:$PATH" >/dev/null
+has "$TMP/ghnone.out" '- open PR: none open' 'gh available with no PR renders known-empty state'
+hasnt "$TMP/ghnone.out" '- open PR: #null'   'gh empty result must not render jq null as a PR'
+has "$TMP/ghnone.out" '- tracker: reachable' 'gh available with no PR marks tracker reachable'
 
 # (b) tracker PRESENT BUT FAILING (unauthenticated / offline): unknown, exit 0.
 stub_gh "$TMP/ghbad" fail
@@ -213,6 +235,24 @@ has "$TMP/lock.out" 'specs: 2 | tasks files: 1'                    'lock read: s
 # Only the ENABLED passes render.
 has "$TMP/lock.out"   '[code-review pass] (always)' 'lock read: enabled review pass'
 hasnt "$TMP/lock.out" '[off pass]'                  'lock read: a disabled pass is filtered out'
+
+# A readable lock can establish that a collection is empty. That known state must render
+# as zero / none enabled, never as `unknown` (which means the field was not readable).
+mkrepo "$TMP/emptylock"
+cat > "$TMP/emptylock/.claude/HARNESS.lock.json" <<'JSON'
+{
+  "schema_version": 7,
+  "profile": {
+    "base_branch": "main",
+    "spec_paths": [],
+    "tasks_paths": []
+  },
+  "review_passes": []
+}
+JSON
+run_map "$TMP/emptylock" "$TMP/emptylock.out" "$GHOK" >/dev/null
+has "$TMP/emptylock.out" 'specs: 0 | tasks files: 0' 'empty lock collections render known zero counts'
+has "$TMP/emptylock.out" '- review passes: none enabled' 'empty review-pass set renders known empty state'
 
 mkrepo "$TMP/nolock" nolock
 rc="$(run_map "$TMP/nolock" "$TMP/nolock.out" "$GHOK")"
@@ -312,6 +352,10 @@ else ok; fi
 # The real tree renders a drift line sourced from the shared lib.
 run_map "$REPO_ROOT" "$TMP/real.out" >/dev/null
 has "$TMP/real.out" '- tasks drift:' 'real tree: the drift line renders from the shared lib'
+real_lines="$(wc -l < "$TMP/real.out" | tr -d ' ')"
+if [ "$real_lines" -le "$BUDGET_LINES" ]; then ok; else
+  bad "real-tree output budget: $real_lines lines exceeds the documented ceiling of $BUDGET_LINES"
+fi
 
 # ---------------------------------------------------------------------------------
 # CI wiring: the map's tests run in verify (constitution P2 — no silently dead checks)
