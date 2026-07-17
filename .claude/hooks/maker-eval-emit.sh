@@ -82,8 +82,10 @@
 #       the caller then omits --trajectory). Malformed ids/tier, a missing or unwritable
 #       --out (checked BEFORE the loop — a doomed out-path must not spend judge calls), a
 #       missing judge command, or an unresolvable channel are loud caller errors (exit 2); a judge command
-#       that fails or emits a malformed verdict is loud (exit 1, --out not written) — a
-#       partial grading never masquerades as the trajectory.
+#       that fails or emits a malformed verdict is loud (exit 1, --out not written — and a
+#       PRE-EXISTING --out is removed, so a rerun's failure can never leave a stale previous
+#       trajectory for `record --trajectory` to consume) — a partial grading never
+#       masquerades as the trajectory.
 #
 #   agreement --run-id <id> --verdicts <judge-cal.json>
 #       Compute and APPEND the judge<->owner AGREEMENT figure for one run (T806, spec 003
@@ -403,7 +405,10 @@ do_record() {
       --prompt)     prompt_f="${2:-}"; shift 2 ;;
       --artifact)   artifact_f="${2:-}"; shift 2 ;;
       --judge)      judge_f="${2:-}"; shift 2 ;;
-      --trajectory) traj_f="${2:-}"; shift 2 ;;
+      # Guarded: a dangling --trajectory must be a loud usage error — an unguarded
+      # `shift 2` leaves the arg list unchanged and spins the parser forever (the
+      # do_agreement bug class; PR #290 review).
+      --trajectory) [ "$#" -ge 2 ] || { usage; return 2; }; traj_f="$2"; shift 2 ;;
       *) usage; return 2 ;;
     esac
   done
@@ -890,8 +895,10 @@ do_grade_snapshots() {
   # after N judge calls have already been spent (review of this PR).
   local out_dir
   out_dir="$(dirname -- "$out")"
-  if { [ -e "$out" ] && [ ! -w "$out" ]; } \
-    || { [ ! -e "$out" ] && { [ ! -d "$out_dir" ] || [ ! -w "$out_dir" ]; }; }; then
+  # The containing dir must be writable even when --out already exists: a failed grading
+  # REMOVES the target (below), so the preflight must guarantee that removal can succeed.
+  if [ ! -d "$out_dir" ] || [ ! -w "$out_dir" ] \
+    || { [ -e "$out" ] && [ ! -w "$out" ]; }; then
     printf 'maker-eval-emit: --out is not writable: %s\n' "$out" >&2
     return 2
   fi
@@ -922,22 +929,26 @@ do_grade_snapshots() {
     # whole grading loudly — a trajectory missing graded intervals is not the trajectory.
     # The verdict is slurped and length-checked (the trajectory_valid discipline): a
     # multi-document judge print must not validate on one document and land another.
+    # Every loud-failure path also REMOVES the target: on a rerun over a pre-existing
+    # --out, deleting only the scratch file would leave the stale previous trajectory in
+    # place for a later `record --trajectory` to consume — "failed grading leaves no
+    # trajectory output" means none, not an old one (PR #290 review).
     if ! v="$("$@" "$traj/interval-$n")"; then
       printf 'maker-eval-emit: judge command failed on interval-%s (%s)\n' "$n" "$traj" >&2
-      rm -f "$tmpout"; return 1
+      rm -f "$tmpout" -- "$out"; return 1
     fi
     if ! printf '%s' "$v" | jq -es "(length == 1) and (.[0] | $JUDGE_OUTPUT_FILTER)" >/dev/null 2>&1; then
       printf 'maker-eval-emit: judge output for interval-%s is not a well-formed judge output\n' "$n" >&2
-      rm -f "$tmpout"; return 1
+      rm -f "$tmpout" -- "$out"; return 1
     fi
     printf '%s' "$v" | jq -cs --argjson n "$n" '.[0] + {interval:$n}' >> "$tmpout" || {
       printf 'maker-eval-emit: cannot collect the interval-%s verdict\n' "$n" >&2
-      rm -f "$tmpout"; return 1
+      rm -f "$tmpout" -- "$out"; return 1
     }
   done
   if ! jq -s '{intervals:.}' "$tmpout" > "$out" 2>/dev/null; then
     printf 'maker-eval-emit: cannot write the graded trajectory to %s\n' "$out" >&2
-    rm -f "$tmpout"; return 1
+    rm -f "$tmpout" -- "$out"; return 1
   fi
   rm -f "$tmpout"
 }

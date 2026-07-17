@@ -264,7 +264,10 @@ record under the **explicit trajectory instrument version declared here**:
 
 - **Trajectory instrument version: `1`.** Every trajectory extension a record carries is
   stamped with this version, so two runs' per-interval scores are differenced **only when
-  their recorded versions match**. The value is a **frozen-instrument** artifact: this file
+  their recorded versions match — and only when the pair's judge-identity and
+  eval-instrument fingerprint components are unmoved** (`../triage.md`: a cadence or judge
+  change moves a fingerprint component without bumping this version, and such a pair's
+  trajectory differential is suppressed too). The value is a **frozen-instrument** artifact: this file
   is hashed into the eval-instrument fingerprint (`../maker-eval.md` → "The triple
   fingerprint"), so changing the version — or the trajectory schema it names — moves that
   component, and the read-only surfacing renders a cross-version comparison

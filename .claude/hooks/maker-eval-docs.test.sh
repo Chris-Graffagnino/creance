@@ -534,6 +534,26 @@ check "US3.AC3: triage differences trajectories only under matching versions" "$
   "a trajectory and their recorded versions match exactly"
 check "US3.AC3: triage renders the version mismatch as INSTRUMENT-CHANGED (suppressed)" "$TRIAGE_FLAT" \
   "trajectory instrument versions differ"
+# ...and the version is NOT the gate on its own (PR #290 review): the trajectory
+# differential additionally requires the fingerprint-comparable pair — a cadence-only or
+# judge change moves a fingerprint component without bumping the trajectory version, and
+# such a pair's trajectory differential must be suppressed like the regression call.
+check "US3.AC3: triage's trajectory differential requires the fingerprint-comparable pair" "$TRIAGE_FLAT" \
+  "comparable under the JUDGE-CHANGED / INSTRUMENT-CHANGED rule above — matching judge-identity and eval-instrument fingerprint components"
+check "US3.AC3: triage names the cadence-only confound the version cannot catch" "$TRIAGE_FLAT" \
+  "cadence-only instrument change moves eval-instrument while the trajectory version stays put"
+check "US3.AC3: the template carries the fingerprint-suppressed trajectory state" "$TRIAGE_FLAT" \
+  "judge or eval-instrument fingerprint moved between the two runs; trajectory differential suppressed"
+check "US3.AC3: the neutral doc requires fingerprint comparability for the trajectory differential" "$NEU_FLAT" \
+  "matching judge-identity and eval-instrument components — and their recorded trajectory instrument versions match"
+check "US3.AC3: the neutral doc's violation clause covers the fingerprint-moved pair" "$NEU_FLAT" \
+  "as does a trajectory differential reported on a pair whose judge or eval-instrument fingerprint moved"
+check "US3.AC3: the corpus manifest states the fingerprint condition beside the version" "$CORPUS_FLAT" \
+  "only when the pair's judge-identity and eval-instrument fingerprint components are unmoved"
+TRIAGE_SKILL="$DIR/skills/triage/SKILL.md"
+TRIAGE_SKILL_FLAT="$(flat "$TRIAGE_SKILL")"
+check "US3.AC3: the triage binding gates the trajectory differential on the fingerprint pair" "$TRIAGE_SKILL_FLAT" \
+  "matching \`fingerprint.judge_identity\` and \`fingerprint.eval_instrument\`"
 
 # ── Discoverability — the workflow README files index lists the new docs ──────────────────
 check "README: files index names the maker-eval methodology doc" "$README_FLAT" \

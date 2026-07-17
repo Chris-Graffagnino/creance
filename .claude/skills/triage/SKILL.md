@@ -129,11 +129,16 @@ triage **never** runs the eval or writes a record.
   the regression call.
 - **The trajectory differential (T808, US3.AC3).** A record may carry an optional `trajectory`
   object — `{instrument_version, intervals:[{interval, dimensions, overall}...]}`, the post-hoc
-  per-interval snapshot scores. Difference two runs' per-interval scores **only when both records
+  per-interval snapshot scores. Difference two runs' per-interval scores **only when the pair is
+  comparable under the JUDGE-CHANGED / INSTRUMENT-CHANGED rule above (matching
+  `fingerprint.judge_identity` and `fingerprint.eval_instrument`) and both records
   carry a `trajectory` and their `trajectory.instrument_version` values match exactly**; a
   version mismatch renders the template's **INSTRUMENT-CHANGED / not-comparable** trajectory
-  state (the differential is suppressed, never differenced across schemas), and an absent
-  `trajectory` renders the explicit "no trajectory recorded" state.
+  state (the differential is suppressed, never differenced across schemas), a pair whose
+  judge-identity or eval-instrument component differs renders the template's
+  fingerprint-suppressed trajectory state (the version is not the gate — a cadence-only
+  instrument change moves `eval_instrument` while the trajectory version stays put), and an
+  absent `trajectory` renders the explicit "no trajectory recorded" state.
 - **JUDGE-MISCALIBRATED** reads the recorded judge↔owner agreement and its floor from the run's
   records (added by US1.AC5 / T806 — the calibration set and agreement computation). Until those
   fields are emitted, no agreement is present ⇒ render the neutral "no agreement recorded yet"

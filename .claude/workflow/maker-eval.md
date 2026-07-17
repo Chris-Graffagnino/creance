@@ -196,11 +196,18 @@ schema's comparability key, and it is fingerprinted by construction: it lives in
 instrument, so declaring it — and any later change to it or to the trajectory schema it
 names — **moves the eval-instrument fingerprint** and lands only as a reviewed PR
 (constitution P4). The read-only surfacing (`triage.md`) differences two runs' per-interval
-scores **only when their recorded trajectory instrument versions match**; a cross-version
-pair renders **INSTRUMENT-CHANGED / not-comparable** — the trajectory differential is
-suppressed, never reported as a confounded delta. A version bump that still gets
-differenced, or a trajectory-schema change that moves no fingerprint, each violates this
-contract. The concrete grading driver — how the judge is pointed at each stored snapshot
+scores **only when the pair is already comparable under the triple fingerprint — matching
+judge-identity and eval-instrument components — and their recorded trajectory instrument
+versions match**; a cross-version pair renders **INSTRUMENT-CHANGED / not-comparable** — the
+trajectory differential is suppressed, never reported as a confounded delta. The version
+alone is not the gate: an instrument change that never touches the trajectory schema — a
+cadence-only edit, say — moves the eval-instrument fingerprint while leaving the trajectory
+version unchanged, and a judge swap moves judge-identity; either makes the pair's
+trajectories just as confounded, so a fingerprint-moved pair suppresses the trajectory
+differential exactly as it suppresses the endpoint regression call. A version bump that
+still gets differenced, or a trajectory-schema change that moves no fingerprint, each
+violates this contract — as does a trajectory differential reported on a pair whose judge or
+eval-instrument fingerprint moved. The concrete grading driver — how the judge is pointed at each stored snapshot
 and how the verdicts land in the record — is the adapter's, like the capture mechanism; the
 observe-only law is unchanged (a per-interval score is an evaluation record: it reaches no
 maker-visible surface and feeds no gate, tier, or selection path — constitution P5).

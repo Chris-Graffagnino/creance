@@ -707,6 +707,15 @@ MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
   --run-id run-G --task ME-01 --tier strong --out "$GOUTF" -- "$FJUDGE" >/dev/null 2>&1; rc=$?
 ne "US3.AC3: a failing judge command is loud (nonzero exit)" "0" "$rc"
 if [ -e "$GOUTF" ]; then bad "US3.AC3: a failing judge writes no partial trajectory" "wrote $GOUTF"; else ok; fi
+# (iii-b) A RERUN OVER A PRE-EXISTING --out LEAVES NO STALE TRAJECTORY ON FAILURE (PR #290
+# review) — deleting only the scratch file would leave the previous run's well-formed
+# trajectory in place for a later `record --trajectory` to consume; "failed grading leaves
+# no trajectory output" means none, not an old one.
+printf '%s\n' '{"intervals":[{"interval":1,"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets"}],"overall":"pass"}]}' > "$GOUTF"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$GOUTF" -- "$FJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a failing judge over a pre-existing --out is still loud" "0" "$rc"
+if [ -e "$GOUTF" ]; then bad "US3.AC3: a failing judge removes the stale pre-existing --out" "left $GOUTF"; else ok; fi
 
 # (iv) A MALFORMED JUDGE VERDICT IS LOUD — a judge that prints a dimension-less object
 # aborts the grading (never a silently-defaulted interval score).
@@ -732,6 +741,13 @@ MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
   --run-id run-G --task ME-01 --tier strong --out "$TMP/traj-md.json" -- "$MDJUDGE" >/dev/null 2>&1; rc=$?
 ne "US3.AC3: a multi-document judge print is loud (nonzero exit)" "0" "$rc"
 if [ -e "$TMP/traj-md.json" ]; then bad "US3.AC3: a multi-document judge print writes no trajectory"; else ok; fi
+# ...and the malformed-verdict failure path also removes a pre-existing --out (PR #290
+# review — the same stale-trajectory hazard as the failing-judge rerun above).
+printf '%s\n' '{"intervals":[{"interval":1,"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets"}],"overall":"pass"}]}' > "$TMP/traj-md.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/traj-md.json" -- "$MDJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a malformed verdict over a pre-existing --out is still loud" "0" "$rc"
+if [ -e "$TMP/traj-md.json" ]; then bad "US3.AC3: a malformed verdict removes the stale pre-existing --out" "left $TMP/traj-md.json"; else ok; fi
 
 # (v) GRADE-SNAPSHOTS CALLER ERRORS ARE LOUD — hostile id, non-tier, missing judge command.
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
@@ -818,6 +834,17 @@ eq "US3.AC3: an instrument declaring no trajectory version is a loud caller erro
 eq "US3.AC3: a version-less trajectory lands no record" "0" \
   "$(grep -c . "$TMP/traj-nv-channel/records.jsonl" 2>/dev/null || echo 0)"
 
+# (viii-b) A DANGLING --trajectory IS A LOUD USAGE ERROR (PR #290 review) — the unguarded
+# `shift 2` left the arg list unchanged and spun the record parser forever (the
+# do_agreement bug class). perl's alarm caps the run (macOS ships no GNU timeout): a
+# regression dies on SIGALRM instead of hanging the suite.
+DGCH="$TMP/traj-dangling-channel"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$DGCH" perl -e 'alarm 5; exec @ARGV' \
+  bash "$EMIT" record --run-id run-DG --task ME-01 --tier strong \
+  --results "$TMP/judge.json" --trajectory >/dev/null 2>&1; rc=$?
+eq "US3.AC3: record --trajectory with no value is a loud usage error (exit 2, no hang)" "2" "$rc"
+if [ -e "$DGCH" ]; then bad "US3.AC3: a dangling --trajectory writes nothing" "created $DGCH"; else ok; fi
+
 # (ix) A TRAJECTORY-VERSION BUMP MOVES ONLY eval_instrument (US3.AC3 / P4) — the version
 # lives in the fingerprinted manifest, so "a schema change with no fingerprint movement"
 # is unrepresentable, and a bump never masquerades as a maker or judge change.
@@ -825,6 +852,17 @@ m_trajversion() { sed -i.bak 's/Trajectory instrument version: `1`/Trajectory in
   "$1/.claude/workflow/reviewers/maker-eval-corpus.md"; rm -f "$1/.claude/workflow/reviewers/maker-eval-corpus.md.bak"; }
 assert_only x "US3.AC3: a trajectory-version bump moves only eval_instrument" \
   "$(mut trajver m_trajversion)" eval_instrument
+
+# (x) A CADENCE-ONLY CHANGE MOVES ONLY eval_instrument WHILE THE TRAJECTORY VERSION IS
+# UNCHANGED (PR #290 review) — the confound the surfacing's trajectory gate must suppress
+# on the FINGERPRINT, because the version cannot catch it: trajectories sampled at
+# different rates are not comparable even under one trajectory instrument version, and this
+# movement proves the gate's fingerprint key (eval_instrument) is the one that moves.
+# (The judge-identity analog is the pinned-judge-row mutation above.)
+m_cadence() { sed -i.bak 's/Snapshot cadence: `1`/Snapshot cadence: `7`/' \
+  "$1/.claude/workflow/reviewers/maker-eval-corpus.md"; rm -f "$1/.claude/workflow/reviewers/maker-eval-corpus.md.bak"; }
+assert_only x "US3.AC3: a cadence-only change moves only eval_instrument (the trajectory version stays 1 — only the fingerprint gate can suppress this pair)" \
+  "$(mut cadence m_cadence)" eval_instrument
 
 echo "maker-eval emit tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
