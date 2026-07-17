@@ -79,8 +79,9 @@
 #       the fence-trusted writer, and the collected verdicts exist only to be appended to
 #       the observe-only record — a write-pipeline read, unlike `complete`'s surfacing read
 #       (maker-eval-fence.sh). Zero captured snapshots writes { intervals: [] } (exit 0 —
-#       the caller then omits --trajectory). Malformed ids/tier, a missing --out or judge
-#       command, or an unresolvable channel are loud caller errors (exit 2); a judge command
+#       the caller then omits --trajectory). Malformed ids/tier, a missing or unwritable
+#       --out (checked BEFORE the loop — a doomed out-path must not spend judge calls), a
+#       missing judge command, or an unresolvable channel are loud caller errors (exit 2); a judge command
 #       that fails or emits a malformed verdict is loud (exit 1, --out not written) — a
 #       partial grading never masquerades as the trajectory.
 #
@@ -372,17 +373,22 @@ results_valid() { # <results.json> -> 0 iff structurally a judge output
 # dimension/lifecycle/verdict, and a non-empty overall — the same per-snapshot shape
 # results_valid pins for the endpoint. Malformed is rejected loudly so a garbled grading
 # can never land a trajectory the surfacing would then difference.
-trajectory_valid() { # <traj.json> -> 0 iff structurally a per-interval grading output
-  jq -e '
-    ((.intervals // null) | type == "array")
-    and ((.intervals // []) | length > 0)
-    and ((.intervals // []) | all(
-      (.interval | type == "number")
-      and ((.dimensions // []) | type == "array")
-      and ((.dimensions // []) | length > 0)
-      and ((.dimensions // []) | all(.dimension != null and .lifecycle != null and .verdict != null))
-      and (.overall | type == "string") and (.overall | length > 0)
-    ))
+trajectory_valid() { # <traj.json> -> 0 iff EXACTLY ONE JSON document, structurally a per-interval grading output
+  # Slurped (-s) and length-checked so the SAME document the record build embeds
+  # ($traj[0]) is the one validated: a plain `jq -e` over the raw file grades only the
+  # LAST document of a multi-document file while --slurpfile lands the FIRST — a crafted
+  # two-document file would slip an invalid trajectory past validation (review of this PR).
+  jq -es '
+    (length == 1) and (.[0] |
+      ((.intervals // null) | type == "array")
+      and ((.intervals // []) | length > 0)
+      and ((.intervals // []) | all(
+        (.interval | type == "number")
+        and ((.dimensions // []) | type == "array")
+        and ((.dimensions // []) | length > 0)
+        and ((.dimensions // []) | all(.dimension != null and .lifecycle != null and .verdict != null))
+        and (.overall | type == "string") and (.overall | length > 0)
+      )))
   ' "$1" >/dev/null 2>&1
 }
 
@@ -879,6 +885,17 @@ do_grade_snapshots() {
   fi
   traj="$channel/trajectory/$run_id/$task_id/$tier"
 
+  # --out must be writable BEFORE the grading loop: each judge invocation is a real
+  # [headless run] the caller pays for, so a doomed out-path fails loudly here — never
+  # after N judge calls have already been spent (review of this PR).
+  local out_dir
+  out_dir="$(dirname -- "$out")"
+  if { [ -e "$out" ] && [ ! -w "$out" ]; } \
+    || { [ ! -e "$out" ] && { [ ! -d "$out_dir" ] || [ ! -w "$out_dir" ]; }; }; then
+    printf 'maker-eval-emit: --out is not writable: %s\n' "$out" >&2
+    return 2
+  fi
+
   # Captured snapshots only: RENAMED interval dirs, numeric order (interval-10 after
   # interval-2); a discarded `.tmp` is not a snapshot (US3.AC1). Zero captured snapshots
   # is a legitimate outcome (a sub-interval or trajectory-incomplete run): --out gets
@@ -892,19 +909,28 @@ do_grade_snapshots() {
     printf 'maker-eval-emit: cannot create a scratch file for grading\n' >&2
     return 1
   }
+  # A long grading loop (one [headless run] per snapshot) can be interrupted; the scratch
+  # file must not outlive the run. EXIT covers every return path; INT/TERM fold into the
+  # interrupted judge command's nonzero exit (the loud-failure path below). The path is
+  # expanded NOW (double quotes): at script EXIT the function's local is out of scope, so
+  # a deferred "$tmpout" would be unbound under set -u.
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmpout'" EXIT INT TERM
   for n in $ns; do
     # One judge invocation per snapshot, the snapshot dir appended as the final argument.
     # A failing judge, or a verdict that is not a well-formed judge output, aborts the
     # whole grading loudly — a trajectory missing graded intervals is not the trajectory.
+    # The verdict is slurped and length-checked (the trajectory_valid discipline): a
+    # multi-document judge print must not validate on one document and land another.
     if ! v="$("$@" "$traj/interval-$n")"; then
       printf 'maker-eval-emit: judge command failed on interval-%s (%s)\n' "$n" "$traj" >&2
       rm -f "$tmpout"; return 1
     fi
-    if ! printf '%s' "$v" | jq -e "$JUDGE_OUTPUT_FILTER" >/dev/null 2>&1; then
+    if ! printf '%s' "$v" | jq -es "(length == 1) and (.[0] | $JUDGE_OUTPUT_FILTER)" >/dev/null 2>&1; then
       printf 'maker-eval-emit: judge output for interval-%s is not a well-formed judge output\n' "$n" >&2
       rm -f "$tmpout"; return 1
     fi
-    printf '%s' "$v" | jq -c --argjson n "$n" '. + {interval:$n}' >> "$tmpout" || {
+    printf '%s' "$v" | jq -cs --argjson n "$n" '.[0] + {interval:$n}' >> "$tmpout" || {
       printf 'maker-eval-emit: cannot collect the interval-%s verdict\n' "$n" >&2
       rm -f "$tmpout"; return 1
     }

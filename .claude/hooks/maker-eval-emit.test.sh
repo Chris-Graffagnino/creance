@@ -718,6 +718,21 @@ MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
 ne "US3.AC3: a malformed judge verdict is loud (nonzero exit)" "0" "$rc"
 if [ -e "$TMP/traj-bogus.json" ]; then bad "US3.AC3: a malformed verdict writes no trajectory"; else ok; fi
 
+# (iv-b) A MULTI-DOCUMENT JUDGE PRINT IS LOUD — a judge that prints two JSON documents
+# (an invalid first, a valid last) must not validate on one and collect the other (the
+# trajectory_valid single-document discipline, applied per interval).
+MDJUDGE="$TMP/multidoc-judge"
+cat > "$MDJUDGE" <<'EOF'
+#!/bin/sh
+printf '%s\n' '{}'
+printf '%s\n' '{"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets","evidence":"e"}],"overall":"pass"}'
+EOF
+chmod +x "$MDJUDGE"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/traj-md.json" -- "$MDJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a multi-document judge print is loud (nonzero exit)" "0" "$rc"
+if [ -e "$TMP/traj-md.json" ]; then bad "US3.AC3: a multi-document judge print writes no trajectory"; else ok; fi
+
 # (v) GRADE-SNAPSHOTS CALLER ERRORS ARE LOUD — hostile id, non-tier, missing judge command.
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
   --run-id '../escape' --task ME-01 --tier strong --out "$TMP/x.json" -- "$JUDGE" >/dev/null 2>&1; rc=$?
@@ -728,6 +743,15 @@ eq "US3.AC3: a non-maker-tier --tier is a loud caller error (exit 2)" "2" "$rc"
 MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
   --run-id run-G --task ME-01 --tier strong --out "$TMP/x.json" >/dev/null 2>&1; rc=$?
 eq "US3.AC3: a missing judge command is a loud usage error (exit 2)" "2" "$rc"
+# ...and an unwritable --out fails BEFORE the grading loop — each judge invocation is a
+# real [headless run], so a doomed out-path must not spend N judge calls first (the
+# sentinel judge command proves no snapshot was graded).
+GSENT="$TMP/grade-sentinel"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/no-such-dir/out.json" \
+  -- touch "$GSENT" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: an unwritable --out is a loud caller error (exit 2)" "2" "$rc"
+if [ -e "$GSENT" ]; then bad "US3.AC3: an unwritable --out never starts the judge" "created $GSENT"; else ok; fi
 
 # (vi) RECORD --TRAJECTORY LANDS THE VERSIONED EXTENSION — the graded output of (i) rides
 # the SAME (task × tier) record under the INSTRUMENT-DECLARED version (fixture: 1), with
@@ -766,6 +790,21 @@ MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$MCH2" bash "$EMIT" record \
 eq "US3.AC3: a dimension-less interval is a loud caller error (exit 2)" "2" "$rc"
 eq "US3.AC3: a rejected trajectory lands no record" "0" \
   "$(grep -c . "$MCH2/records.jsonl" 2>/dev/null || echo 0)"
+
+# (vii-b) A MULTI-DOCUMENT TRAJECTORY FILE IS A LOUD CALLER ERROR — validation and the
+# record build must consume the SAME document: a two-document file whose FIRST document is
+# invalid (empty intervals) and whose LAST is valid slipped past a raw `jq -e` (which
+# grades the last document) while --slurpfile landed the first (this PR's review finding).
+MDCH="$TMP/traj-multidoc-channel"
+{ printf '%s\n' '{"intervals":[]}'
+  printf '%s\n' '{"intervals":[{"interval":1,"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets"}],"overall":"pass"}]}'
+} > "$TMP/traj-multidoc.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$MDCH" bash "$EMIT" record \
+  --run-id run-MD --task ME-01 --tier strong --results "$TMP/judge.json" \
+  --trajectory "$TMP/traj-multidoc.json" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: a multi-document trajectory file is a loud caller error (exit 2)" "2" "$rc"
+eq "US3.AC3: a multi-document trajectory lands no record" "0" \
+  "$(grep -c . "$MDCH/records.jsonl" 2>/dev/null || echo 0)"
 
 # (viii) AN INSTRUMENT DECLARING NO TRAJECTORY VERSION IS A LOUD CALLER ERROR — a
 # trajectory can never land version-less (the surfacing would have no comparability key).
