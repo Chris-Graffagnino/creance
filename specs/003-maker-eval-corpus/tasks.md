@@ -72,7 +72,7 @@
       write failure, no maker-visible scores, explicit trajectory-incomplete marking;
       tests per US3.AC2 (cadence fixture, byte-identical-on-write-failure, two-sided
       incomplete marking) (#211) (US3)
-- [ ] T808 [strong] Post-hoc pinned-judge grading of snapshots + versioned schema
+- [x] T808 [strong] Post-hoc pinned-judge grading of snapshots + versioned schema
       extension: per-interval scores in the (task × tier) record under an explicit
       instrument version (reviewed-PR eval-instrument fingerprint movement, P4); triage
       renders cross-version deltas INSTRUMENT-CHANGED/not-comparable; extend the US2.AC3

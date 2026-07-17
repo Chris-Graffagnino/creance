@@ -205,6 +205,38 @@ run_fence 1 "$V_SLASH" "FIRES: terminal -maker-eval/ dir form (token alone) in M
 V_EOL="$TMP/dir-terminal-eol"; mkfix "$V_EOL" ".claude/workflow/next-task.md" 'resolve the channel at ~/.claude/triage/creance-maker-eval'
 run_fence 1 "$V_EOL" "FIRES: terminal -maker-eval at end-of-line in next-task.md"
 
+# ── T808 (US3.AC4): the fence extends to the TRAJECTORY storage — a planted
+#    cross-reference to the trajectory path FIRES (the AC's planted case, alongside the
+#    pass-on-the-real-tree control at the top of this file), prose stays benign, and the
+#    run binding may DRIVE the writer's grading subcommand but never read the storage. ──
+
+# (w) reading the trajectory storage planted in a GUARD path FIRES.
+W_GUARD="$TMP/plant-trajectory-guard"; mkfix "$W_GUARD" ".claude/hooks/guard.sh" 'ls "$chan/trajectory/run-1/ME-01"   # planted trajectory read'
+run_fence 1 "$W_GUARD" "FIRES: trajectory storage read planted in guard.sh (guard path)"
+
+# (w2) the quote-wrapped path-segment form planted in a GATE path FIRES (the packets idiom:
+#      all reference forms, not just a trailing slash).
+W_GATE="$TMP/plant-trajectory-gate"; mkfix "$W_GATE" ".claude/workflows/gate-loop.js" 'const t = channel + "/" + "trajectory"; // planted'
+run_fence 1 "$W_GATE" "FIRES: quote-wrapped trajectory segment planted in gate-loop.js (gate path)"
+
+# (w3) reading the trajectory storage planted in the LINE-SCOPED run binding FIRES — the
+#      binding drives the writer's grading; it never reads the snapshot store itself.
+W_BIND="$TMP/binding-reads-trajectory"; mkfix "$W_BIND" ".claude/skills/maker-eval/SKILL.md" 'Read `$channel/trajectory/$id` and grade each snapshot inline.  # planted trajectory read'
+run_fence 1 "$W_BIND" "FIRES: trajectory storage read planted in the run binding"
+
+# (x) bare "trajectory" in PROSE does not fire — a non-allowlisted doc may discuss the
+#     trajectory measurement without referencing the storage dir (real tree:
+#     workflow/maker-eval.md, triage.md).
+X_PROSE="$TMP/allow-trajectory-prose"; mkfix "$X_PROSE" ".claude/workflow/some-neutral-doc.md" 'the trajectory storage holds interval snapshots graded post-hoc, never gated.'
+run_fence 0 "$X_PROSE" "no false fire: bare word \"trajectory\" in prose (not a path segment)"
+
+# (y) the run binding DRIVING the writer's post-hoc grading (`grade-snapshots`) is benign —
+#     the channel read happens inside the fence-trusted writer, and the collected verdicts
+#     exist only to be appended back via `record --trajectory` (a write-pipeline drive,
+#     unlike the `complete` surfacing read case s, which must keep firing alongside this).
+Y_GRADE="$TMP/binding-drives-grading"; mkfix "$Y_GRADE" ".claude/skills/maker-eval/SKILL.md" 'Then: bash .claude/hooks/maker-eval-emit.sh grade-snapshots --run-id "$id" --task "$t" --tier "$k" --out "$tmp/traj.json" -- "$judge_cmd"'
+run_fence 0 "$Y_GRADE" "no false fire: maker-eval-emit grade-snapshots (writer drive) in the run binding"
+
 # ── fail-closed: an unscannable root is a LOUD failure, never a silent pass (P2) ─
 run_fence 2 "$TMP/does-not-exist" "fail-closed: empty/unscannable root exits loud"
 

@@ -31,6 +31,17 @@
 #        start the maker command; captures hold FIXED cadence boundaries under slow copies
 #        (never cadence+copy_duration drift); and the active capture child is reaped on
 #        maker exit (no orphaned copy outlives snapshot-run — PR #288 review).
+#   US3.AC3 (T808, post-hoc trajectory grading + the versioned schema extension):
+#        grade-snapshots runs the judge command once per CAPTURED snapshot (numeric order,
+#        a discarded .tmp excluded, the snapshot dir reaching the judge) and collects
+#        { intervals: [...] }; a zero-snapshot slot yields { intervals: [] }; a failing
+#        judge or malformed verdict is loud (no partial trajectory); record --trajectory
+#        lands trajectory.instrument_version (the INSTRUMENT-DECLARED value) with the
+#        per-interval lifecycle-tagged verdicts inside the SAME (task × tier) record —
+#        and a malformed trajectory file, or an instrument declaring no version, is a
+#        loud caller error (exit 2, nothing written); a version bump moves ONLY the
+#        eval_instrument fingerprint component (the AC's "schema change with no
+#        fingerprint movement" is unrepresentable).
 #
 # Run: bash .claude/hooks/maker-eval-emit.test.sh
 set -u
@@ -102,6 +113,10 @@ The owner-labeled calibration set + the agreement floor (T806 fixture).
 ## Snapshot cadence
 
 - Snapshot cadence: `1` seconds (T807 fixture).
+
+## Trajectory grading
+
+- Trajectory instrument version: `1` (T808 fixture).
 EOF
   printf 'an adapter binding prompt\n' > "$r/.claude/skills/demo/SKILL.md"
 }
@@ -639,6 +654,215 @@ eq "US3.AC2: no in-flight .tmp capture survives the maker command's exit" "0" \
 sleep 1.2
 eq "US3.AC2: no orphaned copy keeps writing after snapshot-run returns" "0" \
   "$(find "$RTRAJ" -maxdepth 1 \( -name '*.tmp' -o -name 'interval-*' \) 2>/dev/null | grep -c .)"
+
+# ── T808 (US3.AC3): post-hoc grading driver + the versioned trajectory record extension ──
+
+# (i) GRADE-SNAPSHOTS COLLECTS PER-INTERVAL VERDICTS — planted snapshots interval-1/2/10
+# (numeric order pins interval-10 AFTER interval-2) plus a discarded interval-3.tmp (never
+# graded); the judge command runs once per snapshot with the snapshot dir appended (proven
+# by echoing the arg back into the verdict).
+GCH="$TMP/grade-channel"
+GTRAJ="$GCH/trajectory/run-G/ME-01/strong"
+for n in 1 2 10; do mkdir -p "$GTRAJ/interval-$n"; printf 'snap %s\n' "$n" > "$GTRAJ/interval-$n/f.txt"; done
+mkdir -p "$GTRAJ/interval-3.tmp"
+JUDGE="$TMP/fake-judge"
+cat > "$JUDGE" <<'EOF'
+#!/bin/sh
+printf '{"dimensions":[{"dimension":"behavior-performed","lifecycle":"saturated","verdict":"meets","evidence":"e"}],"overall":"pass","snapshot_dir":"%s"}\n' "$1"
+EOF
+chmod +x "$JUDGE"
+GOUT="$TMP/traj-out.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$GOUT" -- "$JUDGE"; rc=$?
+eq "US3.AC3: grade-snapshots exits 0 on a graded slot" "0" "$rc"
+eq "US3.AC3: every captured snapshot is graded (3 intervals; .tmp excluded)" "3" \
+  "$(jq -r '.intervals | length' "$GOUT" 2>/dev/null)"
+eq "US3.AC3: intervals are collected in numeric order (1,2,10)" "1 2 10" \
+  "$(jq -r '[.intervals[].interval] | join(" ")' "$GOUT" 2>/dev/null)"
+eq "US3.AC3: the judge received the snapshot dir (interval-10 graded interval-10)" "ok" \
+  "$(jq -e '.intervals[2].snapshot_dir | endswith("interval-10")' "$GOUT" >/dev/null 2>&1 && echo ok)"
+eq "US3.AC3: a graded interval keeps its lifecycle-tagged dimensions" "saturated" \
+  "$(jq -r '.intervals[0].dimensions[0].lifecycle' "$GOUT" 2>/dev/null)"
+
+# (ii) A ZERO-SNAPSHOT SLOT YIELDS AN EMPTY TRAJECTORY — { intervals: [] }, exit 0 (the
+# caller then omits --trajectory; a sub-interval run has no trajectory to grade).
+GOUT0="$TMP/traj-empty.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-NONE --task ME-01 --tier strong --out "$GOUT0" -- "$JUDGE"; rc=$?
+eq "US3.AC3: a zero-snapshot slot exits 0" "0" "$rc"
+eq "US3.AC3: a zero-snapshot slot writes { intervals: [] }" "0" \
+  "$(jq -r '.intervals | length' "$GOUT0" 2>/dev/null)"
+
+# (iii) A FAILING JUDGE IS LOUD AND WRITES NO PARTIAL TRAJECTORY — the second interval's
+# judge run fails, so --out must not land (a trajectory missing graded intervals is not
+# the trajectory).
+FJUDGE="$TMP/failing-judge"
+cat > "$FJUDGE" <<EOF
+#!/bin/sh
+case "\$1" in *interval-1) printf '{"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets","evidence":"e"}],"overall":"pass"}\n' ;; *) exit 9 ;; esac
+EOF
+chmod +x "$FJUDGE"
+GOUTF="$TMP/traj-fail.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$GOUTF" -- "$FJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a failing judge command is loud (nonzero exit)" "0" "$rc"
+if [ -e "$GOUTF" ]; then bad "US3.AC3: a failing judge writes no partial trajectory" "wrote $GOUTF"; else ok; fi
+# (iii-b) A RERUN OVER A PRE-EXISTING --out LEAVES NO STALE TRAJECTORY ON FAILURE (PR #290
+# review) — deleting only the scratch file would leave the previous run's well-formed
+# trajectory in place for a later `record --trajectory` to consume; "failed grading leaves
+# no trajectory output" means none, not an old one.
+printf '%s\n' '{"intervals":[{"interval":1,"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets"}],"overall":"pass"}]}' > "$GOUTF"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$GOUTF" -- "$FJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a failing judge over a pre-existing --out is still loud" "0" "$rc"
+if [ -e "$GOUTF" ]; then bad "US3.AC3: a failing judge removes the stale pre-existing --out" "left $GOUTF"; else ok; fi
+
+# (iv) A MALFORMED JUDGE VERDICT IS LOUD — a judge that prints a dimension-less object
+# aborts the grading (never a silently-defaulted interval score).
+BJUDGE="$TMP/bogus-judge"
+printf '#!/bin/sh\nprintf %s\n' "'{}'" > "$BJUDGE"
+chmod +x "$BJUDGE"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/traj-bogus.json" -- "$BJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a malformed judge verdict is loud (nonzero exit)" "0" "$rc"
+if [ -e "$TMP/traj-bogus.json" ]; then bad "US3.AC3: a malformed verdict writes no trajectory"; else ok; fi
+
+# (iv-b) A MULTI-DOCUMENT JUDGE PRINT IS LOUD — a judge that prints two JSON documents
+# (an invalid first, a valid last) must not validate on one and collect the other (the
+# trajectory_valid single-document discipline, applied per interval).
+MDJUDGE="$TMP/multidoc-judge"
+cat > "$MDJUDGE" <<'EOF'
+#!/bin/sh
+printf '%s\n' '{}'
+printf '%s\n' '{"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets","evidence":"e"}],"overall":"pass"}'
+EOF
+chmod +x "$MDJUDGE"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/traj-md.json" -- "$MDJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a multi-document judge print is loud (nonzero exit)" "0" "$rc"
+if [ -e "$TMP/traj-md.json" ]; then bad "US3.AC3: a multi-document judge print writes no trajectory"; else ok; fi
+# ...and the malformed-verdict failure path also removes a pre-existing --out (PR #290
+# review — the same stale-trajectory hazard as the failing-judge rerun above).
+printf '%s\n' '{"intervals":[{"interval":1,"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets"}],"overall":"pass"}]}' > "$TMP/traj-md.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/traj-md.json" -- "$MDJUDGE" >/dev/null 2>&1; rc=$?
+ne "US3.AC3: a malformed verdict over a pre-existing --out is still loud" "0" "$rc"
+if [ -e "$TMP/traj-md.json" ]; then bad "US3.AC3: a malformed verdict removes the stale pre-existing --out" "left $TMP/traj-md.json"; else ok; fi
+
+# (v) GRADE-SNAPSHOTS CALLER ERRORS ARE LOUD — hostile id, non-tier, missing judge command.
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id '../escape' --task ME-01 --tier strong --out "$TMP/x.json" -- "$JUDGE" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: a hostile run id is a loud caller error (exit 2)" "2" "$rc"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier bogus --out "$TMP/x.json" -- "$JUDGE" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: a non-maker-tier --tier is a loud caller error (exit 2)" "2" "$rc"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/x.json" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: a missing judge command is a loud usage error (exit 2)" "2" "$rc"
+# ...and an unwritable --out fails BEFORE the grading loop — each judge invocation is a
+# real [headless run], so a doomed out-path must not spend N judge calls first (the
+# sentinel judge command proves no snapshot was graded).
+GSENT="$TMP/grade-sentinel"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$GCH" bash "$EMIT" grade-snapshots \
+  --run-id run-G --task ME-01 --tier strong --out "$TMP/no-such-dir/out.json" \
+  -- touch "$GSENT" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: an unwritable --out is a loud caller error (exit 2)" "2" "$rc"
+if [ -e "$GSENT" ]; then bad "US3.AC3: an unwritable --out never starts the judge" "created $GSENT"; else ok; fi
+
+# (vi) RECORD --TRAJECTORY LANDS THE VERSIONED EXTENSION — the graded output of (i) rides
+# the SAME (task × tier) record under the INSTRUMENT-DECLARED version (fixture: 1), with
+# the per-interval lifecycle-tagged verdicts intact.
+TRCH="$TMP/traj-record-channel"
+TLINE="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TRCH" bash "$EMIT" record \
+  --run-id run-TR --task ME-01 --tier strong --results "$TMP/judge.json" --trajectory "$GOUT")"
+eq "US3.AC3: the trajectory record is valid JSON" "ok" "$(printf '%s' "$TLINE" | jq -e . >/dev/null 2>&1 && echo ok)"
+eq "US3.AC3: the record carries the instrument-declared trajectory version" "1" \
+  "$(printf '%s' "$TLINE" | jq -r '.trajectory.instrument_version')"
+eq "US3.AC3: the record carries every graded interval" "3" \
+  "$(printf '%s' "$TLINE" | jq -r '.trajectory.intervals | length')"
+eq "US3.AC3: a recorded interval keeps its per-dimension verdict" "meets" \
+  "$(printf '%s' "$TLINE" | jq -r '.trajectory.intervals[0].dimensions[0].verdict')"
+eq "US3.AC3: the trajectory rides the SAME maker-eval record (one line)" "1" \
+  "$(grep -c . "$TRCH/records.jsonl" 2>/dev/null)"
+# ...and a record WITHOUT --trajectory carries no trajectory key (the extension is opt-in;
+# the base schema is unchanged).
+NLINE="$(MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$TRCH" bash "$EMIT" record \
+  --run-id run-TR --task ME-02 --tier strong --results "$TMP/judge.json")"
+eq "US3.AC3: a record without --trajectory has no trajectory key" "false" \
+  "$(printf '%s' "$NLINE" | jq 'has("trajectory")')"
+
+# (vii) A MALFORMED TRAJECTORY FILE IS A LOUD CALLER ERROR — an empty intervals array and
+# a dimension-less interval are each rejected (exit 2, nothing written).
+MCH2="$TMP/traj-malformed-channel"
+printf '%s\n' '{"intervals":[]}' > "$TMP/traj-empty-arr.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$MCH2" bash "$EMIT" record \
+  --run-id run-TM --task ME-01 --tier strong --results "$TMP/judge.json" \
+  --trajectory "$TMP/traj-empty-arr.json" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: an empty-intervals trajectory is a loud caller error (exit 2)" "2" "$rc"
+printf '%s\n' '{"intervals":[{"interval":1,"overall":"pass"}]}' > "$TMP/traj-dimless.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$MCH2" bash "$EMIT" record \
+  --run-id run-TM --task ME-01 --tier strong --results "$TMP/judge.json" \
+  --trajectory "$TMP/traj-dimless.json" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: a dimension-less interval is a loud caller error (exit 2)" "2" "$rc"
+eq "US3.AC3: a rejected trajectory lands no record" "0" \
+  "$(grep -c . "$MCH2/records.jsonl" 2>/dev/null || echo 0)"
+
+# (vii-b) A MULTI-DOCUMENT TRAJECTORY FILE IS A LOUD CALLER ERROR — validation and the
+# record build must consume the SAME document: a two-document file whose FIRST document is
+# invalid (empty intervals) and whose LAST is valid slipped past a raw `jq -e` (which
+# grades the last document) while --slurpfile landed the first (this PR's review finding).
+MDCH="$TMP/traj-multidoc-channel"
+{ printf '%s\n' '{"intervals":[]}'
+  printf '%s\n' '{"intervals":[{"interval":1,"dimensions":[{"dimension":"d","lifecycle":"capability","verdict":"meets"}],"overall":"pass"}]}'
+} > "$TMP/traj-multidoc.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$MDCH" bash "$EMIT" record \
+  --run-id run-MD --task ME-01 --tier strong --results "$TMP/judge.json" \
+  --trajectory "$TMP/traj-multidoc.json" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: a multi-document trajectory file is a loud caller error (exit 2)" "2" "$rc"
+eq "US3.AC3: a multi-document trajectory lands no record" "0" \
+  "$(grep -c . "$MDCH/records.jsonl" 2>/dev/null || echo 0)"
+
+# (viii) AN INSTRUMENT DECLARING NO TRAJECTORY VERSION IS A LOUD CALLER ERROR — a
+# trajectory can never land version-less (the surfacing would have no comparability key).
+TNV="$TMP/tree-no-traj-version"; build_tree "$TNV"
+sed -i.bak '/^## Trajectory grading/,$d' "$TNV/.claude/workflow/reviewers/maker-eval-corpus.md"
+rm -f "$TNV/.claude/workflow/reviewers/maker-eval-corpus.md.bak"
+MAKER_EVAL_ROOT="$TNV" MAKER_EVAL_DIR="$TMP/traj-nv-channel" bash "$EMIT" record \
+  --run-id run-NV --task ME-01 --tier strong --results "$TMP/judge.json" \
+  --trajectory "$GOUT" >/dev/null 2>&1; rc=$?
+eq "US3.AC3: an instrument declaring no trajectory version is a loud caller error (exit 2)" "2" "$rc"
+eq "US3.AC3: a version-less trajectory lands no record" "0" \
+  "$(grep -c . "$TMP/traj-nv-channel/records.jsonl" 2>/dev/null || echo 0)"
+
+# (viii-b) A DANGLING --trajectory IS A LOUD USAGE ERROR (PR #290 review) — the unguarded
+# `shift 2` left the arg list unchanged and spun the record parser forever (the
+# do_agreement bug class). perl's alarm caps the run (macOS ships no GNU timeout): a
+# regression dies on SIGALRM instead of hanging the suite.
+DGCH="$TMP/traj-dangling-channel"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$DGCH" perl -e 'alarm 5; exec @ARGV' \
+  bash "$EMIT" record --run-id run-DG --task ME-01 --tier strong \
+  --results "$TMP/judge.json" --trajectory >/dev/null 2>&1; rc=$?
+eq "US3.AC3: record --trajectory with no value is a loud usage error (exit 2, no hang)" "2" "$rc"
+if [ -e "$DGCH" ]; then bad "US3.AC3: a dangling --trajectory writes nothing" "created $DGCH"; else ok; fi
+
+# (ix) A TRAJECTORY-VERSION BUMP MOVES ONLY eval_instrument (US3.AC3 / P4) — the version
+# lives in the fingerprinted manifest, so "a schema change with no fingerprint movement"
+# is unrepresentable, and a bump never masquerades as a maker or judge change.
+m_trajversion() { sed -i.bak 's/Trajectory instrument version: `1`/Trajectory instrument version: `2`/' \
+  "$1/.claude/workflow/reviewers/maker-eval-corpus.md"; rm -f "$1/.claude/workflow/reviewers/maker-eval-corpus.md.bak"; }
+assert_only x "US3.AC3: a trajectory-version bump moves only eval_instrument" \
+  "$(mut trajver m_trajversion)" eval_instrument
+
+# (x) A CADENCE-ONLY CHANGE MOVES ONLY eval_instrument WHILE THE TRAJECTORY VERSION IS
+# UNCHANGED (PR #290 review) — the confound the surfacing's trajectory gate must suppress
+# on the FINGERPRINT, because the version cannot catch it: trajectories sampled at
+# different rates are not comparable even under one trajectory instrument version, and this
+# movement proves the gate's fingerprint key (eval_instrument) is the one that moves.
+# (The judge-identity analog is the pinned-judge-row mutation above.)
+m_cadence() { sed -i.bak 's/Snapshot cadence: `1`/Snapshot cadence: `7`/' \
+  "$1/.claude/workflow/reviewers/maker-eval-corpus.md"; rm -f "$1/.claude/workflow/reviewers/maker-eval-corpus.md.bak"; }
+assert_only x "US3.AC3: a cadence-only change moves only eval_instrument (the trajectory version stays 1 — only the fingerprint gate can suppress this pair)" \
+  "$(mut cadence m_cadence)" eval_instrument
 
 echo "maker-eval emit tests: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1
