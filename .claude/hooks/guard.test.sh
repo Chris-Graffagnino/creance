@@ -332,11 +332,11 @@ check 2 "$MAIN" "#256 block: JSON-tab plain git\\tcommit — skeleton normalizes
 # reviewers must still pass on a cheap model.
 MODELS_FIXTURE="$TMP/MODELS.md"
 cat > "$MODELS_FIXTURE" <<'EOF'
-| Tier (ordinal, highest first) | Model | Effort |
-|---|---|---|
-| **[frontier tier]** | `fable` | high |
-| **[strong tier]** | `opus` | — |
-| **[cheap tier]** | `sonnet` (`haiku` acceptable) | — |
+| Tier (ordinal, highest first) | Model | Effort | Context window |
+|---|---|---|---|
+| **[frontier tier]** | `fable` | high | `200k` |
+| **[strong tier]** | `opus` | — | `200k` |
+| **[cheap tier]** | `sonnet` (`haiku` acceptable) | — | `1M` |
 EOF
 agentp() { printf '{"tool_name":"%s","tool_input":{"subagent_type":"%s","prompt":"audit the diff","model":"%s"}}' "$1" "$2" "$3"; }
 agentnm() { printf '{"tool_name":"%s","tool_input":{"subagent_type":"%s","prompt":"audit the diff"}}' "$1" "$2"; }
@@ -345,6 +345,7 @@ export GUARD_MODELS_FILE="$MODELS_FIXTURE"
 check 2 "$FEAT" "r5 block: constitution-auditor, no model param" "$(agentnm Agent constitution-auditor)"
 check 2 "$FEAT" "r5 block: constitution-auditor on cheap (sonnet)" "$(agentp Agent constitution-auditor sonnet)"
 check 2 "$FEAT" "r5 block: constitution-auditor on cheap (haiku)" "$(agentp Agent constitution-auditor haiku)"
+check 2 "$FEAT" "r5 block: cheap full ID containing a context-window value" "$(agentp Agent constitution-auditor sonnet-200k)"
 check 2 "$FEAT" "r5 block: legacy Task tool name, cheap model" "$(agentp Task constitution-auditor sonnet)"
 check 0 "$FEAT" "r5 allow: constitution-auditor at the floor" "$(agentp Agent constitution-auditor opus)"
 check 0 "$FEAT" "r5 allow: constitution-auditor above the floor" "$(agentp Agent constitution-auditor fable)"

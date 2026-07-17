@@ -343,11 +343,13 @@ jstr() {
 
 # Rule 5 helpers: the adapter model table is the ONLY file naming models — the
 # hook resolves tier rows from it at runtime (GUARD_MODELS_FILE is a test seam).
-# A tier's models are the backticked names in its table row; empty output means
-# the row/table is unreadable and the caller must fail open.
+# A tier's models are the backticked names in its Model cell; later cells may
+# carry other backticked attributes such as context-window values. Empty output
+# means the row/table is unreadable and the caller must fail open.
 models_file="${GUARD_MODELS_FILE:-$(cd "$(dirname "$0")" && pwd)/../MODELS.md}"
 tier_models() {
   grep -iE "^\|[[:space:]]*\*\*\[$1 tier\]\*\*" "$models_file" 2>/dev/null | head -1 \
+    | awk -F '|' '{ print $3 }' \
     | grep -oE '`[^`]+`' | tr -d '`'
 }
 model_in() { # model_in <model> <names...> — containment, so full IDs match too

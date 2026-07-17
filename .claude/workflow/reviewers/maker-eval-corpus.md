@@ -254,6 +254,30 @@ trajectory-incomplete is the neutral doc's contract (`../maker-eval.md` → "Tra
 measurement"); the concrete capture mechanism is the adapter's. This file declares only the
 *cadence* — the single number a run reads.
 
+## Trajectory grading (post-hoc snapshot scoring — part of the frozen instrument)
+
+After a corpus task's maker run, the **pinned judge** (above) grades each captured interval
+snapshot against the **same per-task rubric dimensions and scoring schema** the endpoint is
+graded with — a single grading pass per snapshot, no fix loop, exactly the endpoint judge's
+posture (spec 003 US3.AC3). The per-interval verdicts extend that (corpus task × maker tier)
+record under the **explicit trajectory instrument version declared here**:
+
+- **Trajectory instrument version: `1`.** Every trajectory extension a record carries is
+  stamped with this version, so two runs' per-interval scores are differenced **only when
+  their recorded versions match — and only when the pair's judge-identity and
+  eval-instrument fingerprint components are unmoved** (`../triage.md`: a cadence or judge
+  change moves a fingerprint component without bumping this version, and such a pair's
+  trajectory differential is suppressed too). The value is a **frozen-instrument** artifact: this file
+  is hashed into the eval-instrument fingerprint (`../maker-eval.md` → "The triple
+  fingerprint"), so changing the version — or the trajectory schema it names — moves that
+  component, and the read-only surfacing renders a cross-version comparison
+  **INSTRUMENT-CHANGED / not-comparable** rather than differencing trajectories graded under
+  different schemas (`../triage.md`). It travels **only by reviewed PR** (constitution P4).
+
+How the per-interval verdicts are collected and appended into the record is the adapter's
+mechanism; this file declares only the *version* — the single number stamped on every
+trajectory extension.
+
 ## Observe-only (constitution P5 — restated where it is easy to forget)
 
 A task's record, its rubric verdicts, the agreement figure, and any fingerprint movement are

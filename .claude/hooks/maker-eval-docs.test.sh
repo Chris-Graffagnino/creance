@@ -547,6 +547,67 @@ check "US4.AC3: behavior — decompose a stalled failure into searchable subprob
 check "US4.AC3: behavior — keep the working core fixed and repair residuals" "$CARD_FLAT" \
   "repair residuals rather than rewriting"
 
+# ── US3.AC3/AC4 (T808) — post-hoc grading + the versioned trajectory extension. The ───────
+# mechanism tests live in maker-eval-emit.test.sh (grade-snapshots, record --trajectory) and
+# maker-eval-fence.test.sh (the trajectory-storage fence extension); these pin the DOC
+# obligations — the same-rubric post-hoc grading, the explicit instrument version, the
+# version-keyed INSTRUMENT-CHANGED comparability in the surfacing — so a later edit that
+# drops one fails verify.
+check "US3.AC3: the pinned judge grades each snapshot against the same per-task rubric" "$NEU_FLAT" \
+  "pinned judge grades each captured snapshot against the same per-task rubric"
+check "US3.AC3: per-interval scores extend the (task × tier) record" "$NEU_FLAT" \
+  "per-(corpus task × maker tier) record"
+check "US3.AC3: the extension carries an explicit trajectory instrument version" "$NEU_FLAT" \
+  "explicit trajectory instrument version"
+check "US3.AC3: a version/schema change moves the eval-instrument fingerprint (P4)" "$NEU_FLAT" \
+  "moves the eval-instrument fingerprint"
+check "US3.AC3: cross-version trajectories render INSTRUMENT-CHANGED / not-comparable" "$NEU_FLAT" \
+  "INSTRUMENT-CHANGED / not-comparable"
+check "US3.AC3: the violation clause is stated (differenced bump / fingerprint-less schema change)" "$NEU_FLAT" \
+  "A version bump that still gets differenced, or a trajectory-schema change that moves no fingerprint, each violates this"
+check "US3.AC3: the corpus manifest declares trajectory grading as frozen instrument" "$CORPUS_FLAT" \
+  "## Trajectory grading (post-hoc snapshot scoring — part of the frozen instrument)"
+# Structural: the trajectory instrument version parses to a positive whole number under the
+# "## Trajectory grading" section — the same single-source parse the emitter uses (a
+# prose-only declaration would leave every --trajectory record a loud version error).
+traj_ver="$(awk '/^## / { insec = (index($0, "Trajectory grading") > 0); next } insec' "$CORPUS" \
+  | grep -oE 'Trajectory instrument version:[[:space:]]*`[0-9]+`' | grep -oE '[0-9]+' | head -1)"
+if [ -n "$traj_ver" ] && [ "$traj_ver" -gt 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US3.AC3: no positive parseable trajectory instrument version in the corpus manifest (got: %s)\n' \
+    "${traj_ver:-<none>}" >&2
+fi
+# The read-only surfacing (triage) is version-keyed: per-interval scores are differenced
+# only under matching recorded versions, and a mismatch suppresses the differential.
+TRIAGE_DOC="$DIR/workflow/triage.md"
+TRIAGE_FLAT="$(flat "$TRIAGE_DOC")"
+check "US3.AC3: triage differences trajectories only under matching versions" "$TRIAGE_FLAT" \
+  "a trajectory and their recorded versions match exactly"
+check "US3.AC3: triage renders the version mismatch as INSTRUMENT-CHANGED (suppressed)" "$TRIAGE_FLAT" \
+  "trajectory instrument versions differ"
+# ...and the version is NOT the gate on its own (PR #290 review): the trajectory
+# differential additionally requires the fingerprint-comparable pair — a cadence-only or
+# judge change moves a fingerprint component without bumping the trajectory version, and
+# such a pair's trajectory differential must be suppressed like the regression call.
+check "US3.AC3: triage's trajectory differential requires the fingerprint-comparable pair" "$TRIAGE_FLAT" \
+  "comparable under the JUDGE-CHANGED / INSTRUMENT-CHANGED rule above — matching judge-identity and eval-instrument fingerprint components"
+check "US3.AC3: triage names the cadence-only confound the version cannot catch" "$TRIAGE_FLAT" \
+  "cadence-only instrument change moves eval-instrument while the trajectory version stays put"
+check "US3.AC3: the template carries the fingerprint-suppressed trajectory state" "$TRIAGE_FLAT" \
+  "judge or eval-instrument fingerprint moved between the two runs; trajectory differential suppressed"
+check "US3.AC3: the neutral doc requires fingerprint comparability for the trajectory differential" "$NEU_FLAT" \
+  "matching judge-identity and eval-instrument components — and their recorded trajectory instrument versions match"
+check "US3.AC3: the neutral doc's violation clause covers the fingerprint-moved pair" "$NEU_FLAT" \
+  "as does a trajectory differential reported on a pair whose judge or eval-instrument fingerprint moved"
+check "US3.AC3: the corpus manifest states the fingerprint condition beside the version" "$CORPUS_FLAT" \
+  "only when the pair's judge-identity and eval-instrument fingerprint components are unmoved"
+TRIAGE_SKILL="$DIR/skills/triage/SKILL.md"
+TRIAGE_SKILL_FLAT="$(flat "$TRIAGE_SKILL")"
+check "US3.AC3: the triage binding gates the trajectory differential on the fingerprint pair" "$TRIAGE_SKILL_FLAT" \
+  "matching \`fingerprint.judge_identity\` and \`fingerprint.eval_instrument\`"
+
 # ── Discoverability — the workflow README files index lists the new docs ──────────────────
 check "README: files index names the maker-eval methodology doc" "$README_FLAT" \
   "\`maker-eval.md\`"

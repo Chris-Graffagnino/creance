@@ -36,7 +36,7 @@
 #       point the recipe at a fixture tree.
 #
 #   record --run-id <id> --task <ME-id> --tier <maker-tier> --results <judge.json> \
-#          [--prompt <f>] [--artifact <f>] [--judge <f>]
+#          [--prompt <f>] [--artifact <f>] [--judge <f>] [--trajectory <traj.json>]
 #       Append EXACTLY ONE append-only JSONL record for one (corpus task × maker tier) to
 #       <channel>/records.jsonl and store its transcript review packet under
 #       <channel>/packets/<run-id>/<task-id>/<tier>/ (run id and task id must be safe path
@@ -57,6 +57,35 @@
 #       count. A REQUESTED packet artifact (--prompt/--artifact/--judge) must copy in, or
 #       the whole write aborts — a record never claims a packet file it lacks. Any other
 #       write failure is silent (exit 0, nothing written).
+#       --trajectory <traj.json> (T808, US3.AC3) extends the record with the post-hoc
+#       per-interval snapshot scores: { intervals:[{interval,dimensions:[{dimension,
+#       lifecycle,verdict,...}...],overall}...] }, landed as
+#       trajectory:{instrument_version,intervals} inside the SAME (task × tier) record. The
+#       version is the INSTRUMENT-DECLARED trajectory instrument version (the corpus
+#       manifest -> "Trajectory grading" — frozen, fingerprinted, P4): a malformed
+#       trajectory file, or an instrument declaring no version, is a loud caller error
+#       (exit 2, nothing written) — never a silently-defaulted or version-less trajectory
+#       the surfacing would difference across schemas.
+#
+#   grade-snapshots --run-id <id> --task <ME-id> --tier <maker-tier> --out <f> -- <judge-cmd...>
+#       Post-hoc grading driver (T808, US3.AC3): enumerate the captured interval snapshots
+#       under <channel>/trajectory/<run-id>/<task>/<tier>/ (numeric order; a discarded
+#       `.tmp` is not a snapshot) and run <judge-cmd...> ONCE PER SNAPSHOT with that
+#       snapshot's dir appended as the final argument, collecting each judge's stdout (one
+#       judge output per interval, the `record` results shape) into --out as
+#       { intervals:[{interval, dimensions, overall, ...}...] } for a subsequent
+#       `record --trajectory` append. The RUN BINDING drives this so it never resolves the
+#       channel or reads trajectory storage itself: the channel read happens HERE, inside
+#       the fence-trusted writer, and the collected verdicts exist only to be appended to
+#       the observe-only record — a write-pipeline read, unlike `complete`'s surfacing read
+#       (maker-eval-fence.sh). Zero captured snapshots writes { intervals: [] } (exit 0 —
+#       the caller then omits --trajectory). Malformed ids/tier, a missing or unwritable
+#       --out (checked BEFORE the loop — a doomed out-path must not spend judge calls), a
+#       missing judge command, or an unresolvable channel are loud caller errors (exit 2); a judge command
+#       that fails or emits a malformed verdict is loud (exit 1, --out not written — and a
+#       PRE-EXISTING --out is removed, so a rerun's failure can never leave a stale previous
+#       trajectory for `record --trajectory` to consume) — a partial grading never
+#       masquerades as the trajectory.
 #
 #   agreement --run-id <id> --verdicts <judge-cal.json>
 #       Compute and APPEND the judge<->owner AGREEMENT figure for one run (T806, spec 003
@@ -129,7 +158,7 @@ CORPUS="$WORKFLOW_DIR/reviewers/maker-eval-corpus.md"
 PROFILE="${MAKER_EVAL_PROJECT_FILE:-$CLAUDE_DIR/PROJECT.md}"
 
 usage() {
-  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] | agreement --run-id <id> --verdicts <f> | complete --run-id <id> | snapshot-run --run-id <id> --task <ME-id> --tier <maker-tier> --workspace <dir> -- <cmd...>}\n' \
+  printf 'usage: %s {fingerprint | record --run-id <id> --task <ME-id> --tier <maker-tier> --results <f> [--prompt <f>] [--artifact <f>] [--judge <f>] [--trajectory <f>] | agreement --run-id <id> --verdicts <f> | complete --run-id <id> | snapshot-run --run-id <id> --task <ME-id> --tier <maker-tier> --workspace <dir> -- <cmd...> | grade-snapshots --run-id <id> --task <ME-id> --tier <maker-tier> --out <f> -- <judge-cmd...>}\n' \
     "$(basename "$0")" >&2
 }
 
@@ -301,6 +330,19 @@ snapshot_cadence() {
     | grep -oE '[0-9]+' | head -1
 }
 
+# ── trajectory instrument version (the versioned schema key, T808 / US3.AC3) ─────
+# The trajectory extension's comparability key: the `Trajectory instrument version:
+# \`<n>\`` value under "## Trajectory grading" in the corpus manifest — the same
+# single-source parse idiom as snapshot_cadence, so a record can never carry a version
+# the fingerprinted instrument did not declare. Whole positive number; empty if absent
+# (the caller then aborts loudly — never a silently-defaulted or version-less trajectory).
+trajectory_version() {
+  awk '/^## / { insec = (index($0, "Trajectory grading") > 0); next }
+       insec' "$CORPUS" 2>/dev/null \
+    | grep -oE 'Trajectory instrument version:[[:space:]]*`[0-9]+`' \
+    | grep -oE '[0-9]+' | head -1
+}
+
 # ── record ──────────────────────────────────────────────────────────────────────
 # A packet-path token (run_id/task_id) must be a single non-escaping path component, so
 # neither the on-disk packet dir nor the in-record packet link can leave the fenced
@@ -317,26 +359,56 @@ safe_token() { # <token> -> 0 iff a single non-escaping path component
 # verdict plus at least one rubric dimension, each carrying its dimension/lifecycle/verdict.
 # A malformed output (e.g. `{}`, or non-JSON) is rejected loudly so a garbled judge run can
 # never default to a record that `complete` then counts as a baseline.
-results_valid() { # <results.json> -> 0 iff structurally a judge output
-  jq -e '
+JUDGE_OUTPUT_FILTER='
     (.overall | type == "string") and (.overall | length > 0)
     and ((.dimensions // []) | type == "array")
     and ((.dimensions // []) | length > 0)
     and ((.dimensions // []) | all(.dimension != null and .lifecycle != null and .verdict != null))
+'
+results_valid() { # <results.json> -> 0 iff structurally a judge output
+  jq -e "$JUDGE_OUTPUT_FILTER" "$1" >/dev/null 2>&1
+}
+
+# A well-formed trajectory file (the versioned schema extension, US3.AC3): an intervals
+# ARRAY (empty is a caller error — a no-snapshot run simply omits --trajectory), each entry
+# carrying a numeric interval, at least one rubric dimension with its
+# dimension/lifecycle/verdict, and a non-empty overall — the same per-snapshot shape
+# results_valid pins for the endpoint. Malformed is rejected loudly so a garbled grading
+# can never land a trajectory the surfacing would then difference.
+trajectory_valid() { # <traj.json> -> 0 iff EXACTLY ONE JSON document, structurally a per-interval grading output
+  # Slurped (-s) and length-checked so the SAME document the record build embeds
+  # ($traj[0]) is the one validated: a plain `jq -e` over the raw file grades only the
+  # LAST document of a multi-document file while --slurpfile lands the FIRST — a crafted
+  # two-document file would slip an invalid trajectory past validation (review of this PR).
+  jq -es '
+    (length == 1) and (.[0] |
+      ((.intervals // null) | type == "array")
+      and ((.intervals // []) | length > 0)
+      and ((.intervals // []) | all(
+        (.interval | type == "number")
+        and ((.dimensions // []) | type == "array")
+        and ((.dimensions // []) | length > 0)
+        and ((.dimensions // []) | all(.dimension != null and .lifecycle != null and .verdict != null))
+        and (.overall | type == "string") and (.overall | length > 0)
+      )))
   ' "$1" >/dev/null 2>&1
 }
 
 do_record() {
-  local run_id="" task_id="" tier="" results="" prompt_f="" artifact_f="" judge_f=""
+  local run_id="" task_id="" tier="" results="" prompt_f="" artifact_f="" judge_f="" traj_f=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --run-id)   run_id="${2:-}"; shift 2 ;;
-      --task)     task_id="${2:-}"; shift 2 ;;
-      --tier)     tier="${2:-}"; shift 2 ;;
-      --results)  results="${2:-}"; shift 2 ;;
-      --prompt)   prompt_f="${2:-}"; shift 2 ;;
-      --artifact) artifact_f="${2:-}"; shift 2 ;;
-      --judge)    judge_f="${2:-}"; shift 2 ;;
+      --run-id)     run_id="${2:-}"; shift 2 ;;
+      --task)       task_id="${2:-}"; shift 2 ;;
+      --tier)       tier="${2:-}"; shift 2 ;;
+      --results)    results="${2:-}"; shift 2 ;;
+      --prompt)     prompt_f="${2:-}"; shift 2 ;;
+      --artifact)   artifact_f="${2:-}"; shift 2 ;;
+      --judge)      judge_f="${2:-}"; shift 2 ;;
+      # Guarded: a dangling --trajectory must be a loud usage error — an unguarded
+      # `shift 2` leaves the arg list unchanged and spins the parser forever (the
+      # do_agreement bug class; PR #290 review).
+      --trajectory) [ "$#" -ge 2 ] || { usage; return 2; }; traj_f="$2"; shift 2 ;;
       *) usage; return 2 ;;
     esac
   done
@@ -366,6 +438,25 @@ do_record() {
     printf 'maker-eval-emit: results file is not a well-formed judge output: %s\n' "$results" >&2
     return 2
   fi
+  # A REQUESTED trajectory extension must be well-formed AND versioned by the instrument
+  # (US3.AC3): both failures are loud CALLER errors — a version-less or garbled trajectory
+  # must never land in a record the surfacing would difference across schemas.
+  local traj_version=""
+  if [ -n "$traj_f" ]; then
+    if [ ! -f "$traj_f" ]; then
+      printf 'maker-eval-emit: trajectory file not found: %s\n' "$traj_f" >&2
+      return 2
+    fi
+    if ! trajectory_valid "$traj_f"; then
+      printf 'maker-eval-emit: trajectory file is not a well-formed per-interval grading output: %s\n' "$traj_f" >&2
+      return 2
+    fi
+    traj_version="$(trajectory_version)"
+    if [ -z "$traj_version" ]; then
+      printf 'maker-eval-emit: no trajectory instrument version declared by the instrument (%s -> "Trajectory grading")\n' "$CORPUS" >&2
+      return 2
+    fi
+  fi
 
   # From here every failure is a WRITE failure: silent-to-the-eval (exit 0, nothing
   # written, caller unaffected). The fingerprint, timestamp, and record are built
@@ -384,16 +475,23 @@ do_record() {
   packet_rel="packets/$run_id/$task_id/$tier"
   failure="$(jq -r '.first_upstream_failure // "none"' "$results" 2>/dev/null)" || failure="none"
 
+  # The trajectory extension rides the SAME jq build: slurped from the validated file (an
+  # absent --trajectory slurps /dev/null -> [], and the empty $tv keys the omission), so
+  # the record lands atomically with or without its trajectory — never a second write.
   rec="$(jq -c \
     --arg ts "$ts" --arg repo "$repo" --arg run "$run_id" --arg task "$task_id" \
     --arg tier "$tier" --argjson fp "$fp" --arg packet "$packet_rel" \
+    --arg tv "$traj_version" --slurpfile traj "${traj_f:-/dev/null}" \
     '{record:"maker-eval", timestamp:$ts, repo:$repo, run_id:$run, task_id:$task,
       maker_tier:$tier,
       fingerprint:$fp,
       dimensions:(.dimensions // []),
       overall:(.overall // "fail"),
       first_upstream_failure:(.first_upstream_failure // "none"),
-      packet:$packet}' \
+      packet:$packet}
+     + (if $tv == "" then {}
+        else {trajectory:{instrument_version:($tv|tonumber),
+                          intervals:$traj[0].intervals}} end)' \
     "$results" 2>/dev/null)" || return 0
   [ -n "$rec" ] || return 0
 
@@ -749,6 +847,112 @@ do_snapshot_run() {
   return "$rc"
 }
 
+# ── grade-snapshots (post-hoc trajectory grading driver, T808 / US3.AC3) ─────────
+# The channel's trajectory read happens HERE, inside the fence-trusted writer, so the run
+# binding can drive post-hoc grading without ever resolving the channel or reading the
+# trajectory storage itself (maker-eval-fence.sh — a write-pipeline read, unlike
+# `complete`'s surfacing read: the collected verdicts exist only to be appended back via
+# `record --trajectory`). This is post-run tooling with no maker command to protect, so
+# unlike snapshot-run its failures are LOUD: a partial or garbled grading must never
+# masquerade as the trajectory.
+do_grade_snapshots() {
+  local run_id="" task_id="" tier="" out=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --run-id) [ "$#" -ge 2 ] || { usage; return 2; }; run_id="$2"; shift 2 ;;
+      --task)   [ "$#" -ge 2 ] || { usage; return 2; }; task_id="$2"; shift 2 ;;
+      --tier)   [ "$#" -ge 2 ] || { usage; return 2; }; tier="$2"; shift 2 ;;
+      --out)    [ "$#" -ge 2 ] || { usage; return 2; }; out="$2"; shift 2 ;;
+      --)       shift; break ;;
+      *) usage; return 2 ;;
+    esac
+  done
+  if [ -z "$run_id" ] || [ -z "$task_id" ] || [ -z "$tier" ] || [ -z "$out" ] || [ "$#" -eq 0 ]; then
+    usage; return 2
+  fi
+  if ! safe_token "$run_id" || ! safe_token "$task_id"; then
+    printf 'maker-eval-emit: run id and task id must be safe path components (no "/" or ".."): run-id=[%s] task=[%s]\n' \
+      "$run_id" "$task_id" >&2
+    return 2
+  fi
+  if ! maker_tiers | grep -qxF -- "$tier"; then
+    printf 'maker-eval-emit: --tier must be a maker tier (%s): got [%s]\n' \
+      "$(maker_tiers | tr '\n' ' ')" "$tier" >&2
+    return 2
+  fi
+  # Grading reads the channel; an unresolvable channel means there is nothing to grade and
+  # no honest way to say so silently — a loud caller error (there is no maker run to protect).
+  local channel traj
+  channel="$(channel_dir)" || channel=""
+  if [ -z "$channel" ]; then
+    printf 'maker-eval-emit: cannot resolve the maker-eval channel — nothing to grade\n' >&2
+    return 2
+  fi
+  traj="$channel/trajectory/$run_id/$task_id/$tier"
+
+  # --out must be writable BEFORE the grading loop: each judge invocation is a real
+  # [headless run] the caller pays for, so a doomed out-path fails loudly here — never
+  # after N judge calls have already been spent (review of this PR).
+  local out_dir
+  out_dir="$(dirname -- "$out")"
+  # The containing dir must be writable even when --out already exists: a failed grading
+  # REMOVES the target (below), so the preflight must guarantee that removal can succeed.
+  if [ ! -d "$out_dir" ] || [ ! -w "$out_dir" ] \
+    || { [ -e "$out" ] && [ ! -w "$out" ]; }; then
+    printf 'maker-eval-emit: --out is not writable: %s\n' "$out" >&2
+    return 2
+  fi
+
+  # Captured snapshots only: RENAMED interval dirs, numeric order (interval-10 after
+  # interval-2); a discarded `.tmp` is not a snapshot (US3.AC1). Zero captured snapshots
+  # is a legitimate outcome (a sub-interval or trajectory-incomplete run): --out gets
+  # { intervals: [] } and the caller omits --trajectory on the record.
+  local ns
+  ns="$(find "$traj" -maxdepth 1 -type d -name 'interval-*' ! -name '*.tmp' 2>/dev/null \
+    | sed -E 's/.*interval-([0-9]+)$/\1/' | grep -E '^[0-9]+$' | LC_ALL=C sort -n)"
+
+  local tmpout n v
+  tmpout="$(mktemp)" || {
+    printf 'maker-eval-emit: cannot create a scratch file for grading\n' >&2
+    return 1
+  }
+  # A long grading loop (one [headless run] per snapshot) can be interrupted; the scratch
+  # file must not outlive the run. EXIT covers every return path; INT/TERM fold into the
+  # interrupted judge command's nonzero exit (the loud-failure path below). The path is
+  # expanded NOW (double quotes): at script EXIT the function's local is out of scope, so
+  # a deferred "$tmpout" would be unbound under set -u.
+  # shellcheck disable=SC2064
+  trap "rm -f '$tmpout'" EXIT INT TERM
+  for n in $ns; do
+    # One judge invocation per snapshot, the snapshot dir appended as the final argument.
+    # A failing judge, or a verdict that is not a well-formed judge output, aborts the
+    # whole grading loudly — a trajectory missing graded intervals is not the trajectory.
+    # The verdict is slurped and length-checked (the trajectory_valid discipline): a
+    # multi-document judge print must not validate on one document and land another.
+    # Every loud-failure path also REMOVES the target: on a rerun over a pre-existing
+    # --out, deleting only the scratch file would leave the stale previous trajectory in
+    # place for a later `record --trajectory` to consume — "failed grading leaves no
+    # trajectory output" means none, not an old one (PR #290 review).
+    if ! v="$("$@" "$traj/interval-$n")"; then
+      printf 'maker-eval-emit: judge command failed on interval-%s (%s)\n' "$n" "$traj" >&2
+      rm -f "$tmpout" -- "$out"; return 1
+    fi
+    if ! printf '%s' "$v" | jq -es "(length == 1) and (.[0] | $JUDGE_OUTPUT_FILTER)" >/dev/null 2>&1; then
+      printf 'maker-eval-emit: judge output for interval-%s is not a well-formed judge output\n' "$n" >&2
+      rm -f "$tmpout" -- "$out"; return 1
+    fi
+    printf '%s' "$v" | jq -cs --argjson n "$n" '.[0] + {interval:$n}' >> "$tmpout" || {
+      printf 'maker-eval-emit: cannot collect the interval-%s verdict\n' "$n" >&2
+      rm -f "$tmpout" -- "$out"; return 1
+    }
+  done
+  if ! jq -s '{intervals:.}' "$tmpout" > "$out" 2>/dev/null; then
+    printf 'maker-eval-emit: cannot write the graded trajectory to %s\n' "$out" >&2
+    rm -f "$tmpout" -- "$out"; return 1
+  fi
+  rm -f "$tmpout"
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 cmd="${1:-}"
 [ "$#" -gt 0 ] && shift
@@ -758,5 +962,6 @@ case "$cmd" in
   agreement)    do_agreement "$@" ;;
   complete)     do_complete "$@" ;;
   snapshot-run) do_snapshot_run "$@" ;;
+  grade-snapshots) do_grade_snapshots "$@" ;;
   *) usage; exit 2 ;;
 esac
