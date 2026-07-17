@@ -171,7 +171,7 @@ maker's workspace, invisible to the maker, under this contract (US3.AC1):
   partial capture is discarded, never counted as a snapshot.
 - **No snapshot-derived score reaches any maker-visible surface.** During the run the maker
   sees nothing of the capture; grading is **post-hoc** — after the run, by the pinned judge,
-  under an explicit instrument version (US3.AC3, the next task's) — so the measurement can
+  under an explicit instrument version (US3.AC3, below) — so the measurement can
   never steer the thing it measures (constitution P5, over time as well as at the end).
 - **Trajectory-incomplete is marked explicitly, never silently.** A run longer than one
   declared interval that yields **zero** snapshots is recorded **trajectory-incomplete** — an
@@ -183,6 +183,27 @@ The concrete capture mechanism — how a workspace is snapshotted, the storage l
 marking's record form — is the adapter's to supply, exactly as the record emitter is; the
 snapshot tests (cadence fixture, byte-identical-on-write-failure, two-sided incomplete
 marking — US3.AC2) ship with that mechanism.
+
+**Post-hoc grading (the pinned judge, under an explicit instrument version — US3.AC3).**
+After the run, the **pinned judge grades each captured snapshot against the same per-task
+rubric** the endpoint is graded with — a single grading pass per snapshot, no fix loop, the
+same read-only posture as "The run" above. The per-interval scores **extend the
+per-(corpus task × maker tier) record** — each carried with its lifecycle-tagged
+per-dimension verdicts and overall, per the scoring schema — under the **explicit trajectory
+instrument version** the frozen instrument declares
+(`reviewers/maker-eval-corpus.md` → "Trajectory grading"). That version is the trajectory
+schema's comparability key, and it is fingerprinted by construction: it lives in the frozen
+instrument, so declaring it — and any later change to it or to the trajectory schema it
+names — **moves the eval-instrument fingerprint** and lands only as a reviewed PR
+(constitution P4). The read-only surfacing (`triage.md`) differences two runs' per-interval
+scores **only when their recorded trajectory instrument versions match**; a cross-version
+pair renders **INSTRUMENT-CHANGED / not-comparable** — the trajectory differential is
+suppressed, never reported as a confounded delta. A version bump that still gets
+differenced, or a trajectory-schema change that moves no fingerprint, each violates this
+contract. The concrete grading driver — how the judge is pointed at each stored snapshot
+and how the verdicts land in the record — is the adapter's, like the capture mechanism; the
+observe-only law is unchanged (a per-interval score is an evaluation record: it reaches no
+maker-visible surface and feeds no gate, tier, or selection path — constitution P5).
 
 ## Judge calibration (the agreement figure — the judge checked against human judgment)
 

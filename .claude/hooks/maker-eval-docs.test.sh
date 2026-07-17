@@ -494,6 +494,47 @@ else
     "${cadence_val:-<none>}" >&2
 fi
 
+# ── US3.AC3/AC4 (T808) — post-hoc grading + the versioned trajectory extension. The ───────
+# mechanism tests live in maker-eval-emit.test.sh (grade-snapshots, record --trajectory) and
+# maker-eval-fence.test.sh (the trajectory-storage fence extension); these pin the DOC
+# obligations — the same-rubric post-hoc grading, the explicit instrument version, the
+# version-keyed INSTRUMENT-CHANGED comparability in the surfacing — so a later edit that
+# drops one fails verify.
+check "US3.AC3: the pinned judge grades each snapshot against the same per-task rubric" "$NEU_FLAT" \
+  "pinned judge grades each captured snapshot against the same per-task rubric"
+check "US3.AC3: per-interval scores extend the (task × tier) record" "$NEU_FLAT" \
+  "per-(corpus task × maker tier) record"
+check "US3.AC3: the extension carries an explicit trajectory instrument version" "$NEU_FLAT" \
+  "explicit trajectory instrument version"
+check "US3.AC3: a version/schema change moves the eval-instrument fingerprint (P4)" "$NEU_FLAT" \
+  "moves the eval-instrument fingerprint"
+check "US3.AC3: cross-version trajectories render INSTRUMENT-CHANGED / not-comparable" "$NEU_FLAT" \
+  "INSTRUMENT-CHANGED / not-comparable"
+check "US3.AC3: the violation clause is stated (differenced bump / fingerprint-less schema change)" "$NEU_FLAT" \
+  "A version bump that still gets differenced, or a trajectory-schema change that moves no fingerprint, each violates this"
+check "US3.AC3: the corpus manifest declares trajectory grading as frozen instrument" "$CORPUS_FLAT" \
+  "## Trajectory grading (post-hoc snapshot scoring — part of the frozen instrument)"
+# Structural: the trajectory instrument version parses to a positive whole number under the
+# "## Trajectory grading" section — the same single-source parse the emitter uses (a
+# prose-only declaration would leave every --trajectory record a loud version error).
+traj_ver="$(awk '/^## / { insec = (index($0, "Trajectory grading") > 0); next } insec' "$CORPUS" \
+  | grep -oE 'Trajectory instrument version:[[:space:]]*`[0-9]+`' | grep -oE '[0-9]+' | head -1)"
+if [ -n "$traj_ver" ] && [ "$traj_ver" -gt 0 ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US3.AC3: no positive parseable trajectory instrument version in the corpus manifest (got: %s)\n' \
+    "${traj_ver:-<none>}" >&2
+fi
+# The read-only surfacing (triage) is version-keyed: per-interval scores are differenced
+# only under matching recorded versions, and a mismatch suppresses the differential.
+TRIAGE_DOC="$DIR/workflow/triage.md"
+TRIAGE_FLAT="$(flat "$TRIAGE_DOC")"
+check "US3.AC3: triage differences trajectories only under matching versions" "$TRIAGE_FLAT" \
+  "a trajectory and their recorded versions match exactly"
+check "US3.AC3: triage renders the version mismatch as INSTRUMENT-CHANGED (suppressed)" "$TRIAGE_FLAT" \
+  "trajectory instrument versions differ"
+
 # ── Discoverability — the workflow README files index lists the new docs ──────────────────
 check "README: files index names the maker-eval methodology doc" "$README_FLAT" \
   "\`maker-eval.md\`"

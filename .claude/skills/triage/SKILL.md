@@ -127,6 +127,13 @@ triage **never** runs the eval or writes a record.
   live tree): the last complete run's `fingerprint.judge_identity` / `fingerprint.eval_instrument`
   against the prior complete run's. A difference makes the pair **not-comparable** and suppresses
   the regression call.
+- **The trajectory differential (T808, US3.AC3).** A record may carry an optional `trajectory`
+  object — `{instrument_version, intervals:[{interval, dimensions, overall}...]}`, the post-hoc
+  per-interval snapshot scores. Difference two runs' per-interval scores **only when both records
+  carry a `trajectory` and their `trajectory.instrument_version` values match exactly**; a
+  version mismatch renders the template's **INSTRUMENT-CHANGED / not-comparable** trajectory
+  state (the differential is suppressed, never differenced across schemas), and an absent
+  `trajectory` renders the explicit "no trajectory recorded" state.
 - **JUDGE-MISCALIBRATED** reads the recorded judge↔owner agreement and its floor from the run's
   records (added by US1.AC5 / T806 — the calibration set and agreement computation). Until those
   fields are emitted, no agreement is present ⇒ render the neutral "no agreement recorded yet"

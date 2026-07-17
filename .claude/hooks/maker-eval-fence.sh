@@ -7,8 +7,9 @@
 # may name concrete files — it is NOT a `workflow/**` neutral doc.
 #
 # WHAT IT PROVES (constitution P5 — telemetry/evaluation observes, never decides):
-#   The eval-record path (`records.jsonl`) and the transcript-packet storage under it
-#   (`packets/`) — together with the channel access seam (the `MAKER_EVAL_DIR` /
+#   The eval-record path (`records.jsonl`), the transcript-packet storage under it
+#   (`packets/`), and the interval-snapshot trajectory storage (`trajectory/` — the
+#   US3.AC4 extension, T808) — together with the channel access seam (the `MAKER_EVAL_DIR` /
 #   `MAKER_EVAL_ROOT` env override and the `<repo>-maker-eval` channel dir name) — are
 #   READ/RESOLVED only by the eval WRITER (hooks/maker-eval-emit.sh) and the triage READER
 #   (skills/triage/SKILL.md), and by NO gate, tier, guard, or selection code path. The eval
@@ -47,7 +48,11 @@ ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 # distinguishes (so the run binding can be line-scoped below, PR #164):
 #
 #   CHANNEL_READ_TOKENS — reaching INTO the channel: the eval-record path leaf
-#   (`records.jsonl`), the transcript-packet storage dir (`packets`), the env access seam
+#   (`records.jsonl`), the transcript-packet storage dir (`packets`), the TRAJECTORY
+#   storage dir (`trajectory` — the interval-snapshot store the US3.AC4 extension scopes,
+#   matched as a path segment exactly like `packets`, so prose about "trajectory storage"
+#   or a "Trajectory measurement" heading never fires while `$chan/trajectory` and
+#   `trajectory/<run>` do), the env access seam
 #   (`MAKER_EVAL_DIR` / `MAKER_EVAL_ROOT`), and the channel dir-name suffix (`-maker-eval`).
 #   Naming any of these reads channel contents or resolves the channel location directly —
 #   per spec 003 US2.AC3 only the eval writer and the triage reader may. The packet dir is
@@ -70,7 +75,7 @@ ROOT="${MAKER_EVAL_FENCE_ROOT:-$(cd "$(dirname "$0")/../.." && pwd)}"
 #
 # The fence scans for EITHER kind. ERE; portable constructs only — char classes and '+'/'*',
 # no awk-style {n} interval (shell-lint.sh, #97).
-CHANNEL_READ_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval([^-A-Za-z0-9_]|$)'
+CHANNEL_READ_TOKENS='records\.jsonl|[/"'\'']packets|packets[/"'\'']|[/"'\'']trajectory|trajectory[/"'\'']|MAKER_EVAL_DIR|MAKER_EVAL_ROOT|-maker-eval([^-A-Za-z0-9_]|$)'
 WRITER_INVOCATION='maker-eval-emit'
 CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
 
@@ -81,12 +86,19 @@ CHANNEL_TOKENS="$CHANNEL_READ_TOKENS|$WRITER_INVOCATION"
 # run's records, so naming it in the line-scoped run binding is a channel READ, not a writer
 # drive — exactly the read the binding may not do (the triage reader's job, spec 003 US2.AC3).
 # The whole-emitter line-scope this replaces let `complete` pass because it carries no explicit
-# CHANNEL_READ token (PR #164 Codex P2). `complete` is the emitter's ONLY subcommand that
-# RETURNS a channel-derived value to its caller; a new such subcommand must be added here with
-# a paired test. (`snapshot-run` — T807 — internally counts its own trajectory writes to decide
+# CHANNEL_READ token (PR #164 Codex P2). `complete` is the emitter's ONLY SURFACING read —
+# a subcommand whose channel-derived value exists to be consumed outside the write pipeline;
+# a new such subcommand must be added here with a paired test. (`snapshot-run` — T807 —
+# internally counts its own trajectory writes to decide
 # the trajectory-incomplete marking, but exposes no channel-derived value to the caller: it
 # returns only the wrapped maker command's exit, so driving it from the binding stays a
-# sanctioned WRITE, like `record`.) Matched over
+# sanctioned WRITE, like `record`. `grade-snapshots` — T808, US3.AC3 — DOES read the
+# trajectory storage, but inside the fence-trusted writer and only to hand the run binding
+# the per-interval verdicts it immediately appends back via `record --trajectory`: a
+# WRITE-PIPELINE read whose output feeds nothing but the observe-only record, so driving it
+# from the binding is sanctioned like `record` — while naming the trajectory path itself
+# there, or anywhere else outside the allowlist, still FIRES on CHANNEL_READ_TOKENS.)
+# Matched over
 # LOGICAL lines: the run-binding scan folds shell backslash-continuations first
 # (fold_continuations below), so a `maker-eval-emit.sh \<newline> complete` wrap is one line
 # here too — not a writer drive split from a tokenless `complete` (PR #164 craft). Portable ERE.
@@ -216,7 +228,7 @@ while IFS= read -r rel; do
     [ -n "$hits" ] || continue
   fi
   violations=$((violations + 1))
-  printf 'P5 FENCE VIOLATION: %s references the observe-only maker-eval channel (eval-record path / transcript packets) — only the eval writer and the triage reader may, never a gate/tier/guard/selection path (constitution P5):\n' "$rel" >&2
+  printf 'P5 FENCE VIOLATION: %s references the observe-only maker-eval channel (eval-record path / transcript packets / trajectory storage) — only the eval writer and the triage reader may, never a gate/tier/guard/selection path (constitution P5):\n' "$rel" >&2
   printf '%s\n' "$hits" | sed 's/^/    /' >&2
 done <<EOF
 $files
@@ -226,5 +238,5 @@ if [ "$violations" -gt 0 ]; then
   printf 'maker-eval-fence: %d file(s) outside the writer/reader allowlist reference the eval channel — P5 (observe-only) breached.\n' "$violations" >&2
   exit 1
 fi
-printf 'maker-eval-fence: OK — the maker-eval channel (records.jsonl + packets/) is referenced only by the eval writer and the triage reader.\n'
+printf 'maker-eval-fence: OK — the maker-eval channel (records.jsonl + packets/ + trajectory/) is referenced only by the eval writer and the triage reader.\n'
 exit 0

@@ -281,6 +281,15 @@ procedure is safe to run unattended because it cannot change the repo.
     **INSTRUMENT-CHANGED / not-comparable**. Either **suppresses the regression call** for that
     comparison rather than reporting a confounded delta (`maker-eval.md` → "The triple
     fingerprint" — only the maker is supposed to vary between two comparable runs).
+  - **Trajectory differentials (per-interval scores — versioned; spec 003 US3.AC3).** A
+    record may carry a **trajectory extension**: the post-hoc per-interval snapshot scores
+    under an **explicit trajectory instrument version** (`maker-eval.md` → "Trajectory
+    measurement"). Difference two runs' per-interval scores **only when both records carry
+    a trajectory and their recorded versions match exactly**; differing versions render
+    **INSTRUMENT-CHANGED / not-comparable** for the trajectory comparison — the trajectory
+    differential is **suppressed**, never differenced across schemas (a version bump that
+    still gets differenced violates the contract). A record with no trajectory renders the
+    explicit "no trajectory recorded" state, never a silent omission.
   - **JUDGE-MISCALIBRATED (a warning).** When the last complete run's recorded judge↔owner
     agreement (US1.AC5) is **below its stated floor**, warn that the instrument's judge no longer
     tracks human judgment. When no agreement figure is recorded yet (the owner-labeled
@@ -375,8 +384,9 @@ shape:
 - Regressions (past the noise threshold): <task-id (dimension meets→fails, …) — packet: <fenced packet path>> …   (or "none past the noise threshold"; or "only one complete run — not enough to difference" when there is no prior complete run to difference against)
 - MAKER-EVAL-STALE: <one of: "current — maker-behavior fingerprint matches the last run (<YYYY-MM-DD>, age <n>d)"  |  "STALE — current maker-behavior fingerprint differs from the last run (<YYYY-MM-DD>, age <n>d); an eval is overdue"  |  "no maker-eval run recorded yet — no baseline to compare against">
 - Comparability: <one of: "comparable"  |  "JUDGE-CHANGED / not-comparable — judge identity moved between the two runs; regression call suppressed"  |  "INSTRUMENT-CHANGED / not-comparable — eval instrument moved between the two runs; regression call suppressed"  |  "only one complete run — not enough to difference">
+- Trajectory: <one of: "comparable — trajectory instrument version <v> on both runs"  |  "INSTRUMENT-CHANGED / not-comparable — trajectory instrument versions differ (<v1> vs <v2>); trajectory differential suppressed"  |  "no trajectory recorded">
 - JUDGE-MISCALIBRATED: <one of: "within floor — judge↔owner agreement <x> ≥ floor <y>"  |  "warning: JUDGE-MISCALIBRATED — agreement <x> below floor <y>"  |  "no agreement recorded yet — calibration is US1.AC5's task">
-- <"no data yet — maker-eval channel absent/empty at <path>" replaces all four lines above only when there is no complete run at all; with exactly one complete run, MAKER-EVAL-STALE and JUDGE-MISCALIBRATED still render against that run, while Regressions and Comparability show "only one complete run — not enough to difference">
+- <"no data yet — maker-eval channel absent/empty at <path>" replaces all five lines above only when there is no complete run at all; with exactly one complete run, MAKER-EVAL-STALE and JUDGE-MISCALIBRATED still render against that run, while Regressions, Comparability, and Trajectory show "only one complete run — not enough to difference">
 - <"skipped malformed lines: <n>" — present only when nonzero>
 
 ## Heartbeat health
