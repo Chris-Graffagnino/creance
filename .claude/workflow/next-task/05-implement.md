@@ -1,5 +1,10 @@
 ## 5. Implement (minimum scoped change)
 - Before the first edit, define success criteria and the smallest safe verification path. Keep changes surgical; every line traces to the task. No speculative abstraction.
+- **Three loop behaviors** (spec 003 US4.AC3): make the task **measurable before improving**
+  it — establish the concrete check that will show improvement (a failing test, a
+  reproducible probe) before iterating on a fix; when an attempt stalls, **decompose the
+  failure into searchable subproblems** instead of retrying it whole; and once a working
+  core exists, **keep it fixed and repair residuals rather than rewriting** it.
 - Respect the profile's **"Architecture boundaries"**: route each capability only through its
   named interface (never a vendor SDK from UI/component code), and never use a banned
   vendor/source listed there.

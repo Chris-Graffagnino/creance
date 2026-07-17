@@ -12,11 +12,18 @@ The rows below are a **sensible default at extraction time — swap per your acc
 (available models, plan, runtime): edit the Model column only; nothing else in the harness
 re-tags. Keep the three-tier shape and the ordinal order.
 
-| Tier (ordinal, highest first) | Model | Effort |
-|---|---|---|
-| **[frontier tier]** | `fable` | high |
-| **[strong tier]** | `opus` | — (no dial: column ignored) |
-| **[cheap tier]** | `sonnet` (`haiku` acceptable for [bulk-read offload]) | — |
+| Tier (ordinal, highest first) | Model | Effort | Context window |
+|---|---|---|---|
+| **[frontier tier]** | `fable` | high | `200k tokens` |
+| **[strong tier]** | `opus` | — (no dial: column ignored) | `200k tokens` |
+| **[cheap tier]** | `sonnet` (`haiku` acceptable for [bulk-read offload]) | — | `200k tokens` (`1M tokens` beta on `sonnet`) |
+
+**Context window is a stated attribute, not trivia** (spec 003 US4.AC2): long-horizon
+paths prefer the larger context at equal tier — a stable multi-point gain even with
+external memory channels available (EdgeBench §5.3) — and the learning-speed swap
+protocol's report (`workflow/maker-eval.md` → "Learning-speed model-swap protocol")
+states both compared rows' context windows so a swap never silently trades context away.
+Update the column when a row's model changes.
 
 How a consumer resolves a tier (semantics in `workflow/README.md` → binding contract):
 
@@ -48,9 +55,9 @@ maker tier rows above** — a maker model swap edits a tier row and never moves 
 between two eval runs only the maker varies and the differential stays an independent
 measurement (spec 003 US1.AC1; constitution P1).
 
-| Pinned role | Model | Effort |
-|---|---|---|
-| **maker-eval judge** (pinned; **not** re-resolved from a maker tier row) | `fable` | high |
+| Pinned role | Model | Effort | Context window |
+|---|---|---|---|
+| **maker-eval judge** (pinned; **not** re-resolved from a maker tier row) | `fable` | high | `200k tokens` |
 
 `fable` here is a fixed pin, not a reference to the `[frontier tier]` row: editing that row
 later does not move the judge, and editing this line does not move the maker. A capable judge
