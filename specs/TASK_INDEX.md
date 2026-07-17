@@ -95,7 +95,7 @@
 | T805 | cheap | [x] | US2.AC1,AC4 |  | Claude skill binding (reuse [workflow]/[headless run]/[reviewer] |
 | T807 | strong | [x] | US3.AC1-AC2 |  | Interval snapshot capture for corpus runs: fixed instrument-declared… |
 | T808 | strong | [x] | US3.AC3-AC4 |  | Post-hoc pinned-judge grading of snapshots + versioned schema… |
-| T809 | cheap | [ ] | US4.AC1-AC3 |  | Learning-speed swap protocol doc (matched-start selection with stated… |
+| T809 | cheap | [x] | US4.AC1-AC3 |  | Learning-speed swap protocol doc (matched-start selection with stated… |
 
 ## specs/004-autonomous-backlog-loop/spec.md
 

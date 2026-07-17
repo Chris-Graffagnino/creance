@@ -212,6 +212,38 @@ and how the verdicts land in the record — is the adapter's, like the capture m
 observe-only law is unchanged (a per-interval score is an evaluation record: it reaches no
 maker-visible surface and feeds no gate, tier, or selection path — constitution P5).
 
+## Learning-speed model-swap protocol (matched starts, fixed budget — observe-only)
+
+When a model-tier swap is considered, endpoint scores conflate what a model already
+*knows* with how fast it *learns* — so the comparison the human-reviewed swap PR cites is
+**learning gain over a fixed budget from matched starts**, computed over the trajectory
+records above (spec 003 US4; the EdgeBench discipline: a matched first-attempt slice under
+a fixed interaction budget). The protocol, each element required:
+
+- **Matched-start selection (over earliest-interval scores).** Select only the corpus
+  tasks where the candidate's and the incumbent's **earliest-interval** per-dimension
+  verdicts (the first captured snapshot's post-hoc scores — "Trajectory measurement"
+  above) fall within the stated tolerance. **Matching tolerance: the earliest-interval
+  overall verdicts are equal, and no per-dimension verdict differs by more than one step**
+  on the frozen ordinal scale `meets` > `partial` > `fails`. Tasks outside tolerance are
+  excluded and listed in the report — comparing unmatched starts re-imports the prior-
+  knowledge confound the protocol exists to remove.
+- **Fixed interaction budget: `6` declared cadence intervals** for both models — the same
+  wall of interaction time at the same instrument-declared cadence, so neither model's
+  gain is measured over a longer run. A task whose trajectory is shorter than the budget
+  on either side is excluded and listed.
+- **Gain definition: per selected task, the sum of per-dimension verdict improvements
+  (in steps on the ordinal scale) from the earliest interval to the last interval within
+  the budget**; a model's learning speed over the selection is its per-task gains compared
+  pairwise against the incumbent's on the same tasks — never an absolute score.
+- **The report is observe-only and states both compared rows' context windows** (the
+  model table's stated attribute — the adapter's table), so a swap never silently trades
+  context away. It **informs a human-reviewed model-table PR (the adapter's model table)
+  and never auto-retiers** — no tier assignment, gate semantic, or selection path reads
+  it (constitution P5; spec 001 non-goals unchanged). Trajectories are comparable only
+  under the comparability rules above (same declared cadence; instrument movement renders
+  INSTRUMENT-CHANGED / not-comparable — `triage.md`).
+
 ## Judge calibration (the agreement figure — the judge checked against human judgment)
 
 The differential above assumes the judge itself is meaningful. That is not assumed — it is

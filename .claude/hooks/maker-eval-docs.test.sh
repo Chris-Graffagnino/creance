@@ -494,6 +494,59 @@ else
     "${cadence_val:-<none>}" >&2
 fi
 
+# ── US4.AC1-AC3 (T809) — the learning-speed model-swap protocol, the model table's ────────
+# context-window attribute, and the three implementation-loop maker behaviors. All three
+# surfaces are doc/table obligations (the protocol is a documented comparison a HUMAN runs
+# and cites — spec 003 US4), so the encoding is doc pins + structural parses: a later edit
+# that drops a named protocol element, a row's context window, or a behavior fails verify.
+# AC1 — every named element, in the neutral doc (a protocol missing any element does not
+# satisfy the criterion, so each is pinned separately).
+check "US4.AC1: the neutral doc defines the swap protocol" "$NEU_FLAT" \
+  "## Learning-speed model-swap protocol"
+check "US4.AC1: matched-start selection over earliest-interval scores" "$NEU_FLAT" \
+  "earliest-interval"
+check "US4.AC1: the matched-start rule states its matching tolerance" "$NEU_FLAT" \
+  "Matching tolerance:"
+check "US4.AC1: the comparison runs over a stated fixed interaction budget" "$NEU_FLAT" \
+  "Fixed interaction budget:"
+check "US4.AC1: the protocol states its gain definition" "$NEU_FLAT" \
+  "Gain definition:"
+check "US4.AC1: the report informs a human-reviewed model-table PR" "$NEU_FLAT" \
+  "informs a human-reviewed model-table"
+check "US4.AC1: the protocol never auto-retiers" "$NEU_FLAT" \
+  "never auto-retiers"
+# AC2 — the report must state both compared rows' context windows (the no-silent-context-
+# trade rule), pinned in the protocol; the table attribute itself is structural, below.
+check "US4.AC2: the report states both compared rows' context windows" "$NEU_FLAT" \
+  "both compared rows' context windows"
+check "US4.AC2: the model table carries the long-horizon context guidance" "$MODELS_FLAT" \
+  "long-horizon paths prefer the larger context at equal tier"
+# Structural: EVERY maker tier row AND the pinned-judge row of the model table carries a
+# backticked context-window attribute (`<n>k` / `<n>M`) — a prose-only note on one row
+# would let a swap silently trade context away on another.
+ctx_missing=""
+while IFS= read -r row; do
+  printf '%s' "$row" | grep -qE '`[0-9]+[kM]( tokens)?`' || ctx_missing="$ctx_missing ${row%%]*}]"
+done <<EOF
+$(grep -E '^\|[[:space:]]*\*\*(\[(frontier|strong|cheap) tier\]|maker-eval judge)' "$MODELS")
+EOF
+if [ -z "$ctx_missing" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL US4.AC2: model-table row(s) missing a backticked context-window attribute:%s\n' "$ctx_missing" >&2
+fi
+# AC3 — the three EdgeBench §5.4 maker behaviors in the implementation-loop guidance
+# (the §5 stage card; the token-budget check separately keeps the card within budget).
+CARD="$DIR/workflow/next-task/05-implement.md"
+if [ -f "$CARD" ]; then CARD_FLAT="$(flat "$CARD")"; else CARD_FLAT=""; fi
+check "US4.AC3: behavior — make the task measurable before improving it" "$CARD_FLAT" \
+  "measurable before improving"
+check "US4.AC3: behavior — decompose a stalled failure into searchable subproblems" "$CARD_FLAT" \
+  "searchable subproblems"
+check "US4.AC3: behavior — keep the working core fixed and repair residuals" "$CARD_FLAT" \
+  "repair residuals rather than rewriting"
+
 # ── US3.AC3/AC4 (T808) — post-hoc grading + the versioned trajectory extension. The ───────
 # mechanism tests live in maker-eval-emit.test.sh (grade-snapshots, record --trajectory) and
 # maker-eval-fence.test.sh (the trajectory-storage fence extension); these pin the DOC

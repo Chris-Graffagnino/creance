@@ -78,7 +78,7 @@
       renders cross-version deltas INSTRUMENT-CHANGED/not-comparable; extend the US2.AC3
       CI fence to the trajectory storage + planted trajectory-path cross-reference test
       case (P2/P5); blocked by T807 (#211) (US3)
-- [ ] T809 [cheap] Learning-speed swap protocol doc (matched-start selection with stated
+- [x] T809 [cheap] Learning-speed swap protocol doc (matched-start selection with stated
       tolerance, fixed budget, gain definition, informs-never-retiers statement) +
       `.claude/MODELS.md` context-window attribute per row with long-horizon guidance +
       the three EdgeBench §5.4 maker behaviors in implementation-loop guidance
