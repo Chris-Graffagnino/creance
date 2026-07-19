@@ -31,7 +31,12 @@ small PR that formalizes it, merge to admit it into the build.
 - **The conversion PR does not close the source issue.** The PR formalizes scope; the
   issue stays open as the work's issue, so the later implementation run finds it
   (`next-task.md` §3) instead of duplicating it. Reference the issue in the PR body
-  without a closing keyword.
+  without a closing keyword. The body must not place a closing-keyword verb immediately
+  before the source issue reference, even when the verb is negated; a colon after the
+  verb, whitespace across a newline, or a reference qualified with the source repository
+  is part of the same closing-keyword form. Write, for example,
+  "the source issue (#N) remains open." The active binding validates the composed body
+  before its [open-pr output].
 - **Scoping is checkable by someone who isn't the scorer.** Intake is the harness
   scoping work for itself, so the drafted acceptance criteria must pass the acceptance
   [reviewer]'s independence test: each criterion independently checkable, none graded by
@@ -145,10 +150,10 @@ defense.
    acceptance [reviewer] additionally checks the drafted criteria are independently
    checkable **and pass the §4 gameability screen** (not trivially gameable) — its
    intake-conversion-mode step (`reviewers/spec-auditor.md`).
-2. Open the PR per `next-task.md` §8's body rules, minus the closing keyword (the
-   source issue stays open). The body names the source issue, the bucket, the assigned
-   task ID, and any constitution-screen notes. **Stop at the PR** — the owner ratifies
-   by merging.
+2. Validate the composed PR body under the write-posture rule above, then open the PR
+   per `next-task.md` §8's body rules, minus the closing keyword (the source issue stays
+   open). The body names the source issue, the bucket, the assigned task ID, and any
+   constitution-screen notes. **Stop at the PR** — the owner ratifies by merging.
 3. **Cross-link on the issue** (a checkpoint, not a gate — the owner audits
    asynchronously; work doesn't block on a reply): post a marked comment with the
    assigned task ID, the drafted acceptance criteria, and the PR reference; then retitle

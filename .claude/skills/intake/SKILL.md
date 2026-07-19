@@ -21,6 +21,20 @@ Write posture per the workflow doc: repo edits happen **only on an intake branch
 PreToolUse guard blocks base-branch edits deterministically); the conversion PR carries
 **no closing keyword** for the source issue; merge is the owner's alone.
 
+For every conversion PR, keep the body-composition, validation, and opening sequence fixed:
+
+1. Compose the conversion PR body.
+2. Validate that composed body against the source issue:
+
+```bash
+bash .claude/hooks/intake-source-issue-check.sh --source-issue <n> --source-repository <owner>/<repo> --body-file <path>
+```
+
+Exit 1 means the body places a closing-keyword verb immediately before that source issue
+reference (including a negated, colon-suffixed, newline-separated, or source-repository-qualified phrase); revise the body and rerun the check. Exit 2 is a
+caller error; do not open the PR until it is corrected.
+3. Only after the validator exits 0, perform the [open-pr output].
+
 **Profile read — packet first (spec 007 US3.AC3).** Read **`.claude/PROJECT.compact.md`**
 by default for the routing facts (tasks-file paths, task-ID blocks, title/branch
 conventions, required check — drift-checked by `.claude/hooks/compact-packet-drift.sh`
