@@ -692,6 +692,60 @@
       (#226; repo-maintenance — done-when on issue) — strong: permission/config scoping on
       the maker≠checker protected-path surface, adjacent to P4 and the guard wall
 
+> US12 (T647–T648) closes the two residual 12-factor-agents gaps. T647 lands first — it is
+> the cheaper change and the one with a production scar behind it (the gate-loop flake
+> procedure). Numbering assumes US11/T645–T646 (#295) land first; if that conversion is
+> rejected, these renumber. T648 edits the same write-intent contract rows as T646, so
+> whichever lands second rebases rather than re-authoring.
+
+- [ ] T647 [strong] Add a runtime-neutral **bounded-retry rule** to the implement/verify
+      territory of `next-task.md`, with **both** of its terms defined — a stated **check
+      identity** (what makes two failures the same check) and what counts as a **distinct
+      intervening change** (what resets the counter) — and stated **two-sided**: no
+      escalation before the third consecutive failure of the same check, no retrying past
+      it, and a reset on a distinct intervening change so an ordinary fix-and-rerun cycle is
+      never throttled (an upper bound alone is satisfied by escalating on the first
+      failure). On the bound, compact the evidence — exit code + minimal relevant excerpt,
+      under a stated size bound, with the exit code and failing check's identity surviving
+      compaction so neither a full-log paste nor a which-check-omitted excerpt satisfies it
+      — post it to the task issue via the existing marked-comment intent, and halt the stage
+      (review mode) or record a blocked outcome (backlog-loop), never silently continuing
+      and never merging. Encode the counter deterministically where the adapter already
+      counts fix rounds, with tests pinning **all three** boundaries (no escalation at two,
+      escalation at three, and a proven reset), and where it stays executor discipline
+      register it in the next-task obligations inventory — a frozen change-ratchet, so the
+      row's hash and count are updated manually in the same reviewed PR with the contract
+      change justified. Also generalize the orchestration-level flake procedure from
+      operator lore into `gate-loop.md`'s degradation notes: one fresh re-attempt, then on
+      an **identical** failure stop and fall back to the prose path, with "identical"
+      defined and the trigger named as the identical-failure condition rather than a time or
+      an arbitrary count — deliberately distinct from the three-strike bound, since an
+      orchestration failure that reproduces exactly is deterministic and will not succeed on
+      repeat (#296, US12.AC1–AC4) — strong: edits the runtime-neutral workflow boundary and
+      the gate's degradation contract (constitution P1/P3)
+- [ ] T648 [strong] **Extend** the existing decision-ready contract (`Decision needed:` /
+      `Recommendation:`) in place — never a parallel schema, which would contradict the
+      unchanged §6.5 — for comments that **block** on an owner answer: attempt identity,
+      `question_format` (`yes-no | choice | free-text`), the question, enumerated options for
+      `choice`, and **the engine's action per answer**, preserving
+      `Decision needed: none (informational)` unchanged and composing with §6.5's three
+      existing conditions rather than relaxing them. Apply it at the blocking sites
+      enumerated from the live tree — the §7 non-convergence stop (pre-PR-gate stage card,
+      `gate-loop.md`, `retry.md`), the review-response non-convergence stop, and intake's
+      underspecified bucket — with a deterministic check failing **both** directions: a
+      blocking site emitting a bare `Decision needed:` with no `question_format`, **and** an
+      informational item decorated with one. Parsing is deterministic and two-sided: only a
+      reply matching the offered format is an answer (a `choice` reply naming exactly one
+      enumerated option; a `yes-no` reply resolving to yes or no), anything else is steering
+      to read and never consent — both directions proven, so a parser accepting everything
+      and one accepting nothing both fail. Independently of format, **no reply of any shape
+      authorizes a merge**; merge authorization stays session-explicit and a `yes` applies
+      only the decision asked. Name the schema in the marked-comment write-intent contract
+      rows so the existing contract check backstops drift, falsified on **planted fixtures**
+      rather than the live contract this task edits; blocked by T647 (#296, US12.AC5–AC8)
+      — strong: edits the owner-contact contract adjacent to the merge boundary
+      (constitution P1/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -742,6 +796,14 @@
 | US10.AC3 | T635 |
 | US10.AC4 | T635 |
 | US10.AC5 | T635 |
+| US12.AC1 | T647 |
+| US12.AC2 | T647 |
+| US12.AC3 | T647 |
+| US12.AC4 | T647 |
+| US12.AC5 | T648 |
+| US12.AC6 | T648 |
+| US12.AC7 | T648 |
+| US12.AC8 | T648 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
