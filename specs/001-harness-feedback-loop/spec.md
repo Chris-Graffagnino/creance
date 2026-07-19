@@ -428,7 +428,10 @@ acceptance reviewer grades them as intended rather than as drift:
   worktree path do not, so keying on them would produce a criterion that is fully
   satisfiable while preventing zero duplicates. The attempt identity is therefore the
   *promotion* key (AC2), and the *reconciliation* key is a separate, per-artifact,
-  resume-stable one (AC4). Conflating the two is the defect, not the design.
+  resume-stable one (AC4). Conflating the two is the defect, not the design. The retry
+  comment's discriminator reuses the audited commit AC2's contract change already returns —
+  one carrier, two consumers — and `retry.md`'s first-line shape gains that value so the
+  key is readable off the artifact.
 - **The gate's return shape gains one field, as an explicit contract change.** The audited
   commit AC2 compares is **not** returned by the §7 gate today — the loop returns the
   outcome and the verdicts, and the audited HEAD reaches only the telemetry stream, which
@@ -449,7 +452,9 @@ acceptance reviewer grades them as intended rather than as drift:
   scan) fails on a second field-list definition elsewhere. That assertion **runs in the
   project's required check** and ships a planted second-definition fixture proving it trips
   — a check that exists but is not wired is treated as broken, not as probably-fine
-  (constitution P2/P3).
+  (constitution P2/P3). The scan is shape-bound: it catches a restated field list matching
+  the definition's structure, not a paraphrase — the reference-don't-restate rule for prose
+  remains reviewer-enforced.
 - AC2: The isolated-workspace promotion path verifies, before a PR is opened from an
   attempt, that the §7 gate's PASS actually describes this artifact: **every atom** of AC1's
   identity matches. Promotion **proceeds** when every atom matches and is **refused** when
@@ -481,14 +486,38 @@ acceptance reviewer grades them as intended rather than as drift:
   halves**:
   - **(i) a lookup key stable across exactly the re-executions it must reconcile** — the
     **task ID** for the issue; the **head branch** for the PR; and, for a marked comment,
-    the **marker plus the task ID and the gate round ordinal the comment reports on** (the
-    same `{auditor, round}` keying US10.AC1 already requires). Each is stated explicitly as
-    **not** the worktree path and **not** a per-re-entry attempt/run ID, since those are
-    freshly allocated on every re-entry (AC1) and a lookup keyed on them can never match a
-    prior attempt. The comment key is round-scoped precisely so it does not collide with
-    US10: a re-execution reporting an **already-posted round** adopts or skips, while a
-    **later round** posts a new comment — so US10.AC1's verbatim posting and US10.AC2's read
-    of the *newest* marked retry comment both continue to hold.
+    the **marker plus the task ID and a per-call-site discriminator** that is resume-stable
+    under AC1's split. The two comment intents are generic roles — every engine-posted
+    comment (intake classifications, review findings, review-response replies, the retry
+    comment) flows through them, and most carry no gate round at all — so the precondition
+    on the two comment rows names this key **shape** and requires each comment-posting call
+    site to declare its discriminator in the workflow doc that defines the comment; a call
+    site with no declared discriminator posts additively as today and is **outside
+    reconciliation's scope**, a recorded decision rather than an omission. The call site
+    this story specifies concretely is the gate non-convergence retry comment
+    (`retry.md`): its discriminator is **the audited commit the verdicts describe** —
+    available to the dispatcher as a field of the gate's return value by AC2's own contract
+    change, stable across a re-execution of the same gate run, and distinct across a
+    genuinely new attempt, whose gate audited a different commit — so a same-run replay
+    adopts or skips while a new attempt posts a new comment, and US10.AC1's verbatim
+    posting and US10.AC2's read of the *newest* marked retry comment both continue to hold.
+    The gate round ordinal is explicitly **not** the discriminator: `retry.md` posts **one**
+    comment per non-convergence stop whose body spans multiple `{auditor, round}` sections
+    (US10.AC1's `{auditor, round}` keying is the body's internal section keying, not an
+    artifact key), and the gate restarts round numbering on every invocation, so an
+    ordinal-keyed lookup would match a prior attempt's comment and silently drop the new
+    verdicts. So that the key is readable off the artifact itself, `retry.md`'s
+    deterministic first line carries the audited commit alongside the task ID it already
+    carries. Each
+    key is stated explicitly as **not** the worktree path and **not** a per-re-entry
+    attempt/run ID, since those are freshly allocated on every re-entry (AC1) and a lookup
+    keyed on them can never match a prior attempt. The issue lookup adopts **by key alone,
+    regardless of author** — an owner-filed issue retitled by intake to carry the task ID
+    (`intake.md`) *is* the task's issue, so author is not part of the key; the PR's head
+    branch is engine-allocated per the branch convention, so a head-branch match is
+    engine-created by construction; the marked comment's key already embeds authorship via
+    the marker. An author predicate added to "harden" the lookup would break every
+    intake-converted task.
   - **(ii) the outcome: adopt the existing artifact or skip — never "update" it.** All four
     creating roles are constrained create-only/additive in cells this story leaves unchanged
     (`[create-issue output]` "never … edits an existing issue"; both comment intents
@@ -546,9 +575,11 @@ acceptance reviewer grades them as intended rather than as drift:
   2. a re-execution under the **same** resume-stable key finds it and adopts it, leaving
      exactly one;
   3. a third execution under a **different** resume-stable key (a different task ID / head
-     branch / round ordinal) creates a **second** artifact, leaving two.
+     branch / audited commit) creates a **second** artifact, leaving two.
   Step 3 is what makes the criterion two-sided: a lookup that adopts unconditionally passes
-  steps 1–2 and fails step 3. The probe covers at least the **issue** and the **marked
-  comment** kinds, so the round-scoped comment key of AC4(i) is exercised rather than
-  satisfied by the cheapest artifact kind alone. A probe covering only the create path, only
-  the adopt path, or only one artifact kind does not satisfy this.
+  steps 1–2 and fails step 3. The probe covers the **issue**, the **marked comment**, and
+  the **PR** kinds: the comment leg exercises the commit-scoped retry-comment key of
+  AC4(i) rather than the cheapest artifact kind alone, and the PR leg runs against a
+  fixture or override surface rather than a live tracker write (the AC6 posture), so the
+  head-branch lookup executes without opening a real PR. A probe covering only the create
+  path, only the adopt path, or only one artifact kind does not satisfy this.

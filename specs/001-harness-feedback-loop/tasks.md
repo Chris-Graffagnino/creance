@@ -706,7 +706,7 @@
       location, referenced (never restated field-by-field) everywhere else, with a
       deterministic drift assertion that **runs in the required check** and ships a planted
       second-definition fixture proving it trips (P2/P3 — an unwired check is broken, not
-      probably-fine); record the identity into telemetry as a **correlation key that is never
+      probably-fine; the scan is shape-bound — a paraphrase stays reviewer-enforced); record the identity into telemetry as a **correlation key that is never
       read back**, with a failed write never blocking promotion (the emitter symmetry rule);
       and make it a **promotion precondition** — promotion proceeds only when **every atom**
       matches and refuses when any single atom differs, with `isolated-workspace.test.sh`
@@ -726,12 +726,20 @@
       each of the four **creating** intents (`[create-issue output]`,
       `[add-issue-comment output]`, `[add-pr-comment output]`, `[open-pr output]`) gains a
       clause naming **both** (i) a **resume-stable** lookup key — task ID for the issue, head
-      branch for the PR, and marker + task ID + **the gate round ordinal the comment reports
-      on** for a marked comment (the `{auditor, round}` keying US10.AC1 already uses, so an
-      already-posted round adopts/skips while a later round still posts — US10.AC1/AC2 keep
-      holding) — each stated explicitly as *not* the worktree path and *not* a per-re-entry
+      branch for the PR, and marker + task ID + **a per-call-site discriminator** for a
+      marked comment: the comment rows name the key **shape**, each posting call site
+      declares its discriminator in its own workflow doc (an undeclared call site posts
+      additively as today, outside reconciliation's scope), and for the retry comment the
+      discriminator is **the audited commit the verdicts describe** — carried by T645's
+      gate-return contract change and on `retry.md`'s deterministic first line — never the
+      round ordinal, since one retry comment spans many `{auditor, round}` body sections and
+      the gate restarts numbering per invocation, so an ordinal-keyed lookup would adopt a
+      prior attempt's comment and drop the new verdicts (US10.AC1/AC2 keep holding: a
+      same-run replay adopts/skips, a new attempt's different audited commit still posts) —
+      each stated explicitly as *not* the worktree path and *not* a per-re-entry
       attempt ID, since a lookup keyed on freshly-allocated atoms can never match a prior
-      attempt; and (ii) the outcome, **adopt or skip — never "update"**, since all four roles
+      attempt, and adopting **by key alone, regardless of author** (an intake-retitled
+      owner-filed issue *is* the task's issue); and (ii) the outcome, **adopt or skip — never "update"**, since all four roles
       are create-only/additive in cells this task leaves unchanged and the family rule is flat
       ("never by widening an existing role's meaning"). Adopting means *using* the existing
       artifact instead of creating a second; where a mutation is wanted **and a convergent
@@ -753,7 +761,8 @@
       conformance probe proves reconciliation **executes** across three runs and both decision
       directions — one artifact after a first run, still one after a same-key re-execution,
       **two** after a different-key run (so an unconditionally-adopting stub fails), covering
-      the issue **and** marked-comment kinds
+      the issue, marked-comment, **and** PR kinds (the PR leg on a fixture/override surface,
+      never a live tracker write)
       (#295, US11.AC4–AC8; blocked by T620, T645) — strong: extends the write-intent
       contract and the neutrality boundary (constitution P1/P2/P3/P4)
 
