@@ -415,54 +415,109 @@ naming is the substrate, and each role simply lacks a resume-safety clause. Inta
 issue #295, whose research (#294) **rejected** adopting the runtime that surfaced the
 lesson: the concept transfers, the dependency does not.
 
+**Recorded trade-off calls.** Two decisions this story makes deliberately, so the
+acceptance reviewer grades them as intended rather than as drift:
+- **Promotion gains a precondition, not a second veto.** `workflow/README.md` states
+  promotion is *only* ever the §7 gate's PASS. AC2 does not add a competing authority: a
+  gate PASS still decides *whether* the work is promotable, and the identity check only
+  confirms the PASS is being applied to **the same attempt, workspace, and commit the gate
+  actually audited**. A mismatch means the PASS does not describe this artifact, so there
+  is no verdict to apply — the check refuses a misapplied PASS, never overrides a real one.
+- **Reconciliation keys are resume-stable by construction.** The lookup that finds a prior
+  artifact must key on something that survives re-entry. A fresh attempt/run ID and a fresh
+  worktree path do not (AC4), so keying on them would produce a criterion that is fully
+  satisfiable while preventing zero duplicates. The attempt identity is therefore the
+  *promotion* key (AC2), and the *reconciliation* key is a separate, per-artifact,
+  resume-stable one (AC4). Conflating the two is the defect, not the design.
+
 **Acceptance Criteria**
-- AC1: The **attempt identity** — task ID, attempt/run ID, and isolated-workspace
-  fingerprint (worktree path plus expected base commit) — is defined in exactly **one**
-  neutral location, and every other doc that uses it references that definition rather
-  than restating its fields. A second field-list definition elsewhere is a duplication
-  defect (P2's anti-duplication pattern), not an acceptable convenience.
-- AC2: The isolated-workspace promotion path verifies the attempt identity before a PR is
-  opened from an attempt: promotion **proceeds** when task, attempt, workspace
-  fingerprint, and audited commit all match, and is **refused** when any single one of
-  them differs. `isolated-workspace.test.sh` plants a mismatch in each of the four fields
-  and asserts refusal for each, **and** asserts the all-match case is not blocked — so a
-  check that refuses everything fails this criterion exactly as one that refuses nothing
-  does.
-- AC3: The attempt identity is a correlation key in telemetry and nothing more. No gate
-  outcome, tier resolution, task selection, promotion decision, or merge authorization
-  reads it back from the telemetry stream — the stream keeps zero consumers with control
-  authority (constitution P5 unchanged). AC2's promotion check reads the identity from the
-  live workspace and the tracker; a promotion that obtains it from the telemetry stream
-  violates this criterion.
+- AC1: The **attempt identity** is defined in exactly **one** neutral location, as an
+  authoritative and complete list of **atoms** — task ID; attempt/run ID; worktree path;
+  expected base commit — with each atom's **allocation and stability rule** stated (which
+  atoms are freshly allocated per re-entry and which survive it), because AC2 and AC4 key
+  on opposite halves of that split and cannot both be satisfied without it. Every other doc
+  that uses the identity references this definition rather than restating its fields, and a
+  deterministic drift assertion (the `reviewer-roster.test.sh` pattern) fails on a second
+  field-list definition elsewhere — the copy set is enumerable, so this is mechanized, not
+  left to a reader noticing (constitution P3).
+- AC2: The isolated-workspace promotion path verifies, before a PR is opened from an
+  attempt, that the §7 gate's PASS actually describes this artifact: the task ID, attempt/run
+  ID, worktree path, expected base commit, **and the commit the gate audited** all match.
+  The audited commit is read from **the gate's own outcome** — the explicit HEAD-verified ref
+  the §7 gate already returns — never from the telemetry stream (AC3) and never from a
+  marked comment. Promotion **proceeds** when every atom matches and is **refused** when any
+  single atom differs; `isolated-workspace.test.sh` plants a mismatch in **each atom
+  separately** — the worktree path and the expected base commit counted as two distinct
+  plants, not one "fingerprint" plant, so a check comparing only the path cannot pass the
+  suite — **and** asserts the all-match case is not blocked. A check that refuses everything
+  fails this criterion exactly as one that refuses nothing does.
+- AC3: The attempt identity is written into telemetry records as a correlation key and is
+  never read back as one. No gate outcome, tier resolution, task selection, promotion
+  decision, or merge authorization obtains it from the telemetry stream — the stream keeps
+  zero consumers with control authority (constitution P5 unchanged). AC2's promotion check
+  reads it from the live workspace, the gate outcome, and the tracker's **issue/PR state**
+  — never from a **marked** comment, which is engine bookkeeping and carries no authority
+  (`next-task.md` §2.5); a promotion that obtains any atom from the stream or from a marked
+  comment violates this criterion.
 - AC4: The contract's write-intent table carries a **reconciliation precondition** on each
   of the four **creating** intents — `[create-issue output]`, `[add-issue-comment output]`,
   `[add-pr-comment output]`, `[open-pr output]` — where re-execution would produce a second
   artifact rather than converge on the same end state. Each precondition states **both
-  halves**: the lookup predicate (which existing artifact to search for, keyed by task and
-  attempt identity) and the adopt-instead outcome (adopt, update, or skip — never create a
-  second). The three **convergent** intents — `[update-pr output]`,
-  `[update-issue-metadata output]`, `[push-task-branch output]` — instead carry an explicit
-  note stating why re-execution is already safe, so their lack of a lookup clause is a
-  recorded decision rather than an omission. A diff that clauses all seven, or that clauses
-  only some of the four, does not satisfy this.
+  halves**: (i) a lookup key that is **stable across exactly the re-executions it must
+  reconcile** — the task ID for the issue, the head branch for the PR, and the marker plus
+  the logical event identity for a marked comment — stated explicitly as **not** the
+  worktree path and **not** a per-re-entry attempt/run ID, since those are freshly allocated
+  on every re-entry (AC1) and a lookup keyed on them can never match a prior attempt; and
+  (ii) the outcome, which is **adopt the existing artifact or skip — never "update" it**,
+  because all four creating roles are constrained additive/create-only in cells this story
+  leaves unchanged (`[create-issue output]` "never ... edits an existing issue"; both comment
+  intents "Additive only ... never edits or deletes an existing comment"), and the family
+  forbids widening a role's meaning outside a reviewed contract change (P4). Any mutation of
+  an adopted artifact is performed by the existing convergent intent that already owns it
+  (`[update-pr output]`, `[update-issue-metadata output]`), granting the creating roles
+  nothing new. Where adopting a prior attempt's PR is in play, "the run" in
+  `[update-pr output]`'s "a PR the run itself opened" resolves to **the task**, not the
+  attempt — stated explicitly, since a resumed attempt did not itself open it. The three
+  **convergent** intents — `[update-pr output]`, `[update-issue-metadata output]`,
+  `[push-task-branch output]` — instead carry an explicit note stating why re-execution is
+  already safe, so their lack of a lookup clause is a recorded decision rather than an
+  omission. A diff that clauses all seven, or that clauses only some of the four, does not
+  satisfy this.
 - AC5: `write-intents-check.sh` gains a reconciliation check whose oracle is **independent
   of the prose it grades** — it carries the expected creating/convergent partition rather
   than inferring it from which rows happen to have clauses — and FAILs when: (a) a creating
   intent's row lacks a clause naming both halves; (b) a convergent intent's row carries a
-  lookup clause but no convergent note; or (c) the contract family contains a role the
-  partition does not classify at all, so a future intent added by reviewed PR cannot land
-  silently unreconciled. The check reports the family size and the classified counts and
-  FAILs when either is zero (P2 — never a vacuous pass).
+  lookup clause but no convergent note; (c) the contract family contains a role the
+  partition does not classify, so a future intent added by reviewed PR cannot land silently
+  unreconciled; **or (d) a role the partition carries has no matching contract row** — the
+  under-match direction, which catches a removed role and a row parser that silently
+  degrades. The check FAILs unless **family size, classified count, and the carried
+  partition's size are all equal and non-zero**; a bare non-zero floor is insufficient,
+  since a regex matching one row of seven clears it while grading one row (P2 — never a
+  vacuous pass).
 - AC6: `write-intents-check.test.sh` gains **planted-negative fixtures** proving each
   failure direction actually fires — a contract fixture with a creating intent's clause
-  deleted; one whose clause names the lookup but not the adopt-instead outcome; one whose
-  convergent intent carries a lookup clause without the note; and one adding a role the
-  partition does not classify — each asserting the **specific diagnostic**, not merely a
-  non-zero exit, plus a positive fixture satisfying every rule that exits OK. These cases
-  run against fixtures rather than the live contract, so they keep proving the check works
-  after the live contract is edited by this same change.
+  deleted; one whose clause names the lookup key but not the adopt-or-skip outcome; one
+  whose convergent intent carries a lookup clause without the note; one adding a role the
+  partition does not classify; and one **removing** a role the partition carries (AC5's (d)
+  direction) — each asserting the **specific diagnostic**, not merely a non-zero exit, plus
+  a positive fixture satisfying every rule that exits OK. These cases run against fixtures
+  via the check's existing surface overrides rather than against the live contract, so they
+  keep proving the check works after the live contract is edited by this same story.
 - AC7: The concrete lookup mechanisms implementing each precondition live only in the
-  adapter layer — the next-task stage cards covering the issue and PR writes, and the
-  gate-loop non-convergence comment path — never in `workflow/**`. The existing neutrality
-  scan and the write-intents leak scan both stay green, so no concrete tracker command
-  enters a neutral doc (constitution P1).
+  **adapter layer** — the adapter's own binding surfaces and mapping rows, and the
+  orchestrated-run implementation — and **never** in `workflow/**`. The neutral surfaces
+  that invoke them (the next-task stage cards covering the issue and PR writes, and the
+  gate-loop non-convergence comment path) are themselves `workflow/**` residents and
+  neutrality-scanned: they name the **[role]** only and carry no concrete command. The
+  existing neutrality scan and the write-intents leak scan both stay green (constitution
+  P1). Because the leak scan's pattern covers tracker *write* verbs only, a **read**-shaped
+  lookup would evade it — so the neutrality scan is the load-bearing fence here, and the
+  criterion is not satisfied by the leak scan passing alone.
+- AC8: A conformance probe exercises a reconciliation **at runtime**, in both directions: a
+  first execution creates exactly one artifact, and a simulated re-execution against the
+  same resume-stable key finds the existing artifact and adopts it, leaving exactly one —
+  asserted by counting artifacts, not by inspecting prose. A probe exercising only the
+  create path, or only the adopt path, does not satisfy this. Without this criterion every
+  other criterion in the story grades a document or a linter, and no reconciliation would
+  ever be proven to execute.
