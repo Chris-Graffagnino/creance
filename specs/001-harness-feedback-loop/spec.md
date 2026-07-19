@@ -399,3 +399,70 @@ verdicts on retry buys no safety. Intake of issue #210.
   produces the marked retry comment carrying the verbatim reports, and a gate PASS
   produces no retry comment — a probe exercising only the posting path does not satisfy
   this.
+
+### US11 — Resume-safe shared-surface writes and attempt-scoped identity
+As a harness operator, I want a re-run of an interrupted task to reconcile against what
+the previous attempt already wrote instead of writing a second copy, and I want every
+attempt to carry an identity a later promotion can verify, so that a crashed or resumed
+run cannot double-create an issue, double-post a marked comment, or open a duplicate PR,
+and a discarded attempt can never be promoted against a different workspace.
+
+Motivation: durable-execution runtimes force an admission that applies to Creance with no
+framework involved — internal state transitions may replay, but external writes are not
+exactly-once. The closed write-intent family (`workflow/README.md` → "Write intents (safe
+outputs)") already names every shared-surface write as exactly one auditable role; that
+naming is the substrate, and each role simply lacks a resume-safety clause. Intake of
+issue #295, whose research (#294) **rejected** adopting the runtime that surfaced the
+lesson: the concept transfers, the dependency does not.
+
+**Acceptance Criteria**
+- AC1: The **attempt identity** — task ID, attempt/run ID, and isolated-workspace
+  fingerprint (worktree path plus expected base commit) — is defined in exactly **one**
+  neutral location, and every other doc that uses it references that definition rather
+  than restating its fields. A second field-list definition elsewhere is a duplication
+  defect (P2's anti-duplication pattern), not an acceptable convenience.
+- AC2: The isolated-workspace promotion path verifies the attempt identity before a PR is
+  opened from an attempt: promotion **proceeds** when task, attempt, workspace
+  fingerprint, and audited commit all match, and is **refused** when any single one of
+  them differs. `isolated-workspace.test.sh` plants a mismatch in each of the four fields
+  and asserts refusal for each, **and** asserts the all-match case is not blocked — so a
+  check that refuses everything fails this criterion exactly as one that refuses nothing
+  does.
+- AC3: The attempt identity is a correlation key in telemetry and nothing more. No gate
+  outcome, tier resolution, task selection, promotion decision, or merge authorization
+  reads it back from the telemetry stream — the stream keeps zero consumers with control
+  authority (constitution P5 unchanged). AC2's promotion check reads the identity from the
+  live workspace and the tracker; a promotion that obtains it from the telemetry stream
+  violates this criterion.
+- AC4: The contract's write-intent table carries a **reconciliation precondition** on each
+  of the four **creating** intents — `[create-issue output]`, `[add-issue-comment output]`,
+  `[add-pr-comment output]`, `[open-pr output]` — where re-execution would produce a second
+  artifact rather than converge on the same end state. Each precondition states **both
+  halves**: the lookup predicate (which existing artifact to search for, keyed by task and
+  attempt identity) and the adopt-instead outcome (adopt, update, or skip — never create a
+  second). The three **convergent** intents — `[update-pr output]`,
+  `[update-issue-metadata output]`, `[push-task-branch output]` — instead carry an explicit
+  note stating why re-execution is already safe, so their lack of a lookup clause is a
+  recorded decision rather than an omission. A diff that clauses all seven, or that clauses
+  only some of the four, does not satisfy this.
+- AC5: `write-intents-check.sh` gains a reconciliation check whose oracle is **independent
+  of the prose it grades** — it carries the expected creating/convergent partition rather
+  than inferring it from which rows happen to have clauses — and FAILs when: (a) a creating
+  intent's row lacks a clause naming both halves; (b) a convergent intent's row carries a
+  lookup clause but no convergent note; or (c) the contract family contains a role the
+  partition does not classify at all, so a future intent added by reviewed PR cannot land
+  silently unreconciled. The check reports the family size and the classified counts and
+  FAILs when either is zero (P2 — never a vacuous pass).
+- AC6: `write-intents-check.test.sh` gains **planted-negative fixtures** proving each
+  failure direction actually fires — a contract fixture with a creating intent's clause
+  deleted; one whose clause names the lookup but not the adopt-instead outcome; one whose
+  convergent intent carries a lookup clause without the note; and one adding a role the
+  partition does not classify — each asserting the **specific diagnostic**, not merely a
+  non-zero exit, plus a positive fixture satisfying every rule that exits OK. These cases
+  run against fixtures rather than the live contract, so they keep proving the check works
+  after the live contract is edited by this same change.
+- AC7: The concrete lookup mechanisms implementing each precondition live only in the
+  adapter layer — the next-task stage cards covering the issue and PR writes, and the
+  gate-loop non-convergence comment path — never in `workflow/**`. The existing neutrality
+  scan and the write-intents leak scan both stay green, so no concrete tracker command
+  enters a neutral doc (constitution P1).

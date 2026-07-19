@@ -692,6 +692,45 @@
       (#226; repo-maintenance — done-when on issue) — strong: permission/config scoping on
       the maker≠checker protected-path surface, adjacent to P4 and the guard wall
 
+> US11 (T645–T646) hardens **resume safety**: an interrupted run that is re-run must
+> reconcile against its own prior writes instead of duplicating them, and an attempt must
+> carry an identity a later promotion can verify. T645 lands the identity first because
+> T646's lookup predicates are keyed by it. Sequencing per the owner's note on #295:
+> both follow **T620** (Omnigent live-driver conformance). Neither adopts a runtime
+> dependency — #294 rejected that; only the concepts transfer.
+
+- [ ] T645 [strong] Define the **attempt identity** — task ID + attempt/run ID +
+      isolated-workspace fingerprint (worktree path + expected base commit) — in exactly one
+      neutral location, referenced (never restated field-by-field) everywhere else it is
+      used (P2 anti-duplication); thread it through the telemetry stream schema and the
+      retry marked comment as a **correlation key only**; and make it a **promotion
+      precondition** — the isolated-workspace promotion path proceeds only when task,
+      attempt, workspace fingerprint, and audited commit all match, and refuses when any
+      one differs, with `isolated-workspace.test.sh` planting a mismatch in each of the four
+      fields **and** asserting the all-match case is not blocked (a check that refuses
+      everything fails as surely as one that refuses nothing); no gate, tier, selection,
+      promotion, or merge path reads the identity back from telemetry (constitution P5)
+      (#295, US11.AC1–AC3; blocked by T620) — strong: touches the isolation promotion
+      boundary and the P5 observe-only fence
+- [ ] T646 [strong] Add **reconciliation preconditions** to the closed write-intent family:
+      each of the four **creating** intents (`[create-issue output]`,
+      `[add-issue-comment output]`, `[add-pr-comment output]`, `[open-pr output]`) gains a
+      clause naming **both** the lookup predicate (keyed by task + attempt identity) and the
+      adopt-instead outcome; the three **convergent** intents (`[update-pr output]`,
+      `[update-issue-metadata output]`, `[push-task-branch output]`) instead carry an
+      explicit why-it-is-already-safe note, so their lack of a clause is a recorded decision
+      (clausing all seven does not satisfy this); `write-intents-check.sh` grows a
+      reconciliation check whose creating/convergent partition is **carried by the check**,
+      not inferred from the prose it grades, failing on a missing clause, a half-clause, a
+      mis-clause, **and** an unclassified role (so a future intent cannot land silently
+      unreconciled), reporting non-zero family/classified counts (P2, never vacuous);
+      `write-intents-check.test.sh` proves every failure direction on **planted fixtures**
+      — not the live contract this task edits — each asserting its specific diagnostic, plus
+      a passing positive control; concrete lookup mechanisms stay adapter-side and the
+      neutrality + leak scans stay green (constitution P1)
+      (#295, US11.AC4–AC7; blocked by T620, T645) — strong: extends the write-intent
+      contract and the neutrality boundary (constitution P1/P2/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -742,6 +781,13 @@
 | US10.AC3 | T635 |
 | US10.AC4 | T635 |
 | US10.AC5 | T635 |
+| US11.AC1 | T645 |
+| US11.AC2 | T645 |
+| US11.AC3 | T645 |
+| US11.AC4 | T646 |
+| US11.AC5 | T646 |
+| US11.AC6 | T646 |
+| US11.AC7 | T646 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
