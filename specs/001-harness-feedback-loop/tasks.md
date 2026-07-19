@@ -703,34 +703,48 @@
       territory of `next-task.md`, with **both** terms defined — a **check identity that is
       insensitive to run-varying content** (error text, timing, absolute paths, ordering are
       named as excluded, since a run-varying identity makes the bound unreachable while
-      identical-failure tests stay green) and what counts as a **distinct intervening
-      change**, stating explicitly that a mandated response to a stall does **not** reset it
+      identical-failure tests stay green) and a **distinct intervening change** defined by
+      its **content** — a change to the artifact under test or to an input the failing check
+      reads; a retry with no change, an edit the check does not read, and a mandated stall
+      response all leave the counter intact, since "any edit resets" makes three consecutive
+      failures unreachable and the bound silently dead — stating explicitly that a mandated
+      stall response does **not** reset it
       (the unchanged §5 decompose rule starts a counter for any new check while the original
       check's counter persists) — and stated **two-sided**: no escalation before the third
-      consecutive failure of the same check, none past it. The counter survives a resume and
-      its durable source is the tracker channel or the run's own return value, **never the
+      consecutive failure of the same check, none past it. The counter survives a resume and its
+      durable source across that resume is **the tracker channel** (the run's own return
+      carries only the terminal escalation outcome and does not outlive the run), **never the
       telemetry stream** (P5, the boundary US10.AC3 states for the retry channel). On the
       bound, compact the evidence under a **stated numeric ceiling** (≤50 lines or 4 KB,
       whichever is smaller) with the exit code and failing check's identity surviving, post it
       to the task issue via the existing marked-comment intent, and halt the stage (review
-      mode) or end the backlog iteration with the **existing** `aborted` outcome — no new
-      token in that closed grammar, no new stop-condition row. Encode the counter at the locus
+      mode) or end the backlog iteration through the existing **`gate FAIL + discard`**
+      arm (skip-and-advance) — no new token, no new stop-condition row, and no widened cause
+      text. `aborted` is explicitly not reused: its cause is a lifecycle/activation check
+      failing closed and it stops the **whole run**, neither of which fits a work stall. Encode the counter at the locus
       that actually observes check failures — the maker's inner loop — **not** the gate loop's
       `fixRoundsUsed`, which counts reviewer verdict rounds against its own 2-round bound and
       never sees a verification failure (encoding there would change §7 gate semantics, barred
-      by this spec's Non-goals, or be unreachable dead code). Tests pin four cases: no
-      escalation at two, escalation at three, a proven reset, and three failures with
-      **differing output text** that still escalate. Where it stays executor discipline it is
-      stated in the stage card and covered by that card's docs-encoding test — **not** appended
-      to the frozen obligations inventory, which guards preservation rather than accretion.
-      Also generalize the orchestration-level flake procedure into `gate-loop.md`'s
-      prose-fallback section (the doc has no "degradation notes" heading — name the real
-      section): one fresh re-attempt, then on a **same-class** failure stop and fall back,
+      by this spec's Non-goals, or be unreachable dead code). Tests pin four cases **against a scripted
+      fixture driver regardless of whether the adapter holds the counter as code** (so the
+      obligation never collapses when the honest answer is "discipline"): no escalation at
+      two, escalation at three, a proven reset, and three failures with **differing output
+      text** that still escalate. Where it stays executor discipline it is also stated in the
+      stage card and asserted by a new test in the established `*-docs.test.sh` family — the
+      frozen stage-card hash check cannot serve, and the docs assertion is additional, never a
+      substitute — and **not** appended to the frozen obligations inventory, which guards
+      preservation rather than accretion.
+      Also generalize the orchestration-level flake procedure into a **new
+      `## Orchestration-level failure and the prose fallback` section in `gate-loop.md`,
+      placed after "Constraints inherited"** (no degradation-notes heading exists to reuse): one fresh re-attempt, then on a **same-class** failure stop and fall back,
       with "same class" defined as same failing step + same diagnostic class under the same
       run-varying exclusions, pinned by a paired fixture (same-class stops; genuinely
-      different earns a re-attempt), plus the **routing predicate** separating this bound from
-      the three-strike one where a failure could belong to either (a failed push is the worked
-      example) (#296, US12.AC1–AC4) — strong: edits the runtime-neutral workflow boundary and
+      different earns a re-attempt), plus the **routing predicate**, stated outright: a failure in
+      the maker's own verify/edit/push work is the three-strike bound's, a failure of the
+      orchestration mechanism itself (dispatch, diff provision, role/model resolution) is this
+      one's, and a failed push is therefore the maker's. Record that this re-attempt bound is
+      dispatcher-level and changes no round limit, veto authority, or tier floor, so it sits
+      outside the Non-goal on gate semantics (#296, US12.AC1–AC4) — strong: edits the runtime-neutral workflow boundary and
       the gate's fallback contract (constitution P1/P3/P5)
 - [ ] T648 [strong] **Extend** the existing decision-ready contract (`Decision needed:` /
       `Recommendation:`) in place — never a parallel schema, which would contradict the
@@ -739,19 +753,26 @@
       blocking enum because §6.5 requires enumerated choices answerable in a word, and
       admitting it would relax the condition this task promises to preserve), the question,
       enumerated options for `choice`, and **the engine's action per answer**, preserving
-      `Decision needed: none (informational)` unchanged. State the **predicate** for a
-      blocking site (the run cannot proceed until an owner reply is read) and **derive** the
-      enforced set from it with a non-vacuity assertion over the known members: §7
+      `Decision needed: none (informational)` unchanged. State the **predicate** for a blocking ask —
+      *the engine cannot act on **this item** until an owner reply is read*, scoped to the
+      work item rather than the run, since most sites surface the ask and continue — and
+      **derive** the enforced set from an explicit machine-readable **`[blocking ask]` tag**
+      at each site (never a prose read, never a hard-coded path list, so the derivation is
+      independent of the emission markers it grades), with a non-vacuity assertion over: §7
       non-convergence (pre-PR-gate card, `gate-loop.md`), review-response non-convergence,
       intake's underspecified bucket **and** its constitution-screen stop, the
       `[selection announce-and-confirm]` confirm pause, §6.5 "your call" items in the PR body,
-      and T647's own escalation comment. `retry.md`'s marked comment is **excluded and stated
-      as excluded** — bookkeeping consumed as maker input, asking the owner nothing, so
-      including it would make the check's directions contradict on one file. The check fails
+      and T647's own escalation comment. The set is **item-scoped and the exclusion
+      artifact-scoped**, and one site may emit both: at the §7 stop the *retry-verdicts*
+      comment is excluded (bookkeeping consumed as maker input, asking nothing) while the
+      *decision item* that stop surfaces is included — scoping the exclusion to the artifact
+      rather than the site is what keeps the check's directions from colliding on one file. The check fails
       **three** directions: a blocking site with no `question_format`; an informational item
       given one; and a blocking site emitting no `Decision needed:` at all. Parsing is
-      deterministic and two-sided with a **named parsing artifact and calling site**: only a
-      reply matching the offered format is an answer, anything else is steering and never
+      deterministic and two-sided with the parsing rule stated in the §2.5
+      thread-reading card (`next-task/03-read-context.md`) and encoded as a hook in
+      `.claude/hooks/`, called from that §2.5 thread-read step and from the resume protocol:
+      only a reply matching the offered format is an answer, anything else is steering and never
       consent, both directions proven in the required check; a reply that both conforms and
       steers is **both** (§2.5 keeps the newest unmarked owner comment authoritative).
       Independently of format, a conforming reply applies **only** the asked decision — never
@@ -761,8 +782,10 @@
       activation and gate-semantics arms, which nothing pins today. Name the schema in the
       marked-comment write-intent rows and **extend** the contract check with a new assertion
       (stated as work: the check reads no constraint-cell content today, so a dropped
-      reference fails nothing), naming its diagnostic, falsified on **planted fixtures** and
-      paired with an emission-level fixture so the reference is load-bearing. A conformance
+      reference fails nothing), with the diagnostic stated literally — `intent role '<role>'
+      constraint cell omits the blocking-contact schema reference (repair: name the schema, or
+      the documented exemption)` — falsified on **planted fixtures** against that exact string
+      and paired with an emission-level fixture so the reference is load-bearing. A conformance
       probe proves both halves at runtime, two-sided in each: a blocking site emits the schema
       while an informational item does not, and a conforming reply is consumed as an answer
       while a non-conforming one leaves the run blocked. The #295 conversion edits the same
