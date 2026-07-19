@@ -692,6 +692,80 @@
       (#226; repo-maintenance — done-when on issue) — strong: permission/config scoping on
       the maker≠checker protected-path surface, adjacent to P4 and the guard wall
 
+> US11 (T645–T646) hardens **resume safety**: an interrupted run that is re-run must
+> reconcile against its own prior writes instead of duplicating them, and an attempt must
+> carry an identity a later promotion can verify. T645 lands the identity first because
+> T646's lookup predicates are keyed by it. Sequencing per the owner's note on #295:
+> both follow **T620** (Omnigent live-driver conformance). Neither adopts a runtime
+> dependency — #294 rejected that; only the concepts transfer.
+
+- [ ] T645 [strong] Define the **attempt identity** as an authoritative, complete list of
+      **atoms** — task ID, attempt/run ID, worktree path, expected base commit, **and the
+      commit the §7 gate audited** — each with its **allocation/stability rule** (which atoms
+      are freshly allocated per re-entry and which survive it), in exactly one neutral
+      location, referenced (never restated field-by-field) everywhere else, with a
+      deterministic drift assertion that **runs in the required check** and ships a planted
+      second-definition fixture proving it trips (P2/P3 — an unwired check is broken, not
+      probably-fine; the scan is shape-bound — a paraphrase stays reviewer-enforced); record the identity into telemetry as a **correlation key that is never
+      read back**, with a failed write never blocking promotion (the emitter symmetry rule);
+      and make it a **promotion precondition** — promotion proceeds only when **every atom**
+      matches and refuses when any single atom differs, with `isolated-workspace.test.sh`
+      planting a mismatch in **each atom separately** (five plants: path and base commit
+      distinct so a path-only comparison fails, and the audited commit carrying its own plant
+      so an implementation that never compares it fails) **and** asserting the all-match case
+      is not blocked. The audited commit is **not returned by the gate today** — the loop
+      returns outcome + verdicts and the audited HEAD reaches only telemetry — so this task
+      **adds** it to the `[orchestrated run]` Outputs cell and the gate-loop return shape as a
+      reviewed contract change (P4), and reads it from there: never from telemetry (P5), never
+      from a marked comment, never by re-resolving HEAD live. The check confirms a PASS is
+      applied to the artifact the gate audited — a precondition on applying the verdict,
+      **not** a second promotion authority
+      (#295, US11.AC1–AC3; blocked by T620) — strong: touches the isolation promotion
+      boundary, the gate's return contract, and the P5 observe-only fence
+- [ ] T646 [strong] Add **reconciliation preconditions** to the closed write-intent family:
+      each of the four **creating** intents (`[create-issue output]`,
+      `[add-issue-comment output]`, `[add-pr-comment output]`, `[open-pr output]`) gains a
+      clause naming **both** (i) a **resume-stable** lookup key — task ID for the issue, head
+      branch for the PR, and marker + task ID + **a per-call-site discriminator** for a
+      marked comment: the comment rows name the key **shape**, each posting call site
+      declares its discriminator in its own workflow doc (an undeclared call site posts
+      additively as today, outside reconciliation's scope), and for the retry comment the
+      discriminator is **the audited commit the verdicts describe** — carried by T645's
+      gate-return contract change and on `retry.md`'s deterministic first line — never the
+      round ordinal, since one retry comment spans many `{auditor, round}` body sections and
+      the gate restarts numbering per invocation, so an ordinal-keyed lookup would adopt a
+      prior attempt's comment and drop the new verdicts (US10.AC1/AC2 keep holding: a
+      same-run replay adopts/skips, a new attempt's different audited commit still posts) —
+      each stated explicitly as *not* the worktree path and *not* a per-re-entry
+      attempt ID, since a lookup keyed on freshly-allocated atoms can never match a prior
+      attempt, and adopting **by key alone, regardless of author** (an intake-retitled
+      owner-filed issue *is* the task's issue); and (ii) the outcome, **adopt or skip — never "update"**, since all four roles
+      are create-only/additive in cells this task leaves unchanged and the family rule is flat
+      ("never by widening an existing role's meaning"). Adopting means *using* the existing
+      artifact instead of creating a second; where a mutation is wanted **and a convergent
+      intent already owns it**, that intent performs it — comments have none by design, so
+      comments are adopt-or-skip only and stay additive-only. This task does **not** redefine
+      `[update-pr output]`'s "a PR the run itself opened". The three **convergent** intents
+      (`[update-pr output]`, `[update-issue-metadata output]`, `[push-task-branch output]`)
+      instead carry an explicit why-it-is-already-safe note (clausing all seven does not
+      satisfy this); `write-intents-check.sh` grows a reconciliation check whose
+      creating/convergent partition is **carried by the check**, failing on a missing clause,
+      a half-clause, a mis-clause, an **unclassified** role, **and** a carried role with **no
+      matching row** (the under-match direction), requiring family size == classified count ==
+      partition size, all non-zero (a bare non-zero floor is clearable by a regex matching one
+      row of seven); `write-intents-check.test.sh` proves every direction on **planted
+      fixtures** — not the live contract this task edits — each asserting its specific
+      diagnostic, plus a passing positive control; concrete mechanisms stay adapter-side while
+      the neutral stage cards name the [role] only, with the **neutrality** scan load-bearing
+      (the leak scan covers write verbs, so a read-shaped lookup would evade it); and a
+      conformance probe proves reconciliation **executes** across three runs and both decision
+      directions — one artifact after a first run, still one after a same-key re-execution,
+      **two** after a different-key run (so an unconditionally-adopting stub fails), covering
+      the issue, marked-comment, **and** PR kinds (the PR leg on a fixture/override surface,
+      never a live tracker write)
+      (#295, US11.AC4–AC8; blocked by T620, T645) — strong: extends the write-intent
+      contract and the neutrality boundary (constitution P1/P2/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -742,6 +816,14 @@
 | US10.AC3 | T635 |
 | US10.AC4 | T635 |
 | US10.AC5 | T635 |
+| US11.AC1 | T645 |
+| US11.AC2 | T645 |
+| US11.AC3 | T645 |
+| US11.AC4 | T646 |
+| US11.AC5 | T646 |
+| US11.AC6 | T646 |
+| US11.AC7 | T646 |
+| US11.AC8 | T646 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 

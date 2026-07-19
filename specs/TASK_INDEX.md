@@ -70,6 +70,8 @@
 | T641 | strong | [x] |  |  | Close the `gh api --method GET:*` merge-boundary evasion: the committed… |
 | T642 | strong | [x] |  |  | Stop the §7 `[orchestrated run]` from dispatching **vacuously** when… |
 | T644 | strong | [ ] |  |  | **Decide protected-path pre-approval for autonomous/headless runs**… |
+| T645 | strong | [ ] | US11.AC1-AC3 |  | Define the **attempt identity** as an authoritative, complete list of… |
+| T646 | strong | [ ] | US11.AC4-AC8 |  | Add **reconciliation preconditions** to the closed write-intent family… |
 
 ## specs/002-spec-quality-gate/spec.md
 
