@@ -422,78 +422,139 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   exhaust-autonomous-work-first rule, and a world-state refresh. US12 adds machine-readable
   answer semantics on top of that contract. Defining a parallel schema would contradict an
   unchanged §6.5, so every criterion below composes with it.
-- **A structured answer never becomes merge authorization.** The pair already forbids a
-  merge/land as an offered choice (§2.5's one-way valve). Making answers machine-parsable
-  would otherwise create exactly the channel the merge rules exist to deny, so AC7 states
-  the exclusion explicitly rather than leaving it implied.
+- **A structured answer never becomes authority.** The pair already forbids a merge/land as
+  an offered choice (§2.5's one-way valve). Making answers machine-parsable would otherwise
+  create exactly the channel the merge rules exist to deny — so AC7 states the exclusion
+  explicitly and extends it past merge to autonomy activation and gate semantics, which
+  §2.5's enumerated list does not name.
+- **No new terminal outcome, and no new obligation row.** Two closed sets sit next to this
+  story and neither is widened: the `[backlog-loop]`'s outcome grammar (AC2 reuses the
+  existing `aborted` token rather than adding `blocked`), and the next-task obligations
+  inventory, which "guards preservation, not accretion" — so US12's executor obligation is
+  carried in the stage card and its docs-encoding test, not appended to the frozen ratchet.
+- **The bound's counter is durable, and its source is the tracker.** A resumed run cannot
+  read a counter from conversation memory. The durable source is the tracker channel or the
+  run's own return value — never the telemetry stream, whose `fix_rounds_used` field is the
+  convenient and forbidden implementation (AC1, mirroring US10.AC3's boundary).
 
 **Acceptance Criteria**
 - AC1: `next-task.md`'s implement/verify territory carries a runtime-neutral
-  **bounded-retry rule** with both of its terms defined, because neither is inferable:
-  **"the same check"** is defined by a stated check identity (what makes two failures the
-  same check rather than two different ones), and **"a distinct intervening change"** is
-  defined as what resets the counter. The rule is **two-sided**: the run does **not**
-  escalate before the third consecutive failure of the same check (a transient first
-  failure is not an escalation event), and does **not** continue retrying past it. The
-  counter **resets** on a distinct intervening change, so an ordinary fix-and-rerun cycle
-  is never throttled. A rule stating only an upper bound does not satisfy this — an
-  implementation that escalates on the first failure would satisfy "never exceeds three".
-- AC2: On reaching the bound, the run compacts the failure evidence — the exit code plus
-  the minimal relevant log excerpt, consistent with the existing log-and-summarize
-  discipline — and escalates: it posts that evidence to the task's issue as a marked
-  comment via the existing comment write-intent, and halts the stage (review mode) or
-  records a blocked outcome (backlog-loop). It never silently continues and never merges.
-  **Compaction is bounded, not nominal:** the criterion states an explicit size bound and
-  requires the exit code and the failing check's identity to survive compaction, so pasting
-  the full log does not satisfy it and neither does an excerpt that omits which check failed.
-- AC3: The counter is encoded **deterministically wherever an adapter already counts** —
-  the orchestrated gate loop already tracks fix rounds — with tests pinning all three
-  boundaries: no escalation at two consecutive failures, escalation at three, and a reset
-  proven by a distinct intervening change followed by failures that do **not** escalate.
-  A test covering only the escalation boundary does not satisfy this. Where the bound
-  remains executor discipline rather than adapter code, it is registered as a row in the
-  next-task obligations inventory so the completeness check covers it; because that file is
-  a frozen change-ratchet, the row's hash and count are updated manually in the same
-  human-reviewed PR with the contract change justified, never regenerated as a mirror.
-- AC4: `gate-loop.md`'s degradation notes carry the orchestration-level failure procedure,
-  generalized from operator lore into a stated rule: on an orchestration-level failure,
-  make **one** fresh re-attempt, and on a **failure identical to the first** stop
-  re-attempting and fall back to the documented prose path. The trigger is named as the
-  identical-failure condition — not an elapsed time and not an arbitrary retry count — and
-  the rule states what makes two failures identical, so "identical" is checkable rather
-  than a reader's judgment. This is deliberately distinct from AC1's three-strike bound:
-  the maker's inner loop retries work that can legitimately succeed on repeat, while an
-  orchestration failure that reproduces exactly is deterministic and will not.
+  **bounded-retry rule** with both of its terms defined, because neither is inferable.
+  **"The same check"** is defined by a check identity that is **insensitive to run-varying
+  content** — the criterion names the excluded classes (error-message text, timing/duration,
+  absolute paths, and result ordering), because an identity that varies per run makes the
+  bound unreachable while leaving identical-failure tests green. **"A distinct intervening
+  change"** is defined as what resets the counter, and the rule states explicitly that a
+  **mandated response to a stall does not reset it** — decomposing a stalled failure into
+  subproblems (the unchanged §5 rule) starts a counter for any new check it introduces while
+  the original check's counter persists, so the bound stays reachable in exactly the spin
+  scenario this story exists to stop. The rule is **two-sided**: the run does **not**
+  escalate before the third consecutive failure of the same check, and does **not** continue
+  retrying past it. A rule stating only an upper bound does not satisfy this — an
+  implementation escalating on the first failure would satisfy "never exceeds three". The
+  counter must survive a resume, and its durable source is the tracker channel or the run's
+  own return value; **no path reads it from the telemetry stream** (constitution P5, the
+  boundary US10.AC3 states for the retry channel).
+- AC2: On reaching the bound, the run compacts the failure evidence and escalates: it posts
+  that evidence to the task's issue as a marked comment via the existing comment
+  write-intent, and halts the stage (review mode) or, under the `[backlog-loop]`, ends the
+  iteration with the **existing** `aborted` outcome — US12 adds no token to that closed
+  outcome grammar and no row to its stop-condition table. It never silently continues and
+  never merges. **Compaction is bounded by a stated number, not by the word "compact":** the
+  criterion names an explicit ceiling (at most 50 lines or 4 KB, whichever is smaller) and
+  requires the **exit code** and the **failing check's identity** to survive compaction.
+  Falsification covers both misses: a full-log paste fails the bound, and an excerpt that
+  drops the check identity fails the content requirement.
+- AC3: The bound is encoded where the failures actually occur — the maker's inner loop —
+  and the criterion **names that locus explicitly** rather than delegating to a counter that
+  does not observe check failures. (The orchestrated gate loop's `fixRoundsUsed` counts
+  *reviewer verdict rounds* against its own 2-round non-convergence bound; it never sees a
+  verification failure, an edit-guard rejection, or a failed push. Encoding US12's bound
+  there would either change §7 gate semantics — barred by this spec's own Non-goals — or be
+  unreachable behind the existing non-convergence return.) Wherever the active adapter can
+  hold the counter as code, tests pin all three boundaries: no escalation at two consecutive
+  failures, escalation at three, and a reset proven by a distinct intervening change followed
+  by failures that do **not** escalate — plus a fourth case in which the same check fails
+  three times with **differing output text** and still escalates, proving the identity is
+  run-invariant per AC1. A test covering only the escalation boundary does not satisfy this.
+  Where the bound stays executor discipline, it is stated in the stage card and covered by
+  that card's docs-encoding test; it is **not** appended to the frozen obligations inventory,
+  which guards preservation rather than accretion.
+- AC4: The orchestration-level failure procedure is generalized from operator lore into a
+  stated rule in `gate-loop.md`, in the section documenting the prose-procedure fallback
+  (the doc has no "degradation notes" heading today; the criterion names the section it
+  lands in rather than inventing one): on an orchestration-level failure, make **one** fresh
+  re-attempt, and on a failure **of the same class as the first** stop re-attempting and
+  fall back to the documented prose path. "Same class" is defined as the same failing step
+  plus the same diagnostic class, **insensitive to run-varying content** (the same exclusion
+  list AC1 names), so the rule is neither vacuous (byte-strict identity, where nothing ever
+  repeats and re-attempts are unbounded) nor trivially satisfied (loose identity, where it
+  always stops after one). A **paired fixture** pins both directions: a same-class second
+  failure stops and falls back, and a genuinely different failure earns its re-attempt.
+  The criterion also states the **routing predicate** separating AC1 from AC4 — which bound
+  claims a failure that could plausibly belong to either (a failed push is the worked
+  example) — so the two rules cannot both claim one site with no tie-break.
 - AC5: The existing decision-ready contract (`Decision needed:` / `Recommendation:`) is
   **extended** — in place, not duplicated — for comments that **block** on an owner answer,
-  with: the attempt identity, a `question_format` of `yes-no | choice | free-text`, the
-  question, the enumerated options when the format is `choice`, and **the engine's action
-  for each answer**. The `Decision needed: none (informational)` form is preserved unchanged
-  for non-blocking items. The extension composes with §6.5's three existing conditions
-  (exhaust autonomous work first; enumerate choices and consequences; refresh world-state
-  before surfacing) rather than restating or relaxing any of them; a second, parallel
-  schema defined elsewhere does not satisfy this and contradicts the unchanged §6.5.
-- AC6: Every site that **blocks** on an owner answer emits the extended form. The set is
-  enumerated from the live tree rather than assumed: the §7 gate's non-convergence stop
-  (the pre-PR-gate stage card, `gate-loop.md`, and `retry.md`), the review-response
-  non-convergence stop, and intake's underspecified bucket. A deterministic check fails a
-  blocking site that emits a bare `Decision needed:` with no `question_format`, and — the
-  other direction — fails a **non**-blocking informational item that has been given a
-  `question_format`, so the marker distinguishes blocking from informational rather than
-  decorating everything.
-- AC7: Answer parsing is deterministic and **two-sided**: a reply is treated as an answer
-  **only** when it matches the offered format (a `choice` reply naming exactly one
-  enumerated option; a `yes-no` reply resolving to yes or no), and any other reply is owner
-  steering to be read, **never** consent. Both directions are proven — a conforming reply
-  *is* accepted, and a non-conforming reply is *not* — so a parser that accepts everything
-  and one that accepts nothing both fail. Independently of format, **no reply of any shape
-  authorizes a merge**: merge authorization stays session-explicit, and a `yes` to a
-  blocking question applies that decision only. An implementation that lets a conforming
-  reply satisfy merge authorization violates this criterion.
+  with: the attempt identity, a `question_format` of **`yes-no | choice`**, the question,
+  the enumerated options when the format is `choice`, and **the engine's action for each
+  answer**. `free-text` is deliberately **excluded from the blocking enum**: §6.5's second
+  condition requires the exact choices and their consequences be enumerated so the owner
+  answers in a word, and a free-text blocking question cannot satisfy it — admitting the
+  value would relax the very condition this criterion promises to preserve. The
+  `Decision needed: none (informational)` form is preserved unchanged for non-blocking
+  items, which may still carry prose. The extension composes with §6.5's three existing
+  conditions rather than restating or relaxing any of them; a second, parallel schema
+  defined elsewhere does not satisfy this and contradicts the unchanged §6.5.
+- AC6: The criterion states the **predicate** for a blocking site — *the run cannot proceed
+  past this step until an owner reply is read* — and the enforced set is **derived from that
+  predicate**, not hard-coded, with a non-vacuity assertion that the derived set contains the
+  known members. Swept from the live tree, those are: the §7 gate's non-convergence stop
+  (the pre-PR-gate stage card and `gate-loop.md`), the review-response non-convergence stop,
+  intake's underspecified bucket **and** its constitution-screen conflict stop, the
+  `[selection announce-and-confirm]` confirm pause, the §6.5 "your call" decision items in
+  the PR body, and AC2's own escalation comment. `retry.md`'s marked retry comment is
+  **excluded and stated as excluded**: it is engine bookkeeping consumed by the next attempt
+  as maker input, it asks the owner nothing, and the unchanged US10 gives it no steering
+  authority — placing it in the blocking set would make the check's two directions
+  contradict each other on one file. A deterministic check fails **three** directions: a
+  blocking site emitting a bare `Decision needed:` with no `question_format`; a
+  **non**-blocking informational item given a `question_format`; and a blocking site emitting
+  **no** `Decision needed:` at all, so a site that simply omits both markers cannot pass
+  silently.
+- AC7: Answer parsing is deterministic and **two-sided**, and the criterion **names the
+  artifact that parses and the site that calls it** rather than leaving the locus open. A
+  reply is treated as an answer **only** when it matches the offered format (a `choice`
+  reply naming exactly one enumerated option; a `yes-no` reply resolving to yes or no), and
+  any other reply is owner steering to be read, **never** consent. Both directions are
+  proven — a conforming reply *is* accepted, and a non-conforming reply is *not* — so a
+  parser that accepts everything and one that accepts nothing both fail, and that test runs
+  in the required check. A reply that **both** conforms and steers (`yes — and narrow the
+  scope`) is stated to be **both**: the answer is taken and the steering is read, since
+  §2.5 makes the newest unmarked owner comment authoritative regardless. Independently of
+  format, a conforming reply **applies the asked decision only**: it never authorizes a
+  merge, never engages autonomous mode, never alters gate semantics (round limits, veto
+  authority, tier floors), and never reaches any family-wide write-intent exclusion. Merge
+  authorization stays session-explicit. An implementation letting a conforming reply satisfy
+  any of those violates this criterion — the merge arm is already backstopped
+  deterministically, and the criterion's falsification covers the activation and
+  gate-semantics arms, which no existing check pins.
 - AC8: The blocking-contact schema is named in the write-intent contract rows for the
-  marked-comment intents, so the existing contract check backstops drift, with
-  falsification on **planted fixtures** rather than the live contract this story edits —
-  a fixture whose blocking-comment row omits the schema reference fails with its specific
-  diagnostic, and a positive fixture passes. Note for sequencing: US11.AC4 edits the same
-  contract rows, so whichever task lands second rebases onto the other's rows rather than
-  re-authoring them.
+  marked-comment intents, and the contract check is **extended with a new assertion** to
+  backstop it — stated as work, not as an existing property, because the check today parses
+  those rows only for role names and reads no constraint-cell content, so a dropped schema
+  reference would fail nothing. The criterion names the new diagnostic. Falsification runs
+  on **planted fixtures** rather than the live contract this story edits: a fixture whose
+  blocking-comment row omits the schema reference fails with that specific diagnostic, and a
+  positive fixture passes. The row-level fixture is **paired with an emission-level one**, so
+  the schema reference is load-bearing rather than a string sitting in a table cell.
+  Sequencing: the conversion of issue #295 edits the same contract rows, so whichever of the
+  two lands second rebases onto the other's rows rather than re-authoring them.
+- AC9: A conformance probe exercises both halves of this story **at runtime**, two-sided in
+  each: a blocking site posts a comment carrying the schema while an informational item posts
+  one without it; and a conforming reply is consumed as an answer while a non-conforming
+  reply is not (it remains steering, and the run stays blocked). A probe covering only the
+  emission half, only the parse half, or only one direction of either does not satisfy this.
+  Without this criterion every other criterion in the story grades a document or a
+  docs-encoding scan, and neither the emitted comment nor the parse decision would ever be
+  proven to execute.

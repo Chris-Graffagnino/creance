@@ -71,7 +71,7 @@
 | T642 | strong | [x] |  |  | Stop the §7 `[orchestrated run]` from dispatching **vacuously** when… |
 | T644 | strong | [ ] |  |  | **Decide protected-path pre-approval for autonomous/headless runs**… |
 | T647 | strong | [ ] | US12.AC1-AC4 |  | Add a runtime-neutral **bounded-retry rule** to the implement/verify… |
-| T648 | strong | [ ] | US12.AC5-AC8 |  | **Extend** the existing decision-ready contract (`Decision needed:` /… |
+| T648 | strong | [ ] | US12.AC5-AC9 |  | **Extend** the existing decision-ready contract (`Decision needed:` /… |
 
 ## specs/002-spec-quality-gate/spec.md
 

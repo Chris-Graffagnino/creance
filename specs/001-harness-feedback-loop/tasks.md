@@ -693,58 +693,82 @@
       the maker≠checker protected-path surface, adjacent to P4 and the guard wall
 
 > US12 (T647–T648) closes the two residual 12-factor-agents gaps. T647 lands first — it is
-> the cheaper change and the one with a production scar behind it (the gate-loop flake
-> procedure). Numbering assumes US11/T645–T646 (#295) land first; if that conversion is
-> rejected, these renumber. T648 edits the same write-intent contract rows as T646, so
-> whichever lands second rebases rather than re-authoring.
+> the cheaper change and the one with a production scar behind it (the orchestration-level
+> flake procedure). Numbering assumes the #295 conversion lands first; if it is rejected,
+> these renumber and spec 001 would otherwise keep a US11 hole — nothing deterministic
+> catches that, so it is recorded here. The #295 conversion edits the same write-intent
+> contract rows, so whichever lands second rebases rather than re-authoring.
 
 - [ ] T647 [strong] Add a runtime-neutral **bounded-retry rule** to the implement/verify
-      territory of `next-task.md`, with **both** of its terms defined — a stated **check
-      identity** (what makes two failures the same check) and what counts as a **distinct
-      intervening change** (what resets the counter) — and stated **two-sided**: no
-      escalation before the third consecutive failure of the same check, no retrying past
-      it, and a reset on a distinct intervening change so an ordinary fix-and-rerun cycle is
-      never throttled (an upper bound alone is satisfied by escalating on the first
-      failure). On the bound, compact the evidence — exit code + minimal relevant excerpt,
-      under a stated size bound, with the exit code and failing check's identity surviving
-      compaction so neither a full-log paste nor a which-check-omitted excerpt satisfies it
-      — post it to the task issue via the existing marked-comment intent, and halt the stage
-      (review mode) or record a blocked outcome (backlog-loop), never silently continuing
-      and never merging. Encode the counter deterministically where the adapter already
-      counts fix rounds, with tests pinning **all three** boundaries (no escalation at two,
-      escalation at three, and a proven reset), and where it stays executor discipline
-      register it in the next-task obligations inventory — a frozen change-ratchet, so the
-      row's hash and count are updated manually in the same reviewed PR with the contract
-      change justified. Also generalize the orchestration-level flake procedure from
-      operator lore into `gate-loop.md`'s degradation notes: one fresh re-attempt, then on
-      an **identical** failure stop and fall back to the prose path, with "identical"
-      defined and the trigger named as the identical-failure condition rather than a time or
-      an arbitrary count — deliberately distinct from the three-strike bound, since an
-      orchestration failure that reproduces exactly is deterministic and will not succeed on
-      repeat (#296, US12.AC1–AC4) — strong: edits the runtime-neutral workflow boundary and
-      the gate's degradation contract (constitution P1/P3)
+      territory of `next-task.md`, with **both** terms defined — a **check identity that is
+      insensitive to run-varying content** (error text, timing, absolute paths, ordering are
+      named as excluded, since a run-varying identity makes the bound unreachable while
+      identical-failure tests stay green) and what counts as a **distinct intervening
+      change**, stating explicitly that a mandated response to a stall does **not** reset it
+      (the unchanged §5 decompose rule starts a counter for any new check while the original
+      check's counter persists) — and stated **two-sided**: no escalation before the third
+      consecutive failure of the same check, none past it. The counter survives a resume and
+      its durable source is the tracker channel or the run's own return value, **never the
+      telemetry stream** (P5, the boundary US10.AC3 states for the retry channel). On the
+      bound, compact the evidence under a **stated numeric ceiling** (≤50 lines or 4 KB,
+      whichever is smaller) with the exit code and failing check's identity surviving, post it
+      to the task issue via the existing marked-comment intent, and halt the stage (review
+      mode) or end the backlog iteration with the **existing** `aborted` outcome — no new
+      token in that closed grammar, no new stop-condition row. Encode the counter at the locus
+      that actually observes check failures — the maker's inner loop — **not** the gate loop's
+      `fixRoundsUsed`, which counts reviewer verdict rounds against its own 2-round bound and
+      never sees a verification failure (encoding there would change §7 gate semantics, barred
+      by this spec's Non-goals, or be unreachable dead code). Tests pin four cases: no
+      escalation at two, escalation at three, a proven reset, and three failures with
+      **differing output text** that still escalate. Where it stays executor discipline it is
+      stated in the stage card and covered by that card's docs-encoding test — **not** appended
+      to the frozen obligations inventory, which guards preservation rather than accretion.
+      Also generalize the orchestration-level flake procedure into `gate-loop.md`'s
+      prose-fallback section (the doc has no "degradation notes" heading — name the real
+      section): one fresh re-attempt, then on a **same-class** failure stop and fall back,
+      with "same class" defined as same failing step + same diagnostic class under the same
+      run-varying exclusions, pinned by a paired fixture (same-class stops; genuinely
+      different earns a re-attempt), plus the **routing predicate** separating this bound from
+      the three-strike one where a failure could belong to either (a failed push is the worked
+      example) (#296, US12.AC1–AC4) — strong: edits the runtime-neutral workflow boundary and
+      the gate's fallback contract (constitution P1/P3/P5)
 - [ ] T648 [strong] **Extend** the existing decision-ready contract (`Decision needed:` /
       `Recommendation:`) in place — never a parallel schema, which would contradict the
       unchanged §6.5 — for comments that **block** on an owner answer: attempt identity,
-      `question_format` (`yes-no | choice | free-text`), the question, enumerated options for
-      `choice`, and **the engine's action per answer**, preserving
-      `Decision needed: none (informational)` unchanged and composing with §6.5's three
-      existing conditions rather than relaxing them. Apply it at the blocking sites
-      enumerated from the live tree — the §7 non-convergence stop (pre-PR-gate stage card,
-      `gate-loop.md`, `retry.md`), the review-response non-convergence stop, and intake's
-      underspecified bucket — with a deterministic check failing **both** directions: a
-      blocking site emitting a bare `Decision needed:` with no `question_format`, **and** an
-      informational item decorated with one. Parsing is deterministic and two-sided: only a
-      reply matching the offered format is an answer (a `choice` reply naming exactly one
-      enumerated option; a `yes-no` reply resolving to yes or no), anything else is steering
-      to read and never consent — both directions proven, so a parser accepting everything
-      and one accepting nothing both fail. Independently of format, **no reply of any shape
-      authorizes a merge**; merge authorization stays session-explicit and a `yes` applies
-      only the decision asked. Name the schema in the marked-comment write-intent contract
-      rows so the existing contract check backstops drift, falsified on **planted fixtures**
-      rather than the live contract this task edits; blocked by T647 (#296, US12.AC5–AC8)
-      — strong: edits the owner-contact contract adjacent to the merge boundary
-      (constitution P1/P3/P4)
+      `question_format` (**`yes-no | choice`** only — `free-text` is excluded from the
+      blocking enum because §6.5 requires enumerated choices answerable in a word, and
+      admitting it would relax the condition this task promises to preserve), the question,
+      enumerated options for `choice`, and **the engine's action per answer**, preserving
+      `Decision needed: none (informational)` unchanged. State the **predicate** for a
+      blocking site (the run cannot proceed until an owner reply is read) and **derive** the
+      enforced set from it with a non-vacuity assertion over the known members: §7
+      non-convergence (pre-PR-gate card, `gate-loop.md`), review-response non-convergence,
+      intake's underspecified bucket **and** its constitution-screen stop, the
+      `[selection announce-and-confirm]` confirm pause, §6.5 "your call" items in the PR body,
+      and T647's own escalation comment. `retry.md`'s marked comment is **excluded and stated
+      as excluded** — bookkeeping consumed as maker input, asking the owner nothing, so
+      including it would make the check's directions contradict on one file. The check fails
+      **three** directions: a blocking site with no `question_format`; an informational item
+      given one; and a blocking site emitting no `Decision needed:` at all. Parsing is
+      deterministic and two-sided with a **named parsing artifact and calling site**: only a
+      reply matching the offered format is an answer, anything else is steering and never
+      consent, both directions proven in the required check; a reply that both conforms and
+      steers is **both** (§2.5 keeps the newest unmarked owner comment authoritative).
+      Independently of format, a conforming reply applies **only** the asked decision — never
+      authorizing a merge, engaging autonomous mode, altering gate semantics (round limits,
+      veto authority, tier floors), or reaching a family-wide write-intent exclusion; the
+      merge arm is already backstopped deterministically, and falsification covers the
+      activation and gate-semantics arms, which nothing pins today. Name the schema in the
+      marked-comment write-intent rows and **extend** the contract check with a new assertion
+      (stated as work: the check reads no constraint-cell content today, so a dropped
+      reference fails nothing), naming its diagnostic, falsified on **planted fixtures** and
+      paired with an emission-level fixture so the reference is load-bearing. A conformance
+      probe proves both halves at runtime, two-sided in each: a blocking site emits the schema
+      while an informational item does not, and a conforming reply is consumed as an answer
+      while a non-conforming one leaves the run blocked. The #295 conversion edits the same
+      contract rows — whichever lands second rebases; blocked by T647
+      (#296, US12.AC5–AC9) — strong: edits the owner-contact contract adjacent to the merge
+      and autonomy boundaries (constitution P1/P3/P4)
 
 ## Criterion ownership (multi-task user stories)
 
@@ -804,6 +828,7 @@
 | US12.AC6 | T648 |
 | US12.AC7 | T648 |
 | US12.AC8 | T648 |
+| US12.AC9 | T648 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
