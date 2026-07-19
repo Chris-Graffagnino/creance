@@ -700,50 +700,60 @@
 > dependency — #294 rejected that; only the concepts transfer.
 
 - [ ] T645 [strong] Define the **attempt identity** as an authoritative, complete list of
-      **atoms** — task ID, attempt/run ID, worktree path, expected base commit — each with
-      its **allocation/stability rule** (which atoms are freshly allocated per re-entry and
-      which survive it), in exactly one neutral location, referenced (never restated
-      field-by-field) everywhere else, with a deterministic drift assertion failing on a
-      second field-list definition (P2/P3 — the copy set is enumerable, so this is
-      mechanized); record it into telemetry as a **correlation key that is never read
-      back**; and make it a **promotion precondition** — promotion proceeds only when task,
-      attempt, worktree path, expected base commit, **and the commit the §7 gate audited**
-      all match, refusing when any single atom differs, with `isolated-workspace.test.sh`
-      planting a mismatch in **each atom separately** (path and base commit as two distinct
-      plants, so a path-only comparison cannot pass) **and** asserting the all-match case is
-      not blocked. The audited commit comes from the **gate's own outcome**, never the
-      telemetry stream and never a marked comment; no gate, tier, selection, promotion, or
-      merge path reads any atom back from telemetry (constitution P5). The check confirms a
-      PASS is being applied to the artifact the gate actually audited — a precondition on
-      applying the verdict, **not** a second promotion authority
+      **atoms** — task ID, attempt/run ID, worktree path, expected base commit, **and the
+      commit the §7 gate audited** — each with its **allocation/stability rule** (which atoms
+      are freshly allocated per re-entry and which survive it), in exactly one neutral
+      location, referenced (never restated field-by-field) everywhere else, with a
+      deterministic drift assertion that **runs in the required check** and ships a planted
+      second-definition fixture proving it trips (P2/P3 — an unwired check is broken, not
+      probably-fine); record the identity into telemetry as a **correlation key that is never
+      read back**, with a failed write never blocking promotion (the emitter symmetry rule);
+      and make it a **promotion precondition** — promotion proceeds only when **every atom**
+      matches and refuses when any single atom differs, with `isolated-workspace.test.sh`
+      planting a mismatch in **each atom separately** (five plants: path and base commit
+      distinct so a path-only comparison fails, and the audited commit carrying its own plant
+      so an implementation that never compares it fails) **and** asserting the all-match case
+      is not blocked. The audited commit is **not returned by the gate today** — the loop
+      returns outcome + verdicts and the audited HEAD reaches only telemetry — so this task
+      **adds** it to the `[orchestrated run]` Outputs cell and the gate-loop return shape as a
+      reviewed contract change (P4), and reads it from there: never from telemetry (P5), never
+      from a marked comment, never by re-resolving HEAD live. The check confirms a PASS is
+      applied to the artifact the gate audited — a precondition on applying the verdict,
+      **not** a second promotion authority
       (#295, US11.AC1–AC3; blocked by T620) — strong: touches the isolation promotion
-      boundary and the P5 observe-only fence
+      boundary, the gate's return contract, and the P5 observe-only fence
 - [ ] T646 [strong] Add **reconciliation preconditions** to the closed write-intent family:
       each of the four **creating** intents (`[create-issue output]`,
       `[add-issue-comment output]`, `[add-pr-comment output]`, `[open-pr output]`) gains a
       clause naming **both** (i) a **resume-stable** lookup key — task ID for the issue, head
-      branch for the PR, marker + logical event for a marked comment — stated explicitly as
-      *not* the worktree path and *not* a per-re-entry attempt ID, since a lookup keyed on
-      freshly-allocated atoms can never match a prior attempt; and (ii) the outcome, **adopt
-      or skip — never "update"**, since all four roles are create-only/additive in cells this
-      task leaves unchanged and the family forbids widening a role outside a reviewed
-      contract change (P4); any mutation routes through the convergent intent that already
-      owns it, and `[update-pr output]`'s "the run" resolves to the **task** where a resumed
-      attempt adopts a prior PR. The three **convergent** intents (`[update-pr output]`,
-      `[update-issue-metadata output]`, `[push-task-branch output]`) instead carry an
-      explicit why-it-is-already-safe note (clausing all seven does not satisfy this);
-      `write-intents-check.sh` grows a reconciliation check whose creating/convergent
-      partition is **carried by the check**, failing on a missing clause, a half-clause, a
-      mis-clause, an **unclassified** role, **and** a carried role with **no matching row**
-      (the under-match direction), and requiring family size == classified count == partition
-      size, all non-zero (a bare non-zero floor is clearable by a regex matching one row of
-      seven); `write-intents-check.test.sh` proves every direction on **planted fixtures** —
-      not the live contract this task edits — each asserting its specific diagnostic, plus a
-      passing positive control; concrete mechanisms stay adapter-side while the neutral stage
-      cards name the [role] only, with the **neutrality** scan load-bearing (the leak scan
-      covers write verbs, so a read-shaped lookup would evade it); and a conformance probe
-      proves a reconciliation **executes** in both directions — one artifact after a first
-      run, still one after a simulated re-execution
+      branch for the PR, and marker + task ID + **the gate round ordinal the comment reports
+      on** for a marked comment (the `{auditor, round}` keying US10.AC1 already uses, so an
+      already-posted round adopts/skips while a later round still posts — US10.AC1/AC2 keep
+      holding) — each stated explicitly as *not* the worktree path and *not* a per-re-entry
+      attempt ID, since a lookup keyed on freshly-allocated atoms can never match a prior
+      attempt; and (ii) the outcome, **adopt or skip — never "update"**, since all four roles
+      are create-only/additive in cells this task leaves unchanged and the family rule is flat
+      ("never by widening an existing role's meaning"). Adopting means *using* the existing
+      artifact instead of creating a second; where a mutation is wanted **and a convergent
+      intent already owns it**, that intent performs it — comments have none by design, so
+      comments are adopt-or-skip only and stay additive-only. This task does **not** redefine
+      `[update-pr output]`'s "a PR the run itself opened". The three **convergent** intents
+      (`[update-pr output]`, `[update-issue-metadata output]`, `[push-task-branch output]`)
+      instead carry an explicit why-it-is-already-safe note (clausing all seven does not
+      satisfy this); `write-intents-check.sh` grows a reconciliation check whose
+      creating/convergent partition is **carried by the check**, failing on a missing clause,
+      a half-clause, a mis-clause, an **unclassified** role, **and** a carried role with **no
+      matching row** (the under-match direction), requiring family size == classified count ==
+      partition size, all non-zero (a bare non-zero floor is clearable by a regex matching one
+      row of seven); `write-intents-check.test.sh` proves every direction on **planted
+      fixtures** — not the live contract this task edits — each asserting its specific
+      diagnostic, plus a passing positive control; concrete mechanisms stay adapter-side while
+      the neutral stage cards name the [role] only, with the **neutrality** scan load-bearing
+      (the leak scan covers write verbs, so a read-shaped lookup would evade it); and a
+      conformance probe proves reconciliation **executes** across three runs and both decision
+      directions — one artifact after a first run, still one after a same-key re-execution,
+      **two** after a different-key run (so an unconditionally-adopting stub fails), covering
+      the issue **and** marked-comment kinds
       (#295, US11.AC4–AC8; blocked by T620, T645) — strong: extends the write-intent
       contract and the neutrality boundary (constitution P1/P2/P3/P4)
 

@@ -415,7 +415,7 @@ naming is the substrate, and each role simply lacks a resume-safety clause. Inta
 issue #295, whose research (#294) **rejected** adopting the runtime that surfaced the
 lesson: the concept transfers, the dependency does not.
 
-**Recorded trade-off calls.** Two decisions this story makes deliberately, so the
+**Recorded trade-off calls.** Three decisions this story makes deliberately, so the
 acceptance reviewer grades them as intended rather than as drift:
 - **Promotion gains a precondition, not a second veto.** `workflow/README.md` states
   promotion is *only* ever the §7 gate's PASS. AC2 does not add a competing authority: a
@@ -425,60 +425,85 @@ acceptance reviewer grades them as intended rather than as drift:
   is no verdict to apply — the check refuses a misapplied PASS, never overrides a real one.
 - **Reconciliation keys are resume-stable by construction.** The lookup that finds a prior
   artifact must key on something that survives re-entry. A fresh attempt/run ID and a fresh
-  worktree path do not (AC4), so keying on them would produce a criterion that is fully
+  worktree path do not, so keying on them would produce a criterion that is fully
   satisfiable while preventing zero duplicates. The attempt identity is therefore the
   *promotion* key (AC2), and the *reconciliation* key is a separate, per-artifact,
   resume-stable one (AC4). Conflating the two is the defect, not the design.
+- **The gate's return shape gains one field, as an explicit contract change.** The audited
+  commit AC2 compares is **not** returned by the §7 gate today — the loop returns the
+  outcome and the verdicts, and the audited HEAD reaches only the telemetry stream, which
+  AC3 forbids as a promotion input. Rather than infer HEAD live (the anti-pattern the
+  explicit-ref invariant exists to prevent) or read telemetry (P5), this story **adds** the
+  audited commit to the `[orchestrated run]` role's Outputs cell and to the gate-loop return
+  shape, as a reviewed contract change under P4 (AC2). No other role's meaning is widened.
 
 **Acceptance Criteria**
 - AC1: The **attempt identity** is defined in exactly **one** neutral location, as an
   authoritative and complete list of **atoms** — task ID; attempt/run ID; worktree path;
-  expected base commit — with each atom's **allocation and stability rule** stated (which
-  atoms are freshly allocated per re-entry and which survive it), because AC2 and AC4 key
-  on opposite halves of that split and cannot both be satisfied without it. Every other doc
-  that uses the identity references this definition rather than restating its fields, and a
-  deterministic drift assertion (the `reviewer-roster.test.sh` pattern) fails on a second
-  field-list definition elsewhere — the copy set is enumerable, so this is mechanized, not
-  left to a reader noticing (constitution P3).
+  expected base commit; and the commit the §7 gate audited — with each atom's **allocation
+  and stability rule** stated (which atoms are freshly allocated per re-entry and which
+  survive it), because AC2 and AC4 key on opposite halves of that split and cannot both be
+  satisfied without it. Every other doc that uses the identity references this definition
+  rather than restating its fields, and a deterministic drift assertion (the independent
+  oracle + mutation-case shape of `reviewer-roster.test.sh`, applied as a negative-existence
+  scan) fails on a second field-list definition elsewhere. That assertion **runs in the
+  project's required check** and ships a planted second-definition fixture proving it trips
+  — a check that exists but is not wired is treated as broken, not as probably-fine
+  (constitution P2/P3).
 - AC2: The isolated-workspace promotion path verifies, before a PR is opened from an
-  attempt, that the §7 gate's PASS actually describes this artifact: the task ID, attempt/run
-  ID, worktree path, expected base commit, **and the commit the gate audited** all match.
-  The audited commit is read from **the gate's own outcome** — the explicit HEAD-verified ref
-  the §7 gate already returns — never from the telemetry stream (AC3) and never from a
-  marked comment. Promotion **proceeds** when every atom matches and is **refused** when any
-  single atom differs; `isolated-workspace.test.sh` plants a mismatch in **each atom
-  separately** — the worktree path and the expected base commit counted as two distinct
-  plants, not one "fingerprint" plant, so a check comparing only the path cannot pass the
-  suite — **and** asserts the all-match case is not blocked. A check that refuses everything
-  fails this criterion exactly as one that refuses nothing does.
+  attempt, that the §7 gate's PASS actually describes this artifact: **every atom** of AC1's
+  identity matches. Promotion **proceeds** when every atom matches and is **refused** when
+  any single atom differs; `isolated-workspace.test.sh` plants a mismatch in **each atom
+  separately** — five distinct plants, with the worktree path and the expected base commit
+  counted separately so a check comparing only the path cannot pass the suite, and the
+  audited commit carrying its own plant so an implementation that never compares it fails —
+  **and** asserts the all-match case is not blocked. A check that refuses everything fails
+  this criterion exactly as one that refuses nothing does. The audited commit is carried as
+  an explicit field of the §7 gate's **return value**: this story adds it to the
+  `[orchestrated run]` role's Outputs cell (`workflow/README.md`) and to `gate-loop.md`'s
+  documented return shape as a reviewed contract change (P4), and the promotion check reads
+  it from there — never from the telemetry stream (AC3), never from a marked comment, and
+  never by re-resolving HEAD live.
 - AC3: The attempt identity is written into telemetry records as a correlation key and is
   never read back as one. No gate outcome, tier resolution, task selection, promotion
   decision, or merge authorization obtains it from the telemetry stream — the stream keeps
   zero consumers with control authority (constitution P5 unchanged). AC2's promotion check
-  reads it from the live workspace, the gate outcome, and the tracker's **issue/PR state**
-  — never from a **marked** comment, which is engine bookkeeping and carries no authority
-  (`next-task.md` §2.5); a promotion that obtains any atom from the stream or from a marked
-  comment violates this criterion.
+  reads it from the live workspace, the gate's return value, and the tracker's **issue/PR
+  state** — never from a **marked** comment, which is engine bookkeeping and carries no
+  authority (`next-task.md` §2.5); a promotion that obtains any atom from the stream or from
+  a marked comment violates this criterion. Consistent with the telemetry emitter law, a
+  failed correlation-key write never blocks, fails, or alters promotion — the measurement
+  channel cannot gate the thing it measures in either direction.
 - AC4: The contract's write-intent table carries a **reconciliation precondition** on each
   of the four **creating** intents — `[create-issue output]`, `[add-issue-comment output]`,
   `[add-pr-comment output]`, `[open-pr output]` — where re-execution would produce a second
   artifact rather than converge on the same end state. Each precondition states **both
-  halves**: (i) a lookup key that is **stable across exactly the re-executions it must
-  reconcile** — the task ID for the issue, the head branch for the PR, and the marker plus
-  the logical event identity for a marked comment — stated explicitly as **not** the
-  worktree path and **not** a per-re-entry attempt/run ID, since those are freshly allocated
-  on every re-entry (AC1) and a lookup keyed on them can never match a prior attempt; and
-  (ii) the outcome, which is **adopt the existing artifact or skip — never "update" it**,
-  because all four creating roles are constrained additive/create-only in cells this story
-  leaves unchanged (`[create-issue output]` "never ... edits an existing issue"; both comment
-  intents "Additive only ... never edits or deletes an existing comment"), and the family
-  forbids widening a role's meaning outside a reviewed contract change (P4). Any mutation of
-  an adopted artifact is performed by the existing convergent intent that already owns it
-  (`[update-pr output]`, `[update-issue-metadata output]`), granting the creating roles
-  nothing new. Where adopting a prior attempt's PR is in play, "the run" in
-  `[update-pr output]`'s "a PR the run itself opened" resolves to **the task**, not the
-  attempt — stated explicitly, since a resumed attempt did not itself open it. The three
-  **convergent** intents — `[update-pr output]`, `[update-issue-metadata output]`,
+  halves**:
+  - **(i) a lookup key stable across exactly the re-executions it must reconcile** — the
+    **task ID** for the issue; the **head branch** for the PR; and, for a marked comment,
+    the **marker plus the task ID and the gate round ordinal the comment reports on** (the
+    same `{auditor, round}` keying US10.AC1 already requires). Each is stated explicitly as
+    **not** the worktree path and **not** a per-re-entry attempt/run ID, since those are
+    freshly allocated on every re-entry (AC1) and a lookup keyed on them can never match a
+    prior attempt. The comment key is round-scoped precisely so it does not collide with
+    US10: a re-execution reporting an **already-posted round** adopts or skips, while a
+    **later round** posts a new comment — so US10.AC1's verbatim posting and US10.AC2's read
+    of the *newest* marked retry comment both continue to hold.
+  - **(ii) the outcome: adopt the existing artifact or skip — never "update" it.** All four
+    creating roles are constrained create-only/additive in cells this story leaves unchanged
+    (`[create-issue output]` "never … edits an existing issue"; both comment intents
+    "Additive only … never edits or deletes an existing comment"), and the family rule is
+    flat: a new write appears as a new role row through a reviewed PR, **never by widening
+    an existing role's meaning**. Adopting is therefore *using* the existing artifact rather
+    than creating a second one, and grants the creating roles nothing new. Where a mutation
+    of an adopted artifact is genuinely wanted **and a convergent intent already owns it**,
+    it is performed by that intent (`[update-pr output]`, `[update-issue-metadata output]`);
+    comments have **no** convergent intent by design, so for comments the outcome is
+    adopt-or-skip only and the additive-only guarantee is preserved intact. This story does
+    **not** redefine `[update-pr output]`'s "a PR the run itself opened" — adopting a prior
+    attempt's PR means declining to open a second one, not editing it.
+
+  The three **convergent** intents — `[update-pr output]`, `[update-issue-metadata output]`,
   `[push-task-branch output]` — instead carry an explicit note stating why re-execution is
   already safe, so their lack of a lookup clause is a recorded decision rather than an
   omission. A diff that clauses all seven, or that clauses only some of the four, does not
@@ -514,10 +539,16 @@ acceptance reviewer grades them as intended rather than as drift:
   P1). Because the leak scan's pattern covers tracker *write* verbs only, a **read**-shaped
   lookup would evade it — so the neutrality scan is the load-bearing fence here, and the
   criterion is not satisfied by the leak scan passing alone.
-- AC8: A conformance probe exercises a reconciliation **at runtime**, in both directions: a
-  first execution creates exactly one artifact, and a simulated re-execution against the
-  same resume-stable key finds the existing artifact and adopts it, leaving exactly one —
-  asserted by counting artifacts, not by inspecting prose. A probe exercising only the
-  create path, or only the adopt path, does not satisfy this. Without this criterion every
-  other criterion in the story grades a document or a linter, and no reconciliation would
-  ever be proven to execute.
+- AC8: A conformance probe exercises reconciliation **at runtime**, across three executions
+  and both decision directions — match and no-match — asserted by **counting artifacts**,
+  not by inspecting prose:
+  1. a first execution creates exactly one artifact;
+  2. a re-execution under the **same** resume-stable key finds it and adopts it, leaving
+     exactly one;
+  3. a third execution under a **different** resume-stable key (a different task ID / head
+     branch / round ordinal) creates a **second** artifact, leaving two.
+  Step 3 is what makes the criterion two-sided: a lookup that adopts unconditionally passes
+  steps 1–2 and fails step 3. The probe covers at least the **issue** and the **marked
+  comment** kinds, so the round-scoped comment key of AC4(i) is exercised rather than
+  satisfied by the cheapest artifact kind alone. A probe covering only the create path, only
+  the adopt path, or only one artifact kind does not satisfy this.
