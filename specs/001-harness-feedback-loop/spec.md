@@ -429,27 +429,30 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   enumerated list nor the family-wide write-intent exclusions name at all. (Gate semantics
   *are* named by both, so AC7 restates rather than extends there; what neither pins is a
   deterministic **check**, which is why AC7 assigns falsification to that arm.)
-- **No new terminal outcome, and no new obligation row.** Two closed sets sit next to this
-  story and neither is widened. The `[backlog-loop]`'s outcome grammar keeps its four
-  tokens *and their documented causes*: `aborted` stays reserved for "a lifecycle or
-  activation check failed closed mid-cycle" — it stops the **whole run** under stop row (d),
-  which is the wrong effect and the wrong cause for an ordinary work stall — so AC2 routes a
-  bound-escalation to the existing **`gate FAIL + discard`** arm instead, which
-  skips-and-advances and needs no cause text widened. The next-task obligations inventory
-  "guards preservation, not accretion", so US12's executor obligation is carried in the
-  stage card and a docs-encoding test, not appended to the frozen ratchet.
+- **No new backlog-loop outcome, and no new obligation row.** AC2 is deliberately confined
+  to a **review-mode stage halt**. The `[backlog-loop]`'s outcome grammar keeps its four
+  tokens *and their documented causes*, so maker retry exhaustion does not enter that grammar
+  in this story: `gate FAIL + discard` would fabricate a §7 result that never occurred, and
+  `aborted` remains reserved for a lifecycle or activation check failing closed. A future
+  backlog-loop route requires its own outcome-and-accounting contract change. The next-task
+  obligations inventory "guards preservation, not accretion", so US12's executor obligation
+  is carried in the stage card and a docs-encoding test, not appended to the frozen ratchet.
 - **The bound's counter is durable, and its source is the tracker.** A resumed run cannot
-  read a counter from conversation memory. The durable source is the tracker channel or the
-  run's own return value — never the telemetry stream, whose `fix_rounds_used` field is the
-  convenient and forbidden implementation (AC1, mirroring US10.AC3's boundary).
+  read a counter from conversation memory. Its sole durable source is the tracker channel —
+  never the run's transient return value or the telemetry stream, whose `fix_rounds_used`
+  field is the convenient and forbidden implementation (AC1, mirroring US10.AC3's boundary).
 
 **Acceptance Criteria**
-- AC1: `next-task.md`'s implement/verify territory carries a runtime-neutral
+- AC1: For a **review-mode** run, `next-task.md`'s implement/verify territory carries a runtime-neutral
   **bounded-retry rule** with both of its terms defined, because neither is inferable.
-  **"The same check"** is defined by a check identity that is **insensitive to run-varying
-  content** — the criterion names the excluded classes (error-message text, timing/duration,
-  absolute paths, and result ordering), because an identity that varies per run makes the
-  bound unreachable while leaving identical-failure tests green. **"A distinct intervening
+  **"The same check"** is defined positively by a normalized invocation signature: the
+  declared check/checker name, its repository-relative working directory, its stable
+  target or scope, and its ordered stable arguments and selected configuration inputs.
+  Distinct signatures never contribute to the same counter; one constant identity for all
+  checks is non-conforming. The signature is **insensitive to run-varying content** —
+  error-message payloads, timing/duration, absolute-path prefixes, and result ordering are
+  excluded — because an identity that varies per run makes the bound unreachable while
+  leaving identical-failure tests green. **"A distinct intervening
   change"** is defined by its **content**, not merely by its role: a change to the artifact
   under test, or to an input the failing check actually reads. A retry with no change, a
   retry after an edit the failing check does not read, and a mandated response to a stall
@@ -468,15 +471,15 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   caller and does not outlive the run, so it cannot serve as the durable source; **no path
   reads the counter from the telemetry stream** (constitution P5, the
   boundary US10.AC3 states for the retry channel).
-- AC2: On reaching the bound, the run compacts the failure evidence and escalates: it posts
-  that evidence to the task's issue as a marked comment via the existing comment
-  write-intent, and halts the stage (review mode) or, under the `[backlog-loop]`, ends the
-  iteration through the **existing `gate FAIL + discard` arm** — the skip-and-advance shape
-  — so US12 adds no token to that closed outcome grammar, no row to its stop-condition
-  table, and no cause text to an existing token. `aborted` is explicitly **not** reused: its
-  documented cause is a lifecycle or activation check failing closed, and it stops the whole
-  run under stop row (d), which is neither the cause nor the effect a work stall warrants. It never silently continues and
-  never merges. **Compaction is bounded by a stated number, not by the word "compact":** the
+- AC2: On reaching the bound, a **review-mode** run compacts the failure evidence, posts it
+  to the task's issue as a marked comment via the existing comment write-intent, and halts
+  the stage. The `[backlog-loop]` route is explicitly **out of scope** for this criterion:
+  no `gate FAIL + discard` result is emitted because §7 has not run, and `aborted` is not
+  reused because its documented cause is a lifecycle or activation check failing closed.
+  Any backlog-loop route must first define and test a distinct outcome plus its stop
+  accounting; this story neither adds nor widens an outcome-grammar token or cause. It never
+  silently continues and never merges. **Compaction is bounded by a stated number, not by the
+  word "compact":** the
   criterion names an explicit ceiling (at most 50 lines or 4 KB, whichever is smaller) and
   requires the **exit code** and the **failing check's identity** to survive compaction.
   Falsification covers both misses: a full-log paste fails the bound, and an excerpt that
@@ -488,13 +491,16 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   verification failure, an edit-guard rejection, or a failed push. Encoding US12's bound
   there would either change §7 gate semantics — barred by this spec's own Non-goals — or be
   unreachable behind the existing non-convergence return.) The boundary cases are pinned
-  **against a scripted stand-in for the maker loop — a fixture driver — regardless of
+  **against a scripted stand-in for the review-mode maker loop — a fixture driver — regardless of
   whether the active adapter holds the counter as code**, so the test obligation never
   collapses to nothing when the honest answer is "executor discipline". They pin: no escalation at two consecutive
   failures, escalation at three, and a reset proven by a distinct intervening change followed
   by failures that do **not** escalate — plus a fourth case in which the same check fails
   three times with **differing output text** and still escalates, proving the identity is
-  run-invariant per AC1. A test covering only the escalation boundary does not satisfy this.
+  run-invariant per AC1, and a fifth case in which check A fails twice, a distinct-signature
+  check B fails once without escalating, and A's third failure escalates A only, proving that
+  distinct checks do not share a counter. A test covering only the escalation boundary does
+  not satisfy this.
   Where the bound stays executor discipline, it is stated in the stage card and asserted by
   a **new docs-encoding test in the established `*-docs.test.sh` family** (the frozen
   stage-card hash check will not see a new rule, so it cannot serve here); the
@@ -510,11 +516,16 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   preamble: on an orchestration-level failure, make **one** fresh
   re-attempt, and on a failure **of the same class as the first** stop re-attempting and
   fall back to the documented prose path. "Same class" is defined as the same failing step
-  plus the same diagnostic class, **insensitive to run-varying content** (the same exclusion
-  list AC1 names), so the rule is neither vacuous (byte-strict identity, where nothing ever
-  repeats and re-attempts are unbounded) nor trivially satisfied (loose identity, where it
-  always stops after one). A **paired fixture** pins both directions: a same-class second
-  failure stops and falls back, and a genuinely different failure earns its re-attempt.
+  plus the same diagnostic class. The diagnostic-class discriminator is defined positively
+  as the step's stable reason code or error category; where the step emits neither, it is the
+  exception/failure type plus the static message template after variable payloads are removed.
+  The step name alone, or one constant class for every diagnostic from that step, is
+  non-conforming. The class is **insensitive to run-varying content** (the same exclusion list
+  AC1 names), so the rule is neither vacuous (byte-strict identity, where nothing ever repeats
+  and re-attempts are unbounded) nor trivially satisfied (loose identity, where it always stops
+  after one). A **paired fixture** pins both directions at the same failing step: a same-class
+  second failure stops and falls back, while a different reason code/category from that step
+  earns its re-attempt.
   The **routing predicate** separating AC1 from AC4 is stated outright, not posed: a
   failure inside the maker's own verify / edit / push work is **AC1's** (three strikes), and
   a failure of the orchestration mechanism itself — reviewer dispatch, diff provision, role
@@ -525,9 +536,11 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   same Non-goal AC3 invokes to bar a different gate-loop edit.
 - AC5: The existing decision-ready contract (`Decision needed:` / `Recommendation:`) is
   **extended** — in place, not duplicated — for comments that **block** on an owner answer,
-  with: the attempt identity, a `question_format` of **`yes-no | choice`**, the question,
-  the enumerated options when the format is `choice`, and **the engine's action for each
-  answer**. `free-text` is deliberately **excluded from the blocking enum**: §6.5's second
+  with: the attempt identity, a monotonically increasing **ask sequence unique across all
+  attempts for the task issue** that never resets when a new attempt starts, a
+  `question_format` of **`yes-no | choice`**, the question, the enumerated
+  options when the format is `choice`, and **the engine's action for each answer**.
+  `free-text` is deliberately **excluded from the blocking enum**: §6.5's second
   condition requires the exact choices and their consequences be enumerated so the owner
   answers in a word, and a free-text blocking question cannot satisfy it — admitting the
   value would relax the very condition this criterion promises to preserve. The
@@ -563,12 +576,21 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   the other contract checks in `.claude/hooks/`; it is called from that §2.5 thread-read step
   and from the resume protocol, which is where a prior blocking ask is re-encountered. Naming
   both is the point of this clause — a parser that exists with no caller is the failure mode
-  it exists to prevent. A reply is treated as an answer **only** when it matches the offered format (a `choice`
-  reply naming exactly one enumerated option; a `yes-no` reply resolving to yes or no), and
-  any other reply is owner steering to be read, **never** consent. Both directions are
-  proven — a conforming reply *is* accepted, and a non-conforming reply is *not* — so a
-  parser that accepts everything and one that accepts nothing both fail, and that test runs
-  in the required check. A reply that **both** conforms and steers (`yes — and narrow the
+  it exists to prevent. When more than one blocking ask remains outstanding, a reply is
+  paired with **exactly one**: the ask with the greatest task-wide ask sequence, including
+  when the outstanding asks came from different attempts; earlier asks remain blocked and a
+  reply is never consumed twice. Reply normalization trims outer ASCII whitespace, folds
+  ASCII case, and collapses runs of horizontal whitespace in the answer token. The accepted
+  grammar is `ANSWER` or `ANSWER — STEERING`, with that space-em-dash-space delimiter and a
+  non-empty steering suffix. For `yes-no`, `ANSWER` is exactly `yes` or `no`; abbreviations,
+  punctuation, and unseparated appended prose are rejected. For `choice`, `ANSWER` equals
+  exactly one enumerated option after the same normalization. A reply is treated as an
+  answer **only** when it matches that ask's offered grammar, and any other reply is owner
+  steering to be read, **never** consent. Both directions are proven — including acceptance
+  of ` YES ` and `yes — narrow the scope`, and rejection of `y`, `yes!`, `yes please`, an
+  empty reply, and a token matching more than one normalized choice — so a conforming reply
+  *is* accepted and a non-conforming reply is *not*, and a parser that accepts everything or
+  nothing fails. That test runs in the required check. A reply that **both** conforms and steers (`yes — and narrow the
   scope`) is stated to be **both**: the answer is taken and the steering is read, since
   §2.5 makes the newest unmarked owner comment authoritative regardless. Independently of
   format, a conforming reply **applies the asked decision only**: it never authorizes a
@@ -596,9 +618,194 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   failures escalate while two do not; a blocking site posts a comment carrying the schema
   while an informational item posts one without it; and a conforming reply is consumed as an
   answer while a non-conforming reply is not (it remains steering, and the item stays
-  blocked). The bounded-retry pair is required rather than left to a document scan, because
+  blocked); and with two outstanding asks from different attempts, a conforming reply applies
+  only to the one with the greater task-wide ask sequence.
+  The bounded-retry pair is required rather than left to a document scan, because
   stop-and-ask at the third strike is the one behavior this story exists to deliver. A probe
   covering only the contact halves, or only one direction of any pair, does not satisfy this.
   Without this criterion every other criterion in the story grades a document or a
   docs-encoding scan, and neither the emitted comment nor the parse decision would ever be
   proven to execute.
+### US11 — Resume-safe shared-surface writes and attempt-scoped identity
+As a harness operator, I want a re-run of an interrupted task to reconcile against what
+the previous attempt already wrote instead of writing a second copy, and I want every
+attempt to carry an identity a later promotion can verify, so that a crashed or resumed
+run cannot double-create an issue, double-post a marked comment, or open a duplicate PR,
+and a discarded attempt can never be promoted against a different workspace.
+
+Motivation: durable-execution runtimes force an admission that applies to Creance with no
+framework involved — internal state transitions may replay, but external writes are not
+exactly-once. The closed write-intent family (`workflow/README.md` → "Write intents (safe
+outputs)") already names every shared-surface write as exactly one auditable role; that
+naming is the substrate, and each role simply lacks a resume-safety clause. Intake of
+issue #295, whose research (#294) **rejected** adopting the runtime that surfaced the
+lesson: the concept transfers, the dependency does not.
+
+**Recorded trade-off calls.** Three decisions this story makes deliberately, so the
+acceptance reviewer grades them as intended rather than as drift:
+- **Promotion gains a precondition, not a second veto.** `workflow/README.md` states
+  promotion is *only* ever the §7 gate's PASS. AC2 does not add a competing authority: a
+  gate PASS still decides *whether* the work is promotable, and the identity check only
+  confirms the PASS is being applied to **the same attempt, workspace, and commit the gate
+  actually audited**. A mismatch means the PASS does not describe this artifact, so there
+  is no verdict to apply — the check refuses a misapplied PASS, never overrides a real one.
+- **Reconciliation keys are resume-stable by construction.** The lookup that finds a prior
+  artifact must key on something that survives re-entry. A fresh attempt/run ID and a fresh
+  worktree path do not, so keying on them would produce a criterion that is fully
+  satisfiable while preventing zero duplicates. The attempt identity is therefore the
+  *promotion* key (AC2), and the *reconciliation* key is a separate, per-artifact,
+  resume-stable one (AC4). Conflating the two is the defect, not the design. The retry
+  comment's discriminator reuses the audited commit AC2's contract change already returns —
+  one carrier, two consumers — and `retry.md`'s first-line shape gains that value so the
+  key is readable off the artifact.
+- **The gate's return shape gains one field, as an explicit contract change.** The audited
+  commit AC2 compares is **not** returned by the §7 gate today — the loop returns the
+  outcome and the verdicts, and the audited HEAD reaches only the telemetry stream, which
+  AC3 forbids as a promotion input. Rather than infer HEAD live (the anti-pattern the
+  explicit-ref invariant exists to prevent) or read telemetry (P5), this story **adds** the
+  audited commit to the `[orchestrated run]` role's Outputs cell and to the gate-loop return
+  shape, as a reviewed contract change under P4 (AC2). No other role's meaning is widened.
+
+**Acceptance Criteria**
+- AC1: The **attempt identity** is defined in exactly **one** neutral location, as an
+  authoritative and complete list of **atoms** — task ID; attempt/run ID; worktree path;
+  expected base commit; and the commit the §7 gate audited — with each atom's **allocation
+  and stability rule** stated (which atoms are freshly allocated per re-entry and which
+  survive it), because AC2 and AC4 key on opposite halves of that split and cannot both be
+  satisfied without it. Every other doc that uses the identity references this definition
+  rather than restating its fields, and a deterministic drift assertion (the independent
+  oracle + mutation-case shape of `reviewer-roster.test.sh`, applied as a negative-existence
+  scan) fails on a second field-list definition elsewhere. That assertion **runs in the
+  project's required check** and ships a planted second-definition fixture proving it trips
+  — a check that exists but is not wired is treated as broken, not as probably-fine
+  (constitution P2/P3). The scan is shape-bound: it catches a restated field list matching
+  the definition's structure, not a paraphrase — the reference-don't-restate rule for prose
+  remains reviewer-enforced.
+- AC2: The isolated-workspace promotion path verifies, before a PR is opened from an
+  attempt, that the §7 gate's PASS actually describes this artifact: **every atom** of AC1's
+  identity matches. Promotion **proceeds** when every atom matches and is **refused** when
+  any single atom differs; `isolated-workspace.test.sh` plants a mismatch in **each atom
+  separately** — five distinct plants, with the worktree path and the expected base commit
+  counted separately so a check comparing only the path cannot pass the suite, and the
+  audited commit carrying its own plant so an implementation that never compares it fails —
+  **and** asserts the all-match case is not blocked. A check that refuses everything fails
+  this criterion exactly as one that refuses nothing does. The audited commit is carried as
+  an explicit field of the §7 gate's **return value**: this story adds it to the
+  `[orchestrated run]` role's Outputs cell (`workflow/README.md`) and to `gate-loop.md`'s
+  documented return shape as a reviewed contract change (P4), and the promotion check reads
+  it from there — never from the telemetry stream (AC3), never from a marked comment, and
+  never by re-resolving HEAD live.
+- AC3: The attempt identity is written into telemetry records as a correlation key and is
+  never read back as one. No gate outcome, tier resolution, task selection, promotion
+  decision, or merge authorization obtains it from the telemetry stream — the stream keeps
+  zero consumers with control authority (constitution P5 unchanged). AC2's promotion check
+  reads it from the live workspace, the gate's return value, and the tracker's **issue/PR
+  state** — never from a **marked** comment, which is engine bookkeeping and carries no
+  authority (`next-task.md` §2.5); a promotion that obtains any atom from the stream or from
+  a marked comment violates this criterion. Consistent with the telemetry emitter law, a
+  failed correlation-key write never blocks, fails, or alters promotion — the measurement
+  channel cannot gate the thing it measures in either direction.
+- AC4: The contract's write-intent table carries a **reconciliation precondition** on each
+  of the four **creating** intents — `[create-issue output]`, `[add-issue-comment output]`,
+  `[add-pr-comment output]`, `[open-pr output]` — where re-execution would produce a second
+  artifact rather than converge on the same end state. Each precondition states **both
+  halves**:
+  - **(i) a lookup key stable across exactly the re-executions it must reconcile** — the
+    **task ID** for the issue; the **head branch** for the PR; and, for a marked comment,
+    the **marker plus the task ID and a per-call-site discriminator** that is resume-stable
+    under AC1's split. The two comment intents are generic roles — every engine-posted
+    comment (intake classifications, review findings, review-response replies, the retry
+    comment) flows through them, and most carry no gate round at all — so the precondition
+    on the two comment rows names this key **shape** and requires each comment-posting call
+    site to declare its discriminator in the workflow doc that defines the comment; a call
+    site with no declared discriminator posts additively as today and is **outside
+    reconciliation's scope**, a recorded decision rather than an omission. The call site
+    this story specifies concretely is the gate non-convergence retry comment
+    (`retry.md`): its discriminator is **the audited commit the verdicts describe** —
+    available to the dispatcher as a field of the gate's return value by AC2's own contract
+    change, stable across a re-execution of the same gate run, and distinct across a
+    genuinely new attempt, whose gate audited a different commit — so a same-run replay
+    adopts or skips while a new attempt posts a new comment, and US10.AC1's verbatim
+    posting and US10.AC2's read of the *newest* marked retry comment both continue to hold.
+    The gate round ordinal is explicitly **not** the discriminator: `retry.md` posts **one**
+    comment per non-convergence stop whose body spans multiple `{auditor, round}` sections
+    (US10.AC1's `{auditor, round}` keying is the body's internal section keying, not an
+    artifact key), and the gate restarts round numbering on every invocation, so an
+    ordinal-keyed lookup would match a prior attempt's comment and silently drop the new
+    verdicts. So that the key is readable off the artifact itself, `retry.md`'s
+    deterministic first line carries the audited commit alongside the task ID it already
+    carries. Each
+    key is stated explicitly as **not** the worktree path and **not** a per-re-entry
+    attempt/run ID, since those are freshly allocated on every re-entry (AC1) and a lookup
+    keyed on them can never match a prior attempt. The issue lookup adopts **by key alone,
+    regardless of author** — an owner-filed issue retitled by intake to carry the task ID
+    (`intake.md`) *is* the task's issue, so author is not part of the key; the PR's head
+    branch is engine-allocated per the branch convention, so a head-branch match is
+    engine-created by construction; the marked comment's key already embeds authorship via
+    the marker. An author predicate added to "harden" the lookup would break every
+    intake-converted task.
+  - **(ii) the outcome: adopt the existing artifact or skip — never "update" it.** All four
+    creating roles are constrained create-only/additive in cells this story leaves unchanged
+    (`[create-issue output]` "never … edits an existing issue"; both comment intents
+    "Additive only … never edits or deletes an existing comment"), and the family rule is
+    flat: a new write appears as a new role row through a reviewed PR, **never by widening
+    an existing role's meaning**. Adopting is therefore *using* the existing artifact rather
+    than creating a second one, and grants the creating roles nothing new. Where a mutation
+    of an adopted artifact is genuinely wanted **and a convergent intent already owns it**,
+    it is performed by that intent (`[update-pr output]`, `[update-issue-metadata output]`);
+    comments have **no** convergent intent by design, so for comments the outcome is
+    adopt-or-skip only and the additive-only guarantee is preserved intact. This story does
+    **not** redefine `[update-pr output]`'s "a PR the run itself opened" — adopting a prior
+    attempt's PR means declining to open a second one, not editing it.
+
+  The three **convergent** intents — `[update-pr output]`, `[update-issue-metadata output]`,
+  `[push-task-branch output]` — instead carry an explicit note stating why re-execution is
+  already safe, so their lack of a lookup clause is a recorded decision rather than an
+  omission. A diff that clauses all seven, or that clauses only some of the four, does not
+  satisfy this.
+- AC5: `write-intents-check.sh` gains a reconciliation check whose oracle is **independent
+  of the prose it grades** — it carries the expected creating/convergent partition rather
+  than inferring it from which rows happen to have clauses — and FAILs when: (a) a creating
+  intent's row lacks a clause naming both halves; (b) a convergent intent's row carries a
+  lookup clause but no convergent note; (c) the contract family contains a role the
+  partition does not classify, so a future intent added by reviewed PR cannot land silently
+  unreconciled; **or (d) a role the partition carries has no matching contract row** — the
+  under-match direction, which catches a removed role and a row parser that silently
+  degrades. The check FAILs unless **family size, classified count, and the carried
+  partition's size are all equal and non-zero**; a bare non-zero floor is insufficient,
+  since a regex matching one row of seven clears it while grading one row (P2 — never a
+  vacuous pass).
+- AC6: `write-intents-check.test.sh` gains **planted-negative fixtures** proving each
+  failure direction actually fires — a contract fixture with a creating intent's clause
+  deleted; one whose clause names the lookup key but not the adopt-or-skip outcome; one
+  whose convergent intent carries a lookup clause without the note; one adding a role the
+  partition does not classify; and one **removing** a role the partition carries (AC5's (d)
+  direction) — each asserting the **specific diagnostic**, not merely a non-zero exit, plus
+  a positive fixture satisfying every rule that exits OK. These cases run against fixtures
+  via the check's existing surface overrides rather than against the live contract, so they
+  keep proving the check works after the live contract is edited by this same story.
+- AC7: The concrete lookup mechanisms implementing each precondition live only in the
+  **adapter layer** — the adapter's own binding surfaces and mapping rows, and the
+  orchestrated-run implementation — and **never** in `workflow/**`. The neutral surfaces
+  that invoke them (the next-task stage cards covering the issue and PR writes, and the
+  gate-loop non-convergence comment path) are themselves `workflow/**` residents and
+  neutrality-scanned: they name the **[role]** only and carry no concrete command. The
+  existing neutrality scan and the write-intents leak scan both stay green (constitution
+  P1). Because the leak scan's pattern covers tracker *write* verbs only, a **read**-shaped
+  lookup would evade it — so the neutrality scan is the load-bearing fence here, and the
+  criterion is not satisfied by the leak scan passing alone.
+- AC8: A conformance probe exercises reconciliation **at runtime**, across three executions
+  and both decision directions — match and no-match — asserted by **counting artifacts**,
+  not by inspecting prose:
+  1. a first execution creates exactly one artifact;
+  2. a re-execution under the **same** resume-stable key finds it and adopts it, leaving
+     exactly one;
+  3. a third execution under a **different** resume-stable key (a different task ID / head
+     branch / audited commit) creates a **second** artifact, leaving two.
+  Step 3 is what makes the criterion two-sided: a lookup that adopts unconditionally passes
+  steps 1–2 and fails step 3. The probe covers the **issue**, the **marked comment**, and
+  the **PR** kinds: the comment leg exercises the commit-scoped retry-comment key of
+  AC4(i) rather than the cheapest artifact kind alone, and the PR leg runs against a
+  fixture or override surface rather than a live tracker write (the AC6 posture), so the
+  head-branch lookup executes without opening a real PR. A probe covering only the create
+  path, only the adopt path, or only one artifact kind does not satisfy this.

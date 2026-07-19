@@ -72,6 +72,8 @@
 | T644 | strong | [ ] |  |  | **Decide protected-path pre-approval for autonomous/headless runs**… |
 | T647 | strong | [ ] | US12.AC1-AC4 |  | Add a runtime-neutral **bounded-retry rule** to the implement/verify… |
 | T648 | strong | [ ] | US12.AC5-AC9 |  | **Extend** the existing decision-ready contract (`Decision needed:` /… |
+| T645 | strong | [ ] | US11.AC1-AC3 |  | Define the **attempt identity** as an authoritative, complete list of… |
+| T646 | strong | [ ] | US11.AC4-AC8 |  | Add **reconciliation preconditions** to the closed write-intent family… |
 
 ## specs/002-spec-quality-gate/spec.md
 

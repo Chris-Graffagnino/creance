@@ -692,12 +692,10 @@
       (#226; repo-maintenance — done-when on issue) — strong: permission/config scoping on
       the maker≠checker protected-path surface, adjacent to P4 and the guard wall
 
-> US12 (T647–T648) closes the two residual 12-factor-agents gaps. T647 lands first — it is
-> the cheaper change and the one with a production scar behind it (the orchestration-level
-> flake procedure). Numbering assumes the #295 conversion lands first; if it is rejected,
-> these renumber and spec 001 would otherwise keep a US11 hole — nothing deterministic
-> catches that, so it is recorded here. The #295 conversion edits the same write-intent
-> contract rows, so whichever lands second rebases rather than re-authoring.
+> US12 (T647–T648) closes the two residual 12-factor-agents gaps. T647 is the cheaper
+> change and the one with a production scar behind it (the orchestration-level flake
+> procedure). The #295 conversion has landed as US11; because it edits the same write-intent
+> contract rows, this story rebases onto those rows rather than re-authoring them.
 
 - [ ] T647 [strong] Add a runtime-neutral **bounded-retry rule** to the implement/verify
       territory of `next-task.md`, with **both** terms defined — a **check identity that is
@@ -717,11 +715,10 @@
       telemetry stream** (P5, the boundary US10.AC3 states for the retry channel). On the
       bound, compact the evidence under a **stated numeric ceiling** (≤50 lines or 4 KB,
       whichever is smaller) with the exit code and failing check's identity surviving, post it
-      to the task issue via the existing marked-comment intent, and halt the stage (review
-      mode) or end the backlog iteration through the existing **`gate FAIL + discard`**
-      arm (skip-and-advance) — no new token, no new stop-condition row, and no widened cause
-      text. `aborted` is explicitly not reused: its cause is a lifecycle/activation check
-      failing closed and it stops the **whole run**, neither of which fits a work stall. Encode the counter at the locus
+      to the task issue via the existing marked-comment intent, and halt the review-mode
+      stage. The `[backlog-loop]` route is out of scope: it must not emit `gate FAIL +
+      discard` before §7 runs or reuse `aborted`; a future route needs a distinct, tested
+      outcome and stop-accounting contract. Encode the counter at the locus
       that actually observes check failures — the maker's inner loop — **not** the gate loop's
       `fixRoundsUsed`, which counts reviewer verdict rounds against its own 2-round bound and
       never sees a verification failure (encoding there would change §7 gate semantics, barred
@@ -748,8 +745,8 @@
       the gate's fallback contract (constitution P1/P3/P5)
 - [ ] T648 [strong] **Extend** the existing decision-ready contract (`Decision needed:` /
       `Recommendation:`) in place — never a parallel schema, which would contradict the
-      unchanged §6.5 — for comments that **block** on an owner answer: attempt identity,
-      `question_format` (**`yes-no | choice`** only — `free-text` is excluded from the
+      unchanged §6.5 — for comments that **block** on an owner answer: attempt identity, an
+      ask sequence unique within that attempt, `question_format` (**`yes-no | choice`** only — `free-text` is excluded from the
       blocking enum because §6.5 requires enumerated choices answerable in a word, and
       admitting it would relax the condition this task promises to preserve), the question,
       enumerated options for `choice`, and **the engine's action per answer**, preserving
@@ -773,7 +770,9 @@
       thread-reading card (`next-task/03-read-context.md`) and encoded as a hook in
       `.claude/hooks/`, called from that §2.5 thread-read step and from the resume protocol:
       only a reply matching the offered format is an answer, anything else is steering and never
-      consent, both directions proven in the required check; a reply that both conforms and
+      consent, both directions proven in the required check. With multiple outstanding asks,
+      a reply applies only to the greatest unique ask sequence in its attempt, never more than
+      one; a reply that both conforms and
       steers is **both** (§2.5 keeps the newest unmarked owner comment authoritative).
       Independently of format, a conforming reply applies **only** the asked decision — never
       authorizing a merge, engaging autonomous mode, altering gate semantics (round limits,
@@ -786,12 +785,87 @@
       constraint cell omits the blocking-contact schema reference (repair: name the schema, or
       the documented exemption)` — falsified on **planted fixtures** against that exact string
       and paired with an emission-level fixture so the reference is load-bearing. A conformance
-      probe proves both halves at runtime, two-sided in each: a blocking site emits the schema
-      while an informational item does not, and a conforming reply is consumed as an answer
-      while a non-conforming one leaves the run blocked. The #295 conversion edits the same
-      contract rows — whichever lands second rebases; blocked by T647
+      probe proves all three runtime behaviors, two-sided in each: three same-check failures
+      escalate while two do not; a blocking site emits the schema while an informational item
+      does not; and a conforming reply is consumed as an answer while a non-conforming one
+      leaves the run blocked, with two outstanding asks applying only to the later ask. The
+      #295 conversion edits the same
+      contract rows — whichever lands second rebases; blocked by **T645 and T647**
       (#296, US12.AC5–AC9) — strong: edits the owner-contact contract adjacent to the merge
       and autonomy boundaries (constitution P1/P3/P4)
+> US11 (T645–T646) hardens **resume safety**: an interrupted run that is re-run must
+> reconcile against its own prior writes instead of duplicating them, and an attempt must
+> carry an identity a later promotion can verify. T645 lands the identity first because
+> T646's lookup predicates are keyed by it. Sequencing per the owner's note on #295:
+> both follow **T620** (Omnigent live-driver conformance). Neither adopts a runtime
+> dependency — #294 rejected that; only the concepts transfer.
+
+- [ ] T645 [strong] Define the **attempt identity** as an authoritative, complete list of
+      **atoms** — task ID, attempt/run ID, worktree path, expected base commit, **and the
+      commit the §7 gate audited** — each with its **allocation/stability rule** (which atoms
+      are freshly allocated per re-entry and which survive it), in exactly one neutral
+      location, referenced (never restated field-by-field) everywhere else, with a
+      deterministic drift assertion that **runs in the required check** and ships a planted
+      second-definition fixture proving it trips (P2/P3 — an unwired check is broken, not
+      probably-fine; the scan is shape-bound — a paraphrase stays reviewer-enforced); record the identity into telemetry as a **correlation key that is never
+      read back**, with a failed write never blocking promotion (the emitter symmetry rule);
+      and make it a **promotion precondition** — promotion proceeds only when **every atom**
+      matches and refuses when any single atom differs, with `isolated-workspace.test.sh`
+      planting a mismatch in **each atom separately** (five plants: path and base commit
+      distinct so a path-only comparison fails, and the audited commit carrying its own plant
+      so an implementation that never compares it fails) **and** asserting the all-match case
+      is not blocked. The audited commit is **not returned by the gate today** — the loop
+      returns outcome + verdicts and the audited HEAD reaches only telemetry — so this task
+      **adds** it to the `[orchestrated run]` Outputs cell and the gate-loop return shape as a
+      reviewed contract change (P4), and reads it from there: never from telemetry (P5), never
+      from a marked comment, never by re-resolving HEAD live. The check confirms a PASS is
+      applied to the artifact the gate audited — a precondition on applying the verdict,
+      **not** a second promotion authority
+      (#295, US11.AC1–AC3; blocked by T620) — strong: touches the isolation promotion
+      boundary, the gate's return contract, and the P5 observe-only fence
+- [ ] T646 [strong] Add **reconciliation preconditions** to the closed write-intent family:
+      each of the four **creating** intents (`[create-issue output]`,
+      `[add-issue-comment output]`, `[add-pr-comment output]`, `[open-pr output]`) gains a
+      clause naming **both** (i) a **resume-stable** lookup key — task ID for the issue, head
+      branch for the PR, and marker + task ID + **a per-call-site discriminator** for a
+      marked comment: the comment rows name the key **shape**, each posting call site
+      declares its discriminator in its own workflow doc (an undeclared call site posts
+      additively as today, outside reconciliation's scope), and for the retry comment the
+      discriminator is **the audited commit the verdicts describe** — carried by T645's
+      gate-return contract change and on `retry.md`'s deterministic first line — never the
+      round ordinal, since one retry comment spans many `{auditor, round}` body sections and
+      the gate restarts numbering per invocation, so an ordinal-keyed lookup would adopt a
+      prior attempt's comment and drop the new verdicts (US10.AC1/AC2 keep holding: a
+      same-run replay adopts/skips, a new attempt's different audited commit still posts) —
+      each stated explicitly as *not* the worktree path and *not* a per-re-entry
+      attempt ID, since a lookup keyed on freshly-allocated atoms can never match a prior
+      attempt, and adopting **by key alone, regardless of author** (an intake-retitled
+      owner-filed issue *is* the task's issue); and (ii) the outcome, **adopt or skip — never "update"**, since all four roles
+      are create-only/additive in cells this task leaves unchanged and the family rule is flat
+      ("never by widening an existing role's meaning"). Adopting means *using* the existing
+      artifact instead of creating a second; where a mutation is wanted **and a convergent
+      intent already owns it**, that intent performs it — comments have none by design, so
+      comments are adopt-or-skip only and stay additive-only. This task does **not** redefine
+      `[update-pr output]`'s "a PR the run itself opened". The three **convergent** intents
+      (`[update-pr output]`, `[update-issue-metadata output]`, `[push-task-branch output]`)
+      instead carry an explicit why-it-is-already-safe note (clausing all seven does not
+      satisfy this); `write-intents-check.sh` grows a reconciliation check whose
+      creating/convergent partition is **carried by the check**, failing on a missing clause,
+      a half-clause, a mis-clause, an **unclassified** role, **and** a carried role with **no
+      matching row** (the under-match direction), requiring family size == classified count ==
+      partition size, all non-zero (a bare non-zero floor is clearable by a regex matching one
+      row of seven); `write-intents-check.test.sh` proves every direction on **planted
+      fixtures** — not the live contract this task edits — each asserting its specific
+      diagnostic, plus a passing positive control; concrete mechanisms stay adapter-side while
+      the neutral stage cards name the [role] only, with the **neutrality** scan load-bearing
+      (the leak scan covers write verbs, so a read-shaped lookup would evade it); and a
+      conformance probe proves reconciliation **executes** across three runs and both decision
+      directions — one artifact after a first run, still one after a same-key re-execution,
+      **two** after a different-key run (so an unconditionally-adopting stub fails), covering
+      the issue, marked-comment, **and** PR kinds (the PR leg on a fixture/override surface,
+      never a live tracker write)
+      (#295, US11.AC4–AC8; blocked by T620, T645) — strong: extends the write-intent
+      contract and the neutrality boundary (constitution P1/P2/P3/P4)
 
 ## Criterion ownership (multi-task user stories)
 
@@ -852,6 +926,14 @@
 | US12.AC7 | T648 |
 | US12.AC8 | T648 |
 | US12.AC9 | T648 |
+| US11.AC1 | T645 |
+| US11.AC2 | T645 |
+| US11.AC3 | T645 |
+| US11.AC4 | T646 |
+| US11.AC5 | T646 |
+| US11.AC6 | T646 |
+| US11.AC7 | T646 |
+| US11.AC8 | T646 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 
