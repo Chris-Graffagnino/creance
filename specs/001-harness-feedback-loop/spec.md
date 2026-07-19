@@ -458,8 +458,9 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   retry after an edit the failing check does not read, and a mandated response to a stall
   all leave the counter **intact** — otherwise "any edit resets it" makes three
   *consecutive* failures unreachable and the bound silently dead, the same evasion the
-  identity half closes. The rule states explicitly that a mandated stall response does not
-  reset it — decomposing a stalled failure into
+  identity half closes. If the executor cannot establish that the check reads a changed
+  input, it treats that input as unread and leaves the counter intact. The rule states
+  explicitly that a mandated stall response does not reset it — decomposing a stalled failure into
   subproblems (the unchanged §5 rule) starts a counter for any new check it introduces while
   the original check's counter persists, so the bound stays reachable in exactly the spin
   scenario this story exists to stop. The rule is **two-sided**: the run does **not**
@@ -565,10 +566,12 @@ pair, which this story **extends** rather than replaces. Intake of issue #296.
   **excluded and stated as excluded**: it is engine bookkeeping consumed by the next attempt
   as maker input, it asks the owner nothing, and the unchanged US10 gives it no steering
   authority — placing it in the blocking set would make the check's two directions
-  contradict each other on one file. A deterministic check fails **three** directions: a
-  blocking site emitting a bare `Decision needed:` with no `question_format`; a
-  **non**-blocking informational item given a `question_format`; and a blocking site emitting
-  **no** `Decision needed:` at all, so a site that simply omits both markers cannot pass
+  contradict each other on one file. The check grades **emitted artifacts**, not whole
+  files or sites: one site may emit both an excluded bookkeeping artifact and an included
+  decision artifact. It fails **three** directions: a blocking decision artifact emitting a
+  bare `Decision needed:` with no `question_format`; a **non**-blocking informational
+  artifact given a `question_format`; and a blocking decision artifact emitting no
+  `Decision needed:` at all, so an artifact that simply omits both markers cannot pass
   silently.
 - AC7: Answer parsing is deterministic and **two-sided**. The parsing rule is stated in the
   §2.5 thread-reading stage card (`next-task/03-read-context.md`, which already owns

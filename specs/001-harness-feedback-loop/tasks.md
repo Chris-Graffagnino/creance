@@ -698,15 +698,19 @@
 > contract rows, this story rebases onto those rows rather than re-authoring them.
 
 - [ ] T647 [strong] Add a runtime-neutral **bounded-retry rule** to the implement/verify
-      territory of `next-task.md`, with **both** terms defined — a **check identity that is
-      insensitive to run-varying content** (error text, timing, absolute paths, ordering are
-      named as excluded, since a run-varying identity makes the bound unreachable while
-      identical-failure tests stay green) and a **distinct intervening change** defined by
+      territory of `next-task.md`, with **both** terms defined — a **check identity** that
+      positively includes the declared check/checker name, repository-relative working
+      directory, stable target or scope, and ordered stable arguments/configuration inputs,
+      while remaining **insensitive to run-varying content** (error text, timing, absolute
+      paths, ordering are named as excluded, since a run-varying identity makes the bound
+      unreachable while identical-failure tests stay green); distinct signatures never share
+      a counter. A **distinct intervening change** is defined by
       its **content** — a change to the artifact under test or to an input the failing check
       reads; a retry with no change, an edit the check does not read, and a mandated stall
       response all leave the counter intact, since "any edit resets" makes three consecutive
-      failures unreachable and the bound silently dead — stating explicitly that a mandated
-      stall response does **not** reset it
+      failures unreachable and the bound silently dead; if the executor cannot establish that
+      a check reads a changed input, it treats the input as unread and does not reset the
+      counter — stating explicitly that a mandated stall response does **not** reset it
       (the unchanged §5 decompose rule starts a counter for any new check while the original
       check's counter persists) — and stated **two-sided**: no escalation before the third
       consecutive failure of the same check, none past it. The counter survives a resume and its
@@ -722,11 +726,13 @@
       that actually observes check failures — the maker's inner loop — **not** the gate loop's
       `fixRoundsUsed`, which counts reviewer verdict rounds against its own 2-round bound and
       never sees a verification failure (encoding there would change §7 gate semantics, barred
-      by this spec's Non-goals, or be unreachable dead code). Tests pin four cases **against a scripted
+      by this spec's Non-goals, or be unreachable dead code). Tests pin five cases **against a scripted
       fixture driver regardless of whether the adapter holds the counter as code** (so the
       obligation never collapses when the honest answer is "discipline"): no escalation at
-      two, escalation at three, a proven reset, and three failures with **differing output
-      text** that still escalate. Where it stays executor discipline it is also stated in the
+      two, escalation at three, a proven reset, three failures with **differing output
+      text** that still escalate, and two failures of check A followed by one of a
+      distinct-signature check B (no escalation) then A's third failure (escalates A only).
+      Where it stays executor discipline it is also stated in the
       stage card and asserted by a new test in the established `*-docs.test.sh` family — the
       frozen stage-card hash check cannot serve, and the docs assertion is additional, never a
       substitute — and **not** appended to the frozen obligations inventory, which guards
@@ -746,7 +752,8 @@
 - [ ] T648 [strong] **Extend** the existing decision-ready contract (`Decision needed:` /
       `Recommendation:`) in place — never a parallel schema, which would contradict the
       unchanged §6.5 — for comments that **block** on an owner answer: attempt identity, an
-      ask sequence unique within that attempt, `question_format` (**`yes-no | choice`** only — `free-text` is excluded from the
+      ask sequence unique across all attempts for the task issue that never resets on a new
+      attempt, `question_format` (**`yes-no | choice`** only — `free-text` is excluded from the
       blocking enum because §6.5 requires enumerated choices answerable in a word, and
       admitting it would relax the condition this task promises to preserve), the question,
       enumerated options for `choice`, and **the engine's action per answer**, preserving
@@ -764,15 +771,18 @@
       comment is excluded (bookkeeping consumed as maker input, asking nothing) while the
       *decision item* that stop surfaces is included — scoping the exclusion to the artifact
       rather than the site is what keeps the check's directions from colliding on one file. The check fails
-      **three** directions: a blocking site with no `question_format`; an informational item
-      given one; and a blocking site emitting no `Decision needed:` at all. Parsing is
+      **three** artifact-level directions: a blocking decision artifact with no
+      `question_format`; an informational artifact given one; and a blocking decision
+      artifact emitting no `Decision needed:` at all. Parsing is
       deterministic and two-sided with the parsing rule stated in the §2.5
       thread-reading card (`next-task/03-read-context.md`) and encoded as a hook in
       `.claude/hooks/`, called from that §2.5 thread-read step and from the resume protocol:
       only a reply matching the offered format is an answer, anything else is steering and never
-      consent, both directions proven in the required check. With multiple outstanding asks,
-      a reply applies only to the greatest unique ask sequence in its attempt, never more than
-      one; a reply that both conforms and
+      consent, both directions proven in the required check. Normalization trims outer ASCII
+      whitespace, folds ASCII case, and collapses horizontal whitespace; the accepted grammar
+      is `ANSWER` or `ANSWER — STEERING`, where `ANSWER` is exactly `yes`/`no` or one
+      enumerated choice. With multiple outstanding asks, a reply applies only to the greatest
+      task-wide ask sequence, including across attempts, and never more than one; a reply that both conforms and
       steers is **both** (§2.5 keeps the newest unmarked owner comment authoritative).
       Independently of format, a conforming reply applies **only** the asked decision — never
       authorizing a merge, engaging autonomous mode, altering gate semantics (round limits,
@@ -788,7 +798,8 @@
       probe proves all three runtime behaviors, two-sided in each: three same-check failures
       escalate while two do not; a blocking site emits the schema while an informational item
       does not; and a conforming reply is consumed as an answer while a non-conforming one
-      leaves the run blocked, with two outstanding asks applying only to the later ask. The
+      leaves the run blocked, with two outstanding asks from different attempts applying only
+      to the one with the greater task-wide ask sequence. The
       #295 conversion edits the same
       contract rows — whichever lands second rebases; blocked by **T645 and T647**
       (#296, US12.AC5–AC9) — strong: edits the owner-contact contract adjacent to the merge
