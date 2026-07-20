@@ -159,6 +159,7 @@ check 2 "$FEAT" "r9 block: cd into intake worktree with unsafe body" "$(bashp "c
 check 2 "$FEAT" "r9 block: quoted cd into intake worktree" "$(bashp "cd '$INTAKE' && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: non-leading cd into intake worktree" "$(bashp "true && cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: then cd into intake worktree" "$(bashp "if true; then cd $INTAKE; fi; gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: pushd into intake worktree" "$(bashp "pushd $INTAKE >/dev/null && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: cd -- into intake worktree" "$(bashp "cd -- $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$INTAKE" "r9 block: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: switch to intake branch before PR create" "$(bashp "git switch -c intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
