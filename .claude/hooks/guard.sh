@@ -607,13 +607,15 @@ case "$tool" in
     # body file against that source issue and origin repository. The same-shell
     # evaluator/substitution forms use the raw target above; they are too
     # ambiguous to bind to a body file safely, so intake fails closed there.
-    # A PR-create command that changes directories has no single repository
-    # context that this lightweight guard can bind safely. Reject every such
-    # form rather than letting a quoted, escaped, option-bearing, or non-leading
-    # cd hide an intake worktree from the branch lookup below.
+    # A PR-create command that changes its worktree or branch has no stable
+    # repository context that this lightweight guard can bind safely. Reject a
+    # command containing any executable `cd`, `git switch`, or `git checkout`
+    # token rather than trying to parse every shell position (`then cd`, `! cd`,
+    # functions, etc.). command_skeleton has already blanked inert quotes and
+    # comments, so this deliberately conservative word match fails closed.
     if printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)' \
-       && printf '%s' "$target" | grep -qE '(^|[;&|][[:space:]]*)cd[[:space:]]+'; then
-      block intake-pr-validation "A gh pr create command must run from its current worktree; commands that change directories cannot be source-issue validated safely."
+       && printf '%s' "$target" | grep -qE '(^|[^[:alnum:]_.])(cd[[:space:]]+|git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+(switch|checkout)[[:space:]]+)'; then
+      block intake-pr-validation "A gh pr create command must run directly from its current worktree and branch; commands that change directories or branches cannot be source-issue validated safely."
     fi
     intake_issue="$(intake_source_issue "$cmd")"
     if [ -n "$intake_issue" ] \

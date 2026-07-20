@@ -158,8 +158,12 @@ check 2 "$INTAKE" "r9 block: body-file mention in a shell comment" "$(bashp "gh 
 check 2 "$FEAT" "r9 block: cd into intake worktree with unsafe body" "$(bashp "cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: quoted cd into intake worktree" "$(bashp "cd '$INTAKE' && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: non-leading cd into intake worktree" "$(bashp "true && cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: then cd into intake worktree" "$(bashp "if true; then cd $INTAKE; fi; gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: cd -- into intake worktree" "$(bashp "cd -- $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$INTAKE" "r9 block: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: switch to intake branch before PR create" "$(bashp "git switch -c intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: checkout intake branch before PR create" "$(bashp "git checkout -b intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: option-bearing branch switch before PR create" "$(bashp "git -C $INTAKE switch intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$INTAKE" "r9 block: multiple PR creates validate only one body" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY && gh pr create --body-file $INTAKE_SAFE_BODY")"
 check 0 "$FEAT" "r9 allow: non-intake branch is not source-validated" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
 
