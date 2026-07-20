@@ -73,7 +73,7 @@ fi
 # repository's qualified form is unsafe. The leading boundary avoids treating a
 # longer ordinary word as a keyword (for example, "unclosed").
 source_repository_pattern="${source_repository//./[.]}"
-source_reference="(#${source_issue}([^0-9]|$)|${source_repository_pattern}#${source_issue}([^0-9]|$))"
+source_reference="(#${source_issue}([^0-9]|$)|${source_repository_pattern}#${source_issue}([^0-9]|$)|https?://github[.]com/${source_repository_pattern}/issues/${source_issue}([^0-9]|$))"
 pattern="(^|[^[:alnum:]_])(close[sd]?|fix(e[sd])?|resolve[sd]?)(:[[:space:]]*|[[:space:]]+)${source_reference}"
 if ! body_text="$(tr '\n' ' ' < "$body_file")"; then
   echo "FAIL: could not read --body-file '$body_file'" >&2

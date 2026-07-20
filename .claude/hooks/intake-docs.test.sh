@@ -203,7 +203,7 @@ assert_source_issue_check "colon-suffixed closing verb before the source issue i
   "Closes: #263"
 assert_source_issue_check "newline-suffixed closing verb before the source issue is rejected" 1 \
   $'Does not close\n#263; the source issue remains open.'
-assert_source_issue_check "full-URL reference to the source issue is accepted" 0 \
+assert_source_issue_check "full-URL closing reference to the source issue is rejected" 1 \
   "Fixes https://github.com/example/creance/issues/263"
 assert_source_issue_check "repository-qualified closing reference to the source issue is rejected" 1 \
   "Fixes example/creance#263"
@@ -215,6 +215,18 @@ assert_source_issue_check "repository-qualified closing reference to a different
   "Fixes example/creance#264"
 assert_source_issue_check "repository-qualified reference to the same number in another repository is accepted" 0 \
   "Fixes octo-org/other-repo#263"
+
+# The binding's compose → validate → open steps are an ordered list. Keep the
+# validator example and its explanation nested under item 2, and leave a blank
+# line before item 3 so CommonMark cannot treat it as paragraph continuation.
+if grep -q '^   ```bash$' "$SKILL" \
+  && grep -q '^   Exit 1 means' "$SKILL" \
+  && awk '/^   not open the PR until it is corrected\./ { seen = 1; next } seen && /^$/ { blank = 1; next } blank && /^3\. Only after/ { found = 1 } END { exit !found }' "$SKILL"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL #263: source-issue validation example must stay nested in an ordered Markdown list\n' >&2
+fi
 
 # Negative case: the binding-contract table in workflow/README.md must NOT gain
 # an intake role row (intake composes existing roles; it appears only in the

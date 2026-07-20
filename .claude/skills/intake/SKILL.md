@@ -18,21 +18,26 @@ The workflow logic is runtime-neutral and lives in **`.claude/workflow/intake.md
 | tracker reads/writes | `gh issue list/view` (read), `gh issue comment` / `gh issue edit --title` / `gh issue edit --add-label` (additive writes only — never `gh issue close`, never a merge) |
 
 Write posture per the workflow doc: repo edits happen **only on an intake branch** (the
-PreToolUse guard blocks base-branch edits deterministically); the conversion PR carries
-**no closing keyword** for the source issue; merge is the owner's alone.
+PreToolUse guard blocks base-branch edits deterministically); name every conversion branch
+`intake/<source-issue>-<short-description>`. The guard uses that source-issue segment to
+validate the conversion PR's exact `--body-file` before `gh pr create` runs. The conversion
+PR carries **no closing keyword** for the source issue; merge is the owner's alone.
 
 For every conversion PR, keep the body-composition, validation, and opening sequence fixed:
 
 1. Compose the conversion PR body.
 2. Validate that composed body against the source issue:
 
-```bash
-bash .claude/hooks/intake-source-issue-check.sh --source-issue <n> --source-repository <owner>/<repo> --body-file <path>
-```
+   ```bash
+   bash .claude/hooks/intake-source-issue-check.sh --source-issue <n> --source-repository <owner>/<repo> --body-file <path>
+   ```
 
-Exit 1 means the body places a closing-keyword verb immediately before that source issue
-reference (including a negated, colon-suffixed, newline-separated, or source-repository-qualified phrase); revise the body and rerun the check. Exit 2 is a
-caller error; do not open the PR until it is corrected.
+   Exit 1 means the body places a closing-keyword verb immediately before that source issue
+   reference (including a negated, colon-suffixed, newline-separated, source-repository-qualified,
+   or full GitHub-URL phrase); revise the body and rerun the check. Exit 2 is a caller error; do
+   not open the PR until it is corrected. The guard repeats this validation at PR creation, so the
+   check cannot be skipped accidentally.
+
 3. Only after the validator exits 0, perform the [open-pr output].
 
 **Profile read — packet first (spec 007 US3.AC3).** Read **`.claude/PROJECT.compact.md`**
