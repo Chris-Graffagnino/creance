@@ -615,7 +615,7 @@ case "$tool" in
     # comments, so this deliberately conservative word match fails closed.
     intake_pr_create='gh([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|new)([[:space:]]|[;&|)]|\\|"|$)'
     if printf '%s' "$target" | grep -qE "$intake_pr_create" \
-       && printf '%s' "$target" | grep -qE '(^|[[:space:]])(--head|-H)(=|[[:space:]]|[;&|)]|$)'; then
+       && printf '%s' "$target" | grep -qE '(^|[[:space:]])(--head(=|[[:space:]]|[;&|)]|$)|-H[^[:space:];&|)]*)'; then
       block intake-pr-validation "A gh pr create command must use its current branch; explicit --head/-H values cannot be source-issue validated safely."
     fi
     if printf '%s' "$target" | grep -qE "$intake_pr_create" \
