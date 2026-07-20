@@ -152,6 +152,8 @@ check 0 "$FEAT" "r4 allow: no push in the command" "$(bashp 'git status')"
 # The rule is branch-gated: an explicit intake branch carries the source issue
 # number, while ordinary task PRs retain their normal closing-reference semantics.
 check 2 "$INTAKE" "r9 block: full source-issue URL in intake PR body" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: gh global option before unsafe intake PR" "$(bashp "gh --repo owner/repo pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: gh pr new alias with unsafe intake body" "$(bashp "gh pr new --body-file $INTAKE_BAD_BODY")"
 check 0 "$INTAKE" "r9 allow: safe intake PR body" "$(bashp "gh pr create --body-file $INTAKE_SAFE_BODY")"
 check 2 "$INTAKE" "r9 block: intake PR without body file" "$(bashp 'gh pr create --title intake')"
 check 2 "$INTAKE" "r9 block: body-file mention in a shell comment" "$(bashp "gh pr create --title intake # --body-file $INTAKE_SAFE_BODY")"
@@ -160,6 +162,9 @@ check 2 "$FEAT" "r9 block: quoted cd into intake worktree" "$(bashp "cd '$INTAKE
 check 2 "$FEAT" "r9 block: non-leading cd into intake worktree" "$(bashp "true && cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: then cd into intake worktree" "$(bashp "if true; then cd $INTAKE; fi; gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: pushd into intake worktree" "$(bashp "pushd $INTAKE >/dev/null && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: pushd stack transition before intake PR" "$(bashp "pushd; gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: popd stack transition before intake PR" "$(bashp "popd; gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: zsh chdir into intake worktree" "$(bashp "zsh -c 'chdir $INTAKE; gh pr create --body-file $INTAKE_BAD_BODY'")"
 check 2 "$FEAT" "r9 block: cd -- into intake worktree" "$(bashp "cd -- $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$INTAKE" "r9 block: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: switch to intake branch before PR create" "$(bashp "git switch -c intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"

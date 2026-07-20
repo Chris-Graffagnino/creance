@@ -199,7 +199,7 @@ origin_repository() {
 # can make a body-file flag inert.
 intake_pr_body_file() {
   printf '%s' "$1" \
-    | sed -nE 's#.*gh[[:space:]]+pr[[:space:]]+create[^;&|]*--body-file[[:space:]]+([^[:space:];&|"\\]+).*#\1#p' \
+    | sed -nE 's#.*gh([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|new)[^;&|]*--body-file[[:space:]]+([^[:space:];&|"\\]+).*#\3#p' \
     | head -1
 }
 
@@ -609,18 +609,19 @@ case "$tool" in
     # ambiguous to bind to a body file safely, so intake fails closed there.
     # A PR-create command that changes its worktree or branch has no stable
     # repository context that this lightweight guard can bind safely. Reject a
-    # command containing any executable `cd`, `pushd`, `popd`, `git switch`, or
+    # command containing any executable `cd`, `pushd`, `popd`, `chdir`, `git switch`, or
     # `git checkout` token rather than trying to parse every shell position
     # (`then cd`, `! cd`, functions, etc.). command_skeleton has already blanked inert quotes and
     # comments, so this deliberately conservative word match fails closed.
-    if printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)' \
-       && printf '%s' "$target" | grep -qE '(^|[^[:alnum:]_.])((cd|pushd|popd)[[:space:]]+|git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+(switch|checkout)[[:space:]]+)'; then
+    intake_pr_create='gh([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|new)([[:space:]]|[;&|)]|\\|"|$)'
+    if printf '%s' "$target" | grep -qE "$intake_pr_create" \
+       && printf '%s' "$target" | grep -qE '(^|[^[:alnum:]_.])((cd|pushd|popd|chdir)([[:space:]]|[;&|)]|$)|git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+(switch|checkout)[[:space:]]+)'; then
       block intake-pr-validation "A gh pr create command must run directly from its current worktree and branch; commands that change directories or branches cannot be source-issue validated safely."
     fi
     intake_issue="$(intake_source_issue "$cmd")"
     if [ -n "$intake_issue" ] \
-       && printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)'; then
-      intake_creates="$(printf '%s' "$target" | grep -oE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)' | wc -l | tr -d '[:space:]')"
+       && printf '%s' "$target" | grep -qE "$intake_pr_create"; then
+      intake_creates="$(printf '%s' "$target" | grep -oE "$intake_pr_create" | wc -l | tr -d '[:space:]')"
       [ "$intake_creates" -le 1 ] \
         || block intake-pr-validation "An intake conversion command may invoke gh pr create only once, so the exact body file can be source-issue validated."
       [ "$vector" = 0 ] || block intake-pr-validation "An intake conversion PR must invoke gh pr create directly with --body-file <path>; shell-evaluator and substitution forms cannot be source-issue validated safely."
