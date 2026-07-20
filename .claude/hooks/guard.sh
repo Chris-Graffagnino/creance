@@ -150,11 +150,24 @@ cmd_value() {
     | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//'
 }
 
+# The PR-create guard follows a leading `cd <path> &&` just like the shell does,
+# so a command cannot escape intake validation by starting in another worktree.
+command_git() { # command_git <command> <git-args...>
+  local command="$1" command_dir
+  shift
+  command_dir="$(cd_dir "$command")"
+  if [ -n "$command_dir" ]; then
+    git -C "$command_dir" "$@" 2>/dev/null
+  else
+    git "$@" 2>/dev/null
+  fi
+}
+
 # An intake branch carries the source issue explicitly, so the PR-creation rule
 # can validate the exact body without guessing from prose or tracker state.
 intake_source_issue() {
   local current
-  current="$(branch)"
+  current="$(command_git "$1" branch --show-current)" || return 1
   if [[ "$current" =~ ^intake/([1-9][0-9]*)(-|$) ]]; then
     printf '%s' "${BASH_REMATCH[1]}"
   fi
@@ -165,7 +178,7 @@ intake_source_issue() {
 # the caller rather than treating a missing source repository as validation.
 origin_repository() {
   local remote repository
-  remote="$(git config --get remote.origin.url 2>/dev/null)" || return 1
+  remote="$(command_git "$1" config --get remote.origin.url)" || return 1
   case "$remote" in
     https://github.com/*) repository="${remote#https://github.com/}" ;;
     http://github.com/*) repository="${remote#http://github.com/}" ;;
@@ -181,7 +194,9 @@ origin_repository() {
 # This guard deliberately accepts only the adapter's documented unquoted
 # `--body-file <path>` form. An unparseable form blocks on an intake branch;
 # callers can use a temporary path without spaces, as the environment binding
-# already prescribes, instead of making the source-issue check advisory.
+# already prescribes, instead of making the source-issue check advisory. Its
+# input is the executable command skeleton, never raw text where a shell comment
+# can make a body-file flag inert.
 intake_pr_body_file() {
   printf '%s' "$1" \
     | sed -nE 's#.*gh[[:space:]]+pr[[:space:]]+create[^;&|]*--body-file[[:space:]]+([^[:space:];&|"\\]+).*#\1#p' \
@@ -592,14 +607,14 @@ case "$tool" in
     # body file against that source issue and origin repository. The same-shell
     # evaluator/substitution forms use the raw target above; they are too
     # ambiguous to bind to a body file safely, so intake fails closed there.
-    intake_issue="$(intake_source_issue)"
+    intake_issue="$(intake_source_issue "$cmd")"
     if [ -n "$intake_issue" ] \
        && printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)'; then
       [ "$vector" = 0 ] || block intake-pr-validation "An intake conversion PR must invoke gh pr create directly with --body-file <path>; shell-evaluator and substitution forms cannot be source-issue validated safely."
-      intake_body="$(intake_pr_body_file "$cmdv")"
+      intake_body="$(intake_pr_body_file "$skel")"
       [ -n "$intake_body" ] && [ -r "$intake_body" ] \
         || block intake-pr-validation "An intake conversion PR must use a readable, unquoted --body-file <path> so its source-issue reference can be validated before gh pr create runs."
-      intake_repository="$(origin_repository)" \
+      intake_repository="$(origin_repository "$cmd")" \
         || block intake-pr-validation "Could not resolve the origin GitHub repository for this intake conversion PR; source-issue validation cannot be skipped."
       intake_check="$(cd "$(dirname "$0")" && pwd)/intake-source-issue-check.sh"
       [ -x "$intake_check" ] \

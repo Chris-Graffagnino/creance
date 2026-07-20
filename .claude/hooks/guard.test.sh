@@ -154,6 +154,9 @@ check 0 "$FEAT" "r4 allow: no push in the command" "$(bashp 'git status')"
 check 2 "$INTAKE" "r9 block: full source-issue URL in intake PR body" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
 check 0 "$INTAKE" "r9 allow: safe intake PR body" "$(bashp "gh pr create --body-file $INTAKE_SAFE_BODY")"
 check 2 "$INTAKE" "r9 block: intake PR without body file" "$(bashp 'gh pr create --title intake')"
+check 2 "$INTAKE" "r9 block: body-file mention in a shell comment" "$(bashp "gh pr create --title intake # --body-file $INTAKE_SAFE_BODY")"
+check 2 "$FEAT" "r9 block: cd into intake worktree with unsafe body" "$(bashp "cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 0 "$INTAKE" "r9 allow: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 0 "$FEAT" "r9 allow: non-intake branch is not source-validated" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
 
 # --- #138 (T621): global-option / cwd evasions of rules 2/3/4 ---
