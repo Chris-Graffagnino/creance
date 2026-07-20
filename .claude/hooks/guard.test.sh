@@ -21,6 +21,9 @@
 #      commit TARGETS and the view it LANDS — index vs worktree — per the
 #      PR #208 review; rule 7 below is the PostToolUse [edit guard], numbered
 #      before this rule landed)
+#   9. intake conversion PR creation — an `intake/<source-issue>-…` branch's
+#      `gh pr create --body-file` is validated against that source issue before
+#      the command can run (issue #263)
 # plus the telemetry logging paths (workflow/telemetry.md): block records,
 # evaluation records, and the failure-stays-silent case (GUARD_TELEMETRY_FILE
 # is the stream's test seam).
@@ -44,13 +47,20 @@ export GUARD_TELEMETRY_FILE="$TELE"
 
 MAIN="$TMP/on-main"
 FEAT="$TMP/on-feature"
+INTAKE="$TMP/on-intake"
 git init -q -b main "$MAIN"
 git init -q -b feature/test "$FEAT"
+git init -q -b intake/263-fixture "$INTAKE"
 # Resolve roots the way the hook does (git may report a different spelling of
 # the temp path than mktemp did, e.g. drive-letter form on Windows).
 MAIN_ROOT="$(git -C "$MAIN" rev-parse --show-toplevel)"
 FEAT_ROOT="$(git -C "$FEAT" rev-parse --show-toplevel)"
 OUTSIDE="$(dirname "$MAIN_ROOT")/outside/notes.md"
+git -C "$INTAKE" remote add origin https://github.com/example/creance.git
+INTAKE_BAD_BODY="$TMP/intake-bad-body.md"
+INTAKE_SAFE_BODY="$TMP/intake-safe-body.md"
+printf 'Fixes https://github.com/example/creance/issues/263\n' > "$INTAKE_BAD_BODY"
+printf 'The source issue (#263) remains open.\n' > "$INTAKE_SAFE_BODY"
 # Windows-style variants: JSON-escaped backslashes, exactly as the Claude Code
 # runtime serializes file_path on Windows.
 MAIN_ROOT_WIN="$(printf '%s' "$MAIN_ROOT" | sed -e 's#/#\\\\#g')"
@@ -137,6 +147,34 @@ check 0 "$FEAT" "r4 allow: HEAD:main-backup refspec" "$(bashp 'git push origin H
 check 0 "$FEAT" "r4 allow: branch named maintenance" "$(bashp 'git push origin maintenance')"
 check 0 "$FEAT" "r4 allow: push && gh pr create --base main" "$(bashp 'git push -u origin feature/x && gh pr create --base main')"
 check 0 "$FEAT" "r4 allow: no push in the command" "$(bashp 'git status')"
+
+# --- rule 9: intake conversion PRs must validate their body at create time ---
+# The rule is branch-gated: an explicit intake branch carries the source issue
+# number, while ordinary task PRs retain their normal closing-reference semantics.
+check 2 "$INTAKE" "r9 block: full source-issue URL in intake PR body" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: gh global option before unsafe intake PR" "$(bashp "gh --repo owner/repo pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: gh pr new alias with unsafe intake body" "$(bashp "gh pr new --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: explicit intake head with unsafe body" "$(bashp "gh pr create --head intake/263-fixture --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: attached short intake head with unsafe body" "$(bashp "gh pr create -Hintake/263-fixture --body-file $INTAKE_BAD_BODY")"
+check 0 "$INTAKE" "r9 allow: safe intake PR body" "$(bashp "gh pr create --body-file $INTAKE_SAFE_BODY")"
+check 2 "$INTAKE" "r9 block: intake PR without body file" "$(bashp 'gh pr create --title intake')"
+check 2 "$INTAKE" "r9 block: body-file mention in a shell comment" "$(bashp "gh pr create --title intake # --body-file $INTAKE_SAFE_BODY")"
+check 2 "$FEAT" "r9 block: cd into intake worktree with unsafe body" "$(bashp "cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: quoted cd into intake worktree" "$(bashp "cd '$INTAKE' && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: non-leading cd into intake worktree" "$(bashp "true && cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: then cd into intake worktree" "$(bashp "if true; then cd $INTAKE; fi; gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: pushd into intake worktree" "$(bashp "pushd $INTAKE >/dev/null && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: pushd stack transition before intake PR" "$(bashp "pushd; gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: popd stack transition before intake PR" "$(bashp "popd; gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: zsh chdir into intake worktree" "$(bashp "zsh -c 'chdir $INTAKE; gh pr create --body-file $INTAKE_BAD_BODY'")"
+check 2 "$FEAT" "r9 block: cd -- into intake worktree" "$(bashp "cd -- $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: switch to intake branch before PR create" "$(bashp "git switch -c intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: checkout intake branch before PR create" "$(bashp "git checkout -b intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: option-bearing branch switch before PR create" "$(bashp "git -C $INTAKE switch intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: branch rename before PR create" "$(bashp "git branch -m intake/263-fixture && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: multiple PR creates validate only one body" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY && gh pr create --body-file $INTAKE_SAFE_BODY")"
+check 0 "$FEAT" "r9 allow: non-intake branch is not source-validated" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
 
 # --- #138 (T621): global-option / cwd evasions of rules 2/3/4 ---
 # DW1 — a leading git global option no longer slips the bulk-staging / commit-push

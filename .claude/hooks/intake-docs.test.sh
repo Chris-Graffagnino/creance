@@ -115,6 +115,8 @@ check "AC3 posture: conversion PR never closes the source issue" "$INTAKE_FLAT" 
   "**The conversion PR does not close the source issue.**"
 check "AC3 posture: no closing keyword in the PR body" "$INTAKE_FLAT" \
   "without a closing keyword"
+check "#263 posture: source issue reference is separated from closing-keyword verbs" "$INTAKE_FLAT" \
+  "must not place a closing-keyword verb immediately before the source issue reference"
 check "AC3 posture: intake never merges its own PR" "$INTAKE_FLAT" \
   "never merges its own conversion PR"
 check "AC3 posture: task IDs append-only, never renumbered" "$INTAKE_FLAT" \
@@ -141,6 +143,91 @@ check "AC5: binding executes the runtime-neutral workflow doc" "$SKILL_FLAT" \
   "\`.claude/workflow/intake.md\`"
 check "AC5: workflow composes existing roles only" "$INTAKE_FLAT" \
   "Intake composes existing roles only"
+
+# ── #263 — source issue cannot be parsed as a closing reference ──────────────
+# GitHub-style closing-keyword parsing is negation-blind: prose such as
+# "does not close #263" still carries the closing-reference shape. The active
+# binding must run this deterministic pre-open validator against the composed
+# body, and its controls must distinguish the source issue from other references.
+SOURCE_ISSUE_CHECK="$DIR/hooks/intake-source-issue-check.sh"
+if [ -x "$SOURCE_ISSUE_CHECK" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL #263: source-issue validator is executable\n     missing: %s\n' "$SOURCE_ISSUE_CHECK" >&2
+fi
+check "#263 binding: source-issue validator runs before opening the PR" "$SKILL_FLAT" \
+  "intake-source-issue-check.sh --source-issue <n> --source-repository <owner>/<repo> --body-file <path>"
+
+line_number() { # line_number <file> <fixed-string>
+  grep -nF -- "$2" "$1" | head -1 | cut -d: -f1
+}
+
+source_issue_compose_line="$(line_number "$SKILL" "1. Compose the conversion PR body.")"
+source_issue_validate_line="$(line_number "$SKILL" "2. Validate that composed body against the source issue:")"
+source_issue_open_line="$(line_number "$SKILL" "3. Only after the validator exits 0, perform the [open-pr output].")"
+if [ -n "$source_issue_compose_line" ] && [ -n "$source_issue_validate_line" ] \
+  && [ -n "$source_issue_open_line" ] \
+  && [ "$source_issue_compose_line" -lt "$source_issue_validate_line" ] \
+  && [ "$source_issue_validate_line" -lt "$source_issue_open_line" ]; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL #263: source-issue body composition, validation, and PR-open steps must stay ordered\n' >&2
+fi
+
+SOURCE_ISSUE_BODY="$(mktemp)"
+trap 'rm -f "$SOURCE_ISSUE_BODY"' EXIT
+
+assert_source_issue_check() { # <name> <expected-exit> <body>
+  local name="$1" expected="$2" body="$3" actual
+  printf '%s\n' "$body" > "$SOURCE_ISSUE_BODY"
+  if "$SOURCE_ISSUE_CHECK" --source-issue 263 --source-repository example/creance --body-file "$SOURCE_ISSUE_BODY" >/dev/null 2>&1; then
+    actual=0
+  else
+    actual=1
+  fi
+  if [ "$actual" = "$expected" ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    printf 'FAIL #263: %s (expected exit %s, got %s)\n' "$name" "$expected" "$actual" >&2
+  fi
+}
+
+assert_source_issue_check "negated closing verb before the source issue is rejected" 1 \
+  "Does not close #263; the source issue remains open."
+assert_source_issue_check "direct closing verb before the source issue is rejected" 1 \
+  "FIXED #263"
+assert_source_issue_check "colon-suffixed closing verb before the source issue is rejected" 1 \
+  "Closes: #263"
+assert_source_issue_check "newline-suffixed closing verb before the source issue is rejected" 1 \
+  $'Does not close\n#263; the source issue remains open.'
+assert_source_issue_check "full-URL closing reference to the source issue is rejected" 1 \
+  "Fixes https://github.com/example/creance/issues/263"
+assert_source_issue_check "repository-qualified closing reference to the source issue is rejected" 1 \
+  "Fixes example/creance#263"
+assert_source_issue_check "separated source issue reference is accepted" 0 \
+  "The source issue (#263) remains open; this body intentionally omits closing keywords."
+assert_source_issue_check "closing reference to a different issue is accepted" 0 \
+  "Closes #264; the source issue (#263) remains open."
+assert_source_issue_check "repository-qualified closing reference to a different issue is accepted" 0 \
+  "Fixes example/creance#264"
+assert_source_issue_check "repository-qualified reference to the same number in another repository is accepted" 0 \
+  "Fixes octo-org/other-repo#263"
+
+# The binding's compose → validate → open steps are an ordered list. Keep the
+# validator example and its explanation nested under item 2, and leave a blank
+# line before item 3 so CommonMark cannot treat it as paragraph continuation.
+if grep -q '^   ```bash$' "$SKILL" \
+  && grep -q '^   Exit 1 means' "$SKILL" \
+  && awk '/^   not open the PR until it is corrected\./ { seen = 1; next } seen && /^$/ { blank = 1; next } blank && /^3\. Only after/ { found = 1 } END { exit !found }' "$SKILL"; then
+  pass=$((pass + 1))
+else
+  fail=$((fail + 1))
+  printf 'FAIL #263: source-issue validation example must stay nested in an ordered Markdown list\n' >&2
+fi
+
 # Negative case: the binding-contract table in workflow/README.md must NOT gain
 # an intake role row (intake composes existing roles; it appears only in the
 # Files list).

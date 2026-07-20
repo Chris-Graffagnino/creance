@@ -49,7 +49,7 @@ mechanism, vendor, or model names — only `[role]` references.
 
 ## 2. The cut-list — every tracked file in `.claude/`
 
-Manifest source inventory: 165 rows.
+Manifest source inventory: 166 rows.
 
 Every source file under `.claude/` is itemized exactly once below.
 `hooks/extraction-manifest.test.sh` compares this table with
@@ -138,6 +138,7 @@ fresh/blank instantiation) · **TEMPLATE** (the project-specific input — ship 
 | `hooks/harness-manifest.py` | KEEP | Generated harness-manifest generator + staleness check (`--write` regenerates `HARNESS.lock.json`; `--check` fails naming the drifted field + the regeneration command; T637). Deterministic, offline, stdlib-only; compiled evidence, never authority — source docs win. Verbatim — the adopter regenerates the lock after filling their profile. |
 | `hooks/harness-manifest.test.sh` | KEEP | Two-sided falsification tests for the harness manifest — per-surface planted drift (roster, review passes, guard rules, checker map, autonomy) each fails naming its field, clean control passes, generator determinism, anchor-rot fail-loud, CI wiring. Verbatim. |
 | `hooks/intake-docs.test.sh` | KEEP | Encoding test for intake/triage workflow docs and skill binding. Verbatim. |
+| `hooks/intake-source-issue-check.sh` | KEEP | Deterministic pre-open validator that rejects a closing-keyword reference to an intake conversion PR's source issue. Verbatim. |
 | `hooks/isolated-workspace.sh` | GENERICIZE | Keep the [isolated workspace] worktree lifecycle verbatim, but the ephemeral worktree's `creance-ws-` mktemp prefix and `.creance-ws-owner` provenance-marker filename hardcode this project's name (`enter`'s `mktemp -d .../creance-ws-XXXXXX`, the marker write/read, and the `*/creance-ws-*` teardown name-guard). A verbatim clone would create `creance`-named temp dirs and marker files. On extraction, rename both to a neutral prefix (`ws-`/`harness-ws-`); update the two coupled tests below in lockstep. (Descriptive mentions of the prefix in `DESIGN-NOTES.md`, `skills/next-task/SKILL.md`, and example paths in `workflows/gate-loop.test.js` are self-contained — same this-repo flavor those KEEP files already carry — and don't break on rename.) |
 | `hooks/isolated-workspace.test.sh` | GENERICIZE | Keep the lifecycle regression tests and CI-wiring assertion verbatim, but its look-alike fixtures (`creance-ws-LOOKALIKE-*`) hardcode the prefix to exercise the `*/creance-ws-*` name-guard. Rename them in lockstep with `isolated-workspace.sh` above so the extracted test matches the genericized script. |
 | `hooks/isolation-falsification.test.sh` | GENERICIZE | Keep the adversarial base-unreachability proof verbatim, but its forged-marker fixture (`creance-ws-FORGED`) hardcodes the prefix to pass the `*/creance-ws-*` name filter. Rename it in lockstep with `isolated-workspace.sh` above. |

@@ -53,6 +53,11 @@
 #      open: no id in the command, a missing lib, an unreadable repo root, or
 #      no live tasks files. (Numbered 8 because rule 7 below — the PostToolUse
 #      [edit guard] — landed first.)
+#   9. `gh pr create` on an `intake/<source-issue>-…` branch unless its
+#      `--body-file` passes intake-source-issue-check.sh for that issue and the
+#      origin repository. This is fail-closed on an unreadable body, unsupported
+#      command form, or unresolvable origin, so a conversion PR cannot silently
+#      skip its source-issue validation (issue #263).
 # PostToolUse — fix-forward feedback (exit 2) AFTER the write, since PreToolUse
 # cannot see an edit's result and PostToolUse cannot revert (issue #79):
 #   7. An edit to a checked file that ADDS a diagnostic from the project's
@@ -143,6 +148,59 @@ cmd_value() {
   printf '%s' "$payload" \
     | grep -oE '"command"[[:space:]]*:[[:space:]]*"(\\.|[^"\\])*"' | head -1 \
     | sed -E 's/^"command"[[:space:]]*:[[:space:]]*"//; s/"$//'
+}
+
+# The PR-create guard follows a leading `cd <path> &&` just like the shell does,
+# so a command cannot escape intake validation by starting in another worktree.
+command_git() { # command_git <command> <git-args...>
+  local command="$1" command_dir
+  shift
+  command_dir="$(cd_dir "$command")"
+  if [ -n "$command_dir" ]; then
+    git -C "$command_dir" "$@" 2>/dev/null
+  else
+    git "$@" 2>/dev/null
+  fi
+}
+
+# An intake branch carries the source issue explicitly, so the PR-creation rule
+# can validate the exact body without guessing from prose or tracker state.
+intake_source_issue() {
+  local current
+  current="$(command_git "$1" branch --show-current)" || return 1
+  if [[ "$current" =~ ^intake/([1-9][0-9]*)(-|$) ]]; then
+    printf '%s' "${BASH_REMATCH[1]}"
+  fi
+}
+
+# Intake source issues live in origin per the project's direct-repository model.
+# Support the GitHub HTTPS and SSH remote forms; an unknown remote fails closed at
+# the caller rather than treating a missing source repository as validation.
+origin_repository() {
+  local remote repository
+  remote="$(command_git "$1" config --get remote.origin.url)" || return 1
+  case "$remote" in
+    https://github.com/*) repository="${remote#https://github.com/}" ;;
+    http://github.com/*) repository="${remote#http://github.com/}" ;;
+    git@github.com:*) repository="${remote#git@github.com:}" ;;
+    ssh://git@github.com/*) repository="${remote#ssh://git@github.com/}" ;;
+    *) return 1 ;;
+  esac
+  repository="${repository%.git}"
+  [[ "$repository" =~ ^[[:alnum:]_.-]+/[[:alnum:]_.-]+$ ]] || return 1
+  printf '%s' "$repository"
+}
+
+# This guard deliberately accepts only the adapter's documented unquoted
+# `--body-file <path>` form. An unparseable form blocks on an intake branch;
+# callers can use a temporary path without spaces, as the environment binding
+# already prescribes, instead of making the source-issue check advisory. Its
+# input is the executable command skeleton, never raw text where a shell comment
+# can make a body-file flag inert.
+intake_pr_body_file() {
+  printf '%s' "$1" \
+    | sed -nE 's#.*gh([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|new)[^;&|]*--body-file[[:space:]]+([^[:space:];&|"\\]+).*#\3#p' \
+    | head -1
 }
 
 # quote_blank <mode> — blank quoted spans of the command value read on stdin, with a single
@@ -542,6 +600,45 @@ case "$tool" in
     if [ "$real_push" = 1 ]; then
       if printf '%s' "$skel" | grep -qE "$refspec" || printf '%s' "$payload_ns" | grep -qE "$refspec"; then
         block push-refspec-main "This push targets 'main' (refspec). Never push to 'main' (AGENTS.md) — push the feature branch and open a PR."
+      fi
+    fi
+    # Rule 9: an intake conversion branch encodes its source issue in the
+    # branch name. Before a real `gh pr create` runs, re-validate the exact
+    # body file against that source issue and origin repository. The same-shell
+    # evaluator/substitution forms use the raw target above; they are too
+    # ambiguous to bind to a body file safely, so intake fails closed there.
+    # A PR-create command that changes its worktree or branch has no stable
+    # repository context that this lightweight guard can bind safely. Reject a
+    # command containing any executable `cd`, `pushd`, `popd`, `chdir`, `git switch`,
+    # `git checkout`, or `git branch` token rather than trying to parse every shell position
+    # (`then cd`, `! cd`, functions, etc.). command_skeleton has already blanked inert quotes and
+    # comments, so this deliberately conservative word match fails closed.
+    intake_pr_create='gh([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+pr[[:space:]]+(create|new)([[:space:]]|[;&|)]|\\|"|$)'
+    if printf '%s' "$target" | grep -qE "$intake_pr_create" \
+       && printf '%s' "$target" | grep -qE '(^|[[:space:]])(--head(=|[[:space:]]|[;&|)]|$)|-H[^[:space:];&|)]*)'; then
+      block intake-pr-validation "A gh pr create command must use its current branch; explicit --head/-H values cannot be source-issue validated safely."
+    fi
+    if printf '%s' "$target" | grep -qE "$intake_pr_create" \
+       && printf '%s' "$target" | grep -qE '(^|[^[:alnum:]_.])((cd|pushd|popd|chdir)([[:space:]]|[;&|)]|$)|git([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+(switch|checkout|branch)[[:space:]]+)'; then
+      block intake-pr-validation "A gh pr create command must run directly from its current worktree and branch; commands that change directories or branches cannot be source-issue validated safely."
+    fi
+    intake_issue="$(intake_source_issue "$cmd")"
+    if [ -n "$intake_issue" ] \
+       && printf '%s' "$target" | grep -qE "$intake_pr_create"; then
+      intake_creates="$(printf '%s' "$target" | grep -oE "$intake_pr_create" | wc -l | tr -d '[:space:]')"
+      [ "$intake_creates" -le 1 ] \
+        || block intake-pr-validation "An intake conversion command may invoke gh pr create only once, so the exact body file can be source-issue validated."
+      [ "$vector" = 0 ] || block intake-pr-validation "An intake conversion PR must invoke gh pr create directly with --body-file <path>; shell-evaluator and substitution forms cannot be source-issue validated safely."
+      intake_body="$(intake_pr_body_file "$skel")"
+      [ -n "$intake_body" ] && [ -r "$intake_body" ] \
+        || block intake-pr-validation "An intake conversion PR must use a readable, unquoted --body-file <path> so its source-issue reference can be validated before gh pr create runs."
+      intake_repository="$(origin_repository "$cmd")" \
+        || block intake-pr-validation "Could not resolve the origin GitHub repository for this intake conversion PR; source-issue validation cannot be skipped."
+      intake_check="$(cd "$(dirname "$0")" && pwd)/intake-source-issue-check.sh"
+      [ -x "$intake_check" ] \
+        || block intake-pr-validation "The intake source-issue validator is unavailable; do not create the conversion PR until it is restored."
+      if ! bash "$intake_check" --source-issue "$intake_issue" --source-repository "$intake_repository" --body-file "$intake_body" >/dev/null 2>&1; then
+        block intake-pr-validation "The intake conversion PR body contains an unsafe closing reference to source issue #$intake_issue. Revise the body so the source issue remains open, then retry gh pr create."
       fi
     fi
     # Rule 6: a self-colliding in-place sed substitution — the delimiter char also
