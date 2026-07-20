@@ -607,18 +607,20 @@ case "$tool" in
     # body file against that source issue and origin repository. The same-shell
     # evaluator/substitution forms use the raw target above; they are too
     # ambiguous to bind to a body file safely, so intake fails closed there.
-    # cd_dir intentionally recognizes only an unquoted leading directory. An
-    # unsupported quoted/escaped `cd` must not fall back to the hook's cwd,
-    # because that can hide an intake worktree; reject it before branch lookup.
-    intake_cd="$(cd_dir "$cmd")"
+    # A PR-create command that changes directories has no single repository
+    # context that this lightweight guard can bind safely. Reject every such
+    # form rather than letting a quoted, escaped, option-bearing, or non-leading
+    # cd hide an intake worktree from the branch lookup below.
     if printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)' \
-       && printf '%s' "$cmd" | grep -qE '^cd[[:space:]]+' \
-       && { [ -z "$intake_cd" ] || printf '%s' "$intake_cd" | grep -qE "['\"]"; }; then
-      block intake-pr-validation "A gh pr create command with a quoted or otherwise unparseable leading cd cannot be source-issue validated safely. Run it from the target worktree with an unquoted --body-file <path>."
+       && printf '%s' "$target" | grep -qE '(^|[;&|][[:space:]]*)cd[[:space:]]+'; then
+      block intake-pr-validation "A gh pr create command must run from its current worktree; commands that change directories cannot be source-issue validated safely."
     fi
     intake_issue="$(intake_source_issue "$cmd")"
     if [ -n "$intake_issue" ] \
        && printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)'; then
+      intake_creates="$(printf '%s' "$target" | grep -oE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)' | wc -l | tr -d '[:space:]')"
+      [ "$intake_creates" -le 1 ] \
+        || block intake-pr-validation "An intake conversion command may invoke gh pr create only once, so the exact body file can be source-issue validated."
       [ "$vector" = 0 ] || block intake-pr-validation "An intake conversion PR must invoke gh pr create directly with --body-file <path>; shell-evaluator and substitution forms cannot be source-issue validated safely."
       intake_body="$(intake_pr_body_file "$skel")"
       [ -n "$intake_body" ] && [ -r "$intake_body" ] \

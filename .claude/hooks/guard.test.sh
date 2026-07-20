@@ -157,7 +157,10 @@ check 2 "$INTAKE" "r9 block: intake PR without body file" "$(bashp 'gh pr create
 check 2 "$INTAKE" "r9 block: body-file mention in a shell comment" "$(bashp "gh pr create --title intake # --body-file $INTAKE_SAFE_BODY")"
 check 2 "$FEAT" "r9 block: cd into intake worktree with unsafe body" "$(bashp "cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
 check 2 "$FEAT" "r9 block: quoted cd into intake worktree" "$(bashp "cd '$INTAKE' && gh pr create --body-file $INTAKE_BAD_BODY")"
-check 0 "$INTAKE" "r9 allow: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: non-leading cd into intake worktree" "$(bashp "true && cd $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$FEAT" "r9 block: cd -- into intake worktree" "$(bashp "cd -- $INTAKE && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: cd out of intake worktree" "$(bashp "cd $FEAT && gh pr create --body-file $INTAKE_BAD_BODY")"
+check 2 "$INTAKE" "r9 block: multiple PR creates validate only one body" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY && gh pr create --body-file $INTAKE_SAFE_BODY")"
 check 0 "$FEAT" "r9 allow: non-intake branch is not source-validated" "$(bashp "gh pr create --body-file $INTAKE_BAD_BODY")"
 
 # --- #138 (T621): global-option / cwd evasions of rules 2/3/4 ---
