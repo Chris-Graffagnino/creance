@@ -607,6 +607,15 @@ case "$tool" in
     # body file against that source issue and origin repository. The same-shell
     # evaluator/substitution forms use the raw target above; they are too
     # ambiguous to bind to a body file safely, so intake fails closed there.
+    # cd_dir intentionally recognizes only an unquoted leading directory. An
+    # unsupported quoted/escaped `cd` must not fall back to the hook's cwd,
+    # because that can hide an intake worktree; reject it before branch lookup.
+    intake_cd="$(cd_dir "$cmd")"
+    if printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)' \
+       && printf '%s' "$cmd" | grep -qE '^cd[[:space:]]+' \
+       && { [ -z "$intake_cd" ] || printf '%s' "$intake_cd" | grep -qE "['\"]"; }; then
+      block intake-pr-validation "A gh pr create command with a quoted or otherwise unparseable leading cd cannot be source-issue validated safely. Run it from the target worktree with an unquoted --body-file <path>."
+    fi
     intake_issue="$(intake_source_issue "$cmd")"
     if [ -n "$intake_issue" ] \
        && printf '%s' "$target" | grep -qE 'gh[[:space:]]+pr[[:space:]]+create([[:space:]]|[;&|)]|\\|"|$)'; then
