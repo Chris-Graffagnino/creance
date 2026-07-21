@@ -141,9 +141,9 @@
 | T1206 | strong | [x] | US1.AC5 US6.AC1-AC3 |  | Account for the governance-rule candidate set without duplicating… |
 | T1207 | strong | [x] | US1.AC5 US7.AC1-AC4 |  | Budget the runtime-attached context surface (spec-007 amendment, #259)… |
 | T1208 | strong | [x] | US1.AC5 US8.AC1-AC5 |  | Deterministic doc-pointer resolution check (spec-007 amendment, #273)… |
-| T1209 | strong | [ ] | US1.AC5 US9.AC1 |  | Dispatch-template stability check (spec-007 amendment, #303): a… |
-| T1210 | strong | [ ] | US1.AC5 US9.AC2-AC3 |  | Context-offloading design rules (spec-007 amendment, #303): the… |
-| T1211 | strong | [ ] | US1.AC5 US9.AC4 |  | Maker-eval coverage-by-trajectory-class table (spec-007 amendment… |
+| T1209 | strong | [ ] | US1.AC5 US9.AC1 |  | Dispatch-template stability check (#303) |
+| T1210 | strong | [ ] | US1.AC5 US9.AC2-AC3 |  | Context-offloading design rules (#303) |
+| T1211 | strong | [ ] | US1.AC5 US9.AC4 |  | Maker-eval coverage-by-trajectory-class table (#303) |
 
 ## specs/008-fast-lane-workflow/spec.md
 
