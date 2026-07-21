@@ -117,6 +117,46 @@
       anchors deferred; carries US1.AC5 before/after token counts for the compact packet it
       edits; blocked by T1201, T1203 (US8)
 
+## Phase 6 — Trajectory stability (issue #303)
+
+- [ ] T1209 [strong] Dispatch-template stability check (spec-007 amendment, #303): a
+      committed, hand-verified declared-slot manifest per §7 dispatch template (the
+      reviewer dispatch prompt and the fix-round maker prompt, at every site carrying
+      template text — `.claude/workflows/gate-loop.js` plus any `workflow/**` site that
+      restates template text); a `verify`-wired deterministic check extracts every
+      interpolation/placeholder token from those sites and fails naming site + undeclared
+      token; the manifest is an independent oracle, never regenerated from the template
+      under test (US4.AC4/US8.AC1 discipline); two-sided in-diff falsification (planted
+      undeclared-interpolation fixture fails naming site+token / unmodified real templates
+      pass) plus a positive-extraction non-vacuity assertion (the unmodified extractor
+      recovers the complete real slot set against a hand-verified expected set); cites —
+      never re-encodes — `reviewer-roster.test.sh` for roster membership/tier/condition
+      (anti-fork, cf. `lib-tasks-drift.sh`); governs template fixed text + slot inventory
+      only, never reviewer output or gate semantics; no catch-all/wildcard slot; a new
+      slot lands only by reviewed manifest edit in the template change's own diff; carries
+      US1.AC5 before/after token counts for any measured surface touched (US9.AC1)
+- [ ] T1210 [strong] Context-offloading design rules (spec-007 amendment, #303): the
+      handles-not-payloads rule in `.claude/DESIGN-NOTES.md` beside §11 — bounded
+      structured sub-agent/broad-run returns (verdict + artifact pointers; full analysis
+      on disk/tracker), naming the governed surfaces (§7 verdict returns, [bulk-read
+      offload] returns, the retry feedback channel), recording the retry-granularity
+      adjudication explicitly (verbatim kept with rationale, or bounded form via its own
+      PR — P4) and the non-licenses (no weakening verbatim verdict posting to the PR; no
+      removal without a surviving home), with an explicit P3 prose justification recorded
+      in the note (US9.AC2); plus the code-over-prose orchestration entry — both
+      justifications named side by side (P3 + root-context abstraction), the §7 prose
+      procedure designated the degradation path when no [orchestrated run] exists, §12's
+      derived-mirror contract cited not restated (US9.AC3)
+- [ ] T1211 [strong] Maker-eval coverage-by-trajectory-class table (spec-007 amendment,
+      #303): enumerated class taxonomy (at minimum spec/feature implementation,
+      repo-maintenance/docs, bug fix, spec drafting/amendment, contract/architecture-
+      touching) in `.claude/workflow/maker-eval.md` or the corpus doc it points to; every
+      frozen golden task assigned to exactly one class; every class row names ≥1 corpus
+      task ID or an explicit gap marker (never silently omitted); documentation of
+      coverage only — feeds no gate/score/tier/selection (P5); instrument docs change only
+      by the reviewed-PR path (P4); maker-eval docs/fence checks and the neutrality scan
+      stay green (US9.AC4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -125,7 +165,7 @@
 | US1.AC2 | T1201 |
 | US1.AC3 | T1201 |
 | US1.AC4 | T1201 |
-| US1.AC5 | T1201–T1208 (every task, graded on its own PR body) |
+| US1.AC5 | T1201–T1211 (every task, graded on its own PR body) |
 | US2.AC1 | T1202 |
 | US2.AC2 | T1202 |
 | US2.AC3 | T1202 |
@@ -151,6 +191,10 @@
 | US8.AC3 | T1208 |
 | US8.AC4 | T1208 |
 | US8.AC5 | T1208 |
+| US9.AC1 | T1209 |
+| US9.AC2 | T1210 |
+| US9.AC3 | T1210 |
+| US9.AC4 | T1211 |
 
 ## Blocked / owner-only tasks (never auto-start — surface them instead)
 

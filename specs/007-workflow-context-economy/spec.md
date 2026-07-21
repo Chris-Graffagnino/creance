@@ -20,7 +20,8 @@ outcomes from the source issue: passive residency ~2k–3k tokens, an ordinary `
 path ~12k–18k, a PR-review path ~7k–10k.
 
 The spec lands the capability in six stories (later amended with a seventh, US7, by issue
-#259, and an eighth, US8, by issue #273 — see **Amendments** below): a repository token
+#259, an eighth, US8, by issue #273, and a ninth, US9, by issue #303 — see **Amendments**
+below): a repository token
 counter with documented,
 owner-ratified budgets wired into standing verification (US1 — the measurement substrate
 the other stories' budgets resolve against); a lean resident `AGENTS.md` (US2); a compact,
@@ -79,6 +80,29 @@ owner steering is the issue body — the single thread comment is engine-authore
 listing the known fix targets), relayed from the engineering-craft review pass on PR #272;
 parent context #166 / US2. US8 has no epic-#166 slice — like US7 it is a post-hoc amendment.
 
+**Amendment (issue #303).** Spec 007 economizes how much context a run *reads*; nothing yet
+governs the **stability** of the context the harness *writes into each dispatch* — the §7
+reviewer/fixer dispatch templates whose fixed text is what makes structurally similar runs
+produce structurally similar trajectories. Issue #303 (motivated by an external analysis of
+harness design: keep every model call locally in-distribution via context offloading and
+programmatic sub-agent calling, so isomorphic tasks yield near-identical dispatches)
+identifies three gaps: (1) no deterministic check catches a dispatch template quietly
+accreting run-specific prose outside its interpolation slots — the silently-degrading-
+machinery class (constitution P2) applied to prompt templates, the same shape the reviewer
+roster closed for membership (DESIGN-NOTES §12); (2) two context-offloading practices the
+harness already follows — bounded sub-agent returns ("handles, not payloads") and
+code-over-prose gate orchestration — are unstated, so a future "optimization" has no named
+rule to argue against; (3) the maker-eval corpus has no stated coverage argument — "is the
+corpus complete" is answered by judgment instead of a table. **US9** adds: a committed
+declared-slot manifest per dispatch template with a `verify`-wired template-stability check
+(AC1); the two offloading practices as named design rules, including an explicit
+adjudication of the retry feedback channel's verbatim-verdict granularity (AC2–AC3); and a
+coverage-by-trajectory-class table for the frozen corpus (AC4). Provenance: intake of issue
+#303 (filed 2026-07-21; no thread comments — the body is the sole owner steering; the body
+was engine-drafted in-session at the owner's explicit direction from the owner's account,
+so it is owner steering under `next-task.md` §2.5). Like US7/US8, US9 is a post-hoc
+amendment with no epic-#166 slice.
+
 ## Non-goals
 
 - **No removal of source-of-truth workflow documentation.** Every rule or procedure
@@ -115,6 +139,20 @@ parent context #166 / US2. US8 has no epic-#166 slice — like US7 it is a post-
   for US2.AC2's reachable-pointer contract; it does not relax or restate US2.AC2 —
   compaction still relocates, never deletes; US8 only proves the relocation target still
   exists.
+- **Template stability (US9) governs fixed text and slot inventory only — never content or
+  semantics.** The declared-slot check constrains what a dispatch template's *fixed text*
+  may interpolate; it never reads, grades, or constrains a reviewer's output, a verdict, or
+  any gate semantics (round limits, veto authority, tier floors, roster membership are
+  untouched — membership stays `reviewer-roster.test.sh`'s contract). Adding a legitimate
+  new slot is a reviewed edit to the committed manifest in the same diff as the template
+  change — the check exists to make drift *visible*, not to freeze template evolution.
+- **The coverage table (US9.AC4) observes; it never decides.** Class-coverage documentation
+  feeds no gate outcome, eval score, model tier, or task-selection path (constitution P5's
+  posture, unchanged from the maker-eval channel it documents).
+- **US9's design rules change no behavior by themselves.** The handles-not-payloads rule
+  *records* an adjudication of the retry feedback channel's granularity; any behavior
+  change to `.claude/workflow/retry.md` or any other surface lands as its own reviewed PR
+  (constitution P4), never as a side effect of the design note landing.
 
 ## User stories
 
@@ -456,3 +494,77 @@ Non-goals).
   hand-run script with no CI wiring does not satisfy this. Its failure diagnostics name the
   source surface and the specific unresolved path needing repair (US6.AC3's
   workflow-usable-through-failure posture, asserted by AC3's failure-direction test).
+
+### US9 — Trajectory-stable dispatch templates and context-offloading discipline (issue #303 amendment)
+As a harness operator, I want the §7 dispatch templates proven to interpolate only declared
+slots, the harness's context-offloading practices stated as named design rules, and the
+maker-eval corpus's coverage argued per trajectory class, so that the property that makes
+runs predictable across tasks — structurally similar tasks producing structurally similar
+dispatches — is enforced and documented deterministically instead of decaying invisibly
+(constitution P2/P3 applied to the dispatch surface).
+
+**Acceptance Criteria**
+- AC1: A committed **declared-slot manifest** exists for each §7 dispatch template — the
+  reviewer dispatch prompt and the fix-round (maker) prompt, at every site that carries the
+  template's *text* (the executable gate `.claude/workflows/gate-loop.js`; any
+  `workflow/**` site that restates a template's text rather than merely describing it) —
+  enumerating by name the runtime-interpolated slots that template may carry (e.g. the task
+  ID, the audited ref/diff payload, the workspace path, the round number, the verbatim FAIL
+  reports). A deterministic check, wired into standing verification (`verify`) with the
+  wiring asserted (constitution P2), extracts every interpolation/placeholder token from
+  those template sites and **fails, naming the template site and the undeclared token**,
+  when a token is absent from the manifest. The manifest is a hand-verified **independent
+  oracle** — never regenerated from the template under test (US4.AC4/US8.AC1's oracle
+  discipline: a self-derived manifest ratifies leakage instead of catching it). Two-sided
+  falsification in the same diff: a planted template fixture carrying an undeclared
+  interpolation **fails** naming site + token, AND the unmodified real templates **pass**
+  as a control. Extraction is **non-vacuous**: a positive-extraction assertion proves the
+  unmodified extractor recovers the **complete** slot set actually present in the real
+  templates against a hand-verified expected set (an extractor that matches nothing, or a
+  test asserting only the failure direction, does not satisfy this). The check **cites,
+  never re-encodes,** `reviewer-roster.test.sh` — roster membership/tier/condition stays
+  that test's contract (the `lib-tasks-drift.sh` one-definition anti-fork pattern); this
+  check governs template text only. A check whose manifest declares a catch-all/wildcard
+  slot, or that scans none of the sites carrying template text, does not satisfy this
+  criterion.
+- AC2: A named **handles-not-payloads** design rule lands in `.claude/DESIGN-NOTES.md`
+  beside the §11 residency model: sub-agent and broad-run outputs return **bounded,
+  structured results** — a verdict/conclusion plus artifact pointers (file:line, report
+  path, tracker link) — into the dispatching context, with the full analysis living on
+  disk or the tracker. The rule (i) names the surfaces it governs — at minimum the §7
+  reviewer verdict returns, [bulk-read offload] returns, and the retry feedback channel
+  (`.claude/workflow/retry.md`) — (ii) **records the retry-granularity adjudication
+  explicitly**: either the retry channel's verbatim-verdict comment stays verbatim with the
+  recorded rationale, or it moves to a bounded structured form via its own reviewed PR
+  (constitution P4) — the adjudication outcome and its why both appear in the note; and
+  (iii) states what the rule does **not** license: no weakening of verbatim verdict
+  posting to the PR (verdict durability, DESIGN-NOTES §2) and no removal of content with
+  no surviving home (US2.AC2's relocates-never-deletes posture). Per US6.AC1's posture the
+  rule is prose carrying an **explicit constitution-P3 justification recorded in the note
+  itself** (why no deterministic check encodes "bounded" — it is a shape, not a threshold)
+  — never silently prose-by-default. A bare aspirational sentence naming no governed
+  surfaces or recording no adjudication does not satisfy this criterion.
+- AC3: A design-note entry records the **code-over-prose orchestration principle** with
+  its two independent justifications named side by side — removing model judgment from
+  load-bearing gate paths (constitution P3) AND keeping accumulated run detail out of the
+  dispatching context (the issue-#303 root-context-abstraction rationale) — and explicitly
+  designates the §7 prose procedure as the **degradation path** used when no
+  [orchestrated run] exists, never the preferred path (consistent with the DESIGN-NOTES
+  §12 derived-mirror contract, cited not restated). An entry naming only one of the two
+  justifications, or omitting the degradation-path designation, does not satisfy this
+  criterion.
+- AC4: The maker-eval corpus documentation (`.claude/workflow/maker-eval.md`, or the
+  corpus doc it points to) carries a **coverage-by-trajectory-class table**: an enumerated
+  taxonomy of the structural task classes the harness runs — at minimum: spec/feature
+  implementation, repo-maintenance/docs, bug fix against the base branch, spec
+  drafting/amendment, and contract/architecture-touching change — with **every frozen
+  golden task assigned to exactly one class** and **every class row naming ≥1 corpus task
+  ID or an explicit literal gap marker** (a class with no representative appears as a
+  named gap row, never omitted), so corpus completeness resolves to reading one table. The
+  table is **documentation of coverage only**: it feeds no gate outcome, no eval score, no
+  tier assignment, and no task selection (constitution P5); the frozen instrument's
+  documentation changes only by this reviewed-PR path (constitution P4); the existing
+  maker-eval docs/fence checks and the neutrality scan stay green over the change (the
+  table names task classes, corpus task IDs, and [roles] only — never a mechanism or
+  model, P1). A table with a single catch-all class, an unassigned corpus task, or a
+  silently omitted class row does not satisfy this criterion.
