@@ -529,9 +529,11 @@ dispatches — is enforced and documented deterministically instead of decaying 
   criterion.
 - AC2: A named **handles-not-payloads** design rule lands in `.claude/DESIGN-NOTES.md`
   beside the §11 residency model: sub-agent and broad-run outputs return **bounded,
-  structured results** — a verdict/conclusion plus artifact pointers (file:line, report
-  path, tracker link) — into the dispatching context, with the full analysis living on
-  disk or the tracker. The rule (i) names the surfaces it governs — at minimum the §7
+  structured results** into the dispatching context — where **bounded is defined
+  structurally, not by size threshold**: the return carries a verdict/conclusion plus
+  artifact pointers (file:line, report path, tracker link) and **no embedded analysis
+  payload** — the full analysis body lives on disk or the tracker, never inline in the
+  return. The rule (i) names the surfaces it governs — at minimum the §7
   reviewer verdict returns, [bulk-read offload] returns, and the retry feedback channel
   (`.claude/workflow/retry.md`) — (ii) **records the retry-granularity adjudication
   explicitly**: either the retry channel's verbatim-verdict comment stays verbatim with the
@@ -541,8 +543,9 @@ dispatches — is enforced and documented deterministically instead of decaying 
   posting to the PR (verdict durability, DESIGN-NOTES §2) and no removal of content with
   no surviving home (US2.AC2's relocates-never-deletes posture). Per US6.AC1's posture the
   rule is prose carrying an **explicit constitution-P3 justification recorded in the note
-  itself** (why no deterministic check encodes "bounded" — it is a shape, not a threshold)
-  — never silently prose-by-default. A bare aspirational sentence naming no governed
+  itself** (why no deterministic check encodes the bound: it is the structural
+  no-embedded-analysis-payload shape above, not a numeric threshold a check could
+  measure) — never silently prose-by-default. A bare aspirational sentence naming no governed
   surfaces or recording no adjudication does not satisfy this criterion.
 - AC3: A design-note entry records the **code-over-prose orchestration principle** with
   its two independent justifications named side by side — removing model judgment from
@@ -560,11 +563,25 @@ dispatches — is enforced and documented deterministically instead of decaying 
   drafting/amendment, and contract/architecture-touching change — with **every frozen
   golden task assigned to exactly one class** and **every class row naming ≥1 corpus task
   ID or an explicit literal gap marker** (a class with no representative appears as a
-  named gap row, never omitted), so corpus completeness resolves to reading one table. The
-  table is **documentation of coverage only**: it feeds no gate outcome, no eval score, no
-  tier assignment, and no task selection (constitution P5); the frozen instrument's
-  documentation changes only by this reviewed-PR path (constitution P4); the existing
-  maker-eval docs/fence checks and the neutrality scan stay green over the change (the
-  table names task classes, corpus task IDs, and [roles] only — never a mechanism or
-  model, P1). A table with a single catch-all class, an unassigned corpus task, or a
-  silently omitted class row does not satisfy this criterion.
+  named gap row, never omitted), so corpus completeness resolves to reading one table.
+  Because the class descriptions can overlap (a contract-touching bug fix matches two),
+  the taxonomy carries a **deterministic assignment rule** — a documented total precedence
+  order over the classes, or equivalent mutually exclusive discriminators — under which a
+  task matching several class descriptions resolves to exactly one; a table whose classes
+  overlap with no recorded assignment rule does not satisfy this criterion. The table's
+  coverage invariant is **mechanically enforced**: a standing deterministic check, wired
+  into standing verification (`verify`) with the wiring asserted (constitution P2; P3 — an
+  invariant a check can settle is never left to by-eye table maintenance), compares the
+  table against the complete frozen corpus task set and the declared taxonomy and
+  **fails, naming the offending task or row**, on an unassigned corpus task, a task
+  assigned to more than one class, or a taxonomy class with neither a corpus task ID nor
+  an explicit gap marker; planted omission and duplication fixtures falsify the check in
+  its landing diff, with the unmodified real table passing as a control (US4.AC4
+  discipline). The table is **documentation of coverage only**: neither the table nor its
+  consistency check feeds any gate outcome, eval score, tier assignment, or task selection
+  (constitution P5); the frozen instrument's documentation changes only by this
+  reviewed-PR path (constitution P4); the existing maker-eval docs/fence checks and the
+  neutrality scan stay green over the change (the table names task classes, corpus task
+  IDs, and [roles] only — never a mechanism or model, P1). A table with a single catch-all
+  class, an unassigned corpus task, or a silently omitted class row does not satisfy this
+  criterion.

@@ -137,24 +137,32 @@
       US1.AC5 before/after token counts for any measured surface touched (US9.AC1)
 - [ ] T1210 [strong] Context-offloading design rules (#303) — spec-007 amendment: the
       handles-not-payloads rule in `.claude/DESIGN-NOTES.md` beside §11 — bounded
-      structured sub-agent/broad-run returns (verdict + artifact pointers; full analysis
-      on disk/tracker), naming the governed surfaces (§7 verdict returns, [bulk-read
+      structured sub-agent/broad-run returns, bounded defined structurally (verdict +
+      artifact pointers, no embedded analysis payload; full analysis on disk/tracker,
+      never inline), naming the governed surfaces (§7 verdict returns, [bulk-read
       offload] returns, the retry feedback channel), recording the retry-granularity
       adjudication explicitly (verbatim kept with rationale, or bounded form via its own
       PR — P4) and the non-licenses (no weakening verbatim verdict posting to the PR; no
       removal without a surviving home), with an explicit P3 prose justification recorded
-      in the note (US9.AC2); plus the code-over-prose orchestration entry — both
+      in the note (the bound is the structural no-payload shape, not a numeric
+      threshold) (US9.AC2); plus the code-over-prose orchestration entry — both
       justifications named side by side (P3 + root-context abstraction), the §7 prose
       procedure designated the degradation path when no [orchestrated run] exists, §12's
       derived-mirror contract cited not restated (US9.AC3)
 - [ ] T1211 [strong] Maker-eval coverage-by-trajectory-class table (#303) — spec-007
       amendment: enumerated class taxonomy (at minimum spec/feature implementation,
       repo-maintenance/docs, bug fix, spec drafting/amendment, contract/architecture-
-      touching) in `.claude/workflow/maker-eval.md` or the corpus doc it points to; every
-      frozen golden task assigned to exactly one class; every class row names ≥1 corpus
-      task ID or an explicit gap marker (never silently omitted); documentation of
-      coverage only — feeds no gate/score/tier/selection (P5); instrument docs change only
-      by the reviewed-PR path (P4); maker-eval docs/fence checks and the neutrality scan
+      touching) in `.claude/workflow/maker-eval.md` or the corpus doc it points to, with a
+      deterministic assignment rule (documented precedence order or mutually exclusive
+      discriminators) resolving overlap; every frozen golden task assigned to exactly one
+      class; every class row names ≥1 corpus task ID or an explicit gap marker (never
+      silently omitted); a `verify`-wired deterministic check compares table vs the
+      complete frozen corpus set + taxonomy and fails naming the offending task/row
+      (unassigned, double-assigned, or silently omitted class), with planted
+      omission/duplication falsification fixtures and the real table as passing control
+      (US4.AC4 discipline); documentation of coverage only — neither table nor check
+      feeds gate/score/tier/selection (P5); instrument docs change only by the
+      reviewed-PR path (P4); maker-eval docs/fence checks and the neutrality scan
       stay green (US9.AC4)
 
 ## Criterion ownership (multi-task user stories)
