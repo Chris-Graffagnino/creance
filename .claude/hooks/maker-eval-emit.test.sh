@@ -449,6 +449,19 @@ MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
   --run-id run-E --task ME-01 --tier strong --results "$TMP/empty.json" >/dev/null 2>&1; rc=$?
 eq "E: malformed judge output is rejected (exit 2)" "2" "$rc"
 eq "E: malformed judge output lands no record" "0" "$(grep -c . "$ECH/records.jsonl" 2>/dev/null || echo 0)"
+# A results file must contain exactly one JSON document. A raw `jq -e` reports only the
+# last document's status, so an invalid first document followed by a valid one used to
+# pass validation and append multiple records for one (task × tier).
+EMDCH="$TMP/results-multidoc-channel"
+{ printf '%s\n' '{}'
+  cat "$TMP/judge.json"
+} > "$TMP/results-multidoc.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$EMDCH" bash "$EMIT" record \
+  --run-id run-EMD --task ME-01 --tier strong --results "$TMP/results-multidoc.json" \
+  >/dev/null 2>&1; rc=$?
+eq "E: a multi-document results file is a loud caller error (exit 2)" "2" "$rc"
+eq "E: a multi-document results file lands no record" "0" \
+  "$(grep -c . "$EMDCH/records.jsonl" 2>/dev/null || echo 0)"
 # end-to-end: a full set of malformed outputs never renders the run complete
 for t in ME-01 ME-02 ME-03; do
   MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
