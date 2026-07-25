@@ -365,8 +365,8 @@ JUDGE_OUTPUT_FILTER='
     and ((.dimensions // []) | length > 0)
     and ((.dimensions // []) | all(.dimension != null and .lifecycle != null and .verdict != null))
 '
-results_valid() { # <results.json> -> 0 iff structurally a judge output
-  jq -e "$JUDGE_OUTPUT_FILTER" "$1" >/dev/null 2>&1
+results_valid() { # <results.json> -> 0 iff EXACTLY ONE JSON document, structurally a judge output
+  jq -es "(length == 1) and (.[0] | $JUDGE_OUTPUT_FILTER)" "$1" >/dev/null 2>&1
 }
 
 # A well-formed trajectory file (the versioned schema extension, US3.AC3): an intervals
