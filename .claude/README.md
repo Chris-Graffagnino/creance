@@ -56,8 +56,9 @@ How this adapter binds each write-intent role from the contract's closed family
 (`workflow/README.md` → "Write intents (safe outputs)"). Which workflow may use which
 intent is the **profile's** declaration (`PROJECT.md` → "Write intents"), not this
 table's business — this table only supplies the mechanism, one row per family role.
-`hooks/write-intents-check.sh` fails CI when a declared intent has no row here or a
-neutral `workflow/**` doc names a concrete tracker write command directly.
+`hooks/write-intents-check.sh` fails CI when any closed-family intent has no row in
+this or another cataloged/discovered adapter mapping table, when catalog and discovery
+drift, or when a neutral `workflow/**` doc names a concrete tracker write command directly.
 
 | Intent role | Claude Code mechanism |
 |------|----------------------|
