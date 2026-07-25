@@ -462,6 +462,18 @@ MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$EMDCH" bash "$EMIT" record \
 eq "E: a multi-document results file is a loud caller error (exit 2)" "2" "$rc"
 eq "E: a multi-document results file lands no record" "0" \
   "$(grep -c . "$EMDCH/records.jsonl" 2>/dev/null || echo 0)"
+# Two individually valid documents must also be rejected: validating only .[0] would
+# stop the malformed-first bypass above but still allow one invocation to append twice.
+E2VCH="$TMP/results-two-valid-channel"
+{ cat "$TMP/judge.json"
+  cat "$TMP/judge.json"
+} > "$TMP/results-two-valid.json"
+MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$E2VCH" bash "$EMIT" record \
+  --run-id run-E2V --task ME-01 --tier strong --results "$TMP/results-two-valid.json" \
+  >/dev/null 2>&1; rc=$?
+eq "E: two valid results documents are a loud caller error (exit 2)" "2" "$rc"
+eq "E: two valid results documents land no record" "0" \
+  "$(grep -c . "$E2VCH/records.jsonl" 2>/dev/null || echo 0)"
 # end-to-end: a full set of malformed outputs never renders the run complete
 for t in ME-01 ME-02 ME-03; do
   MAKER_EVAL_ROOT="$T0" MAKER_EVAL_DIR="$ECH" bash "$EMIT" record \
