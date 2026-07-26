@@ -117,7 +117,10 @@ parse_roster() {
     }
     in_roster && /^\|/ {
       key=$2; tier=$3; cond=$4
-      if (match(key, /reviewers\/[^`\/[:space:]]+\.md/)) {
+      sub(/^[[:space:]]*/, "", key)
+      sub(/[[:space:]]*$/, "", key)
+      if (key ~ /^`reviewers\/[^`\/[:space:]]+\.md`([[:space:]]+\([^)]*\))?$/ &&
+          match(key, /reviewers\/[^`\/[:space:]]+\.md/)) {
         key=substr(key, RSTART, RLENGTH)
         sub(/^reviewers\//, "", key)
         sub(/\.md$/, "", key)
@@ -209,6 +212,28 @@ parse_js() {
       previous=$0
       next
     }
+    roster_consumed && /^[[:space:]]*pending[[:space:]]*=/ {
+      if ($0 !~ /^[[:space:]]*pending = failing; \/\/ re-dispatch ONLY the failures$/) {
+        emit($0, "post-consumption-assignment")
+      }
+      previous=$0
+      next
+    }
+    roster_consumed && /^[[:space:]]*reviewers[[:space:]]*=/ {
+      emit($0, "post-consumption-assignment")
+      previous=$0
+      next
+    }
+    roster_consumed && /^[[:space:]]*(reviewers|pending)(\[[^]]+\]|\.[[:alnum:]_$]+)+[[:space:]]*=/ {
+      emit($0, "post-consumption-index-assignment")
+      previous=$0
+      next
+    }
+    roster_consumed && /=[[:space:]]*(reviewers|pending)[[:space:]]*;/ {
+      emit($0, "post-consumption-alias")
+      previous=$0
+      next
+    }
     in_block {
       previous=$0
     }
@@ -229,20 +254,20 @@ js_ok() {
 section7() { awk '/^## 7\./{f=1} /^## 8\./{f=0} f' "$1"; }
 prose_paths() {
   section7 "$1" \
-    | grep -oE 'reviewers/[^`/[:space:]]+\.md' \
-    | sed 's#^reviewers/##; s#\.md$##' \
+    | grep -oE '`workflow/reviewers/[^`/[:space:]]+\.md`' \
+    | sed 's#^`workflow/reviewers/##; s#\.md`$##' \
     | sort
 }
 parse_prose() {
   section7 "$1" | awk '
-    function emit(    key, condition, count) {
-      if (bullet !~ /reviewers\/[^`\/[:space:]]+\.md/) {
+    function emit(    key, condition, count, rest, token, unknown) {
+      if (bullet !~ /`workflow\/reviewers\/[^`\/[:space:]]+\.md`/) {
         return
       }
-      match(bullet, /reviewers\/[^`\/[:space:]]+\.md/)
+      match(bullet, /`workflow\/reviewers\/[^`\/[:space:]]+\.md`/)
       key=substr(bullet, RSTART, RLENGTH)
-      sub(/^reviewers\//, "", key)
-      sub(/\.md$/, "", key)
+      sub(/^`workflow\/reviewers\//, "", key)
+      sub(/\.md`$/, "", key)
 
       condition="invalid"
       count=0
@@ -250,15 +275,18 @@ parse_prose() {
         condition="always"
         count++
       }
-      if (bullet ~ /`dispatch-contract`/) {
-        condition="dispatch-contract"
+      rest=bullet
+      while (match(rest, /`dispatch-[^`]+`/)) {
+        token=substr(rest, RSTART + 1, RLENGTH - 2)
+        if (token == "dispatch-contract" || token == "dispatch-spec") {
+          condition=token
+        } else {
+          unknown=1
+        }
         count++
+        rest=substr(rest, RSTART + RLENGTH)
       }
-      if (bullet ~ /`dispatch-spec`/) {
-        condition="dispatch-spec"
-        count++
-      }
-      if (count != 1) {
+      if (count != 1 || unknown) {
         condition="invalid"
       }
       print key "|" condition
@@ -294,6 +322,8 @@ prose_ok() {
   # points at the roster as the source of truth
   printf '%s' "$s" | grep -qF "reviewer roster" || r=1
   printf '%s' "$s" | grep -qF "gate-loop.md" || r=1
+  printf '%s' "$s" | grep -qF "roster's \`dispatch-contract\` condition: when the change touches a provider interface, monetization, or the data model." || r=1
+  printf '%s' "$s" | grep -qF "roster's \`dispatch-spec\` condition: when the diff adds, edits, or renames a \`specs/*/spec.md\`" || r=1
   return $r
 }
 
@@ -305,36 +335,57 @@ prose_ok() {
 #       after the spec-quality reviewer landed (PR #186 review). These maps carry agent NAMES
 #       only; tier and condition stay single-sourced in the roster + §7, so both sites are
 #       pinned on MEMBERSHIP alone (EXPECTED_KEYS), not tier/condition.
-skill_map() {
+skill_row() {
   awk -F'|' '
     $2 ~ /\*\*\[reviewer\]\*\*/ {
       map=$3
       sub(/^[[:space:]]*the[[:space:]]+/, "", map)
-      sub(/[[:space:]]+subagents.*/, "", map)
       print map
     }
-  ' "$1" \
+  ' "$1"
+}
+skill_map() {
+  skill_row "$1" \
+    | sed 's/[[:space:]]*subagents.*//' \
     | grep -oE '`[^`]+`' \
     | tr -d '`' \
     | sort
 }
-skill_ok()  { [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ]; }
+skill_shape_ok() {
+  case "$(skill_row "$1")" in
+    *' subagents (`.claude/agents/`), dispatched'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+skill_ok() {
+  [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ] && skill_shape_ok "$1"
+}
 
-review_response_map() {
+review_response_row() {
   awk -F'|' '
     $2 ~ /\*\*\[reviewer\]s \/ \[orchestrated run\]\*\*/ {
       map=$3
       sub(/^.*; or the[[:space:]]+/, "", map)
-      sub(/[[:space:]]+subagents.*/, "", map)
       print map
     }
-  ' "$1" \
+  ' "$1"
+}
+review_response_map() {
+  review_response_row "$1" \
+    | sed 's/[[:space:]]*subagents.*//' \
     | grep -oE '`[^`]+`' \
     | tr -d '`' \
     | sort
 }
+review_response_shape_ok() {
+  case "$(review_response_row "$1")" in
+    *' subagents (`.claude/agents/`) dispatched'*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 review_response_ok() {
-  [ "$(review_response_map "$1")" = "$EXPECTED_KEYS" ]
+  [ "$(review_response_map "$1")" = "$EXPECTED_KEYS" ] &&
+    review_response_shape_ok "$1"
 }
 
 # ── Run the structural surface checks against the live tree ─────────────────────────
@@ -477,6 +528,12 @@ sed '/reviewers\/contract-auditor\.md/ s/dispatch-contract/dispatch2-contract/' 
   "$GL" > "$TMP/gl-malformed-condition.md"
 mut_fail "roster malformed-condition" roster_ok "$TMP/gl-malformed-condition.md"
 
+# Roster site — the reviewer spec must be the complete code-span path, not a canonical
+# substring inside a wrong directory name.
+sed 's#`reviewers/spec-auditor.md`#`not-reviewers/spec-auditor.md`#' \
+  "$GL" > "$TMP/gl-wrong-path.md"
+mut_fail "roster wrong-path-prefix" roster_ok "$TMP/gl-wrong-path.md"
+
 # JS site (gate-loop.js) — drop the gated contract push.
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
 mut_fail "js drop-reviewer" js_ok "$TMP/js-drop.js"
@@ -526,6 +583,28 @@ awk '
 ' "$JS" > "$TMP/js-add-post-consumption-reviewer.js"
 mut_fail "js add-post-consumption-reviewer" js_ok "$TMP/js-add-post-consumption-reviewer.js"
 
+# JS site — direct reconstruction and indexed writes through the `pending` alias must fail
+# closed too; neither depends on a named mutating method.
+awk '
+  { print }
+  /^let pending = reviewers;$/ {
+    print "if (input.taskId === '\''UNTESTED'\'') {"
+    print "  pending = [...pending, { key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' }];"
+    print "}"
+  }
+' "$JS" > "$TMP/js-reassign-post-consumption.js"
+mut_fail "js reassign-post-consumption-reviewers" js_ok "$TMP/js-reassign-post-consumption.js"
+
+awk '
+  { print }
+  /^let pending = reviewers;$/ {
+    print "if (input.taskId === '\''UNTESTED'\'') {"
+    print "  pending[pending.length] = { key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' };"
+    print "}"
+  }
+' "$JS" > "$TMP/js-index-post-consumption.js"
+mut_fail "js index-post-consumption-reviewers" js_ok "$TMP/js-index-post-consumption.js"
+
 # JS site — flip a tier (spec cheap → strong).
 sed "s/key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'/key: 'spec-auditor', model: input.cheapModel, tier: 'strong'/" "$JS" > "$TMP/js-tier.js"
 mut_fail "js flip-tier" js_ok "$TMP/js-tier.js"
@@ -542,6 +621,16 @@ awk '
   { print }
 ' "$NT" > "$TMP/nt-add-unlisted.md"
 mut_fail "prose add-unlisted-reviewer" prose_ok "$TMP/nt-add-unlisted.md"
+
+# Prose site — reject a canonical reviewer basename embedded in a wrong path prefix and
+# any extra dispatch-* condition token alongside the canonical condition.
+sed 's#workflow/reviewers/spec-auditor.md#workflow/not-reviewers/spec-auditor.md#' \
+  "$NT" > "$TMP/nt-wrong-path.md"
+mut_fail "prose wrong-path-prefix" prose_ok "$TMP/nt-wrong-path.md"
+
+sed '/roster'\''s `dispatch-contract` condition:/ s/condition:/condition plus `dispatch-security`:/' \
+  "$NT" > "$TMP/nt-add-condition.md"
+mut_fail "prose add-unlisted-condition" prose_ok "$TMP/nt-add-condition.md"
 
 # ── The spec-quality reviewer (T703) is pinned on each structural projection it appears in:
 #    dropping its row/push/reference must trip that projection's check. ──
@@ -570,6 +659,10 @@ sed 's#`spec-auditor` /#`spec-auditor` / `security2-reviewer` /#' \
   "$SK" > "$TMP/sk-add-unlisted.md"
 mut_fail "skill add-unlisted-reviewer" skill_ok "$TMP/sk-add-unlisted.md"
 
+sed 's#subagents (`.claude/agents/`)#subagents plus `security2-reviewer` (`.claude/agents/`)#' \
+  "$SK" > "$TMP/sk-add-after-subagents.md"
+mut_fail "skill add-reviewer-after-subagents" skill_ok "$TMP/sk-add-after-subagents.md"
+
 # review-response fallback map — both omission and a digit-bearing unexpected reviewer
 # must fail exact membership just as they do in the primary next-task fallback map.
 sed 's# / `spec-quality-auditor` subagents# subagents#' \
@@ -579,6 +672,10 @@ mut_fail "review-response drop-spec-quality" review_response_ok "$TMP/rr-drop-sq
 sed 's#`spec-quality-auditor` subagents#`spec-quality-auditor` / `security2-reviewer` subagents#' \
   "$RR" > "$TMP/rr-add-unlisted.md"
 mut_fail "review-response add-unlisted-reviewer" review_response_ok "$TMP/rr-add-unlisted.md"
+
+sed 's#subagents (`.claude/agents/`)#subagents plus `security2-reviewer` (`.claude/agents/`)#' \
+  "$RR" > "$TMP/rr-add-after-subagents.md"
+mut_fail "review-response add-reviewer-after-subagents" review_response_ok "$TMP/rr-add-after-subagents.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
