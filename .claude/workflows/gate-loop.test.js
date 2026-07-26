@@ -289,6 +289,24 @@ await test('workspacePath with a space: git -C path is shell-quoted into one arg
   }
 });
 
+// --- 9a. dispatchContract set: contract reviewer joins the exact runtime set at cheap ----
+await test('dispatchContract: contract-auditor is the only conditional reviewer dispatched', async () => {
+  const result = await runGateLoop({ ...baseArgs, dispatchContract: true }, async (_p, opts) =>
+    isDiffProvider(opts)
+      ? providedDiff()
+      : { verdict: 'PASS', report: `${opts.agentType} pass report` },
+  );
+  assert.equal(result.gate, 'PASS');
+  assert.deepEqual(
+    result.telemetry.rounds[0].map((e) => [e.auditor, e.tier]),
+    [
+      ['spec-auditor', 'cheap'],
+      ['constitution-auditor', 'strong'],
+      ['contract-auditor', 'cheap'],
+    ],
+  );
+});
+
 // --- 10. dispatchSpec set: the spec-quality reviewer joins the round at strong (T703) ----
 // US2.AC1: a diff that adds/edits/renames a specs/*/spec.md flips dispatchSpec, and the
 // gate dispatches the spec-quality reviewer alongside the always-reviewers, on the STRONG

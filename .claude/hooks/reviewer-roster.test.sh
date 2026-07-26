@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
 # Drift backstop for the §7 reviewer roster (T602 / issue #64, parent epic #62).
 #
-# The §7 pre-PR gate's reviewer set used to be hand-synced across three places that
-# could silently disagree: the prose (`next-task.md` §7 step 2), the pseudocode
-# (`gate-loop.md` "The loop"), and the orchestrated-run array (`gate-loop.js`). T602
-# collapses membership/tier/dispatch-condition into ONE declarative roster table in
-# `gate-loop.md` and this test FAILs `verify` CI whenever any of the three sites drifts
-# from it — converting "a reviewer silently fell out of the gate" from a model-noticing
-# risk into a deterministic check (constitution P2/P3; the same same-diff discipline
-# `guard.test.sh` follows — the backstop ships with the change it guards).
+# The §7 pre-PR gate's reviewer set used to be hand-synced across workflow and adapter
+# surfaces that could silently disagree. T602 collapses membership/tier/dispatch-condition
+# into ONE declarative roster table in `gate-loop.md`; this test pins each structural mirror
+# exactly for the roster data it owns. Together with gate-loop.test.js's exact behavioral
+# dispatch cases, that converts "a reviewer silently fell out of the gate" from a
+# model-noticing risk into a deterministic check (constitution P2/P3; the same same-diff
+# discipline `guard.test.sh` follows — the backstop ships with the change it guards).
 #
-# The test is an INDEPENDENT oracle: it pins every site to a hardcoded canonical
-# set (below), not to whatever the roster currently says. A backstop that derived its
+# The test is an INDEPENDENT structural oracle: it pins each declared surface's owned
+# roster data to a hardcoded canonical set (below), not to whatever the roster currently
+# says. A backstop that derived its
 # expectation from the very table it checks could not catch a coordinated drift, so the
 # canonical set lives here; adding/removing a reviewer is an intentional edit to the
-# roster, its two mirror sites, AND this set (the ratchet that proves the change was
-# deliberate). The adapter's manual-fallback [reviewer]→agent map (next-task SKILL.md) is
-# pinned too (AC7), on membership — it is a fourth site that enumerates the reviewer set,
-# and it drifted exactly once (PR #186) before being pinned here.
+# roster, its mirrors, AND this set (the ratchet that proves the change was deliberate).
+# The adapter's manual-fallback [reviewer]→agent map (next-task SKILL.md) is pinned too
+# (AC7), on membership; it drifted exactly once (PR #186) before being pinned here.
 # gate-loop.md's runtime-neutrality (no model IDs in the roster) is covered
 # globally by telemetry-docs.test.sh's mech scan and bound here implicitly: a model ID in
 # the tier column would break the canonical-set match.
 #
 # Encodes issue #64 done-when AC1–AC6 (extended for the spec-quality reviewer, T703);
-# AC7 adds the adapter map as a fourth pinned site (PR #186 review):
+# AC7 adds the adapter map as a pinned membership-only surface (PR #186 review):
 #   AC1 roster is exactly the canonical set (no extra rows)        → roster_ok
 #   AC2 gate-loop.js mirrors it (keys, tiers, both conditionals     → js_ok
 #       gated on their input flag)
@@ -32,10 +31,9 @@
 #   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (all four;
 #       excludes edit tools (the spec-quality agent binding landed       each with a Claude
 #       in T706/US2.AC5)                                                  agent)
-#   AC6 drift in any one site (drop a reviewer / flip a tier or      → AC6 block: temp-copy
-#       condition) FAILs the check — incl. the spec-quality              mutations re-run the
-#       reviewer on every site                                           site checks and assert
-#                                                                         each one trips
+#   AC6 retained drop/add/tier/condition/guard mutations FAIL       → AC6 block: temp-copy
+#       the owning structural check                                      mutations re-run each
+#                                                                         owning predicate
 #   AC7 the adapter [reviewer]→agent map (next-task SKILL.md) names  → skill_ok (+ an AC6
 #       every roster reviewer, so the manual fallback can't omit one     drop mutation)
 #
@@ -60,7 +58,7 @@ for f in "$GL" "$JS" "$NT" "$SK"; do
   fi
 done
 
-# ── The canonical roster — the known-correct set this backstop pins every site to.
+# ── The canonical roster — the known-correct set each structural projection is pinned to.
 #    "<key>|<tier>|<condition>", one per reviewer; sorted so order never matters. ──
 EXPECTED="$(printf '%s\n' \
   'spec-auditor|cheap|always' \
@@ -72,6 +70,19 @@ EXPECTED="$(printf '%s\n' \
 # hardcoded list) — for the membership-only sites that carry no tier/condition column: the
 # AC5 agent files and the AC7 adapter [reviewer]→agent map.
 EXPECTED_KEYS="$(printf '%s\n' "$EXPECTED" | cut -d'|' -f1 | sort -u)"
+
+# The JS mirror also owns the tier→model-input relationship. Derive its expectation from
+# EXPECTED so membership/tier/condition still have one independent canonical set:
+# "<key>|<model-tier>|<tier>|<condition>".
+EXPECTED_JS="$(printf '%s\n' "$EXPECTED" \
+  | awk -F'|' '{ print $1 "|" $2 "|" $2 "|" $3 }' \
+  | sort)"
+
+# The §7 prose deliberately delegates tiers to the roster and owns only reviewer paths +
+# dispatch conditions. Derive that exact projection instead of hardcoding another list.
+EXPECTED_PROSE="$(printf '%s\n' "$EXPECTED" \
+  | awk -F'|' '{ print $1 "|" $3 }' \
+  | sort)"
 
 ok()   { pass=$((pass + 1)); }
 bad() { # bad <message>
@@ -101,57 +112,142 @@ parse_roster() {
 #       no extra rows).
 roster_ok() { [ "$(parse_roster "$1")" = "$EXPECTED" ]; }
 
-# AC2 — gate-loop.js names the four keys with matching tiers (constitution + spec-quality
-#       = strong; spec + contract = cheap) and gates BOTH conditional reviewers on their
-#       input flag (a guarded .push, never the unconditional array literal): contract on
-#       dispatchContract, spec-quality on dispatchSpec. Exact fixed-string matches on the
-#       authored shape (two literals + two conditional pushes).
-js_ok() {
-  local f="$1" r=0
-  grep -qF "key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'" "$f" || r=1
-  grep -qF "key: 'constitution-auditor', model: input.strongModel, tier: 'strong'" "$f" || r=1
-  grep -qF "reviewers.push({ key: 'contract-auditor', model: input.cheapModel, tier: 'cheap' })" "$f" || r=1
-  grep -qF "if (input.dispatchContract)" "$f" || r=1
-  grep -qF "reviewers.push({ key: 'spec-quality-auditor', model: input.strongModel, tier: 'strong' })" "$f" || r=1
-  grep -qF "if (input.dispatchSpec)" "$f" || r=1
-  # the conditional reviewers must be gated: each may appear ONLY on a push line, never in
-  # the unconditional array literal. A contract/spec-quality line without `push` is drift.
-  if grep -F "key: 'contract-auditor'" "$f" | grep -vqF "push"; then r=1; fi
-  if grep -F "key: 'spec-quality-auditor'" "$f" | grep -vqF "push"; then r=1; fi
-  # …and each gated push must sit DIRECTLY under its own `if (input.dispatchX)` guard — not
-  # merely somewhere in the file. Without this, lifting a push out of its block (while an
-  # `if (input.dispatchX)` line survives elsewhere) passes every check above yet dispatches
-  # the reviewer UNCONDITIONALLY — breaking the no-dispatch-on-non-matching-diff contract
-  # (US2.AC2 for spec-quality; Codex P2, PR #151). `grep -A1` (BSD + GNU) pins each push to
-  # its guard's immediate next line.
-  grep -A1 -F "if (input.dispatchContract)" "$f" | grep -qF "reviewers.push({ key: 'contract-auditor'" || r=1
-  grep -A1 -F "if (input.dispatchSpec)" "$f" | grep -qF "reviewers.push({ key: 'spec-quality-auditor'" || r=1
-  return $r
+# parse_js <gate-loop.js> — emit
+# "<key>|<model-tier>|<tier>|<condition>" for every reviewer entry in the executable
+# construction block. Array entries are `always`; a push owns a conditional only when it
+# is immediately below the matching guard. Any other push is `unguarded`. Parsing every
+# key entry (rather than looking only for expected strings) makes unexpected and duplicate
+# reviewers visible to the exact-set comparison.
+parse_js() {
+  awk '
+    /^const reviewers = \[$/ {
+      in_block=1
+      in_array=1
+      previous=$0
+      next
+    }
+    in_block && in_array && /^];$/ {
+      in_array=0
+      previous=$0
+      next
+    }
+    in_block && /^const verdicts = / {
+      in_block=0
+    }
+    in_block && /key: / {
+      key=""
+      model=""
+      tier=""
+      condition="unguarded"
+
+      if (match($0, /key: [^,]+/)) {
+        key=substr($0, RSTART, RLENGTH)
+        sub(/^key: /, "", key)
+        gsub(/\047/, "", key)
+      }
+      if (match($0, /model: input\.[a-z]+Model/)) {
+        model=substr($0, RSTART, RLENGTH)
+        sub(/^model: input\./, "", model)
+        sub(/Model$/, "", model)
+      }
+      if (match($0, /tier: [^ }]+/)) {
+        tier=substr($0, RSTART, RLENGTH)
+        sub(/^tier: /, "", tier)
+        gsub(/\047/, "", tier)
+      }
+
+      if (in_array) {
+        condition="always"
+      } else if (previous ~ /^[[:space:]]*if \(input\.dispatchContract\) \{[[:space:]]*$/) {
+        condition="dispatch-contract"
+      } else if (previous ~ /^[[:space:]]*if \(input\.dispatchSpec\) \{[[:space:]]*$/) {
+        condition="dispatch-spec"
+      }
+
+      print key "|" model "|" tier "|" condition
+    }
+    in_block {
+      previous=$0
+    }
+  ' "$1" | sort
 }
 
-# AC3 — next-task.md §7 step 2 references the same four reviewer spec paths with the
-#       same conditions (always / always / contract-conditional / spec-conditional) and
-#       points at the roster. Scoped to §7 and whitespace-flattened so prose re-wrapping
-#       can't break it; the needles are distinctive authored prose, bound to each
-#       reviewer's condition.
+# AC2 — gate-loop.js is EXACTLY the canonical membership + tier + condition/guard
+# relationship, and every tier uses its matching model input. Extra, duplicate, missing,
+# malformed, wrongly tiered, or unguarded reviewer entries all change the parsed set.
+js_ok() {
+  [ "$(parse_js "$1")" = "$EXPECTED_JS" ]
+}
+
+# AC3 helpers — scope to §7, enumerate EVERY concrete reviewer path, and project each
+# reviewer bullet to "<key>|<condition>". A bullet must carry exactly one of `always`,
+# `dispatch-contract`, or `dispatch-spec`; ambiguous/missing conditions are emitted as
+# `invalid`. Tiers are intentionally absent because §7 delegates them to the roster.
 section7() { awk '/^## 7\./{f=1} /^## 8\./{f=0} f' "$1"; }
+prose_paths() {
+  section7 "$1" \
+    | grep -oE 'reviewers/[a-z-]+-auditor\.md' \
+    | sed 's#^reviewers/##; s#\.md$##' \
+    | sort
+}
+parse_prose() {
+  section7 "$1" | awk '
+    function emit(    key, condition, count) {
+      if (bullet !~ /reviewers\/[a-z-]+-auditor\.md/) {
+        return
+      }
+      match(bullet, /reviewers\/[a-z-]+-auditor\.md/)
+      key=substr(bullet, RSTART, RLENGTH)
+      sub(/^reviewers\//, "", key)
+      sub(/\.md$/, "", key)
+
+      condition="invalid"
+      count=0
+      if (bullet ~ /\*\*always\*\*/) {
+        condition="always"
+        count++
+      }
+      if (bullet ~ /`dispatch-contract`/) {
+        condition="dispatch-contract"
+        count++
+      }
+      if (bullet ~ /`dispatch-spec`/) {
+        condition="dispatch-spec"
+        count++
+      }
+      if (count != 1) {
+        condition="invalid"
+      }
+      print key "|" condition
+    }
+    /^   - / {
+      emit()
+      bullet=$0
+      next
+    }
+    /^3\. Run/ {
+      emit()
+      bullet=""
+      exit
+    }
+    bullet != "" {
+      bullet=bullet " " $0
+    }
+    END {
+      emit()
+    }
+  ' | sort
+}
+
+# AC3 — §7 names exactly the canonical reviewer paths and binds each to its canonical
+# dispatch condition, while pointing at the roster for membership/tier/condition. An
+# unexpected reviewer reference anywhere in §7 changes prose_paths; an extra/missing or
+# misconditioned reviewer bullet changes parse_prose.
 prose_ok() {
   local f="$1" s r=0
   s="$(section7 "$f" | tr -s '[:space:]' ' ')"
-  # spec — always, identified by its unique task-id prose
-  printf '%s' "$s" | grep -qF "reviewers/spec-auditor.md" || r=1
-  printf '%s' "$s" | grep -qF "**always**, and pass it the task ID" || r=1
-  # constitution — always, identified by its unique return-type prose
-  printf '%s' "$s" | grep -qF "reviewers/constitution-auditor.md" || r=1
-  printf '%s' "$s" | grep -qF "**always**. It returns PASS/JUSTIFY/FAIL against the constitution" || r=1
-  # contract — the dispatch-contract condition
-  printf '%s' "$s" | grep -qF "reviewers/contract-auditor.md" || r=1
-  printf '%s' "$s" | grep -qF "dispatch-contract" || r=1
-  printf '%s' "$s" | grep -qF "provider interface, monetization, or the data model" || r=1
-  # spec-quality — the dispatch-spec condition
-  printf '%s' "$s" | grep -qF "reviewers/spec-quality-auditor.md" || r=1
-  printf '%s' "$s" | grep -qF "dispatch-spec" || r=1
-  printf '%s' "$s" | grep -qF "adds, edits, or renames a" || r=1
+  [ "$(prose_paths "$f")" = "$EXPECTED_KEYS" ] || r=1
+  [ "$(parse_prose "$f")" = "$EXPECTED_PROSE" ] || r=1
   # points at the roster as the source of truth
   printf '%s' "$s" | grep -qF "reviewer roster" || r=1
   printf '%s' "$s" | grep -qF "gate-loop.md" || r=1
@@ -162,7 +258,7 @@ prose_ok() {
 #       reviewer's agent. In the documented fallback (Workflow tool absent → the operator
 #       dispatches reviewers via the Agent tool, following this map + §7), a map missing a
 #       reviewer silently under-dispatches the gate — the same "a reviewer fell out" drift
-#       class the three gate sites are pinned against, on the FALLBACK path. The map drifted
+#       class the structural mirrors are pinned against, on the FALLBACK path. The map drifted
 #       exactly this way once: it still listed only the original three after the spec-quality
 #       reviewer landed (PR #186 review). The map carries agent NAMES only; tier and
 #       condition stay single-sourced in the roster + §7 (which the fallback also follows),
@@ -170,7 +266,7 @@ prose_ok() {
 skill_map() { grep -F '**[reviewer]**' "$1" | grep -oE '[a-z-]+-auditor' | sort -u; }
 skill_ok()  { [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ]; }
 
-# ── Run the four site checks against the live tree ──────────────────────────────────
+# ── Run the structural surface checks against the live tree ─────────────────────────
 roster_ok "$GL" \
   && ok \
   || bad "AC1 roster: gate-loop.md roster is not exactly the canonical set
@@ -252,9 +348,9 @@ for key in spec-auditor constitution-auditor contract-auditor spec-quality-audit
   fi
 done
 
-# ── AC6 — drift in ANY one site must FAIL the check. Demonstrated on temp copies so the
-#         property is itself CI-verified, not asserted by hand: each mutation must flip
-#         the corresponding site check from OK (0) to drift (nonzero). ──
+# ── AC6 — the enumerated structural drifts must FAIL their owning checks. Demonstrated on
+#         temp copies so each claimed mutation is CI-verified, not asserted by hand: every
+#         retained mutation must flip its predicate from OK (0) to drift (nonzero). ──
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -282,6 +378,17 @@ mut_fail "roster flip-condition" roster_ok "$TMP/gl-cond.md"
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
 mut_fail "js drop-reviewer" js_ok "$TMP/js-drop.js"
 
+# JS site — add an unlisted reviewer to the unconditional array.
+awk '
+  /key: '\''constitution-auditor'\''/ {
+    print
+    print "  { key: '\''unexpected-auditor'\'', model: input.cheapModel, tier: '\''cheap'\'' },"
+    next
+  }
+  { print }
+' "$JS" > "$TMP/js-add-unlisted.js"
+mut_fail "js add-unlisted-reviewer" js_ok "$TMP/js-add-unlisted.js"
+
 # JS site — flip a tier (spec cheap → strong).
 sed "s/key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'/key: 'spec-auditor', model: input.cheapModel, tier: 'strong'/" "$JS" > "$TMP/js-tier.js"
 mut_fail "js flip-tier" js_ok "$TMP/js-tier.js"
@@ -290,8 +397,17 @@ mut_fail "js flip-tier" js_ok "$TMP/js-tier.js"
 grep -vF 'reviewers/spec-auditor.md' "$NT" > "$TMP/nt-drop.md"
 mut_fail "prose drop-reviewer" prose_ok "$TMP/nt-drop.md"
 
-# ── The spec-quality reviewer (T703) is drift-protected on every site too: dropping its
-#    row/push/reference must trip the corresponding site check, exactly like the originals. ──
+# Prose site — add an unlisted always-dispatched reviewer bullet.
+awk '
+  /^3\. Run/ {
+    print "   - The **unexpected [reviewer]** (`workflow/reviewers/unexpected-auditor.md`) — **always**."
+  }
+  { print }
+' "$NT" > "$TMP/nt-add-unlisted.md"
+mut_fail "prose add-unlisted-reviewer" prose_ok "$TMP/nt-add-unlisted.md"
+
+# ── The spec-quality reviewer (T703) is pinned on each structural projection it appears in:
+#    dropping its row/push/reference must trip that projection's check. ──
 
 # Roster site — drop the spec-quality row.
 grep -vF 'reviewers/spec-quality-auditor.md' "$GL" > "$TMP/gl-drop-sq.md"

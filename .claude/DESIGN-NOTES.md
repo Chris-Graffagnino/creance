@@ -162,35 +162,51 @@ context degrades model accuracy on every turn. The `AGENTS.md`
 example of the intended pattern: the per-turn rule stays resident, the full procedure
 lives one fetch away.
 
-## 12. The reviewer roster is one table with derived mirrors, not three hand-synced lists
+## 12. The reviewer roster is one table with exact structural and behavioral mirrors
 
 The §7 gate's reviewer set — *membership, tier, and dispatch-condition* — is declared once,
-as the roster table in `workflow/gate-loop.md`. Two other sites restate it: the §7 prose
-procedure in `next-task.md` (the degradation path used when no [orchestrated run] exists)
-and the `reviewers` array in `workflows/gate-loop.js` (the executable adapter). Those two
-are **derived mirrors**, not independent copies — each says so in place — and a CI-wired
-bash test (`hooks/reviewer-roster.test.sh`, in the `verify` job) FAILs the moment any site
-disagrees with a hardcoded canonical set.
+as the roster table in `workflow/gate-loop.md`. Its consumers carry different projections
+of that data:
 
-It reads like triplicated cruft: three places saying the same thing, plus a test whose only
-job is to assert they still match. Leave it. The three forms exist for three different
-readers — the runtime-neutral methodology (the roster *is* the source of truth), the
-human-readable §7 procedure, and running code — and none can be dropped without losing a
-consumer. Before the roster existed they were hand-synced with **nothing checking
-agreement**, so a reviewer quietly dropped from one site, or a tier/condition that drifted,
-sailed through CI. That is exactly the "silently dead machinery" failure this codebase has
-already lived through once (the dead guard matcher, §4) and that the constitution names as a
-first-class hazard (**P2**). The drift test converts "a reviewer fell out of the gate" from
-a model-noticing risk into a deterministic check, and — like `guard.test.sh` — it ships in
-the same PR as the thing it guards.
+- the §7 stage card (`workflow/next-task/07-pre-pr-gate.md`) names the exact reviewer spec
+  paths and dispatch conditions for the manual procedure, while deliberately delegating
+  tiers to the roster;
+- `workflows/gate-loop.js` encodes exact membership, tier-to-model input, and the guard
+  relationship for conditional pushes in the executable adapter;
+- the `[reviewer]` row in `skills/next-task/SKILL.md` enumerates exact membership for the
+  Workflow-unavailable/manual-fallback agent map, while delegating tiers and conditions to
+  the roster plus §7; and
+- the per-reviewer workflow specs and Claude agent bindings must exist, with each agent
+  binding constrained to the exact read-only tool set.
 
-So the redundancy is load-bearing: **one source of truth + derived mirrors + an independent
-drift oracle.** Collapsing it back into three hand-edited lists, or deleting the test as "it
-only checks the obvious," re-opens the silent-drift hole the roster was built to close. Two
-constraints keep the roster itself honest: it names only spec-paths, tiers, and conditions —
-never a model (**P1**); and its dispatch-conditions are restricted to three deterministic
-values (`always`, `dispatch-contract`, `dispatch-spec` — the spec-touch condition added in
-T703), so no model judgment ever lands on the gate's load-bearing path (**P3**).
+These are **derived consumers**, not independent authorities. They exist for different
+readers and execution paths: the runtime-neutral methodology, the human-readable fallback,
+and running Claude-side code. Before the roster existed they were hand-synced with no
+deterministic agreement check, so a reviewer could quietly drop from one path, or a
+tier/condition could drift, and still sail through CI. That is the "silently dead machinery"
+failure class the constitution names as a first-class hazard (**P2**).
+
+The enforcement is deliberately layered. The CI-wired bash oracle
+(`hooks/reviewer-roster.test.sh`) owns the structural proof: against an independent
+hardcoded canonical set it parses the exact roster data each surface owns, rejects missing
+and unexpected reviewer entries, pins conditional pushes to their guards, pins the
+manual-fallback membership map, and checks the spec/agent binding existence and read-only
+tool contract. Its retained mutations prove those particular structural assertions turn
+red. It does **not** claim that expected strings alone prove executable behavior.
+`workflows/gate-loop.test.js` supplies that behavioral layer by executing the adapter and
+asserting the exact runtime reviewer set for the unconditional, `dispatch-contract`, and
+`dispatch-spec` paths. Together they prove the declared roster's structural projections and
+those runtime dispatch cases; neither check is described as detecting every imaginable
+semantic disagreement.
+
+So the redundancy is load-bearing: **one source of truth + purpose-specific derived
+consumers + independent structural and behavioral checks.** Collapsing the projections
+back into unchecked hand-edited lists, or deleting either layer as "it only checks the
+obvious," re-opens the silent-drift hole the roster was built to close. Two constraints keep
+the roster itself honest: it names only spec paths, tiers, and conditions — never a model
+(**P1**); and its dispatch conditions are restricted to the deterministic values `always`,
+`dispatch-contract`, and `dispatch-spec`, so no model judgment lands on the gate's
+load-bearing path (**P3**).
 
 ---
 
@@ -315,7 +331,7 @@ must live where the owner can read it.
 | The launcher's run-log-after-exit ordering | The dead-man switch only works if the last line is always a *completed* attempt (§8). |
 | Passing paths in prompt text *and* env | The explicit-context rule — prompt text is the carrier, env is a redundant hint (§3). |
 | The Codex CLI stub | The falsification test that proves the layer split is real (§1). |
-| The reviewer roster's three sites + its drift test | One source of truth + two derived mirrors + an independent drift oracle; collapsing it back into hand-synced lists re-opens the silent-drift hole the roster closed (§12). |
+| The reviewer roster's derived consumers + layered drift checks | One source of truth, purpose-specific structural projections, and executable dispatch tests; collapsing them into unchecked hand-synced lists or treating structural strings as behavioral proof re-opens the silent-drift hole (§12). |
 | `fetch-depth: 0` on the CI checkout | Without it the #69 checkbox-drift gate (`check-tasks-consistency.sh` rule 3) is silently dead in CI: `actions/checkout` fetches one commit — on a PR the merge commit — so `git log` sees no `[T###]` and the gate passes vacuously (§4 silent-death class). `check-tasks-consistency.test.sh`'s CI-wiring assertion FAILs if it is dropped. |
 | The [edit guard]'s *delta* baseline, and `shell-lint.sh` running BOTH at edit time and over all hooks in CI | The delta (vs. the committed `HEAD` blob, not "any current failure") keeps a file with a pre-existing failure editable, so guard rule 7 taxes only *new* breakage and stays trusted (§4 fail-open ethos); collapsing it to "block on any current failure" re-creates the productivity tax that gets guards disabled, and its `guard.test.sh` delta case FAILs. The CI sweep is the *second* consumer of the same checker — it catches a non-portable hook the edit guard never saw (it predates the guard, or was edited on a runtime without the hook), the passes-locally-fails-CI class (#79/#97). |
 | `lib-tasks-drift.sh` as a separate file two scripts source | One drift definition, two consumers — the CI gate (`check-tasks-consistency.sh` rule 3, #69) and the runtime selection precondition (`reconcile-task-selection.sh`, #80/T608). Inlining it back into either forks the "done-but-unchecked" logic the gate and the selector must agree on — the same hand-synced-duplication hole the reviewer roster closed (§12). `reconcile-task-selection.test.sh` asserts both still source it, so a re-fork FAILs CI. |
