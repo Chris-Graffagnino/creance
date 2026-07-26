@@ -97,8 +97,8 @@ unresolvable **[role]** is a fast, loud, zero-round failure — never a vacuous 
 The gate's reviewer set — **membership, tier, and dispatch-condition** — is declared once,
 here. Each consumer derives the projection it needs from this table: the loop below iterates
 it; `next-task.md` §7 names reviewer paths and conditions while delegating tiers here; the
-**[orchestrated run]** adapter encodes membership, tiers, and conditional guards; and an
-adapter's manual-fallback binding may enumerate membership only. CI-wired structural checks
+**[orchestrated run]** adapter encodes membership, tiers, and conditional guards; and
+adapter manual-fallback bindings may enumerate membership only. CI-wired structural checks
 pin those declared projections to an independent canonical set, while executable adapter
 tests assert the exact runtime dispatch set under each condition. Adding or removing a
 reviewer therefore requires an intentional roster change plus its affected derived

@@ -173,9 +173,10 @@ of that data:
   tiers to the roster;
 - `workflows/gate-loop.js` encodes exact membership, tier-to-model input, and the guard
   relationship for conditional pushes in the executable adapter;
-- the `[reviewer]` row in `skills/next-task/SKILL.md` enumerates exact membership for the
-  Workflow-unavailable/manual-fallback agent map, while delegating tiers and conditions to
-  the roster plus §7; and
+- the `[reviewer]` rows in `skills/next-task/SKILL.md` and
+  `skills/review-response/SKILL.md` enumerate exact membership for their
+  Workflow-unavailable/manual-fallback agent maps, while delegating tiers and conditions
+  to the roster plus §7; and
 - the per-reviewer workflow specs and Claude agent bindings must exist, with each agent
   binding constrained to the exact read-only tool set.
 
