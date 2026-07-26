@@ -129,6 +129,7 @@ EXPECTED_REVIEW_RESPONSE_SPANS="$(printf '%s\n' \
 # complete Markdown rows, including plain prose outside code spans. Any edit requires an
 # explicit fixture update after review.
 EXPECTED_JS_SOURCE_HASH='07c32b36bc88546e0935039ca91b87a4c894f8a4'
+EXPECTED_PROSE_SOURCE_HASH='2c2ab181a6bd6638f55cf946533ff9b354a5c3b6'
 EXPECTED_SKILL_ROW_HASH='4f00a8c9fa687e1876de67765abe14876facd40c'
 EXPECTED_REVIEW_RESPONSE_ROW_HASH='621b4d746ce742d738ca3a040ab4f82a13bdd5db'
 
@@ -394,6 +395,7 @@ prose_ok() {
   [ "$(prose_paths "$f")" = "$EXPECTED_KEYS" ] || r=1
   [ "$(parse_prose "$f")" = "$EXPECTED_PROSE" ] || r=1
   [ "$(prose_bullets "$f")" = "$EXPECTED_PROSE_BULLETS" ] || r=1
+  [ "$(git hash-object "$f")" = "$EXPECTED_PROSE_SOURCE_HASH" ] || r=1
   # points at the roster as the source of truth
   printf '%s' "$s" | grep -qF "reviewer roster" || r=1
   printf '%s' "$s" | grep -qF "gate-loop.md" || r=1
@@ -780,6 +782,17 @@ awk '
   { print }
 ' "$NT" > "$TMP/nt-add-unlisted.md"
 mut_fail "prose add-unlisted-reviewer" prose_ok "$TMP/nt-add-unlisted.md"
+
+# Prose site — an unexpected dispatch instruction written as an unformatted bullet has
+# no canonical path token for the projection parser to inventory. The complete stage-card
+# source fixture must still reject it.
+awk '
+  /^3\. Run/ {
+    print "   - Dispatch security2-reviewer — **always**."
+  }
+  { print }
+' "$NT" > "$TMP/nt-add-plain-dispatch-bullet.md"
+mut_fail "prose add-plain-dispatch-bullet" prose_ok "$TMP/nt-add-plain-dispatch-bullet.md"
 
 # Prose site — reject a canonical reviewer basename embedded in a wrong path prefix and
 # any extra dispatch-* condition token alongside the canonical condition.
