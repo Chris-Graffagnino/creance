@@ -188,14 +188,16 @@ tier/condition could drift, and still sail through CI. That is the "silently dea
 failure class the constitution names as a first-class hazard (**P2**).
 
 The enforcement is deliberately layered. The CI-wired bash oracle
-(`hooks/reviewer-roster.test.sh`) owns the structural proof: against an independent
-hardcoded canonical set it parses the exact roster data each surface owns, rejects missing
-and unexpected reviewer entries without assuming a reviewer-name suffix, rejects opaque
-entries outside the executable adapter's inventoried object-literal construction shape,
-pins conditional pushes to their guards, pins the manual-fallback membership maps, and
-checks the spec/agent binding existence and read-only tool contract. Its retained mutations
-prove those particular structural assertions turn red. It does **not** claim that expected
-strings alone prove executable behavior.
+(`hooks/reviewer-roster.test.sh`) owns the structural proof for these bounded authored
+surfaces. Against an independent hardcoded canonical set it parses the exact roster data
+each surface owns, rejects missing and unexpected reviewer entries without assuming a
+reviewer-name suffix, pins conditional pushes to their guards, and checks the spec/agent
+binding existence and read-only tool contract. Independent authored-shape fixtures also pin
+the executable adapter's complete reviewer lifecycle from construction through re-dispatch
+and each manual-fallback row in full, so alias mutations or plain-prose additions outside
+the parsed projections still turn the check red. Retained mutations prove those particular
+structural assertions fire. It does **not** claim that source shape alone proves executable
+behavior.
 `workflows/gate-loop.test.js` supplies that behavioral layer by executing the adapter and
 asserting the exact runtime reviewer set for the unconditional, `dispatch-contract`, and
 `dispatch-spec` paths. Together they prove the declared roster's structural projections and

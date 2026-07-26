@@ -123,21 +123,17 @@ EXPECTED_REVIEW_RESPONSE_SPANS="$(printf '%s\n' \
   '`spec-auditor`' \
   '`spec-quality-auditor`' | sort)"
 
-EXPECTED_POST_JS_USES="$(printf '%s\n' \
-  'reviewers.map(' \
-  'const unresolvedTypes = reviewers.filter((_r, i) => probeResults[i] == null).map((r) => r.key);' \
-  'notDispatched: reviewers.map((r) => r.key),' \
-  "\`Gate dispatch \${fixRoundsUsed + 1}/\${MAX_FIX_ROUNDS + 1}: \${pending.map((r) => r.key).join(', ')}\`," \
-  'notDispatched: pending.map((r) => r.key),' \
-  'pending.map(' \
-  'pending.map((r, i) => ({' \
-  'pending.forEach((r, i) => {' \
-  'pending.forEach((r, i) => {' \
-  "const failing = pending.filter((r, i) => !results[i] || results[i].verdict === 'FAIL');" \
-  'noVerdict: pending.filter((r, i) => !results[i]).map((r) => r.key),' \
-  '`reviewers, restore the shared working tree to its task branch — a parallel read-only ` +' \
-  "\`reviewers re-audit the COMMITTED diff (\${diffCmd}), so an uncommitted fix \` +" \
-  'pending = failing; // re-dispatch ONLY the failures')"
+# Git blob IDs are compact, independent fixtures for the complete authored source shapes.
+# The JS fixture covers everything from canonical construction through the end of the
+# reviewer lifecycle; the row fixtures cover their complete Markdown rows, including plain
+# prose outside code spans. Any edit requires an explicit fixture update after review.
+EXPECTED_JS_LIFECYCLE_HASH='7da98b5b034c01171bd91e9c0d3898536fb5a5bf'
+EXPECTED_SKILL_ROW_HASH='4f00a8c9fa687e1876de67765abe14876facd40c'
+EXPECTED_REVIEW_RESPONSE_ROW_HASH='621b4d746ce742d738ca3a040ab4f82a13bdd5db'
+
+content_hash() {
+  git hash-object --stdin
+}
 
 ok()   { pass=$((pass + 1)); }
 bad() { # bad <message>
@@ -290,29 +286,17 @@ parse_js() {
   ' "$1" | sort
 }
 
-post_js_uses() {
-  awk '
-    /^let pending = reviewers;$/ {
-      after_alias=1
-      next
-    }
-    after_alias &&
-      $0 !~ /^[[:space:]]*\/\// &&
-      $0 ~ /(^|[^[:alnum:]_])(reviewers|pending)([^[:alnum:]_]|$)/ {
-        line=$0
-        sub(/^[[:space:]]*/, "", line)
-        sub(/[[:space:]]*$/, "", line)
-        print line
-      }
-  ' "$1"
+js_lifecycle() {
+  sed -n '/^const reviewers = \[$/,$p' "$1"
 }
 
 # AC2 — gate-loop.js is EXACTLY the canonical membership + tier + condition/guard
-# relationship, and every tier uses its matching model input. Extra, duplicate, missing,
-# malformed, wrongly tiered, or unguarded reviewer entries all change the parsed set.
+# relationship, every tier uses its matching model input, and the complete reviewer lifecycle
+# remains on its reviewed authored shape. Extra, duplicate, missing, malformed, wrongly tiered,
+# unguarded, aliased, or post-construction reviewer mutations all change one of these fixtures.
 js_ok() {
   [ "$(parse_js "$1")" = "$EXPECTED_JS" ] &&
-    [ "$(post_js_uses "$1")" = "$EXPECTED_POST_JS_USES" ]
+    [ "$(js_lifecycle "$1" | content_hash)" = "$EXPECTED_JS_LIFECYCLE_HASH" ]
 }
 
 # AC3 helpers — scope to §7, enumerate EVERY concrete reviewer path, and project each
@@ -438,6 +422,9 @@ skill_row() {
     }
   ' "$1"
 }
+skill_full_row() {
+  awk 'index($0, "| **[reviewer]** |") { print }' "$1"
+}
 skill_map() {
   skill_row "$1" \
     | sed 's/[[:space:]]*subagents.*//' \
@@ -457,9 +444,13 @@ skill_spans() {
 skill_ok() {
   [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ] &&
     skill_shape_ok "$1" &&
-    [ "$(skill_spans "$1")" = "$EXPECTED_SKILL_SPANS" ]
+    [ "$(skill_spans "$1")" = "$EXPECTED_SKILL_SPANS" ] &&
+    [ "$(skill_full_row "$1" | content_hash)" = "$EXPECTED_SKILL_ROW_HASH" ]
 }
 
+review_response_full_row() {
+  awk 'index($0, "| **[reviewer]s / [orchestrated run]**") { print }' "$1"
+}
 review_response_row() {
   awk -F'|' '
     $2 ~ /\*\*\[reviewer\]s \/ \[orchestrated run\]\*\*/ {
@@ -488,7 +479,8 @@ review_response_spans() {
 review_response_ok() {
   [ "$(review_response_map "$1")" = "$EXPECTED_KEYS" ] &&
     review_response_shape_ok "$1" &&
-    [ "$(review_response_spans "$1")" = "$EXPECTED_REVIEW_RESPONSE_SPANS" ]
+    [ "$(review_response_spans "$1")" = "$EXPECTED_REVIEW_RESPONSE_SPANS" ] &&
+    [ "$(review_response_full_row "$1" | content_hash)" = "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" ]
 }
 
 # ── Run the structural surface checks against the live tree ─────────────────────────
@@ -720,6 +712,28 @@ awk '
 ' "$JS" > "$TMP/js-one-line-reassignment.js"
 mut_fail "js one-line-post-consumption-reassignment" js_ok "$TMP/js-one-line-reassignment.js"
 
+# JS site — `failing` is the next-round roster, and callback `r` values are reviewer
+# objects. Mutating either path changes reviewer membership even without naming pending
+# on the mutation line; the complete lifecycle fixture must reject both.
+awk '
+  { print }
+  /^  const failing = pending\.filter/ {
+    print "  if (input.taskId === '\''UNTESTED'\'') {"
+    print "    failing.push({ key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' });"
+    print "  }"
+  }
+' "$JS" > "$TMP/js-mutate-failing.js"
+mut_fail "js mutate-next-round-failing-roster" js_ok "$TMP/js-mutate-failing.js"
+
+awk '
+  { print }
+  /^  pending\.forEach\(\(r, i\) => \{$/ && !inserted {
+    print "    if (input.taskId === '\''UNTESTED'\'') r.key = '\''security2-reviewer'\'';"
+    inserted=1
+  }
+' "$JS" > "$TMP/js-mutate-callback-reviewer.js"
+mut_fail "js mutate-callback-reviewer-key" js_ok "$TMP/js-mutate-callback-reviewer.js"
+
 # JS site — direct reconstruction and indexed writes through the `pending` alias must fail
 # closed too; neither depends on a named mutating method.
 awk '
@@ -816,6 +830,10 @@ awk '
 ' "$SK" > "$TMP/sk-add-row-tail.md"
 mut_fail "skill add-reviewer-at-row-tail" skill_ok "$TMP/sk-add-row-tail.md"
 
+sed 's/dispatched via the Agent tool/dispatched with security2-reviewer via the Agent tool/' \
+  "$SK" > "$TMP/sk-add-plain-reviewer.md"
+mut_fail "skill add-plain-reviewer" skill_ok "$TMP/sk-add-plain-reviewer.md"
+
 # review-response fallback map — both omission and a digit-bearing unexpected reviewer
 # must fail exact membership just as they do in the primary next-task fallback map.
 sed 's# / `spec-quality-auditor` subagents# subagents#' \
@@ -839,6 +857,10 @@ awk '
   { print }
 ' "$RR" > "$TMP/rr-add-row-tail.md"
 mut_fail "review-response add-reviewer-at-row-tail" review_response_ok "$TMP/rr-add-row-tail.md"
+
+sed 's/) dispatched via the Agent tool/) dispatched with security2-reviewer via the Agent tool/' \
+  "$RR" > "$TMP/rr-add-plain-reviewer.md"
+mut_fail "review-response add-plain-reviewer" review_response_ok "$TMP/rr-add-plain-reviewer.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
