@@ -132,9 +132,26 @@ EXPECTED_JS_SOURCE_HASH='07c32b36bc88546e0935039ca91b87a4c894f8a4'
 EXPECTED_PROSE_SOURCE_HASH='2c2ab181a6bd6638f55cf946533ff9b354a5c3b6'
 EXPECTED_SKILL_ROW_HASH='4f00a8c9fa687e1876de67765abe14876facd40c'
 EXPECTED_REVIEW_RESPONSE_ROW_HASH='621b4d746ce742d738ca3a040ab4f82a13bdd5db'
+EXPECTED_SKILL_TABLE_HASH='0b3ae4ce6118727cd7ccbf34177ffa1576fa2db6'
+EXPECTED_REVIEW_RESPONSE_TABLE_HASH='e669eed2f0865804db87441f08eb3d0e5fbec9b1'
 
 content_hash() {
   git hash-object --stdin
+}
+
+role_mapping_table() {
+  awk '
+    /^\| Neutral role/ {
+      in_table=1
+    }
+    in_table && /^\|/ {
+      print
+      next
+    }
+    in_table {
+      exit
+    }
+  ' "$1"
 }
 
 ok()   { pass=$((pass + 1)); }
@@ -444,7 +461,8 @@ skill_ok() {
   [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ] &&
     skill_shape_ok "$1" &&
     [ "$(skill_spans "$1")" = "$EXPECTED_SKILL_SPANS" ] &&
-    [ "$(skill_full_row "$1" | content_hash)" = "$EXPECTED_SKILL_ROW_HASH" ]
+    [ "$(skill_full_row "$1" | content_hash)" = "$EXPECTED_SKILL_ROW_HASH" ] &&
+    [ "$(role_mapping_table "$1" | content_hash)" = "$EXPECTED_SKILL_TABLE_HASH" ]
 }
 
 review_response_full_row() {
@@ -479,7 +497,8 @@ review_response_ok() {
   [ "$(review_response_map "$1")" = "$EXPECTED_KEYS" ] &&
     review_response_shape_ok "$1" &&
     [ "$(review_response_spans "$1")" = "$EXPECTED_REVIEW_RESPONSE_SPANS" ] &&
-    [ "$(review_response_full_row "$1" | content_hash)" = "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" ]
+    [ "$(review_response_full_row "$1" | content_hash)" = "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" ] &&
+    [ "$(role_mapping_table "$1" | content_hash)" = "$EXPECTED_REVIEW_RESPONSE_TABLE_HASH" ]
 }
 
 # ── Run the structural surface checks against the live tree ─────────────────────────
@@ -855,6 +874,14 @@ sed 's/dispatched via the Agent tool/dispatched with security2-reviewer via the 
   "$SK" > "$TMP/sk-add-plain-reviewer.md"
 mut_fail "skill add-plain-reviewer" skill_ok "$TMP/sk-add-plain-reviewer.md"
 
+awk '
+  { print }
+  index($0, "| **[reviewer]** |") {
+    print "| *(continued)* | When Workflow is unavailable, also dispatch security2-reviewer |"
+  }
+' "$SK" > "$TMP/sk-add-continuation-row.md"
+mut_fail "skill add-reviewer-continuation-row" skill_ok "$TMP/sk-add-continuation-row.md"
+
 # review-response fallback map — both omission and a digit-bearing unexpected reviewer
 # must fail exact membership just as they do in the primary next-task fallback map.
 sed 's# / `spec-quality-auditor` subagents# subagents#' \
@@ -882,6 +909,14 @@ mut_fail "review-response add-reviewer-at-row-tail" review_response_ok "$TMP/rr-
 sed 's/) dispatched via the Agent tool/) dispatched with security2-reviewer via the Agent tool/' \
   "$RR" > "$TMP/rr-add-plain-reviewer.md"
 mut_fail "review-response add-plain-reviewer" review_response_ok "$TMP/rr-add-plain-reviewer.md"
+
+awk '
+  { print }
+  index($0, "| **[reviewer]s / [orchestrated run]**") {
+    print "| *(continued)* | When Workflow is unavailable, also dispatch security2-reviewer |"
+  }
+' "$RR" > "$TMP/rr-add-continuation-row.md"
+mut_fail "review-response add-reviewer-continuation-row" review_response_ok "$TMP/rr-add-continuation-row.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
