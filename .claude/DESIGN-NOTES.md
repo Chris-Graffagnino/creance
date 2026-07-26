@@ -192,7 +192,7 @@ The enforcement is deliberately layered. The CI-wired bash oracle
 hardcoded canonical set it parses the exact roster data each surface owns, rejects missing
 and unexpected reviewer entries without assuming a reviewer-name suffix, rejects opaque
 entries outside the executable adapter's inventoried object-literal construction shape,
-pins conditional pushes to their guards, pins the manual-fallback membership map, and
+pins conditional pushes to their guards, pins the manual-fallback membership maps, and
 checks the spec/agent binding existence and read-only tool contract. Its retained mutations
 prove those particular structural assertions turn red. It does **not** claim that expected
 strings alone prove executable behavior.

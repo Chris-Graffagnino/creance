@@ -99,6 +99,15 @@ bad() { # bad <message>
 #    path emits an invalid key and therefore fails the canonical-set comparison.
 parse_roster() {
   awk -F'|' '
+    function cell_value(value) {
+      sub(/^[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      if (value ~ /^`[^`]+`$/) {
+        sub(/^`/, "", value)
+        sub(/`$/, "", value)
+      }
+      return value
+    }
     /^\| Reviewer spec \| Tier \| Dispatch condition \|$/ {
       in_roster=1
       next
@@ -115,8 +124,8 @@ parse_roster() {
       } else {
         key="invalid"
       }
-      gsub(/[^a-z-]/, "", tier)   # cheap | strong
-      gsub(/[^a-z-]/, "", cond)   # always | dispatch-contract | dispatch-spec
+      tier=cell_value(tier)
+      cond=cell_value(cond)
       print key "|" tier "|" cond
       next
     }
@@ -173,7 +182,8 @@ parse_js() {
       next
     }
     in_block && /^let pending = reviewers;$/ {
-      in_block=0
+      roster_consumed=1
+      previous=$0
       next
     }
     in_block && in_array {
@@ -183,7 +193,7 @@ parse_js() {
       previous=$0
       next
     }
-    in_block && /reviewers/ {
+    in_block && !roster_consumed && /reviewers/ {
       condition="unguarded"
       if (previous ~ /^[[:space:]]*if \(input\.dispatchContract\) \{[[:space:]]*$/) {
         condition="dispatch-contract"
@@ -191,6 +201,11 @@ parse_js() {
         condition="dispatch-spec"
       }
       emit($0, condition)
+      previous=$0
+      next
+    }
+    roster_consumed && /(^|[^[:alnum:]_])(reviewers|pending)\.(push|unshift|splice|pop|shift|sort|reverse|copyWithin|fill)[[:space:]]*\(/ {
+      emit($0, "post-consumption-mutation")
       previous=$0
       next
     }
@@ -452,6 +467,16 @@ mut_fail "roster flip-tier" roster_ok "$TMP/gl-tier.md"
 sed '/reviewers\/contract-auditor\.md/ s/dispatch-contract/always/' "$GL" > "$TMP/gl-cond.md"
 mut_fail "roster flip-condition" roster_ok "$TMP/gl-cond.md"
 
+# Roster site — malformed digit-bearing tier/condition cells must not normalize back to
+# their canonical values. Only Markdown formatting is stripped from the source cells.
+sed '/reviewers\/spec-auditor\.md/ s/| cheap |/| che2ap |/' \
+  "$GL" > "$TMP/gl-malformed-tier.md"
+mut_fail "roster malformed-tier" roster_ok "$TMP/gl-malformed-tier.md"
+
+sed '/reviewers\/contract-auditor\.md/ s/dispatch-contract/dispatch2-contract/' \
+  "$GL" > "$TMP/gl-malformed-condition.md"
+mut_fail "roster malformed-condition" roster_ok "$TMP/gl-malformed-condition.md"
+
 # JS site (gate-loop.js) — drop the gated contract push.
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
 mut_fail "js drop-reviewer" js_ok "$TMP/js-drop.js"
@@ -488,6 +513,18 @@ awk '
   { print }
 ' "$JS" > "$TMP/js-add-late-reviewer.js"
 mut_fail "js add-late-reviewer" js_ok "$TMP/js-add-late-reviewer.js"
+
+# JS site — `pending` aliases the mutable reviewer array. A task-specific push after that
+# assignment must remain visible even when fixed runtime test inputs do not enter its branch.
+awk '
+  { print }
+  /^let pending = reviewers;$/ {
+    print "if (input.taskId === '\''UNTESTED'\'') {"
+    print "  pending.push({ key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' });"
+    print "}"
+  }
+' "$JS" > "$TMP/js-add-post-consumption-reviewer.js"
+mut_fail "js add-post-consumption-reviewer" js_ok "$TMP/js-add-post-consumption-reviewer.js"
 
 # JS site — flip a tier (spec cheap → strong).
 sed "s/key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'/key: 'spec-auditor', model: input.cheapModel, tier: 'strong'/" "$JS" > "$TMP/js-tier.js"
