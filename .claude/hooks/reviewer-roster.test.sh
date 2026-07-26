@@ -124,10 +124,11 @@ EXPECTED_REVIEW_RESPONSE_SPANS="$(printf '%s\n' \
   '`spec-quality-auditor`' | sort)"
 
 # Git blob IDs are compact, independent fixtures for the complete authored source shapes.
-# The JS fixture covers everything from canonical construction through the end of the
-# reviewer lifecycle; the row fixtures cover their complete Markdown rows, including plain
-# prose outside code spans. Any edit requires an explicit fixture update after review.
-EXPECTED_JS_LIFECYCLE_HASH='7da98b5b034c01171bd91e9c0d3898536fb5a5bf'
+# The JS fixture covers the complete executable adapter, including input normalization before
+# canonical construction and the reviewer lifecycle after it. The row fixtures cover their
+# complete Markdown rows, including plain prose outside code spans. Any edit requires an
+# explicit fixture update after review.
+EXPECTED_JS_SOURCE_HASH='07c32b36bc88546e0935039ca91b87a4c894f8a4'
 EXPECTED_SKILL_ROW_HASH='4f00a8c9fa687e1876de67765abe14876facd40c'
 EXPECTED_REVIEW_RESPONSE_ROW_HASH='621b4d746ce742d738ca3a040ab4f82a13bdd5db'
 
@@ -286,17 +287,13 @@ parse_js() {
   ' "$1" | sort
 }
 
-js_lifecycle() {
-  sed -n '/^const reviewers = \[$/,$p' "$1"
-}
-
 # AC2 — gate-loop.js is EXACTLY the canonical membership + tier + condition/guard
-# relationship, every tier uses its matching model input, and the complete reviewer lifecycle
+# relationship, every tier uses its matching model input, and the complete executable adapter
 # remains on its reviewed authored shape. Extra, duplicate, missing, malformed, wrongly tiered,
-# unguarded, aliased, or post-construction reviewer mutations all change one of these fixtures.
+# unguarded, input-mutating, aliased, or post-construction reviewer mutations all change a fixture.
 js_ok() {
   [ "$(parse_js "$1")" = "$EXPECTED_JS" ] &&
-    [ "$(js_lifecycle "$1" | content_hash)" = "$EXPECTED_JS_LIFECYCLE_HASH" ]
+    [ "$(git hash-object "$1")" = "$EXPECTED_JS_SOURCE_HASH" ]
 }
 
 # AC3 helpers — scope to §7, enumerate EVERY concrete reviewer path, and project each
@@ -671,6 +668,17 @@ awk '
   { print }
 ' "$JS" > "$TMP/js-add-late-reviewer.js"
 mut_fail "js add-late-reviewer" js_ok "$TMP/js-add-late-reviewer.js"
+
+# JS site — a task-specific pre-construction input rewrite can change the effective
+# condition while leaving the canonical guards untouched. The complete-source fixture
+# must cover input acquisition/normalization as well as the downstream lifecycle.
+awk '
+  /^const reviewers = \[$/ {
+    print "if (input.taskId === '\''UNTESTED'\'') input.dispatchContract = true;"
+  }
+  { print }
+' "$JS" > "$TMP/js-rewrite-condition-input.js"
+mut_fail "js rewrite-condition-input-before-construction" js_ok "$TMP/js-rewrite-condition-input.js"
 
 # JS site — `pending` aliases the mutable reviewer array. A task-specific push after that
 # assignment must remain visible even when fixed runtime test inputs do not enter its branch.

@@ -193,11 +193,11 @@ surfaces. Against an independent hardcoded canonical set it parses the exact ros
 each surface owns, rejects missing and unexpected reviewer entries without assuming a
 reviewer-name suffix, pins conditional pushes to their guards, and checks the spec/agent
 binding existence and read-only tool contract. Independent authored-shape fixtures also pin
-the executable adapter's complete reviewer lifecycle from construction through re-dispatch
-and each manual-fallback row in full, so alias mutations or plain-prose additions outside
-the parsed projections still turn the check red. Retained mutations prove those particular
-structural assertions fire. It does **not** claim that source shape alone proves executable
-behavior.
+the complete executable adapter source (including input handling before construction and
+the reviewer lifecycle through re-dispatch) and each manual-fallback row in full, so input
+rewrites, alias mutations, or plain-prose additions outside the parsed projections still
+turn the check red. Retained mutations prove those particular structural assertions fire.
+It does **not** claim that source shape alone proves executable behavior.
 `workflows/gate-loop.test.js` supplies that behavioral layer by executing the adapter and
 asserting the exact runtime reviewer set for the unconditional, `dispatch-contract`, and
 `dispatch-spec` paths. Together they prove the declared roster's structural projections and
