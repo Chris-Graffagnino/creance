@@ -87,6 +87,58 @@ EXPECTED_PROSE="$(printf '%s\n' "$EXPECTED" \
   | awk -F'|' '{ print $1 "|" $3 }' \
   | sort)"
 
+# Exact authored shapes for the bounded structural surfaces. These are independent test
+# fixtures, not derived from the files they check: every code-bearing row/bullet/use must
+# match one of these complete forms, so equivalent syntax cannot hide an extra reviewer.
+EXPECTED_ROSTER_ROWS="$(printf '%s\n' \
+  '| `reviewers/spec-auditor.md` (acceptance) | cheap | `always` |' \
+  '| `reviewers/constitution-auditor.md` | strong | `always` |' \
+  '| `reviewers/contract-auditor.md` | cheap | `dispatch-contract` |' \
+  '| `reviewers/spec-quality-auditor.md` | strong | `dispatch-spec` |' | sort)"
+
+EXPECTED_PROSE_BULLETS="$(printf '%s\n' \
+  '- The **acceptance [reviewer]** (`workflow/reviewers/spec-auditor.md`) — **always**, and pass it the task ID. It returns PASS/FAIL against the `US#` acceptance criteria (implementation AND encoding tests, criterion by criterion).' \
+  '- The **constitution [reviewer]** (`workflow/reviewers/constitution-auditor.md`) — **always**. It returns PASS/JUSTIFY/FAIL against the constitution + invariant checklist.' \
+  "- The **contract [reviewer]** (\`workflow/reviewers/contract-auditor.md\`) — only on the roster's \`dispatch-contract\` condition: when the change touches a provider interface, monetization, or the data model." \
+  '- The **spec-quality [reviewer]** (`workflow/reviewers/spec-quality-auditor.md`) — only on the roster'"'"'s `dispatch-spec` condition: when the diff adds, edits, or renames a `specs/*/spec.md` (git status `A`/`M`/`R`; a pure deletion `D` does not fire). It returns PASS/FAIL against the spec-content quality rubric, dispatched at the **[strong tier]** floor (the spec is the cheapest place to lose a project).')"
+
+EXPECTED_SKILL_SPANS="$(printf '%s\n' \
+  '`.claude/agents/`' \
+  '`constitution-auditor`' \
+  '`contract-auditor`' \
+  '`contract-auditor`' \
+  '`gate-loop.md`' \
+  '`reviewer-roster.test.sh`' \
+  '`spec-auditor`' \
+  '`spec-auditor`' \
+  '`spec-quality-auditor`' \
+  '`spec-quality-auditor`' \
+  '`specs/*/spec.md`' | sort)"
+
+EXPECTED_REVIEW_RESPONSE_SPANS="$(printf '%s\n' \
+  '`.claude/agents/`' \
+  '`constitution-auditor`' \
+  '`contract-auditor`' \
+  '`git diff main..HEAD`' \
+  '`spec-auditor`' \
+  '`spec-quality-auditor`' | sort)"
+
+EXPECTED_POST_JS_USES="$(printf '%s\n' \
+  'reviewers.map(' \
+  'const unresolvedTypes = reviewers.filter((_r, i) => probeResults[i] == null).map((r) => r.key);' \
+  'notDispatched: reviewers.map((r) => r.key),' \
+  "\`Gate dispatch \${fixRoundsUsed + 1}/\${MAX_FIX_ROUNDS + 1}: \${pending.map((r) => r.key).join(', ')}\`," \
+  'notDispatched: pending.map((r) => r.key),' \
+  'pending.map(' \
+  'pending.map((r, i) => ({' \
+  'pending.forEach((r, i) => {' \
+  'pending.forEach((r, i) => {' \
+  "const failing = pending.filter((r, i) => !results[i] || results[i].verdict === 'FAIL');" \
+  'noVerdict: pending.filter((r, i) => !results[i]).map((r) => r.key),' \
+  '`reviewers, restore the shared working tree to its task branch — a parallel read-only ` +' \
+  "\`reviewers re-audit the COMMITTED diff (\${diffCmd}), so an uncommitted fix \` +" \
+  'pending = failing; // re-dispatch ONLY the failures')"
+
 ok()   { pass=$((pass + 1)); }
 bad() { # bad <message>
   fail=$((fail + 1))
@@ -138,9 +190,34 @@ parse_roster() {
   ' "$1" | sort
 }
 
+roster_rows() {
+  awk '
+    /^\| Reviewer spec \| Tier \| Dispatch condition \|$/ {
+      in_roster=1
+      next
+    }
+    in_roster && /^\|---/ {
+      next
+    }
+    in_roster && /^\|/ {
+      line=$0
+      sub(/^[[:space:]]*/, "", line)
+      sub(/[[:space:]]*$/, "", line)
+      print line
+      next
+    }
+    in_roster {
+      exit
+    }
+  ' "$1" | sort
+}
+
 # AC1 — gate-loop.md roster is EXACTLY the canonical set (membership + tier + condition,
 #       no extra rows).
-roster_ok() { [ "$(parse_roster "$1")" = "$EXPECTED" ]; }
+roster_ok() {
+  [ "$(parse_roster "$1")" = "$EXPECTED" ] &&
+    [ "$(roster_rows "$1")" = "$EXPECTED_ROSTER_ROWS" ]
+}
 
 # parse_js <gate-loop.js> — emit
 # "<key>|<model-tier>|<tier>|<condition>" for every reviewer entry in the executable
@@ -185,7 +262,7 @@ parse_js() {
       next
     }
     in_block && /^let pending = reviewers;$/ {
-      roster_consumed=1
+      in_block=0
       previous=$0
       next
     }
@@ -196,7 +273,7 @@ parse_js() {
       previous=$0
       next
     }
-    in_block && !roster_consumed && /reviewers/ {
+    in_block && /reviewers/ {
       condition="unguarded"
       if (previous ~ /^[[:space:]]*if \(input\.dispatchContract\) \{[[:space:]]*$/) {
         condition="dispatch-contract"
@@ -207,44 +284,35 @@ parse_js() {
       previous=$0
       next
     }
-    roster_consumed && /(^|[^[:alnum:]_])(reviewers|pending)\.(push|unshift|splice|pop|shift|sort|reverse|copyWithin|fill)[[:space:]]*\(/ {
-      emit($0, "post-consumption-mutation")
-      previous=$0
-      next
-    }
-    roster_consumed && /^[[:space:]]*pending[[:space:]]*=/ {
-      if ($0 !~ /^[[:space:]]*pending = failing; \/\/ re-dispatch ONLY the failures$/) {
-        emit($0, "post-consumption-assignment")
-      }
-      previous=$0
-      next
-    }
-    roster_consumed && /^[[:space:]]*reviewers[[:space:]]*=/ {
-      emit($0, "post-consumption-assignment")
-      previous=$0
-      next
-    }
-    roster_consumed && /^[[:space:]]*(reviewers|pending)(\[[^]]+\]|\.[[:alnum:]_$]+)+[[:space:]]*=/ {
-      emit($0, "post-consumption-index-assignment")
-      previous=$0
-      next
-    }
-    roster_consumed && /=[[:space:]]*(reviewers|pending)[[:space:]]*;/ {
-      emit($0, "post-consumption-alias")
-      previous=$0
-      next
-    }
     in_block {
       previous=$0
     }
   ' "$1" | sort
 }
 
+post_js_uses() {
+  awk '
+    /^let pending = reviewers;$/ {
+      after_alias=1
+      next
+    }
+    after_alias &&
+      $0 !~ /^[[:space:]]*\/\// &&
+      $0 ~ /(^|[^[:alnum:]_])(reviewers|pending)([^[:alnum:]_]|$)/ {
+        line=$0
+        sub(/^[[:space:]]*/, "", line)
+        sub(/[[:space:]]*$/, "", line)
+        print line
+      }
+  ' "$1"
+}
+
 # AC2 — gate-loop.js is EXACTLY the canonical membership + tier + condition/guard
 # relationship, and every tier uses its matching model input. Extra, duplicate, missing,
 # malformed, wrongly tiered, or unguarded reviewer entries all change the parsed set.
 js_ok() {
-  [ "$(parse_js "$1")" = "$EXPECTED_JS" ]
+  [ "$(parse_js "$1")" = "$EXPECTED_JS" ] &&
+    [ "$(post_js_uses "$1")" = "$EXPECTED_POST_JS_USES" ]
 }
 
 # AC3 helpers — scope to §7, enumerate EVERY concrete reviewer path, and project each
@@ -310,6 +378,31 @@ parse_prose() {
   ' | sort
 }
 
+prose_bullets() {
+  section7 "$1" | awk '
+    function emit() {
+      if (bullet ~ /`workflow\/reviewers\//) {
+        gsub(/[[:space:]]+/, " ", bullet)
+        sub(/^[[:space:]]*/, "", bullet)
+        print bullet
+      }
+    }
+    /^   - / {
+      emit()
+      bullet=$0
+      next
+    }
+    /^3\. Run/ {
+      emit()
+      bullet=""
+      exit
+    }
+    bullet != "" {
+      bullet=bullet " " $0
+    }
+  '
+}
+
 # AC3 — §7 names exactly the canonical reviewer paths and binds each to its canonical
 # dispatch condition, while pointing at the roster for membership/tier/condition. An
 # unexpected reviewer reference anywhere in §7 changes prose_paths; an extra/missing or
@@ -319,6 +412,7 @@ prose_ok() {
   s="$(section7 "$f" | tr -s '[:space:]' ' ')"
   [ "$(prose_paths "$f")" = "$EXPECTED_KEYS" ] || r=1
   [ "$(parse_prose "$f")" = "$EXPECTED_PROSE" ] || r=1
+  [ "$(prose_bullets "$f")" = "$EXPECTED_PROSE_BULLETS" ] || r=1
   # points at the roster as the source of truth
   printf '%s' "$s" | grep -qF "reviewer roster" || r=1
   printf '%s' "$s" | grep -qF "gate-loop.md" || r=1
@@ -357,8 +451,13 @@ skill_shape_ok() {
     *) return 1 ;;
   esac
 }
+skill_spans() {
+  skill_row "$1" | grep -oE '`[^`]+`' | sort
+}
 skill_ok() {
-  [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ] && skill_shape_ok "$1"
+  [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ] &&
+    skill_shape_ok "$1" &&
+    [ "$(skill_spans "$1")" = "$EXPECTED_SKILL_SPANS" ]
 }
 
 review_response_row() {
@@ -383,9 +482,13 @@ review_response_shape_ok() {
     *) return 1 ;;
   esac
 }
+review_response_spans() {
+  review_response_row "$1" | grep -oE '`[^`]+`' | sort
+}
 review_response_ok() {
   [ "$(review_response_map "$1")" = "$EXPECTED_KEYS" ] &&
-    review_response_shape_ok "$1"
+    review_response_shape_ok "$1" &&
+    [ "$(review_response_spans "$1")" = "$EXPECTED_REVIEW_RESPONSE_SPANS" ]
 }
 
 # ── Run the structural surface checks against the live tree ─────────────────────────
@@ -534,6 +637,12 @@ sed 's#`reviewers/spec-auditor.md`#`not-reviewers/spec-auditor.md`#' \
   "$GL" > "$TMP/gl-wrong-path.md"
 mut_fail "roster wrong-path-prefix" roster_ok "$TMP/gl-wrong-path.md"
 
+# Roster site — a second reviewer path hidden in the acceptance label's parenthetical
+# is still an unexpected reviewer-bearing code span, even though the first path is valid.
+sed 's#`reviewers/spec-auditor.md` (acceptance)#`reviewers/spec-auditor.md` (acceptance; `reviewers/security2-reviewer.md`)#' \
+  "$GL" > "$TMP/gl-add-parenthetical-path.md"
+mut_fail "roster add-parenthetical-reviewer-path" roster_ok "$TMP/gl-add-parenthetical-path.md"
+
 # JS site (gate-loop.js) — drop the gated contract push.
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
 mut_fail "js drop-reviewer" js_ok "$TMP/js-drop.js"
@@ -582,6 +691,34 @@ awk '
   }
 ' "$JS" > "$TMP/js-add-post-consumption-reviewer.js"
 mut_fail "js add-post-consumption-reviewer" js_ok "$TMP/js-add-post-consumption-reviewer.js"
+
+# JS site — equivalent alias/mutation syntax remains closed: parenthesizing the alias,
+# bracket-selecting a mutator, or compressing a reassignment onto one line cannot evade
+# the inventory of every post-alias reviewers/pending use.
+awk '
+  { print }
+  /^let pending = reviewers;$/ {
+    print "const rosterAlias = (pending);"
+    print "rosterAlias.push({ key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' });"
+  }
+' "$JS" > "$TMP/js-parenthesized-alias.js"
+mut_fail "js parenthesized-post-consumption-alias" js_ok "$TMP/js-parenthesized-alias.js"
+
+awk '
+  { print }
+  /^let pending = reviewers;$/ {
+    print "pending['\''push'\'']({ key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' });"
+  }
+' "$JS" > "$TMP/js-bracket-push.js"
+mut_fail "js bracket-push-post-consumption" js_ok "$TMP/js-bracket-push.js"
+
+awk '
+  { print }
+  /^let pending = reviewers;$/ {
+    print "if (input.taskId === '\''UNTESTED'\'') pending = [...pending, { key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' }];"
+  }
+' "$JS" > "$TMP/js-one-line-reassignment.js"
+mut_fail "js one-line-post-consumption-reassignment" js_ok "$TMP/js-one-line-reassignment.js"
 
 # JS site — direct reconstruction and indexed writes through the `pending` alias must fail
 # closed too; neither depends on a named mutating method.
@@ -632,6 +769,12 @@ sed '/roster'\''s `dispatch-contract` condition:/ s/condition:/condition plus `d
   "$NT" > "$TMP/nt-add-condition.md"
 mut_fail "prose add-unlisted-condition" prose_ok "$TMP/nt-add-condition.md"
 
+# Prose site — exact bullet text also rejects semantic condition drift written as
+# ordinary prose rather than a dispatch-* code token.
+sed '/monetization, or the data model\./ s/$/ The dispatch-security condition also applies./' \
+  "$NT" > "$TMP/nt-add-plain-condition.md"
+mut_fail "prose add-plain-condition" prose_ok "$TMP/nt-add-plain-condition.md"
+
 # ── The spec-quality reviewer (T703) is pinned on each structural projection it appears in:
 #    dropping its row/push/reference must trip that projection's check. ──
 
@@ -663,6 +806,16 @@ sed 's#subagents (`.claude/agents/`)#subagents plus `security2-reviewer` (`.clau
   "$SK" > "$TMP/sk-add-after-subagents.md"
 mut_fail "skill add-reviewer-after-subagents" skill_ok "$TMP/sk-add-after-subagents.md"
 
+awk '
+  index($0, "| **[reviewer]** |") {
+    sub(/[[:space:]]*\|[[:space:]]*$/, "; also dispatch `security2-reviewer` |")
+    print
+    next
+  }
+  { print }
+' "$SK" > "$TMP/sk-add-row-tail.md"
+mut_fail "skill add-reviewer-at-row-tail" skill_ok "$TMP/sk-add-row-tail.md"
+
 # review-response fallback map — both omission and a digit-bearing unexpected reviewer
 # must fail exact membership just as they do in the primary next-task fallback map.
 sed 's# / `spec-quality-auditor` subagents# subagents#' \
@@ -676,6 +829,16 @@ mut_fail "review-response add-unlisted-reviewer" review_response_ok "$TMP/rr-add
 sed 's#subagents (`.claude/agents/`)#subagents plus `security2-reviewer` (`.claude/agents/`)#' \
   "$RR" > "$TMP/rr-add-after-subagents.md"
 mut_fail "review-response add-reviewer-after-subagents" review_response_ok "$TMP/rr-add-after-subagents.md"
+
+awk '
+  index($0, "| **[reviewer]s / [orchestrated run]**") {
+    sub(/[[:space:]]*\|[[:space:]]*$/, "; also dispatch `security2-reviewer` |")
+    print
+    next
+  }
+  { print }
+' "$RR" > "$TMP/rr-add-row-tail.md"
+mut_fail "review-response add-reviewer-at-row-tail" review_response_ok "$TMP/rr-add-row-tail.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
