@@ -90,20 +90,35 @@ bad() { # bad <message>
   printf 'FAIL %s\n' "$1" >&2
 }
 
-# ── parse_roster <gate-loop.md> — emit "<key>|<tier>|<condition>" per roster table row,
-#    sorted. A roster row is a markdown table row naming a reviewers/<stem>-auditor.md
-#    spec; the header and the |---| delimiter never match, and gate-loop.md's prose
-#    mentions `reviewers/` only generically (no `-auditor.md`), so only the data rows hit.
-#    The stem class is [a-z-]+ (not [a-z]+) so a multi-segment stem like
-#    spec-quality-auditor parses as one key, not just its trailing quality-auditor segment.
+# ── parse_roster <gate-loop.md> — emit "<key>|<tier>|<condition>" for EVERY data row
+#    in the roster table, sorted. Scoping to the table boundary makes exactness independent
+#    of reviewer naming convention; a row that does not carry a parseable reviewers/<key>.md
+#    path emits an invalid key and therefore fails the canonical-set comparison.
 parse_roster() {
   awk -F'|' '
-    /reviewers\/[a-z-]+-auditor\.md/ {
+    /^\| Reviewer spec \| Tier \| Dispatch condition \|$/ {
+      in_roster=1
+      next
+    }
+    in_roster && /^\|---/ {
+      next
+    }
+    in_roster && /^\|/ {
       key=$2; tier=$3; cond=$4
-      match(key, /[a-z-]+-auditor/); key=substr(key, RSTART, RLENGTH)
+      if (match(key, /reviewers\/[a-z][a-z-]*\.md/)) {
+        key=substr(key, RSTART, RLENGTH)
+        sub(/^reviewers\//, "", key)
+        sub(/\.md$/, "", key)
+      } else {
+        key="invalid"
+      }
       gsub(/[^a-z-]/, "", tier)   # cheap | strong
       gsub(/[^a-z-]/, "", cond)   # always | dispatch-contract | dispatch-spec
       print key "|" tier "|" cond
+      next
+    }
+    in_roster {
+      exit
     }
   ' "$1" | sort
 }
@@ -120,6 +135,29 @@ roster_ok() { [ "$(parse_roster "$1")" = "$EXPECTED" ]; }
 # reviewers visible to the exact-set comparison.
 parse_js() {
   awk '
+    function emit(line, condition,    key, model, tier) {
+      key=""
+      model=""
+      tier=""
+
+      if (match(line, /key: [^,]+/)) {
+        key=substr(line, RSTART, RLENGTH)
+        sub(/^key: /, "", key)
+        gsub(/\047/, "", key)
+      }
+      if (match(line, /model: input\.[a-z]+Model/)) {
+        model=substr(line, RSTART, RLENGTH)
+        sub(/^model: input\./, "", model)
+        sub(/Model$/, "", model)
+      }
+      if (match(line, /tier: [^ }]+/)) {
+        tier=substr(line, RSTART, RLENGTH)
+        sub(/^tier: /, "", tier)
+        gsub(/\047/, "", tier)
+      }
+
+      print key "|" model "|" tier "|" condition
+    }
     /^const reviewers = \[$/ {
       in_block=1
       in_array=1
@@ -134,37 +172,23 @@ parse_js() {
     in_block && /^const verdicts = / {
       in_block=0
     }
-    in_block && /key: / {
-      key=""
-      model=""
-      tier=""
+    in_block && in_array {
+      if ($0 !~ /^[[:space:]]*$/ && $0 !~ /^[[:space:]]*\/\//) {
+        emit($0, "always")
+      }
+      previous=$0
+      next
+    }
+    in_block && /reviewers/ {
       condition="unguarded"
-
-      if (match($0, /key: [^,]+/)) {
-        key=substr($0, RSTART, RLENGTH)
-        sub(/^key: /, "", key)
-        gsub(/\047/, "", key)
-      }
-      if (match($0, /model: input\.[a-z]+Model/)) {
-        model=substr($0, RSTART, RLENGTH)
-        sub(/^model: input\./, "", model)
-        sub(/Model$/, "", model)
-      }
-      if (match($0, /tier: [^ }]+/)) {
-        tier=substr($0, RSTART, RLENGTH)
-        sub(/^tier: /, "", tier)
-        gsub(/\047/, "", tier)
-      }
-
-      if (in_array) {
-        condition="always"
-      } else if (previous ~ /^[[:space:]]*if \(input\.dispatchContract\) \{[[:space:]]*$/) {
+      if (previous ~ /^[[:space:]]*if \(input\.dispatchContract\) \{[[:space:]]*$/) {
         condition="dispatch-contract"
       } else if (previous ~ /^[[:space:]]*if \(input\.dispatchSpec\) \{[[:space:]]*$/) {
         condition="dispatch-spec"
       }
-
-      print key "|" model "|" tier "|" condition
+      emit($0, condition)
+      previous=$0
+      next
     }
     in_block {
       previous=$0
@@ -186,17 +210,17 @@ js_ok() {
 section7() { awk '/^## 7\./{f=1} /^## 8\./{f=0} f' "$1"; }
 prose_paths() {
   section7 "$1" \
-    | grep -oE 'reviewers/[a-z-]+-auditor\.md' \
+    | grep -oE 'reviewers/[a-z][a-z-]*\.md' \
     | sed 's#^reviewers/##; s#\.md$##' \
     | sort
 }
 parse_prose() {
   section7 "$1" | awk '
     function emit(    key, condition, count) {
-      if (bullet !~ /reviewers\/[a-z-]+-auditor\.md/) {
+      if (bullet !~ /reviewers\/[a-z][a-z-]*\.md/) {
         return
       }
-      match(bullet, /reviewers\/[a-z-]+-auditor\.md/)
+      match(bullet, /reviewers\/[a-z][a-z-]*\.md/)
       key=substr(bullet, RSTART, RLENGTH)
       sub(/^reviewers\//, "", key)
       sub(/\.md$/, "", key)
@@ -263,7 +287,19 @@ prose_ok() {
 #       reviewer landed (PR #186 review). The map carries agent NAMES only; tier and
 #       condition stay single-sourced in the roster + §7 (which the fallback also follows),
 #       so this site is pinned on MEMBERSHIP alone (EXPECTED_KEYS), not tier/condition.
-skill_map() { grep -F '**[reviewer]**' "$1" | grep -oE '[a-z-]+-auditor' | sort -u; }
+skill_map() {
+  awk -F'|' '
+    $2 ~ /\*\*\[reviewer\]\*\*/ {
+      map=$3
+      sub(/^[[:space:]]*the[[:space:]]+/, "", map)
+      sub(/[[:space:]]+subagents.*/, "", map)
+      print map
+    }
+  ' "$1" \
+    | grep -oE '`[a-z][a-z-]*`' \
+    | tr -d '`' \
+    | sort
+}
 skill_ok()  { [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ]; }
 
 # ── Run the structural surface checks against the live tree ─────────────────────────
@@ -366,6 +402,18 @@ mut_fail() { # mut_fail <name> <check-fn> <mutated-file>
 grep -vF 'reviewers/contract-auditor.md' "$GL" > "$TMP/gl-drop.md"
 mut_fail "roster drop-reviewer" roster_ok "$TMP/gl-drop.md"
 
+# Roster site — add an unlisted reviewer whose name does not follow the current
+# `*-auditor` convention. Exactness must not depend on an unenforced naming grammar.
+awk '
+  /reviewers\/contract-auditor\.md/ {
+    print
+    print "| `reviewers/security-reviewer.md` | cheap | `always` |"
+    next
+  }
+  { print }
+' "$GL" > "$TMP/gl-add-unlisted.md"
+mut_fail "roster add-unlisted-reviewer" roster_ok "$TMP/gl-add-unlisted.md"
+
 # Roster site — flip a tier (spec cheap → strong).
 sed '/reviewers\/spec-auditor\.md/ s/| cheap |/| strong |/' "$GL" > "$TMP/gl-tier.md"
 mut_fail "roster flip-tier" roster_ok "$TMP/gl-tier.md"
@@ -382,12 +430,24 @@ mut_fail "js drop-reviewer" js_ok "$TMP/js-drop.js"
 awk '
   /key: '\''constitution-auditor'\''/ {
     print
-    print "  { key: '\''unexpected-auditor'\'', model: input.cheapModel, tier: '\''cheap'\'' },"
+    print "  { key: '\''security-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' },"
     next
   }
   { print }
 ' "$JS" > "$TMP/js-add-unlisted.js"
 mut_fail "js add-unlisted-reviewer" js_ok "$TMP/js-add-unlisted.js"
+
+# JS site — add an opaque spread entry to the unconditional array. The structural
+# parser must reject an entry it cannot inventory, not silently accept the alias.
+awk '
+  /key: '\''constitution-auditor'\''/ {
+    print
+    print "  ...extraReviewers,"
+    next
+  }
+  { print }
+' "$JS" > "$TMP/js-add-spread.js"
+mut_fail "js add-opaque-spread" js_ok "$TMP/js-add-spread.js"
 
 # JS site — flip a tier (spec cheap → strong).
 sed "s/key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'/key: 'spec-auditor', model: input.cheapModel, tier: 'strong'/" "$JS" > "$TMP/js-tier.js"
@@ -400,7 +460,7 @@ mut_fail "prose drop-reviewer" prose_ok "$TMP/nt-drop.md"
 # Prose site — add an unlisted always-dispatched reviewer bullet.
 awk '
   /^3\. Run/ {
-    print "   - The **unexpected [reviewer]** (`workflow/reviewers/unexpected-auditor.md`) — **always**."
+    print "   - The **security [reviewer]** (`workflow/reviewers/security-reviewer.md`) — **always**."
   }
   { print }
 ' "$NT" > "$TMP/nt-add-unlisted.md"
@@ -426,6 +486,12 @@ mut_fail "prose drop-spec-quality" prose_ok "$TMP/nt-drop-sq.md"
 # leaves the map enumerating three reviewers, so skill_ok must trip.
 sed 's/spec-quality-auditor//g' "$SK" > "$TMP/sk-drop-sq.md"
 mut_fail "skill drop-spec-quality" skill_ok "$TMP/sk-drop-sq.md"
+
+# Skill-map site — add an unlisted fallback agent outside the unenforced `*-auditor`
+# convention. Membership-only exactness must reject it too.
+sed 's#`spec-auditor` /#`spec-auditor` / `security-reviewer` /#' \
+  "$SK" > "$TMP/sk-add-unlisted.md"
+mut_fail "skill add-unlisted-reviewer" skill_ok "$TMP/sk-add-unlisted.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
