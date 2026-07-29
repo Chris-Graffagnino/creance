@@ -124,20 +124,25 @@ EXPECTED_REVIEW_RESPONSE_SPANS="$(printf '%s\n' \
   '`spec-auditor`' \
   '`spec-quality-auditor`' | sort)"
 
-# Fixed SHA-256 digests are compact ratchets for the complete authored source shapes. They
-# deliberately do not use Git object IDs: an adopter may initialize the repository with
+# Fixed SHA-256 digests are compact ratchets for complete authored shapes and bounded
+# dispatch-line projections. They deliberately do not use Git object IDs: an adopter may
+# initialize the repository with
 # SHA-1 or SHA-256 object format, while these content fixtures must remain identical. The JS
 # fixture covers the complete executable adapter, including input normalization before
 # canonical construction and the reviewer lifecycle after it. The row fixtures cover their
-# complete Markdown rows, including plain prose outside code spans. A digest failure prints
-# both values; review the authored-surface diff, then replace the expected value with the
-# reported actual SHA-256 only when that change is intentional.
+# complete Markdown rows, including plain prose outside code spans; the dispatch-line
+# fixtures cover every line using that routing vocabulary outside the canonical tables.
+# A digest failure prints both values; review the authored-surface diff, then replace the
+# expected value with the reported actual SHA-256 only when that change is intentional.
 EXPECTED_JS_SOURCE_HASH='ce251820c1111fb71ed49582a0eacc8f42618c116abf6404aad9e0a8d7101941'
 EXPECTED_PROSE_SOURCE_HASH='5a50b42503fe67233e80b9eec8d9b51b5fd7b4793abd6013112c79d897dcdd97'
 EXPECTED_SKILL_ROW_HASH='a8d05822012875516bbb2890407f0bc5fc5f873c0acb353098b8170b09b08272'
 EXPECTED_REVIEW_RESPONSE_ROW_HASH='057dfb4bfd25baeddf175032965174a54224ddddf25a3ce1e79d8790abc27f2d'
 EXPECTED_SKILL_TABLE_HASH='326efa56f2ca1bdc8458af83ea191dd02347bb963ed21ca6c7e81efe16e837f0'
 EXPECTED_REVIEW_RESPONSE_TABLE_HASH='2266ec36fa8801b85e1fc90401623131c8bbfdce5387970f6a237ceb5b93fe5c'
+EXPECTED_GATE_DISPATCH_LINES_HASH='5f487a7d693b7cab417374820cdcaafe411f875a04171b5213ffcbe588132b5d'
+EXPECTED_SKILL_DISPATCH_LINES_HASH='85c786ad1e35fc1f997524179b8c0dedc2fa3d490c0c6738d94c2c5d89943a61'
+EXPECTED_REVIEW_RESPONSE_DISPATCH_LINES_HASH='77bbc8ca88a13e7a03f10deb95f37e626f2fe610f9bc293cfab319805bfbb72b'
 
 content_hash() {
   python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())'
@@ -253,6 +258,22 @@ roster_rows() {
   ' "$1" | sort
 }
 
+outside_roster_table() {
+  awk '
+    /^\| Reviewer spec \| Tier \| Dispatch condition \|$/ {
+      in_roster=1
+      next
+    }
+    in_roster && /^\|/ {
+      next
+    }
+    in_roster {
+      in_roster=0
+    }
+    { print }
+  ' "$1"
+}
+
 # Inventory every concrete reviewer-spec path across the neutral gate document, not only
 # inside the first roster table. A second roster table or an out-of-table dispatch path would
 # create another reviewer authority and must not be invisible to the table parser.
@@ -262,13 +283,23 @@ all_roster_paths() {
     | sort
 }
 
+roster_dispatch_lines() {
+  outside_roster_table "$1" | grep -Ei 'dispatch'
+}
+
+roster_dispatch_inventory_ok() {
+  [ "$(roster_dispatch_lines "$1" | content_hash)" = \
+    "$EXPECTED_GATE_DISPATCH_LINES_HASH" ]
+}
+
 roster_table_projection_ok() {
   [ "$(parse_roster "$1")" = "$EXPECTED" ] &&
     [ "$(roster_rows "$1")" = "$EXPECTED_ROSTER_ROWS" ]
 }
 
 roster_inventory_ok() {
-  [ "$(all_roster_paths "$1")" = "$EXPECTED_KEYS" ]
+  [ "$(all_roster_paths "$1")" = "$EXPECTED_KEYS" ] &&
+    roster_dispatch_inventory_ok "$1"
 }
 
 # AC1 — gate-loop.md has one roster authority and it is EXACTLY the canonical set
@@ -497,12 +528,14 @@ fallback_config() {
       FALLBACK_NEEDLE='| **[reviewer]** |'
       FALLBACK_PREFIX='^[[:space:]]*the[[:space:]]+'
       FALLBACK_SHAPE=' subagents (`.claude/agents/`), dispatched'
+      FALLBACK_DISPATCH_LINES_HASH="$EXPECTED_SKILL_DISPATCH_LINES_HASH"
       ;;
     review-response)
       FALLBACK_MARKER='**[reviewer]s / [orchestrated run]**'
       FALLBACK_NEEDLE='| **[reviewer]s / [orchestrated run]**'
       FALLBACK_PREFIX='^.*; or the[[:space:]]+'
       FALLBACK_SHAPE=' subagents (`.claude/agents/`) dispatched'
+      FALLBACK_DISPATCH_LINES_HASH="$EXPECTED_REVIEW_RESPONSE_DISPATCH_LINES_HASH"
       ;;
     *)
       return 1
@@ -566,10 +599,22 @@ fallback_external_directives() {
     | grep -Ei '^\||subagents?|agent tool'
 }
 
+fallback_external_dispatch_lines() {
+  outside_role_mapping_table "$1" | grep -Ei 'dispatch'
+}
+
+fallback_dispatch_inventory_ok() {
+  local file="$1" kind="$2"
+  fallback_config "$kind" || return 1
+  [ "$(fallback_external_dispatch_lines "$file" | content_hash)" = \
+    "$FALLBACK_DISPATCH_LINES_HASH" ]
+}
+
 fallback_inventory_ok() {
   [ "$(role_mapping_table_count "$1")" -eq 1 ] &&
     [ "$(reviewer_names < "$1")" = "$(fallback_row "$1" "$2" | reviewer_names)" ] &&
-    [ -z "$(fallback_external_directives "$1")" ]
+    [ -z "$(fallback_external_directives "$1")" ] &&
+    fallback_dispatch_inventory_ok "$1" "$2"
 }
 
 fallback_projection_ok() {
@@ -596,6 +641,12 @@ review_response_projection_ok() {
 }
 skill_inventory_ok() { fallback_inventory_ok "$1" next-task; }
 review_response_inventory_ok() { fallback_inventory_ok "$1" review-response; }
+skill_dispatch_inventory_ok() {
+  fallback_dispatch_inventory_ok "$1" next-task
+}
+review_response_dispatch_inventory_ok() {
+  fallback_dispatch_inventory_ok "$1" review-response
+}
 fallback_row_fixture_ok_next_task() {
   fallback_row_fixture_ok "$1" next-task "$EXPECTED_SKILL_ROW_HASH"
 }
@@ -630,7 +681,9 @@ $(printf '%s\n' "$EXPECTED" | sed 's/^/       /')
      got table:
 $(parse_roster "$GL" | sed 's/^/       /')
      all reviewer paths:
-$(all_roster_paths "$GL" | sed 's/^/       /')"
+$(all_roster_paths "$GL" | sed 's/^/       /')
+     dispatch-line SHA-256:
+       $(roster_dispatch_lines "$GL" | content_hash)"
 
 js_projection_ok "$JS" \
   && ok \
@@ -661,8 +714,10 @@ $(skill_map "$SK" | sed 's/^/       /')"
 
 skill_inventory_ok "$SK" \
   && ok \
-  || bad "AC7 skill inventory: next-task SKILL.md contains a reviewer-like identifier or
-     fallback subagent directive outside its declared [reviewer] role-table authority"
+  || bad "AC7 skill inventory: next-task SKILL.md contains a reviewer-like identifier,
+     fallback mechanism, second table, or changed dispatch-bearing prose outside its
+     declared [reviewer] role-table authority
+     dispatch-line SHA-256: $(fallback_external_dispatch_lines "$SK" | content_hash)"
 
 check_digest "AC7 skill row fixture" "next-task [reviewer] row" \
   "$EXPECTED_SKILL_ROW_HASH" \
@@ -683,7 +738,9 @@ $(review_response_map "$RR" | sed 's/^/       /')"
 review_response_inventory_ok "$RR" \
   && ok \
   || bad "AC7 review-response inventory: review-response SKILL.md contains a reviewer-like
-     identifier or fallback subagent directive outside its declared role-table authority"
+     identifier, fallback mechanism, second table, or changed dispatch-bearing prose outside
+     its declared role-table authority
+     dispatch-line SHA-256: $(fallback_external_dispatch_lines "$RR" | content_hash)"
 
 check_digest "AC7 review-response row fixture" "review-response re-gate row" \
   "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" \
@@ -834,6 +891,15 @@ awk '
 ' "$GL" > "$TMP/gl-outside-root-reviewer.md"
 mut_fail "roster inventory repository-root out-of-table reviewer" \
   roster_inventory_ok "$TMP/gl-outside-root-reviewer.md"
+
+awk '
+  { print }
+  END {
+    print "Also dispatch security2-checker every round."
+  }
+' "$GL" > "$TMP/gl-outside-pathless-reviewer.md"
+mut_fail "roster dispatch inventory pathless out-of-table reviewer" \
+  roster_dispatch_inventory_ok "$TMP/gl-outside-pathless-reviewer.md"
 
 # JS site (gate-loop.js) — drop the gated contract push.
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
@@ -1096,6 +1162,15 @@ mut_fail "skill inventory add-Agent-tool-dispatch" \
 awk '
   { print }
   END {
+    print "When Workflow is unavailable, dispatch security2-checker at §7."
+  }
+' "$SK" > "$TMP/sk-add-bare-dispatch.md"
+mut_fail "skill dispatch inventory add-bare-dispatch" \
+  skill_dispatch_inventory_ok "$TMP/sk-add-bare-dispatch.md"
+
+awk '
+  { print }
+  END {
     print ""
     print "| Neutral role | Claude Code mechanism |"
     print "|---|---|"
@@ -1180,6 +1255,15 @@ awk '
 ' "$RR" > "$TMP/rr-add-agent-tool-dispatch.md"
 mut_fail "review-response inventory add-Agent-tool-dispatch" \
   review_response_inventory_ok "$TMP/rr-add-agent-tool-dispatch.md"
+
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, dispatch security2-checker at §7."
+  }
+' "$RR" > "$TMP/rr-add-bare-dispatch.md"
+mut_fail "review-response dispatch inventory add-bare-dispatch" \
+  review_response_dispatch_inventory_ok "$TMP/rr-add-bare-dispatch.md"
 
 awk '
   { print }

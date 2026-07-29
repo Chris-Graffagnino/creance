@@ -194,14 +194,18 @@ exact roster data each surface owns, reject missing and unexpected entries, pin 
 pushes to their guards, and check the spec/agent binding existence and read-only tool
 contract. Whole-document inventories additionally normalize both roster-relative and
 repository-root reviewer-spec paths and reject a second concrete path in the neutral gate
-document. For each skill, exactly one complete role-mapping table is fixture-pinned; a
+document. Reviewed digest projections of every `dispatch`-bearing line outside the canonical
+roster or role table additionally close pathless/mechanism-less dispatch prose without
+freezing unrelated text. For each skill, exactly one complete role-mapping table is
+fixture-pinned; a
 structural inventory rejects any second Markdown table and confines the adapter's fallback
 mechanisms (`subagent` and `Agent tool`) to that table, without assuming an agent-name suffix,
 while a name inventory also catches repeated canonical reviewer names in prose. Reviewed
-fixed-SHA-256 digest ratchets pin the complete executable adapter source (including input
-handling before construction and the reviewer lifecycle through re-dispatch), the complete
-§7 stage card, the complete fallback rows, and both complete manual-fallback role-mapping
-tables. Those digests are portable change detectors, not independent correctness oracles:
+fixed-SHA-256 digest ratchets pin those dispatch-line projections, the complete executable
+adapter source (including input handling before construction and the reviewer lifecycle
+through re-dispatch), the complete §7 stage card, the complete fallback rows, and both
+complete manual-fallback role-mapping tables. Those digests are portable change detectors,
+not independent correctness oracles:
 an intentional edit requires review plus an explicit digest update, which proves deliberate
 acknowledgement rather than semantic correctness.
 
