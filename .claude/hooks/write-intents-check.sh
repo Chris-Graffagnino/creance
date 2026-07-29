@@ -36,6 +36,11 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
       match(line, /^#+/)
       return RLENGTH
     }
+    function trim_block_indent(line, indent) {
+      indent = 0
+      while (indent < 3 && substr(line, indent + 1, 1) == " ") indent++
+      return substr(line, indent + 1)
+    }
     function fence_run(line, indent, marker, run) {
       indent = 0
       while (indent < length(line) && substr(line, indent + 1, 1) == " ") {
@@ -139,7 +144,8 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
         in_fence = 1
         next
       }
-      if (line ~ heading_re) {
+      heading_line = trim_block_indent(line)
+      if (heading_line ~ heading_re) {
         headings++
         if (headings > 1) exit 2
         if (mode == "heading") {
@@ -147,10 +153,11 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
           next
         }
         inside = 1
-        level = heading_level(line)
+        level = heading_level(heading_line)
         next
       }
-      if (inside && line ~ /^#+[[:space:]]/ && heading_level(line) <= level) {
+      if (inside && heading_line ~ /^#+[[:space:]]/ &&
+          heading_level(heading_line) <= level) {
         inside = 0
         next
       }

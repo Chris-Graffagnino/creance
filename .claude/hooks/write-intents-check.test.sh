@@ -396,6 +396,25 @@ expect_msg "planted (a): indented tight adapter diagnostic names role" \
   "maps out-of-family role '[shadow-write output]'" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-extra-role-indented-tight.md"
 
+# A live Markdown heading may have up to three leading spaces. It still ends
+# the target section, so example rows below it cannot supply missing coverage.
+cat > "$TMP/adapter-indented-closing-heading.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+
+  ### Worked example
+  | Intent role | Mechanism |
+  |------|----------------------|
+  | **[add-pr-comment output]** | example only |
+EOF
+expect 1 "planted (a): indented peer heading ends adapter section" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-indented-closing-heading.md"
+expect_msg "planted (a): indented heading exposes missing role" \
+  "[add-pr-comment output]" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-indented-closing-heading.md"
+
 # Multiple target sections cannot combine partial tables into apparent coverage.
 cat > "$TMP/adapter-duplicate-section.md" <<'EOF'
 ### Write-intent mappings (the safe-output roles)
