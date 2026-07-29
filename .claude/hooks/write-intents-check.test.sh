@@ -284,6 +284,15 @@ expect 1 "planted (a): inline-commented adapter rows do not map roles" \
 expect_msg "planted (a): inline-commented row diagnostic names role" \
   "[create-issue output]" "${FIX[@]}" \
   WIC_ADAPTER="$TMP/adapter-inline-commented-rows.md"
+cat > "$TMP/adapter-inline-comment-annotation.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A <!-- rationale --> |
+| **[add-pr-comment output]** | mechanism B |
+EOF
+expect 0 "live adapter row survives an inline comment annotation" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-inline-comment-annotation.md"
 mkdir -p "$TMP/uncataloged-adapters"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/cataloged.md"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/new-table.md"

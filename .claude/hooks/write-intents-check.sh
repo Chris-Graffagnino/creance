@@ -69,48 +69,57 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
         candidate_length >= fence_length &&
         candidate_rest ~ /^[[:blank:]]*$/
     }
-    function html_comment_starts(line) {
-      return index(line, "<!--") > 0
-    }
-    function hidden_line(line) {
-      if (in_fence) {
-        if (fence_ends(line)) in_fence = 0
-        return 1
+    function strip_html_comments(line, visible, start, end_at) {
+      visible = ""
+      while (1) {
+        if (in_html_comment) {
+          end_at = index(line, "-->")
+          if (!end_at) return visible
+          line = substr(line, end_at + 3)
+          in_html_comment = 0
+          continue
+        }
+        start = index(line, "<!--")
+        if (!start) return visible line
+        visible = visible substr(line, 1, start - 1)
+        line = substr(line, start + 4)
+        end_at = index(line, "-->")
+        if (!end_at) {
+          in_html_comment = 1
+          return visible
+        }
+        line = substr(line, end_at + 3)
       }
-      if (in_html_comment) {
-        if (index(line, "-->")) in_html_comment = 0
-        return 1
-      }
-      if (fence_starts(line)) {
-        in_fence = 1
-        return 1
-      }
-      if (html_comment_starts(line)) {
-        if (!index(line, "-->")) in_html_comment = 1
-        return 1
-      }
-      return 0
     }
     {
-      if (hidden_line($0)) next
-      if ($0 ~ heading_re) {
+      if (in_fence) {
+        if (fence_ends($0)) in_fence = 0
+        next
+      }
+      line = strip_html_comments($0)
+      if (line == "") next
+      if (fence_starts(line)) {
+        in_fence = 1
+        next
+      }
+      if (line ~ heading_re) {
         headings++
         if (headings > 1) exit 2
         if (mode == "heading") {
-          print
+          print line
           next
         }
         inside = 1
-        level = heading_level($0)
+        level = heading_level(line)
         next
       }
-      if (inside && /^#+[[:space:]]/ && heading_level($0) <= level) {
+      if (inside && line ~ /^#+[[:space:]]/ && heading_level(line) <= level) {
         inside = 0
         next
       }
       if (inside) {
-        if (mode == "numbered") print NR ":" $0
-        else print
+        if (mode == "numbered") print NR ":" line
+        else print line
       }
     }
   ' "$1"
