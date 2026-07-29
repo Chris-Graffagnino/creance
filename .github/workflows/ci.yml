@@ -579,8 +579,8 @@ jobs:
       # T602 reviewer-roster drift backstop (#64, parent epic #62): the §7
       # reviewer set is declared once in gate-loop.md's roster table; this test
       # FAILs if the gate sites drift from it (gate-loop.md roster, the
-      # gate-loop.js array, next-task.md §7 prose), the adapter's manual-fallback
-      # [reviewer]→agent map (next-task SKILL.md, AC7) drops a reviewer, each roster
+      # gate-loop.js array, next-task.md §7 prose), either adapter manual-fallback
+      # [reviewer]→agent map (next-task or review-response SKILL.md, AC7) drops a reviewer, each roster
       # reviewer's spec exists, and each reviewer's agent file excludes edit tools. Same rationale
       # as the other *-docs tests: the runtime-neutral roster is the implementation
       # surface, and a roster with no live drift check is the very "silently dead
