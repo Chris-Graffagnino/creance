@@ -231,6 +231,31 @@ expect_msg "planted (a): fence-only diagnostic names the adapter" \
   WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
   WIC_ADAPTER_CATALOG="$TMP/fenced-heading-catalog.md" \
   WIC_ADAPTER_SEARCH_ROOTS="$TMP/fenced-heading-adapters"
+mkdir -p "$TMP/commented-heading-adapters"
+cat > "$TMP/commented-heading-adapters/comment-only.md" <<'EOF'
+<!--
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | commented mechanism A |
+| **[add-pr-comment output]** | commented mechanism B |
+-->
+EOF
+printf '<!-- write-intents-check:adapter-tables %s -->\n' \
+  "$TMP/commented-heading-adapters/comment-only.md" > "$TMP/commented-heading-catalog.md"
+expect 1 "planted (a): comment-only adapter heading FAILs as missing" \
+  WIC_CONTRACT="$TMP/contract.md" WIC_PROFILE="$TMP/profile.md" \
+  WIC_WORKFLOW_DIR="$TMP/workflow" \
+  WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
+  WIC_ADAPTER_CATALOG="$TMP/commented-heading-catalog.md" \
+  WIC_ADAPTER_SEARCH_ROOTS="$TMP/commented-heading-adapters"
+expect_msg "planted (a): comment-only diagnostic names the adapter" \
+  "$TMP/commented-heading-adapters/comment-only.md" \
+  WIC_CONTRACT="$TMP/contract.md" WIC_PROFILE="$TMP/profile.md" \
+  WIC_WORKFLOW_DIR="$TMP/workflow" \
+  WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
+  WIC_ADAPTER_CATALOG="$TMP/commented-heading-catalog.md" \
+  WIC_ADAPTER_SEARCH_ROOTS="$TMP/commented-heading-adapters"
 cat > "$TMP/adapter-fenced-rows.md" <<'EOF'
 ### Write-intent mappings (the safe-output roles)
 ```markdown
@@ -292,6 +317,24 @@ expect 1 "planted (a): duplicate adapter role rows FAIL" \
 expect_msg "planted (a): duplicate adapter diagnostic names the role" \
   "duplicate mapping rows for '[create-issue output]'" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-role.md"
+
+# Multiple target sections cannot combine partial tables into apparent coverage.
+cat > "$TMP/adapter-duplicate-section.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[add-pr-comment output]** | mechanism B |
+EOF
+expect 1 "planted (a): duplicate adapter mapping sections FAIL" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-section.md"
+expect_msg "planted (a): duplicate-section diagnostic names the adapter" \
+  "duplicate write-intent mapping sections in adapter '$TMP/adapter-duplicate-section.md'" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-section.md"
 
 # --- Direction (b): a neutral workflow doc naming a concrete tracker write command
 mkdir -p "$TMP/workflow-leak"

@@ -69,25 +69,50 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
         candidate_length >= fence_length &&
         candidate_rest ~ /^[[:blank:]]*$/
     }
-    {
+    function html_comment_starts(line, indent) {
+      indent = 0
+      while (indent < length(line) && substr(line, indent + 1, 1) == " ") {
+        indent++
+      }
+      if (indent > 3) return 0
+      return substr(line, indent + 1, 4) == "<!--"
+    }
+    function hidden_line(line) {
       if (in_fence) {
-        if (fence_ends($0)) in_fence = 0
-        next
+        if (fence_ends(line)) in_fence = 0
+        return 1
       }
-      if (fence_starts($0)) {
+      if (in_html_comment) {
+        if (index(line, "-->")) in_html_comment = 0
+        return 1
+      }
+      if (fence_starts(line)) {
         in_fence = 1
-        next
+        return 1
       }
+      if (html_comment_starts(line)) {
+        if (!index(line, "-->")) in_html_comment = 1
+        return 1
+      }
+      return 0
+    }
+    {
+      if (hidden_line($0)) next
       if ($0 ~ heading_re) {
+        headings++
+        if (headings > 1) exit 2
         if (mode == "heading") {
           print
-          exit
+          next
         }
         inside = 1
         level = heading_level($0)
         next
       }
-      if (inside && /^#+[[:space:]]/ && heading_level($0) <= level) exit
+      if (inside && /^#+[[:space:]]/ && heading_level($0) <= level) {
+        inside = 0
+        next
+      }
       if (inside) {
         if (mode == "numbered") print NR ":" $0
         else print
@@ -126,7 +151,19 @@ else
   discovered_adapters="$(
     while IFS= read -r candidate; do
       [ -n "$candidate" ] || continue
-      if [ -n "$(markdown_section "$candidate" '^##+ Write-intent mappings [(]the safe-output roles[)]$' heading)" ]; then
+      heading_status=0
+      heading_match="$(markdown_section "$candidate" '^##+ Write-intent mappings [(]the safe-output roles[)]$' heading)" || heading_status=$?
+      if [ "$heading_status" -eq 2 ]; then
+        echo "FAIL: duplicate write-intent mapping sections in adapter '$candidate' (repair: keep exactly one named mapping section)" >&2
+        echo "write-intents check: FAIL (duplicate adapter mapping sections)" >&2
+        exit 1
+      fi
+      if [ "$heading_status" -ne 0 ]; then
+        echo "FAIL: could not parse adapter mapping sections in '$candidate'" >&2
+        echo "write-intents check: FAIL (adapter mapping parse error)" >&2
+        exit 1
+      fi
+      if [ -n "$heading_match" ]; then
         printf '%s\n' "$candidate"
       fi
     done <<< "$adapter_candidates"
@@ -191,7 +228,13 @@ done
 
 # --- 1. The contract family: role-defining table rows (`| **[<op> output]** | ...`)
 # in the contract surface. Row-anchored so prose references elsewhere don't count.
-contract_section="$(markdown_section "$CONTRACT" '^### Write intents [(]safe outputs[)]')"
+contract_section_status=0
+contract_section="$(markdown_section "$CONTRACT" '^### Write intents [(]safe outputs[)]')" || contract_section_status=$?
+if [ "$contract_section_status" -eq 2 ]; then
+  fail "contract surface '$CONTRACT' has duplicate \"Write intents (safe outputs)\" sections (repair: keep exactly one named contract section)"
+elif [ "$contract_section_status" -ne 0 ]; then
+  fail "could not parse the write-intent contract section in '$CONTRACT'"
+fi
 family="$(printf '%s\n' "$contract_section" | grep -oE '^\| \*\*\[[a-z][a-z-]* output\]\*\*' | grep -oE '\[[a-z][a-z-]* output\]' | sort -u)"
 if [ -z "$family" ]; then
   fail "contract surface '$CONTRACT' defines no write-intent role rows — the closed family is empty or unparseable (repair: restore the \"Write intents (safe outputs)\" table)"
@@ -206,7 +249,13 @@ in_family() { # in_family <[role]> -> 0/1
 # (the binding contract requires a concrete mechanism or a documented degradation).
 # Every adapter spec carrying this table must map the complete closed family.
 for adapter in $ADAPTERS; do
-  adapter_section="$(markdown_section "$adapter" '^##+ Write-intent mappings [(]the safe-output roles[)]$' numbered)"
+  adapter_section_status=0
+  adapter_section="$(markdown_section "$adapter" '^##+ Write-intent mappings [(]the safe-output roles[)]$' numbered)" || adapter_section_status=$?
+  if [ "$adapter_section_status" -eq 2 ]; then
+    fail "duplicate write-intent mapping sections in adapter '$adapter' (repair: keep exactly one named mapping section)"
+  elif [ "$adapter_section_status" -ne 0 ]; then
+    fail "could not parse the write-intent mapping section in adapter '$adapter'"
+  fi
   adapter_row_lines="$(printf '%s\n' "$adapter_section" | grep -E '^[0-9]+:\| \*\*\[[a-z][a-z-]* output\]\*\*')" || adapter_row_lines=""
   adapter_rows=""
   while IFS= read -r numbered; do
@@ -239,7 +288,13 @@ done
 # NOTE: backticks are NOT backslash-escaped in these EREs — GNU grep/sed treat
 # `\`` as a start-of-buffer anchor (BSD treats it as a literal), so escaping
 # silently empties every match on Linux (caught by CI on PR #285).
-profile_section="$(markdown_section "$PROFILE" '^## Write intents$')"
+profile_section_status=0
+profile_section="$(markdown_section "$PROFILE" '^## Write intents$')" || profile_section_status=$?
+if [ "$profile_section_status" -eq 2 ]; then
+  fail "profile surface '$PROFILE' has duplicate \"Write intents\" sections (repair: keep exactly one named declaration section)"
+elif [ "$profile_section_status" -ne 0 ]; then
+  fail "could not parse the write-intent declaration section in '$PROFILE'"
+fi
 decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^\| `[a-z][a-z-]*` \|')" || decl_rows=""
 if [ -z "$decl_rows" ]; then
   fail "profile surface '$PROFILE' carries no write-intent declaration rows (repair: restore the \"Write intents\" table)"
