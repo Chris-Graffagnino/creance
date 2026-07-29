@@ -275,6 +275,12 @@ for adapter in $ADAPTERS; do
     fail "duplicate mapping rows for '$role' in adapter '$adapter' (repair: keep exactly one row per family role)"
   done <<< "$duplicate_adapter_roles"
   adapter_rows="$(printf '%s' "$adapter_rows" | sort -u)"
+  while IFS= read -r role; do
+    [ -n "$role" ] || continue
+    if ! in_family "$role"; then
+      fail "adapter '$adapter' maps out-of-family role '$role' (repair: remove it, or add the role to the reviewed contract family)"
+    fi
+  done <<< "$adapter_rows"
   while IFS= read -r intent; do
     [ -n "$intent" ] || continue
     if ! printf '%s\n' "$adapter_rows" | grep -qFx "$intent"; then
@@ -294,12 +300,12 @@ if [ "$profile_section_status" -eq 2 ]; then
 elif [ "$profile_section_status" -ne 0 ]; then
   fail "could not parse the write-intent declaration section in '$PROFILE'"
 fi
-decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^[[:blank:]]*\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|')" || decl_rows=""
+decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|')" || decl_rows=""
 if [ -z "$decl_rows" ]; then
   fail "profile surface '$PROFILE' carries no write-intent declaration rows (repair: restore the \"Write intents\" table)"
 fi
 
-duplicate_workflows="$(printf '%s\n' "$decl_rows" | sed -E 's/^[[:blank:]]*\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/' | sort | uniq -d)"
+duplicate_workflows="$(printf '%s\n' "$decl_rows" | sed -E 's/^\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/' | sort | uniq -d)"
 while IFS= read -r wf; do
   [ -n "$wf" ] || continue
   fail "duplicate declaration rows for workflow '$wf' in '$PROFILE' (repair: keep exactly one row per workflow)"
@@ -309,8 +315,8 @@ declared_workflows=""
 while IFS= read -r row; do
   [ -n "$row" ] || continue
   row="$(printf '%s' "$row" | sed -E 's/[[:space:]]+$//')"
-  wf="$(printf '%s' "$row" | sed -E 's/^[[:blank:]]*\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/')"
-  cell="$(printf '%s' "$row" | sed -E 's/^[[:blank:]]*\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|(.*)\|$/\1/')"
+  wf="$(printf '%s' "$row" | sed -E 's/^\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/')"
+  cell="$(printf '%s' "$row" | sed -E 's/^\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|(.*)\|$/\1/')"
   declared_workflows="$declared_workflows $wf"
   intents="$(printf '%s' "$cell" | grep -oE '\[[a-z][a-z-]* output\]')" || intents=""
   if [ -z "$intents" ]; then
@@ -327,6 +333,12 @@ while IFS= read -r row; do
     fi
   done <<< "$intents"
 done <<< "$decl_rows"
+
+for wf in $declared_workflows; do
+  if ! printf '%s\n' $REQUIRED_WORKFLOWS | grep -qFx "$wf"; then
+    fail "profile workflow '$wf' is absent from the required-workflow catalog (repair: add it to the authoritative catalog by reviewed change, or remove the declaration)"
+  fi
+done
 
 for wf in $REQUIRED_WORKFLOWS; do
   if ! printf '%s\n' $declared_workflows | grep -qFx "$wf"; then

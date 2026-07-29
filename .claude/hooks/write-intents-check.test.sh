@@ -332,6 +332,22 @@ expect_msg "planted (a): duplicate adapter diagnostic names the role" \
   "duplicate mapping rows for '[create-issue output]'" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-role.md"
 
+# Adapter mappings are the contract family's concrete bindings, so a mapping
+# outside the closed family is drift rather than an allowed extension.
+cat > "$TMP/adapter-extra-role.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+| **[add-pr-comment output]** | mechanism B |
+| **[shadow-write output]** | mechanism outside the family |
+EOF
+expect 1 "planted (a): out-of-family adapter role FAILs" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-extra-role.md"
+expect_msg "planted (a): out-of-family adapter diagnostic names role" \
+  "adapter '$TMP/adapter-extra-role.md' maps out-of-family role '[shadow-write output]'" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-extra-role.md"
+
 # Multiple target sections cannot combine partial tables into apparent coverage.
 cat > "$TMP/adapter-duplicate-section.md" <<'EOF'
 ### Write-intent mappings (the safe-output roles)
@@ -444,6 +460,24 @@ expect 1 "planted: catalog-added writing workflow without declaration FAILs" \
 expect_msg "planted: diagnostic names the catalog-added workflow" \
   "'release' has no declaration row" \
   WIC_WORKFLOW_CATALOG="$TMP/workflow-catalog-extra.md"
+
+# The catalog is authoritative in both directions: a profile cannot silently
+# grant write authority to an unregistered workflow.
+cat > "$TMP/profile-extra-wf.md" <<'EOF'
+## Write intents
+| workflow | allowed intents |
+|---|---|
+| `next-task` | `[create-issue output]`, `[add-pr-comment output]` |
+| `pr-review` | `[add-pr-comment output]` |
+| `triage` | none |
+| `release` | `[create-issue output]` |
+EOF
+expect 1 "planted: profile workflow absent from catalog FAILs" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-extra-wf.md"
+expect_msg "planted: extra-profile-workflow diagnostic names workflow" \
+  "profile workflow 'release' is absent from the required-workflow catalog" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-extra-wf.md"
+
 expect 1 "planted: empty required-workflow override FAILs loud" \
   "${FIX[@]}" WIC_REQUIRED_WORKFLOWS=""
 expect 1 "planted: whitespace-only required-workflow override FAILs loud" \
@@ -485,6 +519,22 @@ expect 1 "planted: tight-pipe duplicate workflow declaration FAILs" \
 expect_msg "planted: tight-pipe duplicate diagnostic names workflow" \
   "duplicate declaration rows for workflow 'next-task'" \
   "${FIX[@]}" WIC_PROFILE="$TMP/profile-duplicate-wf-tight-pipe.md"
+
+# Four leading spaces make these rows an indented code block, not a live
+# Markdown table; they cannot satisfy the declaration contract.
+cat > "$TMP/profile-indented-code-rows.md" <<'EOF'
+## Write intents
+| workflow | allowed intents |
+|---|---|
+    | `next-task` | `[create-issue output]`, `[add-pr-comment output]` |
+    | `pr-review` | `[add-pr-comment output]` |
+    | `triage` | none |
+EOF
+expect 1 "planted: indented-code declaration rows do not count" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-indented-code-rows.md"
+expect_msg "planted: indented-code diagnostic reports missing rows" \
+  "carries no write-intent declaration rows" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-indented-code-rows.md"
 
 # --- A row that is neither intents nor the literal `none` is rejected
 cat > "$TMP/profile-vague.md" <<'EOF'
