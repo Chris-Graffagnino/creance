@@ -95,13 +95,14 @@ unresolvable **[role]** is a fast, loud, zero-round failure — never a vacuous 
 ## The reviewer roster (single source of truth)
 
 The gate's reviewer set — **membership, tier, and dispatch-condition** — is declared once,
-here. Every consumer derives from this one table: the loop below iterates it, `next-task.md`
-§7 step 2 points at it for membership/tier/condition, and the **[orchestrated run]** adapter
-script builds its dispatch list from it (its array carries a "derived from this roster"
-note). A CI-wired drift backstop FAILs when any of those sites disagrees with this table, so
-a reviewer cannot silently fall out of the gate (the "silently dead machinery" failure class
-this gate exists to prevent). Adding or removing a reviewer is an edit to this row set, not a
-hand-sync across three places.
+here. Each consumer derives the projection it needs from this table: the loop below iterates
+it; `next-task.md` §7 names reviewer paths and conditions while delegating tiers here; the
+**[orchestrated run]** adapter encodes membership, tiers, and conditional guards; and
+adapter manual-fallback bindings may enumerate membership only. CI-wired structural checks
+pin those declared projections to an independent canonical set, while executable adapter
+tests assert the exact runtime dispatch set under each condition. Adding or removing a
+reviewer therefore requires an intentional roster change plus its affected derived
+consumers and tests, rather than an unchecked hand-sync.
 
 | Reviewer spec | Tier | Dispatch condition |
 |---|---|---|
