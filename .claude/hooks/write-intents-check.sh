@@ -69,6 +69,43 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
         candidate_length >= fence_length &&
         candidate_rest ~ /^[[:blank:]]*$/
     }
+    function tick_run(line, position, run) {
+      run = 0
+      while (substr(line, position + run, 1) == "`") run++
+      return run
+    }
+    function matching_tick_exists(line, position, needed, i, run) {
+      i = position + needed
+      while (i <= length(line)) {
+        if (substr(line, i, 1) != "`") {
+          i++
+          continue
+        }
+        run = tick_run(line, i)
+        if (run == needed) return 1
+        i += run
+      }
+      return 0
+    }
+    function html_comment_start(line, i, run, code_run) {
+      code_run = 0
+      i = 1
+      while (i <= length(line)) {
+        if (substr(line, i, 1) == "`") {
+          run = tick_run(line, i)
+          if (!code_run && matching_tick_exists(line, i, run)) {
+            code_run = run
+          } else if (code_run == run) {
+            code_run = 0
+          }
+          i += run
+          continue
+        }
+        if (!code_run && substr(line, i, 4) == "<!--") return i
+        i++
+      }
+      return 0
+    }
     function strip_html_comments(line, visible, start, end_at) {
       visible = ""
       while (1) {
@@ -79,7 +116,7 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
           in_html_comment = 0
           continue
         }
-        start = index(line, "<!--")
+        start = html_comment_start(line)
         if (!start) return visible line
         visible = visible substr(line, 1, start - 1)
         line = substr(line, start + 4)
@@ -243,7 +280,7 @@ if [ "$contract_section_status" -eq 2 ]; then
 elif [ "$contract_section_status" -ne 0 ]; then
   fail "could not parse the write-intent contract section in '$CONTRACT'"
 fi
-family="$(printf '%s\n' "$contract_section" | grep -oE '^\| \*\*\[[a-z][a-z-]* output\]\*\*' | grep -oE '\[[a-z][a-z-]* output\]' | sort -u)"
+family="$(printf '%s\n' "$contract_section" | grep -oE '^ {0,3}\|[[:blank:]]*\*\*\[[a-z][a-z-]* output\]\*\*' | grep -oE '\[[a-z][a-z-]* output\]' | sort -u)"
 if [ -z "$family" ]; then
   fail "contract surface '$CONTRACT' defines no write-intent role rows — the closed family is empty or unparseable (repair: restore the \"Write intents (safe outputs)\" table)"
 fi
@@ -264,14 +301,14 @@ for adapter in $ADAPTERS; do
   elif [ "$adapter_section_status" -ne 0 ]; then
     fail "could not parse the write-intent mapping section in adapter '$adapter'"
   fi
-  adapter_row_lines="$(printf '%s\n' "$adapter_section" | grep -E '^[0-9]+:\| \*\*\[[a-z][a-z-]* output\]\*\*')" || adapter_row_lines=""
+  adapter_row_lines="$(printf '%s\n' "$adapter_section" | grep -E '^[0-9]+: {0,3}\|[[:blank:]]*\*\*\[[a-z][a-z-]* output\]\*\*[[:blank:]]*\|')" || adapter_row_lines=""
   adapter_rows=""
   while IFS= read -r numbered; do
     [ -n "$numbered" ] || continue
     lineno="${numbered%%:*}"
     row="${numbered#*:}"
     role="$(printf '%s' "$row" | grep -oE '\[[a-z][a-z-]* output\]' | head -n 1)"
-    cell="$(printf '%s' "$row" | sed -E 's/^\| \*\*\[[a-z][a-z-]* output\]\*\* \|(.*)\|[[:space:]]*$/\1/')"
+    cell="$(printf '%s' "$row" | sed -E 's/^ {0,3}\|[[:blank:]]*\*\*\[[a-z][a-z-]* output\]\*\*[[:blank:]]*\|(.*)\|[[:space:]]*$/\1/')"
     if [ "$cell" = "$row" ] || ! printf '%s' "$cell" | grep -qE '[^[:space:]]'; then
       fail "adapter mapping row for '$role' ($adapter:$lineno) has an empty mechanism/degradation cell — a bare role row maps nothing (repair: name the concrete mechanism, or the documented degradation)"
     fi
@@ -309,12 +346,12 @@ if [ "$profile_section_status" -eq 2 ]; then
 elif [ "$profile_section_status" -ne 0 ]; then
   fail "could not parse the write-intent declaration section in '$PROFILE'"
 fi
-decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|')" || decl_rows=""
+decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^ {0,3}\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|')" || decl_rows=""
 if [ -z "$decl_rows" ]; then
   fail "profile surface '$PROFILE' carries no write-intent declaration rows (repair: restore the \"Write intents\" table)"
 fi
 
-duplicate_workflows="$(printf '%s\n' "$decl_rows" | sed -E 's/^\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/' | sort | uniq -d)"
+duplicate_workflows="$(printf '%s\n' "$decl_rows" | sed -E 's/^ {0,3}\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/' | sort | uniq -d)"
 while IFS= read -r wf; do
   [ -n "$wf" ] || continue
   fail "duplicate declaration rows for workflow '$wf' in '$PROFILE' (repair: keep exactly one row per workflow)"
@@ -324,8 +361,8 @@ declared_workflows=""
 while IFS= read -r row; do
   [ -n "$row" ] || continue
   row="$(printf '%s' "$row" | sed -E 's/[[:space:]]+$//')"
-  wf="$(printf '%s' "$row" | sed -E 's/^\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/')"
-  cell="$(printf '%s' "$row" | sed -E 's/^\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|(.*)\|$/\1/')"
+  wf="$(printf '%s' "$row" | sed -E 's/^ {0,3}\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/')"
+  cell="$(printf '%s' "$row" | sed -E 's/^ {0,3}\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|(.*)\|$/\1/')"
   declared_workflows="$declared_workflows $wf"
   intents="$(printf '%s' "$cell" | grep -oE '\[[a-z][a-z-]* output\]')" || intents=""
   if [ -z "$intents" ]; then

@@ -147,6 +147,22 @@ expect_msg "planted (a): diagnostic names the uncovered family role" \
   "[update-pr output]" "${FIX[@]}" \
   WIC_CONTRACT="$TMP/contract-undeclared-role.md"
 
+# Live GFM table rows may use up to three leading spaces and omit padding
+# around cell delimiters; the contract parser must still see the family role.
+cat > "$TMP/contract-indented-tight-role.md" <<'EOF'
+### Write intents (safe outputs)
+| Intent role | Inputs | Outputs | Constraints |
+|------|--------|---------|-------------|
+| **[create-issue output]** | t | o | c |
+| **[add-pr-comment output]** | t | o | c |
+  |**[update-pr output]**|t|o|c|
+EOF
+expect 1 "planted (a): indented tight family role needs adapter row" \
+  "${FIX[@]}" WIC_CONTRACT="$TMP/contract-indented-tight-role.md"
+expect_msg "planted (a): indented tight family diagnostic names role" \
+  "[update-pr output]" "${FIX[@]}" \
+  WIC_CONTRACT="$TMP/contract-indented-tight-role.md"
+
 # Every adapter specification carrying the mapping table is checked, not only the
 # active Claude adapter.
 expect 1 "planted (a): second adapter missing a family row FAILs" \
@@ -293,6 +309,15 @@ cat > "$TMP/adapter-inline-comment-annotation.md" <<'EOF'
 EOF
 expect 0 "live adapter row survives an inline comment annotation" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-inline-comment-annotation.md"
+cat > "$TMP/adapter-inline-code-comment-marker.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | append the literal `<!-- harness-marker` prefix |
+| **[add-pr-comment output]** | mechanism B |
+EOF
+expect 0 "HTML-comment marker inside inline code stays literal" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-inline-code-comment-marker.md"
 mkdir -p "$TMP/uncataloged-adapters"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/cataloged.md"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/new-table.md"
@@ -356,6 +381,20 @@ expect 1 "planted (a): out-of-family adapter role FAILs" \
 expect_msg "planted (a): out-of-family adapter diagnostic names role" \
   "adapter '$TMP/adapter-extra-role.md' maps out-of-family role '[shadow-write output]'" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-extra-role.md"
+
+cat > "$TMP/adapter-extra-role-indented-tight.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+| **[add-pr-comment output]** | mechanism B |
+  |**[shadow-write output]**|mechanism outside the family|
+EOF
+expect 1 "planted (a): indented tight out-of-family adapter role FAILs" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-extra-role-indented-tight.md"
+expect_msg "planted (a): indented tight adapter diagnostic names role" \
+  "maps out-of-family role '[shadow-write output]'" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-extra-role-indented-tight.md"
 
 # Multiple target sections cannot combine partial tables into apparent coverage.
 cat > "$TMP/adapter-duplicate-section.md" <<'EOF'
@@ -486,6 +525,21 @@ expect 1 "planted: profile workflow absent from catalog FAILs" \
 expect_msg "planted: extra-profile-workflow diagnostic names workflow" \
   "profile workflow 'release' is absent from the required-workflow catalog" \
   "${FIX[@]}" WIC_PROFILE="$TMP/profile-extra-wf.md"
+
+cat > "$TMP/profile-extra-wf-indented-tight.md" <<'EOF'
+## Write intents
+| workflow | allowed intents |
+|---|---|
+| `next-task` | `[create-issue output]`, `[add-pr-comment output]` |
+| `pr-review` | `[add-pr-comment output]` |
+| `triage` | none |
+   |`release`|`[create-issue output]`|
+EOF
+expect 1 "planted: indented tight profile workflow absent from catalog FAILs" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-extra-wf-indented-tight.md"
+expect_msg "planted: indented tight profile diagnostic names workflow" \
+  "profile workflow 'release' is absent from the required-workflow catalog" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-extra-wf-indented-tight.md"
 
 expect 1 "planted: empty required-workflow override FAILs loud" \
   "${FIX[@]}" WIC_REQUIRED_WORKFLOWS=""
