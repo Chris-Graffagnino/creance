@@ -69,13 +69,8 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
         candidate_length >= fence_length &&
         candidate_rest ~ /^[[:blank:]]*$/
     }
-    function html_comment_starts(line, indent) {
-      indent = 0
-      while (indent < length(line) && substr(line, indent + 1, 1) == " ") {
-        indent++
-      }
-      if (indent > 3) return 0
-      return substr(line, indent + 1, 4) == "<!--"
+    function html_comment_starts(line) {
+      return index(line, "<!--") > 0
     }
     function hidden_line(line) {
       if (in_fence) {
@@ -148,6 +143,7 @@ else
       fi
     done | sort -u
   )"
+  discovery_status=0
   discovered_adapters="$(
     while IFS= read -r candidate; do
       [ -n "$candidate" ] || continue
@@ -167,7 +163,10 @@ else
         printf '%s\n' "$candidate"
       fi
     done <<< "$adapter_candidates"
-  )"
+  )" || discovery_status=$?
+  if [ "$discovery_status" -ne 0 ]; then
+    exit "$discovery_status"
+  fi
   for expected_adapter in $EXPECTED_ADAPTERS; do
     if ! printf '%s\n' $discovered_adapters | grep -qFx "$expected_adapter"; then
       echo "FAIL: cataloged adapter '$expected_adapter' has no discoverable \"Write-intent mappings (the safe-output roles)\" section" >&2
@@ -295,12 +294,12 @@ if [ "$profile_section_status" -eq 2 ]; then
 elif [ "$profile_section_status" -ne 0 ]; then
   fail "could not parse the write-intent declaration section in '$PROFILE'"
 fi
-decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^\| `[a-z][a-z-]*` \|')" || decl_rows=""
+decl_rows="$(printf '%s\n' "$profile_section" | grep -E '^[[:blank:]]*\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|')" || decl_rows=""
 if [ -z "$decl_rows" ]; then
   fail "profile surface '$PROFILE' carries no write-intent declaration rows (repair: restore the \"Write intents\" table)"
 fi
 
-duplicate_workflows="$(printf '%s\n' "$decl_rows" | sed -E 's/^\| `([a-z][a-z-]*)` \|.*/\1/' | sort | uniq -d)"
+duplicate_workflows="$(printf '%s\n' "$decl_rows" | sed -E 's/^[[:blank:]]*\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/' | sort | uniq -d)"
 while IFS= read -r wf; do
   [ -n "$wf" ] || continue
   fail "duplicate declaration rows for workflow '$wf' in '$PROFILE' (repair: keep exactly one row per workflow)"
@@ -310,8 +309,8 @@ declared_workflows=""
 while IFS= read -r row; do
   [ -n "$row" ] || continue
   row="$(printf '%s' "$row" | sed -E 's/[[:space:]]+$//')"
-  wf="$(printf '%s' "$row" | sed -E 's/^\| `([a-z][a-z-]*)` \|.*/\1/')"
-  cell="$(printf '%s' "$row" | sed -E 's/^\| `[a-z][a-z-]*` \|(.*)\|$/\1/')"
+  wf="$(printf '%s' "$row" | sed -E 's/^[[:blank:]]*\|[[:blank:]]*`([a-z][a-z-]*)`[[:blank:]]*\|.*/\1/')"
+  cell="$(printf '%s' "$row" | sed -E 's/^[[:blank:]]*\|[[:blank:]]*`[a-z][a-z-]*`[[:blank:]]*\|(.*)\|$/\1/')"
   declared_workflows="$declared_workflows $wf"
   intents="$(printf '%s' "$cell" | grep -oE '\[[a-z][a-z-]* output\]')" || intents=""
   if [ -z "$intents" ]; then

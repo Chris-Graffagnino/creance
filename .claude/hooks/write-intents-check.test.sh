@@ -270,6 +270,20 @@ expect 1 "planted (a): fenced adapter rows do not map roles" \
 expect_msg "planted (a): fenced-row diagnostic names the missing role" \
   "[create-issue output]" "${FIX[@]}" \
   WIC_ADAPTER="$TMP/adapter-fenced-rows.md"
+cat > "$TMP/adapter-inline-commented-rows.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+notes <!--
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | commented mechanism A |
+| **[add-pr-comment output]** | commented mechanism B |
+-->
+EOF
+expect 1 "planted (a): inline-commented adapter rows do not map roles" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-inline-commented-rows.md"
+expect_msg "planted (a): inline-commented row diagnostic names role" \
+  "[create-issue output]" "${FIX[@]}" \
+  WIC_ADAPTER="$TMP/adapter-inline-commented-rows.md"
 mkdir -p "$TMP/uncataloged-adapters"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/cataloged.md"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/new-table.md"
@@ -335,6 +349,29 @@ expect 1 "planted (a): duplicate adapter mapping sections FAIL" \
 expect_msg "planted (a): duplicate-section diagnostic names the adapter" \
   "duplicate write-intent mapping sections in adapter '$TMP/adapter-duplicate-section.md'" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-section.md"
+
+# Discovery must propagate parse failures from uncataloged candidates instead of
+# dropping the candidate in a command-substitution subshell and returning success.
+mkdir -p "$TMP/discovery-duplicate-section-adapters"
+cp "$TMP/adapter.md" "$TMP/discovery-duplicate-section-adapters/cataloged.md"
+cp "$TMP/adapter-duplicate-section.md" \
+  "$TMP/discovery-duplicate-section-adapters/z-uncataloged-duplicate.md"
+printf '<!-- write-intents-check:adapter-tables %s -->\n' \
+  "$TMP/discovery-duplicate-section-adapters/cataloged.md" \
+  > "$TMP/discovery-duplicate-section-catalog.md"
+expect 1 "planted (a): discovery propagates duplicate-section failure" \
+  WIC_CONTRACT="$TMP/contract.md" WIC_PROFILE="$TMP/profile.md" \
+  WIC_WORKFLOW_DIR="$TMP/workflow" \
+  WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
+  WIC_ADAPTER_CATALOG="$TMP/discovery-duplicate-section-catalog.md" \
+  WIC_ADAPTER_SEARCH_ROOTS="$TMP/discovery-duplicate-section-adapters"
+expect_msg "planted (a): discovery duplicate diagnostic names candidate" \
+  "$TMP/discovery-duplicate-section-adapters/z-uncataloged-duplicate.md" \
+  WIC_CONTRACT="$TMP/contract.md" WIC_PROFILE="$TMP/profile.md" \
+  WIC_WORKFLOW_DIR="$TMP/workflow" \
+  WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
+  WIC_ADAPTER_CATALOG="$TMP/discovery-duplicate-section-catalog.md" \
+  WIC_ADAPTER_SEARCH_ROOTS="$TMP/discovery-duplicate-section-adapters"
 
 # --- Direction (b): a neutral workflow doc naming a concrete tracker write command
 mkdir -p "$TMP/workflow-leak"
@@ -431,6 +468,23 @@ expect 1 "planted: duplicate workflow declaration rows FAIL" \
 expect_msg "planted: duplicate diagnostic names the workflow" \
   "duplicate declaration rows for workflow 'next-task'" \
   "${FIX[@]}" WIC_PROFILE="$TMP/profile-duplicate-wf.md"
+
+# Markdown permits omitted padding before a cell delimiter; duplicate detection
+# must parse that valid shape rather than silently dropping the second row.
+cat > "$TMP/profile-duplicate-wf-tight-pipe.md" <<'EOF'
+## Write intents
+| workflow | allowed intents |
+|---|---|
+| `next-task` | `[create-issue output]` |
+| `next-task`| none |
+| `pr-review` | `[add-pr-comment output]` |
+| `triage` | none |
+EOF
+expect 1 "planted: tight-pipe duplicate workflow declaration FAILs" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-duplicate-wf-tight-pipe.md"
+expect_msg "planted: tight-pipe duplicate diagnostic names workflow" \
+  "duplicate declaration rows for workflow 'next-task'" \
+  "${FIX[@]}" WIC_PROFILE="$TMP/profile-duplicate-wf-tight-pipe.md"
 
 # --- A row that is neither intents nor the literal `none` is rejected
 cat > "$TMP/profile-vague.md" <<'EOF'
