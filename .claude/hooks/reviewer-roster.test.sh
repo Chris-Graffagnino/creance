@@ -158,6 +158,10 @@ role_mapping_table() {
   ' "$1"
 }
 
+role_mapping_table_count() {
+  grep -cE '^\| Neutral role( / step)? \|' "$1"
+}
+
 # Emit everything except the adapter's bounded role-mapping table. That table is pinned by
 # its own complete SHA-256 fixture; fallback-dispatch authority anywhere else is forbidden.
 outside_role_mapping_table() {
@@ -553,16 +557,18 @@ reviewer_names() {
 }
 
 # Agent-type identifiers have no suffix grammar. Rather than guess one, enforce the structural
-# authority boundary: the complete role table is fixture-pinned, and no prose outside it may
-# pair a dispatch/omit/skip directive with a subagent target in either word order. Thus an
-# arbitrary `security2-checker` (or any other name) cannot establish a second fallback map.
+# authority boundary: exactly one complete role table is fixture-pinned, and no prose outside
+# it may pair a dispatch/omit/skip directive with either a subagent target or the Agent tool
+# in either word order. Thus an arbitrary `security2-checker` (or any other name) cannot
+# establish a second fallback map.
 fallback_external_directives() {
   outside_role_mapping_table "$1" \
-    | grep -Ei '(dispatch|omit|skip)[^|]*subagents?|subagents?[^|]*(dispatch|omit|skip)'
+    | grep -Ei '(dispatch|omit|skip)[^|]*(subagents?|agent tool)|(subagents?|agent tool)[^|]*(dispatch|omit|skip)'
 }
 
 fallback_inventory_ok() {
-  [ "$(reviewer_names < "$1")" = "$(fallback_row "$1" "$2" | reviewer_names)" ] &&
+  [ "$(role_mapping_table_count "$1")" -eq 1 ] &&
+    [ "$(reviewer_names < "$1")" = "$(fallback_row "$1" "$2" | reviewer_names)" ] &&
     [ -z "$(fallback_external_directives "$1")" ]
 }
 
@@ -1078,6 +1084,27 @@ awk '
 mut_fail "skill inventory add-arbitrary-agent-dispatch" \
   skill_inventory_ok "$TMP/sk-add-arbitrary-agent-dispatch.md"
 
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, dispatch security2-checker via the Agent tool at §7."
+  }
+' "$SK" > "$TMP/sk-add-agent-tool-dispatch.md"
+mut_fail "skill inventory add-Agent-tool-dispatch" \
+  skill_inventory_ok "$TMP/sk-add-agent-tool-dispatch.md"
+
+awk '
+  { print }
+  END {
+    print ""
+    print "| Neutral role | Claude Code mechanism |"
+    print "|---|---|"
+    print "| **[security review]** | dispatch security2-checker subagent |"
+  }
+' "$SK" > "$TMP/sk-add-second-role-table.md"
+mut_fail "skill inventory add-second-role-table" \
+  skill_inventory_ok "$TMP/sk-add-second-role-table.md"
+
 # The table fixture has its own falsification: a non-reviewer row wording change should
 # trip the table digest, not masquerade as reviewer-membership drift.
 awk '
@@ -1144,6 +1171,27 @@ awk '
 ' "$RR" > "$TMP/rr-add-arbitrary-agent-dispatch.md"
 mut_fail "review-response inventory add-arbitrary-agent-dispatch" \
   review_response_inventory_ok "$TMP/rr-add-arbitrary-agent-dispatch.md"
+
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, dispatch security2-checker via the Agent tool at §7."
+  }
+' "$RR" > "$TMP/rr-add-agent-tool-dispatch.md"
+mut_fail "review-response inventory add-Agent-tool-dispatch" \
+  review_response_inventory_ok "$TMP/rr-add-agent-tool-dispatch.md"
+
+awk '
+  { print }
+  END {
+    print ""
+    print "| Neutral role / step | Claude Code mechanism |"
+    print "|---|---|"
+    print "| **[security review]** | dispatch security2-checker subagent |"
+  }
+' "$RR" > "$TMP/rr-add-second-role-table.md"
+mut_fail "review-response inventory add-second-role-table" \
+  review_response_inventory_ok "$TMP/rr-add-second-role-table.md"
 
 awk '
   index($0, "| **[headless run]** |") {

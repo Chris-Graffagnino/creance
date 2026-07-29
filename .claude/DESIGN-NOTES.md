@@ -194,10 +194,10 @@ exact roster data each surface owns, reject missing and unexpected entries, pin 
 pushes to their guards, and check the spec/agent binding existence and read-only tool
 contract. Whole-document inventories additionally normalize both roster-relative and
 repository-root reviewer-spec paths and reject a second concrete path in the neutral gate
-document. For the skills, the complete role-mapping tables are fixture-pinned; outside those
-tables, a structural inventory rejects any dispatch/omit/skip directive paired with a
-subagent target, without assuming an agent-name suffix, while a name inventory also catches
-repeated canonical reviewer names in prose. Reviewed
+document. For each skill, exactly one complete role-mapping table is fixture-pinned; outside
+that table, a structural inventory rejects any dispatch/omit/skip directive paired with a
+subagent target or the Agent tool, without assuming an agent-name suffix, while a name
+inventory also catches repeated canonical reviewer names in prose. Reviewed
 fixed-SHA-256 digest ratchets pin the complete executable adapter source (including input
 handling before construction and the reviewer lifecycle through re-dispatch), the complete
 §7 stage card, the complete fallback rows, and both complete manual-fallback role-mapping
