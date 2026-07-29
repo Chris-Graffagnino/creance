@@ -557,13 +557,13 @@ reviewer_names() {
 }
 
 # Agent-type identifiers have no suffix grammar. Rather than guess one, enforce the structural
-# authority boundary: exactly one complete role table is fixture-pinned, and no prose outside
-# it may pair a dispatch/omit/skip directive with either a subagent target or the Agent tool
-# in either word order. Thus an arbitrary `security2-checker` (or any other name) cannot
-# establish a second fallback map.
+# authority boundary: exactly one complete role table is fixture-pinned, no second Markdown
+# table is allowed, and the adapter's fallback mechanisms (`subagent`, `Agent tool`) may not
+# be named outside that table. Thus an arbitrary `security2-checker` (or any other name)
+# cannot establish a second fallback map by changing the verb or table header.
 fallback_external_directives() {
   outside_role_mapping_table "$1" \
-    | grep -Ei '(dispatch|omit|skip)[^|]*(subagents?|agent tool)|(subagents?|agent tool)[^|]*(dispatch|omit|skip)'
+    | grep -Ei '^\||subagents?|agent tool'
 }
 
 fallback_inventory_ok() {
