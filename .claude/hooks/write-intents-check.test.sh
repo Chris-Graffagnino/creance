@@ -198,6 +198,53 @@ expect_msg "planted (a): lost-heading diagnostic names the adapter" \
   WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
   WIC_ADAPTER_CATALOG="$TMP/heading-loss-catalog.md" \
   WIC_ADAPTER_SEARCH_ROOTS="$TMP/heading-loss-adapters"
+mkdir -p "$TMP/fenced-heading-adapters"
+cat > "$TMP/fenced-heading-adapters/fence-only.md" <<'EOF'
+```markdown
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | fenced mechanism A |
+| **[add-pr-comment output]** | fenced mechanism B |
+```
+
+~~~markdown
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | fenced mechanism A |
+| **[add-pr-comment output]** | fenced mechanism B |
+~~~
+EOF
+printf '<!-- write-intents-check:adapter-tables %s -->\n' \
+  "$TMP/fenced-heading-adapters/fence-only.md" > "$TMP/fenced-heading-catalog.md"
+expect 1 "planted (a): fence-only adapter heading FAILs as missing" \
+  WIC_CONTRACT="$TMP/contract.md" WIC_PROFILE="$TMP/profile.md" \
+  WIC_WORKFLOW_DIR="$TMP/workflow" \
+  WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
+  WIC_ADAPTER_CATALOG="$TMP/fenced-heading-catalog.md" \
+  WIC_ADAPTER_SEARCH_ROOTS="$TMP/fenced-heading-adapters"
+expect_msg "planted (a): fence-only diagnostic names the adapter" \
+  "$TMP/fenced-heading-adapters/fence-only.md" \
+  WIC_CONTRACT="$TMP/contract.md" WIC_PROFILE="$TMP/profile.md" \
+  WIC_WORKFLOW_DIR="$TMP/workflow" \
+  WIC_REQUIRED_WORKFLOWS="next-task pr-review triage" \
+  WIC_ADAPTER_CATALOG="$TMP/fenced-heading-catalog.md" \
+  WIC_ADAPTER_SEARCH_ROOTS="$TMP/fenced-heading-adapters"
+cat > "$TMP/adapter-fenced-rows.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+```markdown
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | fenced mechanism A |
+| **[add-pr-comment output]** | fenced mechanism B |
+```
+EOF
+expect 1 "planted (a): fenced adapter rows do not map roles" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-fenced-rows.md"
+expect_msg "planted (a): fenced-row diagnostic names the missing role" \
+  "[create-issue output]" "${FIX[@]}" \
+  WIC_ADAPTER="$TMP/adapter-fenced-rows.md"
 mkdir -p "$TMP/uncataloged-adapters"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/cataloged.md"
 cp "$TMP/adapter.md" "$TMP/uncataloged-adapters/new-table.md"
@@ -229,6 +276,22 @@ expect_msg "planted (a): diagnostic names the empty-cell row" \
 expect_msg "planted (a): adapter diagnostic uses the source line" \
   "$TMP/adapter-empty-cell.md:5" "${FIX[@]}" \
   WIC_ADAPTER="$TMP/adapter-empty-cell.md"
+
+# Each adapter maps a family role exactly once; duplicate rows would make the
+# mechanism ambiguous even when both cells are non-empty.
+cat > "$TMP/adapter-duplicate-role.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+| **[create-issue output]** | conflicting mechanism |
+| **[add-pr-comment output]** | mechanism B |
+EOF
+expect 1 "planted (a): duplicate adapter role rows FAIL" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-role.md"
+expect_msg "planted (a): duplicate adapter diagnostic names the role" \
+  "duplicate mapping rows for '[create-issue output]'" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-duplicate-role.md"
 
 # --- Direction (b): a neutral workflow doc naming a concrete tracker write command
 mkdir -p "$TMP/workflow-leak"

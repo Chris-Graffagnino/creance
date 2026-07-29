@@ -27,6 +27,75 @@ export LC_ALL=C
 
 CONTRACT="${WIC_CONTRACT:-.claude/workflow/README.md}"
 PROFILE="${WIC_PROFILE:-.claude/PROJECT.md}"
+
+markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
+  local mode=""
+  [ "$#" -lt 3 ] || mode="$3"
+  awk -v heading_re="$2" -v mode="$mode" '
+    function heading_level(line) {
+      match(line, /^#+/)
+      return RLENGTH
+    }
+    function fence_run(line, indent, marker, run) {
+      indent = 0
+      while (indent < length(line) && substr(line, indent + 1, 1) == " ") {
+        indent++
+      }
+      if (indent > 3) return 0
+
+      marker = substr(line, indent + 1, 1)
+      if (marker != "`" && marker != "~") return 0
+      run = 0
+      while (substr(line, indent + run + 1, 1) == marker) {
+        run++
+      }
+      if (run < 3) return 0
+
+      candidate_char = marker
+      candidate_length = run
+      candidate_rest = substr(line, indent + run + 1)
+      return 1
+    }
+    function fence_starts(line) {
+      if (!fence_run(line)) return 0
+      if (candidate_char == "`" && candidate_rest ~ /`/) return 0
+      fence_char = candidate_char
+      fence_length = candidate_length
+      return 1
+    }
+    function fence_ends(line) {
+      if (!fence_run(line)) return 0
+      return candidate_char == fence_char &&
+        candidate_length >= fence_length &&
+        candidate_rest ~ /^[[:blank:]]*$/
+    }
+    {
+      if (in_fence) {
+        if (fence_ends($0)) in_fence = 0
+        next
+      }
+      if (fence_starts($0)) {
+        in_fence = 1
+        next
+      }
+      if ($0 ~ heading_re) {
+        if (mode == "heading") {
+          print
+          exit
+        }
+        inside = 1
+        level = heading_level($0)
+        next
+      }
+      if (inside && /^#+[[:space:]]/ && heading_level($0) <= level) exit
+      if (inside) {
+        if (mode == "numbered") print NR ":" $0
+        else print
+      }
+    }
+  ' "$1"
+}
+
 if [ -n "${WIC_ADAPTERS+x}" ]; then
   ADAPTERS="$WIC_ADAPTERS"
 elif [ -n "${WIC_ADAPTER+x}" ]; then
@@ -57,7 +126,7 @@ else
   discovered_adapters="$(
     while IFS= read -r candidate; do
       [ -n "$candidate" ] || continue
-      if grep -qE '^##+ Write-intent mappings [(]the safe-output roles[)]$' "$candidate"; then
+      if [ -n "$(markdown_section "$candidate" '^##+ Write-intent mappings [(]the safe-output roles[)]$' heading)" ]; then
         printf '%s\n' "$candidate"
       fi
     done <<< "$adapter_candidates"
@@ -112,27 +181,6 @@ fail() {
   failures=$((failures + 1))
 }
 
-markdown_section() { # markdown_section <file> <heading-ERE> [numbered]
-  local numbered=""
-  [ "$#" -lt 3 ] || numbered="$3"
-  awk -v heading_re="$2" -v numbered="$numbered" '
-    function heading_level(line) {
-      match(line, /^#+/)
-      return RLENGTH
-    }
-    $0 ~ heading_re {
-      inside = 1
-      level = heading_level($0)
-      next
-    }
-    inside && /^#+[[:space:]]/ && heading_level($0) <= level { exit }
-    inside {
-      if (numbered) print NR ":" $0
-      else print
-    }
-  ' "$1"
-}
-
 for f in "$CONTRACT" "$PROFILE" $ADAPTERS; do
   if [ ! -f "$f" ]; then
     echo "FAIL: surface '$f' not found from $(pwd) — run from the repo root" >&2
@@ -173,6 +221,11 @@ for adapter in $ADAPTERS; do
     adapter_rows="$adapter_rows$role
 "
   done <<< "$adapter_row_lines"
+  duplicate_adapter_roles="$(printf '%s' "$adapter_rows" | sort | uniq -d)"
+  while IFS= read -r role; do
+    [ -n "$role" ] || continue
+    fail "duplicate mapping rows for '$role' in adapter '$adapter' (repair: keep exactly one row per family role)"
+  done <<< "$duplicate_adapter_roles"
   adapter_rows="$(printf '%s' "$adapter_rows" | sort -u)"
   while IFS= read -r intent; do
     [ -n "$intent" ] || continue
