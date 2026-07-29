@@ -119,6 +119,35 @@ expect 0 "row-shaped content outside named sections is ignored" \
   WIC_PROFILE="$TMP/profile-section-scope.md" \
   WIC_ADAPTER="$TMP/adapter-section-scope.md"
 
+# Equivalent ATX syntax remains live: headings may use extra separation after
+# the opening marker and an optional closing-hash sequence.
+cat > "$TMP/contract-closing-hashes.md" <<'EOF'
+###   Write intents (safe outputs) ###
+| Intent role | Inputs | Outputs | Constraints |
+|------|--------|---------|-------------|
+| **[create-issue output]** | t | o | c |
+| **[add-pr-comment output]** | t | o | c |
+EOF
+cat > "$TMP/profile-closing-hashes.md" <<'EOF'
+##  Write intents ##
+| workflow | allowed intents |
+|---|---|
+| `next-task` | `[create-issue output]`, `[add-pr-comment output]` |
+| `pr-review` | `[add-pr-comment output]` |
+| `triage` | none |
+EOF
+cat > "$TMP/adapter-closing-hashes.md" <<'EOF'
+###  Write-intent mappings (the safe-output roles) ###
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+| **[add-pr-comment output]** | mechanism B |
+EOF
+expect 0 "equivalent ATX target headings with closing hashes pass" \
+  "${FIX[@]}" WIC_CONTRACT="$TMP/contract-closing-hashes.md" \
+  WIC_PROFILE="$TMP/profile-closing-hashes.md" \
+  WIC_ADAPTER="$TMP/adapter-closing-hashes.md"
+
 # --- Direction (a): a declared intent with no adapter mapping row
 cat > "$TMP/adapter-missing.md" <<'EOF'
 ### Write-intent mappings (the safe-output roles)
@@ -414,6 +443,25 @@ expect 1 "planted (a): indented peer heading ends adapter section" \
 expect_msg "planted (a): indented heading exposes missing role" \
   "[add-pr-comment output]" \
   "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-indented-closing-heading.md"
+
+# An empty ATX heading is still a peer section boundary; rows after it cannot
+# supply coverage to the protected mapping section.
+cat > "$TMP/adapter-empty-closing-heading.md" <<'EOF'
+### Write-intent mappings (the safe-output roles)
+| Intent role | Mechanism |
+|------|----------------------|
+| **[create-issue output]** | mechanism A |
+
+###
+| Intent role | Mechanism |
+|------|----------------------|
+| **[add-pr-comment output]** | example only |
+EOF
+expect 1 "planted (a): empty ATX heading ends adapter section" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-empty-closing-heading.md"
+expect_msg "planted (a): empty ATX heading exposes missing role" \
+  "[add-pr-comment output]" \
+  "${FIX[@]}" WIC_ADAPTER="$TMP/adapter-empty-closing-heading.md"
 
 # Multiple target sections cannot combine partial tables into apparent coverage.
 cat > "$TMP/adapter-duplicate-section.md" <<'EOF'

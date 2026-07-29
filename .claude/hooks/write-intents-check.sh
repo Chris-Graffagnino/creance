@@ -32,14 +32,26 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
   local mode=""
   [ "$#" -lt 3 ] || mode="$3"
   awk -v heading_re="$2" -v mode="$mode" '
-    function heading_level(line) {
-      match(line, /^#+/)
-      return RLENGTH
-    }
     function trim_block_indent(line, indent) {
       indent = 0
       while (indent < 3 && substr(line, indent + 1, 1) == " ") indent++
       return substr(line, indent + 1)
+    }
+    function normalize_atx_heading(line, rest) {
+      match(line, /^#+/)
+      atx_level = RLENGTH
+      if (atx_level < 1 || atx_level > 6) return 0
+
+      rest = substr(line, atx_level + 1)
+      if (rest != "" && rest !~ /^[[:blank:]]/) return 0
+      sub(/[[:blank:]]+$/, "", rest)
+      sub(/[[:blank:]]+#+$/, "", rest)
+      sub(/^[[:blank:]]+/, "", rest)
+      sub(/[[:blank:]]+$/, "", rest)
+
+      atx_canonical = substr(line, 1, atx_level)
+      if (rest != "") atx_canonical = atx_canonical " " rest
+      return 1
     }
     function fence_run(line, indent, marker, run) {
       indent = 0
@@ -145,7 +157,8 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
         next
       }
       heading_line = trim_block_indent(line)
-      if (heading_line ~ heading_re) {
+      is_atx_heading = normalize_atx_heading(heading_line)
+      if (is_atx_heading && atx_canonical ~ heading_re) {
         headings++
         if (headings > 1) exit 2
         if (mode == "heading") {
@@ -153,11 +166,10 @@ markdown_section() { # markdown_section <file> <heading-ERE> [numbered|heading]
           next
         }
         inside = 1
-        level = heading_level(heading_line)
+        level = atx_level
         next
       }
-      if (inside && heading_line ~ /^#+[[:space:]]/ &&
-          heading_level(heading_line) <= level) {
+      if (inside && is_atx_heading && atx_level <= level) {
         inside = 0
         next
       }
