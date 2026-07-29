@@ -283,7 +283,7 @@ outside_roster_table() {
 # create another reviewer authority and must not be invisible to the table parser.
 all_roster_paths() {
   grep -oE '`(workflow/)?reviewers/[^`/[:space:]]+\.md`' "$1" \
-    | sed 's#^`workflow/##; s#^`reviewers/##; s#\.md`$##' \
+    | sed 's#^`workflow/reviewers/#`reviewers/#; s#^`reviewers/##; s#\.md`$##' \
     | sort
 }
 
