@@ -189,21 +189,30 @@ failure class the constitution names as a first-class hazard (**P2**).
 
 The enforcement is deliberately layered. The CI-wired bash oracle
 (`hooks/reviewer-roster.test.sh`) owns the structural proof for these bounded authored
-surfaces. Against an independent hardcoded canonical set it parses the exact roster data
-each surface owns, rejects missing and unexpected reviewer entries without assuming a
-reviewer-name suffix, pins conditional pushes to their guards, and checks the spec/agent
-binding existence and read-only tool contract. Independent authored-shape fixtures also pin
-the complete executable adapter source (including input handling before construction and
-the reviewer lifecycle through re-dispatch), the complete §7 stage card, and each
-manual-fallback role-mapping table in full, so input rewrites, alias mutations, unformatted
-dispatch bullets, adjacent fallback rows, or plain-prose additions outside the parsed
-projections still turn the check red. Retained mutations prove those particular structural
-assertions fire. It does **not** claim that source shape alone proves executable behavior.
+surfaces. Against an independent hardcoded canonical set, dedicated projections parse the
+exact roster data each surface owns, reject missing and unexpected entries, pin conditional
+pushes to their guards, and check the spec/agent binding existence and read-only tool
+contract. Whole-document inventories additionally reject a second concrete reviewer-spec
+path in the neutral gate document and any reviewer-like agent identifier outside either
+skill's declared fallback row, including a repeated canonical name in prose. Reviewed
+fixed-SHA-256 digest ratchets pin the complete executable adapter source (including input
+handling before construction and the reviewer lifecycle through re-dispatch), the complete
+§7 stage card, the complete fallback rows, and both complete manual-fallback role-mapping
+tables. Those digests are portable change detectors, not independent correctness oracles:
+an intentional edit requires review plus an explicit digest update, which proves deliberate
+acknowledgement rather than semantic correctness.
+
+Retained mutations call the owning projection, inventory, or digest predicate directly, so
+they prove that named layer fires instead of passing merely because a composite check's
+digest conjunct noticed the edit. The parser cases cover missing, unexpected, malformed,
+wrongly conditioned, and unguarded entries; separate inventory/ratchet cases cover second
+tables, out-of-table fallback instructions, input rewrites, alias mutations, unformatted
+dispatch bullets, adjacent fallback rows, and unrelated role-table changes. The structural
+suite still does **not** claim source shape proves executable behavior.
 `workflows/gate-loop.test.js` supplies that behavioral layer by executing the adapter and
 asserting the exact runtime reviewer set for the unconditional, `dispatch-contract`, and
-`dispatch-spec` paths. Together they prove the declared roster's structural projections and
-those runtime dispatch cases; neither check is described as detecting every imaginable
-semantic disagreement.
+`dispatch-spec` paths. Together the checks prove these declared structural boundaries and
+runtime dispatch cases; they do not claim to detect every imaginable semantic disagreement.
 
 So the redundancy is load-bearing: **one source of truth + purpose-specific derived
 consumers + independent structural and behavioral checks.** Collapsing the projections

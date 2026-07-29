@@ -24,10 +24,10 @@
 #
 # Encodes issue #64 done-when AC1–AC6 (extended for the spec-quality reviewer, T703);
 # AC7 adds the adapter maps as pinned membership-only surfaces (PR #186 review):
-#   AC1 roster is exactly the canonical set (no extra rows)        → roster_ok
-#   AC2 gate-loop.js mirrors it (keys, tiers, both conditionals     → js_ok
-#       gated on their input flag)
-#   AC3 next-task.md §7 references the same paths + conditions      → prose_ok
+#   AC1 roster is exactly the canonical set and sole authority     → roster table + inventory
+#   AC2 gate-loop.js mirrors it (keys, tiers, both conditionals     → JS
+#       gated on their input flag)                                     projection + fixture
+#   AC3 next-task.md §7 references the same paths + conditions      → prose projections + fixture
 #   AC4 each roster reviewer has a workflow/reviewers/<name>.md spec → AC4 loop (all four)
 #   AC5 each ADAPTER-BOUND reviewer's agents/<name>.md exists and    → AC5 loop (all four;
 #       excludes edit tools (the spec-quality agent binding landed       each with a Claude
@@ -35,9 +35,9 @@
 #   AC6 retained drop/add/tier/condition/guard mutations FAIL       → AC6 block: temp-copy
 #       the owning structural check                                      mutations re-run each
 #                                                                         owning predicate
-#   AC7 each adapter fallback [reviewer] map (next-task and         → skill_ok /
-#       review-response SKILL.md) names every roster reviewer, so      review_response_ok
-#       neither manual fallback can omit one                            (+ AC6 mutations)
+#   AC7 each adapter fallback [reviewer] map (next-task and         → shared fallback extractor,
+#       review-response SKILL.md) names every roster reviewer, so      inventory + row/table fixtures
+#       neither manual fallback can omit or shadow one                  (+ AC6 mutations)
 #
 # Run: bash .claude/hooks/reviewer-roster.test.sh
 set -u
@@ -87,9 +87,10 @@ EXPECTED_PROSE="$(printf '%s\n' "$EXPECTED" \
   | awk -F'|' '{ print $1 "|" $3 }' \
   | sort)"
 
-# Exact authored shapes for the bounded structural surfaces. These are independent test
-# fixtures, not derived from the files they check: every code-bearing row/bullet/use must
-# match one of these complete forms, so equivalent syntax cannot hide an extra reviewer.
+# Exact authored shapes for the bounded structural surfaces. The canonical projections are
+# independent expectations; the content digests below are reviewed change-detection ratchets.
+# Every code-bearing row/bullet/use must match one of these complete forms, so equivalent
+# syntax cannot hide an extra reviewer inside an owned surface.
 EXPECTED_ROSTER_ROWS="$(printf '%s\n' \
   '| `reviewers/spec-auditor.md` (acceptance) | cheap | `always` |' \
   '| `reviewers/constitution-auditor.md` | strong | `always` |' \
@@ -123,20 +124,23 @@ EXPECTED_REVIEW_RESPONSE_SPANS="$(printf '%s\n' \
   '`spec-auditor`' \
   '`spec-quality-auditor`' | sort)"
 
-# Git blob IDs are compact, independent fixtures for the complete authored source shapes.
-# The JS fixture covers the complete executable adapter, including input normalization before
+# Fixed SHA-256 digests are compact ratchets for the complete authored source shapes. They
+# deliberately do not use Git object IDs: an adopter may initialize the repository with
+# SHA-1 or SHA-256 object format, while these content fixtures must remain identical. The JS
+# fixture covers the complete executable adapter, including input normalization before
 # canonical construction and the reviewer lifecycle after it. The row fixtures cover their
-# complete Markdown rows, including plain prose outside code spans. Any edit requires an
-# explicit fixture update after review.
-EXPECTED_JS_SOURCE_HASH='07c32b36bc88546e0935039ca91b87a4c894f8a4'
-EXPECTED_PROSE_SOURCE_HASH='2c2ab181a6bd6638f55cf946533ff9b354a5c3b6'
-EXPECTED_SKILL_ROW_HASH='4f00a8c9fa687e1876de67765abe14876facd40c'
-EXPECTED_REVIEW_RESPONSE_ROW_HASH='621b4d746ce742d738ca3a040ab4f82a13bdd5db'
-EXPECTED_SKILL_TABLE_HASH='0b3ae4ce6118727cd7ccbf34177ffa1576fa2db6'
-EXPECTED_REVIEW_RESPONSE_TABLE_HASH='e669eed2f0865804db87441f08eb3d0e5fbec9b1'
+# complete Markdown rows, including plain prose outside code spans. A digest failure prints
+# both values; review the authored-surface diff, then replace the expected value with the
+# reported actual SHA-256 only when that change is intentional.
+EXPECTED_JS_SOURCE_HASH='ce251820c1111fb71ed49582a0eacc8f42618c116abf6404aad9e0a8d7101941'
+EXPECTED_PROSE_SOURCE_HASH='5a50b42503fe67233e80b9eec8d9b51b5fd7b4793abd6013112c79d897dcdd97'
+EXPECTED_SKILL_ROW_HASH='a8d05822012875516bbb2890407f0bc5fc5f873c0acb353098b8170b09b08272'
+EXPECTED_REVIEW_RESPONSE_ROW_HASH='057dfb4bfd25baeddf175032965174a54224ddddf25a3ce1e79d8790abc27f2d'
+EXPECTED_SKILL_TABLE_HASH='326efa56f2ca1bdc8458af83ea191dd02347bb963ed21ca6c7e81efe16e837f0'
+EXPECTED_REVIEW_RESPONSE_TABLE_HASH='2266ec36fa8801b85e1fc90401623131c8bbfdce5387970f6a237ceb5b93fe5c'
 
 content_hash() {
-  git hash-object --stdin
+  python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())'
 }
 
 role_mapping_table() {
@@ -227,11 +231,29 @@ roster_rows() {
   ' "$1" | sort
 }
 
-# AC1 — gate-loop.md roster is EXACTLY the canonical set (membership + tier + condition,
-#       no extra rows).
-roster_ok() {
+# Inventory every concrete reviewer-spec path across the neutral gate document, not only
+# inside the first roster table. A second roster table or an out-of-table dispatch path would
+# create another reviewer authority and must not be invisible to the table parser.
+all_roster_paths() {
+  grep -oE '`reviewers/[^`/[:space:]]+\.md`' "$1" \
+    | sed 's#^`reviewers/##; s#\.md`$##' \
+    | sort
+}
+
+roster_table_projection_ok() {
   [ "$(parse_roster "$1")" = "$EXPECTED" ] &&
     [ "$(roster_rows "$1")" = "$EXPECTED_ROSTER_ROWS" ]
+}
+
+roster_inventory_ok() {
+  [ "$(all_roster_paths "$1")" = "$EXPECTED_KEYS" ]
+}
+
+# AC1 — gate-loop.md has one roster authority and it is EXACTLY the canonical set
+# (membership + tier + condition, with no extra reviewer path elsewhere in the document).
+roster_ok() {
+  roster_table_projection_ok "$1" &&
+    roster_inventory_ok "$1"
 }
 
 # parse_js <gate-loop.js> — emit
@@ -305,13 +327,15 @@ parse_js() {
   ' "$1" | sort
 }
 
-# AC2 — gate-loop.js is EXACTLY the canonical membership + tier + condition/guard
-# relationship, every tier uses its matching model input, and the complete executable adapter
-# remains on its reviewed authored shape. Extra, duplicate, missing, malformed, wrongly tiered,
-# unguarded, input-mutating, aliased, or post-construction reviewer mutations all change a fixture.
-js_ok() {
-  [ "$(parse_js "$1")" = "$EXPECTED_JS" ] &&
-    [ "$(git hash-object "$1")" = "$EXPECTED_JS_SOURCE_HASH" ]
+# AC2 — keep the semantic projection and the authored-source ratchet separate so retained
+# mutations prove which layer fired. The parser owns membership + tier + guard relationships;
+# the digest owns unparsed source-shape changes around input handling and reviewer lifecycle.
+js_projection_ok() {
+  [ "$(parse_js "$1")" = "$EXPECTED_JS" ]
+}
+
+js_fixture_ok() {
+  [ "$(content_hash < "$1")" = "$EXPECTED_JS_SOURCE_HASH" ]
 }
 
 # AC3 helpers — scope to §7, enumerate EVERY concrete reviewer path, and project each
@@ -402,23 +426,38 @@ prose_bullets() {
   '
 }
 
-# AC3 — §7 names exactly the canonical reviewer paths and binds each to its canonical
-# dispatch condition, while pointing at the roster for membership/tier/condition. An
-# unexpected reviewer reference anywhere in §7 changes prose_paths; an extra/missing or
-# misconditioned reviewer bullet changes parse_prose.
-prose_ok() {
+# AC3 — keep each authored projection independently falsifiable. The complete-card digest
+# catches instructions outside the structured reviewer bullets; it does not stand in for
+# proving that the path, condition, or bullet extractors remain live.
+prose_paths_ok() {
+  [ "$(prose_paths "$1")" = "$EXPECTED_KEYS" ]
+}
+
+prose_dispatch_projection_ok() {
+  [ "$(parse_prose "$1")" = "$EXPECTED_PROSE" ]
+}
+
+prose_bullets_ok() {
+  [ "$(prose_bullets "$1")" = "$EXPECTED_PROSE_BULLETS" ]
+}
+
+prose_pointers_ok() {
   local f="$1" s r=0
   s="$(section7 "$f" | tr -s '[:space:]' ' ')"
-  [ "$(prose_paths "$f")" = "$EXPECTED_KEYS" ] || r=1
-  [ "$(parse_prose "$f")" = "$EXPECTED_PROSE" ] || r=1
-  [ "$(prose_bullets "$f")" = "$EXPECTED_PROSE_BULLETS" ] || r=1
-  [ "$(git hash-object "$f")" = "$EXPECTED_PROSE_SOURCE_HASH" ] || r=1
-  # points at the roster as the source of truth
   printf '%s' "$s" | grep -qF "reviewer roster" || r=1
   printf '%s' "$s" | grep -qF "gate-loop.md" || r=1
-  printf '%s' "$s" | grep -qF "roster's \`dispatch-contract\` condition: when the change touches a provider interface, monetization, or the data model." || r=1
-  printf '%s' "$s" | grep -qF "roster's \`dispatch-spec\` condition: when the diff adds, edits, or renames a \`specs/*/spec.md\`" || r=1
   return $r
+}
+
+prose_projection_ok() {
+  prose_paths_ok "$1" &&
+    prose_dispatch_projection_ok "$1" &&
+    prose_bullets_ok "$1" &&
+    prose_pointers_ok "$1"
+}
+
+prose_fixture_ok() {
+  [ "$(content_hash < "$1")" = "$EXPECTED_PROSE_SOURCE_HASH" ]
 }
 
 # AC7 — the adapter fallback maps name every roster reviewer's agent. In either documented
@@ -429,76 +468,124 @@ prose_ok() {
 #       after the spec-quality reviewer landed (PR #186 review). These maps carry agent NAMES
 #       only; tier and condition stay single-sourced in the roster + §7, so both sites are
 #       pinned on MEMBERSHIP alone (EXPECTED_KEYS), not tier/condition.
-skill_row() {
-  awk -F'|' '
-    $2 ~ /\*\*\[reviewer\]\*\*/ {
-      map=$3
-      sub(/^[[:space:]]*the[[:space:]]+/, "", map)
-      print map
-    }
-  ' "$1"
-}
-skill_full_row() {
-  awk 'index($0, "| **[reviewer]** |") { print }' "$1"
-}
-skill_map() {
-  skill_row "$1" \
-    | sed 's/[[:space:]]*subagents.*//' \
-    | grep -oE '`[^`]+`' \
-    | tr -d '`' \
-    | sort
-}
-skill_shape_ok() {
-  case "$(skill_row "$1")" in
-    *' subagents (`.claude/agents/`), dispatched'*) return 0 ;;
-    *) return 1 ;;
+fallback_config() {
+  case "$1" in
+    next-task)
+      FALLBACK_MARKER='**[reviewer]**'
+      FALLBACK_NEEDLE='| **[reviewer]** |'
+      FALLBACK_PREFIX='^[[:space:]]*the[[:space:]]+'
+      FALLBACK_SHAPE=' subagents (`.claude/agents/`), dispatched'
+      ;;
+    review-response)
+      FALLBACK_MARKER='**[reviewer]s / [orchestrated run]**'
+      FALLBACK_NEEDLE='| **[reviewer]s / [orchestrated run]**'
+      FALLBACK_PREFIX='^.*; or the[[:space:]]+'
+      FALLBACK_SHAPE=' subagents (`.claude/agents/`) dispatched'
+      ;;
+    *)
+      return 1
+      ;;
   esac
-}
-skill_spans() {
-  skill_row "$1" | grep -oE '`[^`]+`' | sort
-}
-skill_ok() {
-  [ "$(skill_map "$1")" = "$EXPECTED_KEYS" ] &&
-    skill_shape_ok "$1" &&
-    [ "$(skill_spans "$1")" = "$EXPECTED_SKILL_SPANS" ] &&
-    [ "$(skill_full_row "$1" | content_hash)" = "$EXPECTED_SKILL_ROW_HASH" ] &&
-    [ "$(role_mapping_table "$1" | content_hash)" = "$EXPECTED_SKILL_TABLE_HASH" ]
 }
 
-review_response_full_row() {
-  awk 'index($0, "| **[reviewer]s / [orchestrated run]**") { print }' "$1"
-}
-review_response_row() {
-  awk -F'|' '
-    $2 ~ /\*\*\[reviewer\]s \/ \[orchestrated run\]\*\*/ {
+fallback_row() {
+  local file="$1" kind="$2"
+  fallback_config "$kind" || return 1
+  awk -F'|' -v marker="$FALLBACK_MARKER" -v prefix="$FALLBACK_PREFIX" '
+    index($2, marker) {
       map=$3
-      sub(/^.*; or the[[:space:]]+/, "", map)
+      sub(prefix, "", map)
       print map
     }
-  ' "$1"
+  ' "$file"
 }
-review_response_map() {
-  review_response_row "$1" \
+
+fallback_full_row() {
+  local file="$1" kind="$2"
+  fallback_config "$kind" || return 1
+  awk -v needle="$FALLBACK_NEEDLE" 'index($0, needle) { print }' "$file"
+}
+
+fallback_map() {
+  fallback_row "$1" "$2" \
     | sed 's/[[:space:]]*subagents.*//' \
     | grep -oE '`[^`]+`' \
     | tr -d '`' \
     | sort
 }
-review_response_shape_ok() {
-  case "$(review_response_row "$1")" in
-    *' subagents (`.claude/agents/`) dispatched'*) return 0 ;;
+
+fallback_shape_ok() {
+  local file="$1" kind="$2"
+  fallback_config "$kind" || return 1
+  case "$(fallback_row "$file" "$kind")" in
+    *"$FALLBACK_SHAPE"*) return 0 ;;
     *) return 1 ;;
   esac
 }
-review_response_spans() {
-  review_response_row "$1" | grep -oE '`[^`]+`' | sort
+
+fallback_spans() {
+  fallback_row "$1" "$2" | grep -oE '`[^`]+`' | sort
 }
-review_response_ok() {
-  [ "$(review_response_map "$1")" = "$EXPECTED_KEYS" ] &&
-    review_response_shape_ok "$1" &&
-    [ "$(review_response_spans "$1")" = "$EXPECTED_REVIEW_RESPONSE_SPANS" ] &&
-    [ "$(review_response_full_row "$1" | content_hash)" = "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" ] &&
-    [ "$(role_mapping_table "$1" | content_hash)" = "$EXPECTED_REVIEW_RESPONSE_TABLE_HASH" ]
+
+# Compare every reviewer-like agent identifier in the skill with those in the declared
+# fallback row. This catches a second out-of-table dispatch/skip instruction without freezing
+# unrelated skill prose. Occurrence counts are retained, so repeating a canonical reviewer
+# outside the row is visible as well as introducing a new reviewer name.
+reviewer_names() {
+  grep -oE '[a-z0-9-]+-(auditor|reviewer)' | sort
+}
+
+fallback_inventory_ok() {
+  [ "$(reviewer_names < "$1")" = "$(fallback_row "$1" "$2" | reviewer_names)" ]
+}
+
+fallback_projection_ok() {
+  [ "$(fallback_map "$1" "$2")" = "$EXPECTED_KEYS" ] &&
+    fallback_shape_ok "$1" "$2" &&
+    [ "$(fallback_spans "$1" "$2")" = "$3" ]
+}
+
+fallback_row_fixture_ok() {
+  [ "$(fallback_full_row "$1" "$2" | content_hash)" = "$3" ]
+}
+
+fallback_table_fixture_ok() {
+  [ "$(role_mapping_table "$1" | content_hash)" = "$2" ]
+}
+
+skill_map() { fallback_map "$1" next-task; }
+review_response_map() { fallback_map "$1" review-response; }
+skill_projection_ok() {
+  fallback_projection_ok "$1" next-task "$EXPECTED_SKILL_SPANS"
+}
+review_response_projection_ok() {
+  fallback_projection_ok "$1" review-response "$EXPECTED_REVIEW_RESPONSE_SPANS"
+}
+skill_inventory_ok() { fallback_inventory_ok "$1" next-task; }
+review_response_inventory_ok() { fallback_inventory_ok "$1" review-response; }
+fallback_row_fixture_ok_next_task() {
+  fallback_row_fixture_ok "$1" next-task "$EXPECTED_SKILL_ROW_HASH"
+}
+fallback_row_fixture_ok_review_response() {
+  fallback_row_fixture_ok "$1" review-response "$EXPECTED_REVIEW_RESPONSE_ROW_HASH"
+}
+fallback_table_fixture_ok_next_task() {
+  fallback_table_fixture_ok "$1" "$EXPECTED_SKILL_TABLE_HASH"
+}
+fallback_table_fixture_ok_review_response() {
+  fallback_table_fixture_ok "$1" "$EXPECTED_REVIEW_RESPONSE_TABLE_HASH"
+}
+
+check_digest() { # check_digest <label> <surface> <expected> <actual>
+  if [ "$3" = "$4" ]; then
+    ok
+  else
+    bad "$1: $2 changed
+     expected SHA-256: $3
+     actual SHA-256:   $4
+     review that authored-surface diff, then replace its EXPECTED_*_HASH value with the
+     reported actual digest only when the change is intentional"
+  fi
 }
 
 # ── Run the structural surface checks against the live tree ─────────────────────────
@@ -507,22 +594,30 @@ roster_ok "$GL" \
   || bad "AC1 roster: gate-loop.md roster is not exactly the canonical set
      expected:
 $(printf '%s\n' "$EXPECTED" | sed 's/^/       /')
-     got:
-$(parse_roster "$GL" | sed 's/^/       /')"
+     got table:
+$(parse_roster "$GL" | sed 's/^/       /')
+     all reviewer paths:
+$(all_roster_paths "$GL" | sed 's/^/       /')"
 
-js_ok "$JS" \
+js_projection_ok "$JS" \
   && ok \
-  || bad "AC2 js: gate-loop.js reviewers array/push does not mirror the roster
+  || bad "AC2 js projection: gate-loop.js reviewers array/push does not mirror the roster
      (expected spec=cheap, constitution=strong, contract=cheap gated on dispatchContract,
      spec-quality=strong gated on dispatchSpec)"
 
-prose_ok "$NT" \
+check_digest "AC2 js fixture" "complete gate-loop.js source" \
+  "$EXPECTED_JS_SOURCE_HASH" "$(content_hash < "$JS")"
+
+prose_projection_ok "$NT" \
   && ok \
-  || bad "AC3 prose: next-task.md §7 step 2 does not reference the roster's four specs
+  || bad "AC3 prose projection: next-task.md §7 step 2 does not reference the roster's four specs
      with conditions always / always / contract-conditional / spec-conditional, or omits
      the roster pointer"
 
-skill_ok "$SK" \
+check_digest "AC3 prose fixture" "complete §7 stage card" \
+  "$EXPECTED_PROSE_SOURCE_HASH" "$(content_hash < "$NT")"
+
+skill_projection_ok "$SK" \
   && ok \
   || bad "AC7 skill-map: next-task SKILL.md [reviewer] map does not name exactly the roster
      reviewers (a reviewer would silently drop off the manual-fallback dispatch)
@@ -531,7 +626,19 @@ $(printf '%s\n' "$EXPECTED_KEYS" | sed 's/^/       /')
      got:
 $(skill_map "$SK" | sed 's/^/       /')"
 
-review_response_ok "$RR" \
+skill_inventory_ok "$SK" \
+  && ok \
+  || bad "AC7 skill inventory: next-task SKILL.md contains a reviewer-like agent identifier
+     outside its declared [reviewer] fallback row"
+
+check_digest "AC7 skill row fixture" "next-task [reviewer] row" \
+  "$EXPECTED_SKILL_ROW_HASH" \
+  "$(fallback_full_row "$SK" next-task | content_hash)"
+check_digest "AC7 skill table fixture" "next-task Neutral role table" \
+  "$EXPECTED_SKILL_TABLE_HASH" \
+  "$(role_mapping_table "$SK" | content_hash)"
+
+review_response_projection_ok "$RR" \
   && ok \
   || bad "AC7 review-response-map: review-response SKILL.md fallback map does not name
      exactly the roster reviewers (a reviewer would silently drop off its §7 re-gate)
@@ -539,6 +646,18 @@ review_response_ok "$RR" \
 $(printf '%s\n' "$EXPECTED_KEYS" | sed 's/^/       /')
      got:
 $(review_response_map "$RR" | sed 's/^/       /')"
+
+review_response_inventory_ok "$RR" \
+  && ok \
+  || bad "AC7 review-response inventory: review-response SKILL.md contains a reviewer-like
+     agent identifier outside its declared re-gate fallback row"
+
+check_digest "AC7 review-response row fixture" "review-response re-gate row" \
+  "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" \
+  "$(fallback_full_row "$RR" review-response | content_hash)"
+check_digest "AC7 review-response table fixture" "review-response Neutral role table" \
+  "$EXPECTED_REVIEW_RESPONSE_TABLE_HASH" \
+  "$(role_mapping_table "$RR" | content_hash)"
 
 # AC4 — every canonical reviewer has a workflow/reviewers/<name>.md spec. The spec-quality
 #       reviewer's spec landed in T701, so it is checked here alongside the original three.
@@ -561,7 +680,7 @@ done
 #       gate-loop.test.js). The spec-quality reviewer's Claude agent binding landed in T706
 #       (US2.AC5), so all four roster reviewers ship a no-edit, no-shell agent file. (Its
 #       gate-loop.js dispatch is gated on dispatchSpec; the conditional push and the strong tier
-#       are proven by js_ok + gate-loop.test.js.)
+#       are proven by js_projection_ok + gate-loop.test.js.)
 #
 # Predicate — an agent file's `tools:` line grants EXACTLY the read-only set {Read, Grep, Glob}.
 # An ALLOWLIST, not a denylist (PR #200 review): the invariant is "Read/Grep/Glob only", so the
@@ -608,7 +727,7 @@ mut_fail() { # mut_fail <name> <check-fn> <mutated-file>
 
 # Roster site (gate-loop.md) — drop a reviewer.
 grep -vF 'reviewers/contract-auditor.md' "$GL" > "$TMP/gl-drop.md"
-mut_fail "roster drop-reviewer" roster_ok "$TMP/gl-drop.md"
+mut_fail "roster parser drop-reviewer" roster_table_projection_ok "$TMP/gl-drop.md"
 
 # Roster site — add an unlisted reviewer whose name does not follow the current
 # `*-auditor` convention and contains a digit. Exactness must not depend on an
@@ -621,41 +740,62 @@ awk '
   }
   { print }
 ' "$GL" > "$TMP/gl-add-unlisted.md"
-mut_fail "roster add-unlisted-reviewer" roster_ok "$TMP/gl-add-unlisted.md"
+mut_fail "roster parser add-unlisted-reviewer" roster_table_projection_ok "$TMP/gl-add-unlisted.md"
 
 # Roster site — flip a tier (spec cheap → strong).
 sed '/reviewers\/spec-auditor\.md/ s/| cheap |/| strong |/' "$GL" > "$TMP/gl-tier.md"
-mut_fail "roster flip-tier" roster_ok "$TMP/gl-tier.md"
+mut_fail "roster parser flip-tier" roster_table_projection_ok "$TMP/gl-tier.md"
 
 # Roster site — flip a condition (contract dispatch-contract → always).
 sed '/reviewers\/contract-auditor\.md/ s/dispatch-contract/always/' "$GL" > "$TMP/gl-cond.md"
-mut_fail "roster flip-condition" roster_ok "$TMP/gl-cond.md"
+mut_fail "roster parser flip-condition" roster_table_projection_ok "$TMP/gl-cond.md"
 
 # Roster site — malformed digit-bearing tier/condition cells must not normalize back to
 # their canonical values. Only Markdown formatting is stripped from the source cells.
 sed '/reviewers\/spec-auditor\.md/ s/| cheap |/| che2ap |/' \
   "$GL" > "$TMP/gl-malformed-tier.md"
-mut_fail "roster malformed-tier" roster_ok "$TMP/gl-malformed-tier.md"
+mut_fail "roster parser malformed-tier" roster_table_projection_ok "$TMP/gl-malformed-tier.md"
 
 sed '/reviewers\/contract-auditor\.md/ s/dispatch-contract/dispatch2-contract/' \
   "$GL" > "$TMP/gl-malformed-condition.md"
-mut_fail "roster malformed-condition" roster_ok "$TMP/gl-malformed-condition.md"
+mut_fail "roster parser malformed-condition" roster_table_projection_ok "$TMP/gl-malformed-condition.md"
 
 # Roster site — the reviewer spec must be the complete code-span path, not a canonical
 # substring inside a wrong directory name.
 sed 's#`reviewers/spec-auditor.md`#`not-reviewers/spec-auditor.md`#' \
   "$GL" > "$TMP/gl-wrong-path.md"
-mut_fail "roster wrong-path-prefix" roster_ok "$TMP/gl-wrong-path.md"
+mut_fail "roster parser wrong-path-prefix" roster_table_projection_ok "$TMP/gl-wrong-path.md"
 
 # Roster site — a second reviewer path hidden in the acceptance label's parenthetical
 # is still an unexpected reviewer-bearing code span, even though the first path is valid.
 sed 's#`reviewers/spec-auditor.md` (acceptance)#`reviewers/spec-auditor.md` (acceptance; `reviewers/security2-reviewer.md`)#' \
   "$GL" > "$TMP/gl-add-parenthetical-path.md"
-mut_fail "roster add-parenthetical-reviewer-path" roster_ok "$TMP/gl-add-parenthetical-path.md"
+mut_fail "roster parser add-parenthetical-reviewer-path" roster_table_projection_ok "$TMP/gl-add-parenthetical-path.md"
+
+# Neutral-document inventory — a second table or an out-of-table reviewer path must not
+# create another dispatch authority beyond the canonical roster.
+awk '
+  { print }
+  END {
+    print ""
+    print "| Reviewer spec | Tier | Dispatch condition |"
+    print "|---|---|---|"
+    print "| `reviewers/security2-reviewer.md` | cheap | `always` |"
+  }
+' "$GL" > "$TMP/gl-second-roster.md"
+mut_fail "roster inventory second-table-reviewer" roster_inventory_ok "$TMP/gl-second-roster.md"
+
+awk '
+  { print }
+  END {
+    print "Also dispatch `reviewers/security2-reviewer.md` every round."
+  }
+' "$GL" > "$TMP/gl-outside-reviewer.md"
+mut_fail "roster inventory out-of-table-reviewer" roster_inventory_ok "$TMP/gl-outside-reviewer.md"
 
 # JS site (gate-loop.js) — drop the gated contract push.
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
-mut_fail "js drop-reviewer" js_ok "$TMP/js-drop.js"
+mut_fail "js parser drop-reviewer" js_projection_ok "$TMP/js-drop.js"
 
 # JS site — add an unlisted reviewer to the unconditional array.
 awk '
@@ -666,7 +806,7 @@ awk '
   }
   { print }
 ' "$JS" > "$TMP/js-add-unlisted.js"
-mut_fail "js add-unlisted-reviewer" js_ok "$TMP/js-add-unlisted.js"
+mut_fail "js parser add-unlisted-reviewer" js_projection_ok "$TMP/js-add-unlisted.js"
 
 # JS site — add an opaque spread entry to the unconditional array. The structural
 # parser must reject an entry it cannot inventory, not silently accept the alias.
@@ -678,7 +818,7 @@ awk '
   }
   { print }
 ' "$JS" > "$TMP/js-add-spread.js"
-mut_fail "js add-opaque-spread" js_ok "$TMP/js-add-spread.js"
+mut_fail "js parser add-opaque-spread" js_projection_ok "$TMP/js-add-spread.js"
 
 # JS site — add an unlisted reviewer after verdict storage is declared but before the
 # roster is consumed. The inventory must remain open through `let pending = reviewers`.
@@ -688,7 +828,7 @@ awk '
   }
   { print }
 ' "$JS" > "$TMP/js-add-late-reviewer.js"
-mut_fail "js add-late-reviewer" js_ok "$TMP/js-add-late-reviewer.js"
+mut_fail "js parser add-late-reviewer" js_projection_ok "$TMP/js-add-late-reviewer.js"
 
 # JS site — a task-specific pre-construction input rewrite can change the effective
 # condition while leaving the canonical guards untouched. The complete-source fixture
@@ -699,7 +839,7 @@ awk '
   }
   { print }
 ' "$JS" > "$TMP/js-rewrite-condition-input.js"
-mut_fail "js rewrite-condition-input-before-construction" js_ok "$TMP/js-rewrite-condition-input.js"
+mut_fail "js fixture rewrite-condition-input-before-construction" js_fixture_ok "$TMP/js-rewrite-condition-input.js"
 
 # JS site — `pending` aliases the mutable reviewer array. A task-specific push after that
 # assignment must remain visible even when fixed runtime test inputs do not enter its branch.
@@ -711,7 +851,7 @@ awk '
     print "}"
   }
 ' "$JS" > "$TMP/js-add-post-consumption-reviewer.js"
-mut_fail "js add-post-consumption-reviewer" js_ok "$TMP/js-add-post-consumption-reviewer.js"
+mut_fail "js fixture add-post-consumption-reviewer" js_fixture_ok "$TMP/js-add-post-consumption-reviewer.js"
 
 # JS site — equivalent alias/mutation syntax remains closed: parenthesizing the alias,
 # bracket-selecting a mutator, or compressing a reassignment onto one line cannot evade
@@ -723,7 +863,7 @@ awk '
     print "rosterAlias.push({ key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' });"
   }
 ' "$JS" > "$TMP/js-parenthesized-alias.js"
-mut_fail "js parenthesized-post-consumption-alias" js_ok "$TMP/js-parenthesized-alias.js"
+mut_fail "js fixture parenthesized-post-consumption-alias" js_fixture_ok "$TMP/js-parenthesized-alias.js"
 
 awk '
   { print }
@@ -731,7 +871,7 @@ awk '
     print "pending['\''push'\'']({ key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' });"
   }
 ' "$JS" > "$TMP/js-bracket-push.js"
-mut_fail "js bracket-push-post-consumption" js_ok "$TMP/js-bracket-push.js"
+mut_fail "js fixture bracket-push-post-consumption" js_fixture_ok "$TMP/js-bracket-push.js"
 
 awk '
   { print }
@@ -739,7 +879,7 @@ awk '
     print "if (input.taskId === '\''UNTESTED'\'') pending = [...pending, { key: '\''security2-reviewer'\'', model: input.cheapModel, tier: '\''cheap'\'' }];"
   }
 ' "$JS" > "$TMP/js-one-line-reassignment.js"
-mut_fail "js one-line-post-consumption-reassignment" js_ok "$TMP/js-one-line-reassignment.js"
+mut_fail "js fixture one-line-post-consumption-reassignment" js_fixture_ok "$TMP/js-one-line-reassignment.js"
 
 # JS site — `failing` is the next-round roster, and callback `r` values are reviewer
 # objects. Mutating either path changes reviewer membership even without naming pending
@@ -752,7 +892,7 @@ awk '
     print "  }"
   }
 ' "$JS" > "$TMP/js-mutate-failing.js"
-mut_fail "js mutate-next-round-failing-roster" js_ok "$TMP/js-mutate-failing.js"
+mut_fail "js fixture mutate-next-round-failing-roster" js_fixture_ok "$TMP/js-mutate-failing.js"
 
 awk '
   { print }
@@ -761,7 +901,7 @@ awk '
     inserted=1
   }
 ' "$JS" > "$TMP/js-mutate-callback-reviewer.js"
-mut_fail "js mutate-callback-reviewer-key" js_ok "$TMP/js-mutate-callback-reviewer.js"
+mut_fail "js fixture mutate-callback-reviewer-key" js_fixture_ok "$TMP/js-mutate-callback-reviewer.js"
 
 # JS site — direct reconstruction and indexed writes through the `pending` alias must fail
 # closed too; neither depends on a named mutating method.
@@ -773,7 +913,7 @@ awk '
     print "}"
   }
 ' "$JS" > "$TMP/js-reassign-post-consumption.js"
-mut_fail "js reassign-post-consumption-reviewers" js_ok "$TMP/js-reassign-post-consumption.js"
+mut_fail "js fixture reassign-post-consumption-reviewers" js_fixture_ok "$TMP/js-reassign-post-consumption.js"
 
 awk '
   { print }
@@ -783,15 +923,15 @@ awk '
     print "}"
   }
 ' "$JS" > "$TMP/js-index-post-consumption.js"
-mut_fail "js index-post-consumption-reviewers" js_ok "$TMP/js-index-post-consumption.js"
+mut_fail "js fixture index-post-consumption-reviewers" js_fixture_ok "$TMP/js-index-post-consumption.js"
 
 # JS site — flip a tier (spec cheap → strong).
 sed "s/key: 'spec-auditor', model: input.cheapModel, tier: 'cheap'/key: 'spec-auditor', model: input.cheapModel, tier: 'strong'/" "$JS" > "$TMP/js-tier.js"
-mut_fail "js flip-tier" js_ok "$TMP/js-tier.js"
+mut_fail "js parser flip-tier" js_projection_ok "$TMP/js-tier.js"
 
 # Prose site (next-task.md) — drop a reviewer reference.
 grep -vF 'reviewers/spec-auditor.md' "$NT" > "$TMP/nt-drop.md"
-mut_fail "prose drop-reviewer" prose_ok "$TMP/nt-drop.md"
+mut_fail "prose path parser drop-reviewer" prose_paths_ok "$TMP/nt-drop.md"
 
 # Prose site — add an unlisted always-dispatched reviewer bullet.
 awk '
@@ -800,7 +940,7 @@ awk '
   }
   { print }
 ' "$NT" > "$TMP/nt-add-unlisted.md"
-mut_fail "prose add-unlisted-reviewer" prose_ok "$TMP/nt-add-unlisted.md"
+mut_fail "prose dispatch parser add-unlisted-reviewer" prose_dispatch_projection_ok "$TMP/nt-add-unlisted.md"
 
 # Prose site — an unexpected dispatch instruction written as an unformatted bullet has
 # no canonical path token for the projection parser to inventory. The complete stage-card
@@ -811,54 +951,54 @@ awk '
   }
   { print }
 ' "$NT" > "$TMP/nt-add-plain-dispatch-bullet.md"
-mut_fail "prose add-plain-dispatch-bullet" prose_ok "$TMP/nt-add-plain-dispatch-bullet.md"
+mut_fail "prose fixture add-plain-dispatch-bullet" prose_fixture_ok "$TMP/nt-add-plain-dispatch-bullet.md"
 
 # Prose site — reject a canonical reviewer basename embedded in a wrong path prefix and
 # any extra dispatch-* condition token alongside the canonical condition.
 sed 's#workflow/reviewers/spec-auditor.md#workflow/not-reviewers/spec-auditor.md#' \
   "$NT" > "$TMP/nt-wrong-path.md"
-mut_fail "prose wrong-path-prefix" prose_ok "$TMP/nt-wrong-path.md"
+mut_fail "prose path parser wrong-path-prefix" prose_paths_ok "$TMP/nt-wrong-path.md"
 
 sed '/roster'\''s `dispatch-contract` condition:/ s/condition:/condition plus `dispatch-security`:/' \
   "$NT" > "$TMP/nt-add-condition.md"
-mut_fail "prose add-unlisted-condition" prose_ok "$TMP/nt-add-condition.md"
+mut_fail "prose dispatch parser add-unlisted-condition" prose_dispatch_projection_ok "$TMP/nt-add-condition.md"
 
 # Prose site — exact bullet text also rejects semantic condition drift written as
 # ordinary prose rather than a dispatch-* code token.
 sed '/monetization, or the data model\./ s/$/ The dispatch-security condition also applies./' \
   "$NT" > "$TMP/nt-add-plain-condition.md"
-mut_fail "prose add-plain-condition" prose_ok "$TMP/nt-add-plain-condition.md"
+mut_fail "prose bullet fixture add-plain-condition" prose_bullets_ok "$TMP/nt-add-plain-condition.md"
 
 # ── The spec-quality reviewer (T703) is pinned on each structural projection it appears in:
 #    dropping its row/push/reference must trip that projection's check. ──
 
 # Roster site — drop the spec-quality row.
 grep -vF 'reviewers/spec-quality-auditor.md' "$GL" > "$TMP/gl-drop-sq.md"
-mut_fail "roster drop-spec-quality" roster_ok "$TMP/gl-drop-sq.md"
+mut_fail "roster parser drop-spec-quality" roster_table_projection_ok "$TMP/gl-drop-sq.md"
 
 # JS site — drop the gated spec-quality push.
 grep -vF "reviewers.push({ key: 'spec-quality-auditor'" "$JS" > "$TMP/js-drop-sq.js"
-mut_fail "js drop-spec-quality" js_ok "$TMP/js-drop-sq.js"
+mut_fail "js parser drop-spec-quality" js_projection_ok "$TMP/js-drop-sq.js"
 
 # Prose site — drop the spec-quality reviewer reference.
 grep -vF 'reviewers/spec-quality-auditor.md' "$NT" > "$TMP/nt-drop-sq.md"
-mut_fail "prose drop-spec-quality" prose_ok "$TMP/nt-drop-sq.md"
+mut_fail "prose path parser drop-spec-quality" prose_paths_ok "$TMP/nt-drop-sq.md"
 
 # Skill-map site (next-task SKILL.md) — drop the spec-quality agent from the [reviewer]
 # map (the exact PR #186 drift: the map listed only the original three). Removing the name
-# leaves the map enumerating three reviewers, so skill_ok must trip.
+# leaves the map enumerating three reviewers, so the shared fallback projection must trip.
 sed 's/spec-quality-auditor//g' "$SK" > "$TMP/sk-drop-sq.md"
-mut_fail "skill drop-spec-quality" skill_ok "$TMP/sk-drop-sq.md"
+mut_fail "skill parser drop-spec-quality" skill_projection_ok "$TMP/sk-drop-sq.md"
 
 # Skill-map site — add an unlisted, digit-bearing fallback agent outside the unenforced
 # `*-auditor` convention. Membership-only exactness must reject it too.
 sed 's#`spec-auditor` /#`spec-auditor` / `security2-reviewer` /#' \
   "$SK" > "$TMP/sk-add-unlisted.md"
-mut_fail "skill add-unlisted-reviewer" skill_ok "$TMP/sk-add-unlisted.md"
+mut_fail "skill parser add-unlisted-reviewer" skill_projection_ok "$TMP/sk-add-unlisted.md"
 
 sed 's#subagents (`.claude/agents/`)#subagents plus `security2-reviewer` (`.claude/agents/`)#' \
   "$SK" > "$TMP/sk-add-after-subagents.md"
-mut_fail "skill add-reviewer-after-subagents" skill_ok "$TMP/sk-add-after-subagents.md"
+mut_fail "skill parser add-reviewer-after-subagents" skill_projection_ok "$TMP/sk-add-after-subagents.md"
 
 awk '
   index($0, "| **[reviewer]** |") {
@@ -868,11 +1008,12 @@ awk '
   }
   { print }
 ' "$SK" > "$TMP/sk-add-row-tail.md"
-mut_fail "skill add-reviewer-at-row-tail" skill_ok "$TMP/sk-add-row-tail.md"
+mut_fail "skill parser add-reviewer-at-row-tail" skill_projection_ok "$TMP/sk-add-row-tail.md"
 
 sed 's/dispatched via the Agent tool/dispatched with security2-reviewer via the Agent tool/' \
   "$SK" > "$TMP/sk-add-plain-reviewer.md"
-mut_fail "skill add-plain-reviewer" skill_ok "$TMP/sk-add-plain-reviewer.md"
+mut_fail "skill row fixture add-plain-reviewer" \
+  "fallback_row_fixture_ok_next_task" "$TMP/sk-add-plain-reviewer.md"
 
 awk '
   { print }
@@ -880,21 +1021,42 @@ awk '
     print "| *(continued)* | When Workflow is unavailable, also dispatch security2-reviewer |"
   }
 ' "$SK" > "$TMP/sk-add-continuation-row.md"
-mut_fail "skill add-reviewer-continuation-row" skill_ok "$TMP/sk-add-continuation-row.md"
+mut_fail "skill inventory add-reviewer-continuation-row" skill_inventory_ok "$TMP/sk-add-continuation-row.md"
+
+# An out-of-table instruction is a second mapping authority even though the declared row
+# remains unchanged.
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, also dispatch the `security2-reviewer` subagent at §7."
+  }
+' "$SK" > "$TMP/sk-add-outside-dispatch.md"
+mut_fail "skill inventory add-outside-dispatch" skill_inventory_ok "$TMP/sk-add-outside-dispatch.md"
+
+# The table fixture has its own falsification: a non-reviewer row wording change should
+# trip the table digest, not masquerade as reviewer-membership drift.
+awk '
+  index($0, "| **[headless run]** |") {
+    sub(/[[:space:]]*\|[[:space:]]*$/, " (fixture mutation) |")
+  }
+  { print }
+' "$SK" > "$TMP/sk-change-non-reviewer-row.md"
+mut_fail "skill table fixture change-non-reviewer-row" \
+  fallback_table_fixture_ok_next_task "$TMP/sk-change-non-reviewer-row.md"
 
 # review-response fallback map — both omission and a digit-bearing unexpected reviewer
 # must fail exact membership just as they do in the primary next-task fallback map.
 sed 's# / `spec-quality-auditor` subagents# subagents#' \
   "$RR" > "$TMP/rr-drop-sq.md"
-mut_fail "review-response drop-spec-quality" review_response_ok "$TMP/rr-drop-sq.md"
+mut_fail "review-response parser drop-spec-quality" review_response_projection_ok "$TMP/rr-drop-sq.md"
 
 sed 's#`spec-quality-auditor` subagents#`spec-quality-auditor` / `security2-reviewer` subagents#' \
   "$RR" > "$TMP/rr-add-unlisted.md"
-mut_fail "review-response add-unlisted-reviewer" review_response_ok "$TMP/rr-add-unlisted.md"
+mut_fail "review-response parser add-unlisted-reviewer" review_response_projection_ok "$TMP/rr-add-unlisted.md"
 
 sed 's#subagents (`.claude/agents/`)#subagents plus `security2-reviewer` (`.claude/agents/`)#' \
   "$RR" > "$TMP/rr-add-after-subagents.md"
-mut_fail "review-response add-reviewer-after-subagents" review_response_ok "$TMP/rr-add-after-subagents.md"
+mut_fail "review-response parser add-reviewer-after-subagents" review_response_projection_ok "$TMP/rr-add-after-subagents.md"
 
 awk '
   index($0, "| **[reviewer]s / [orchestrated run]**") {
@@ -904,11 +1066,12 @@ awk '
   }
   { print }
 ' "$RR" > "$TMP/rr-add-row-tail.md"
-mut_fail "review-response add-reviewer-at-row-tail" review_response_ok "$TMP/rr-add-row-tail.md"
+mut_fail "review-response parser add-reviewer-at-row-tail" review_response_projection_ok "$TMP/rr-add-row-tail.md"
 
 sed 's/) dispatched via the Agent tool/) dispatched with security2-reviewer via the Agent tool/' \
   "$RR" > "$TMP/rr-add-plain-reviewer.md"
-mut_fail "review-response add-plain-reviewer" review_response_ok "$TMP/rr-add-plain-reviewer.md"
+mut_fail "review-response row fixture add-plain-reviewer" \
+  "fallback_row_fixture_ok_review_response" "$TMP/rr-add-plain-reviewer.md"
 
 awk '
   { print }
@@ -916,25 +1079,43 @@ awk '
     print "| *(continued)* | When Workflow is unavailable, also dispatch security2-reviewer |"
   }
 ' "$RR" > "$TMP/rr-add-continuation-row.md"
-mut_fail "review-response add-reviewer-continuation-row" review_response_ok "$TMP/rr-add-continuation-row.md"
+mut_fail "review-response inventory add-reviewer-continuation-row" \
+  review_response_inventory_ok "$TMP/rr-add-continuation-row.md"
+
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, also dispatch the `security2-reviewer` subagent at §7."
+  }
+' "$RR" > "$TMP/rr-add-outside-dispatch.md"
+mut_fail "review-response inventory add-outside-dispatch" \
+  review_response_inventory_ok "$TMP/rr-add-outside-dispatch.md"
+
+awk '
+  index($0, "| **[headless run]** |") {
+    sub(/[[:space:]]*\|[[:space:]]*$/, " (fixture mutation) |")
+  }
+  { print }
+' "$RR" > "$TMP/rr-change-non-reviewer-row.md"
+mut_fail "review-response table fixture change-non-reviewer-row" \
+  fallback_table_fixture_ok_review_response "$TMP/rr-change-non-reviewer-row.md"
 
 # ── A gated push must stay STRUCTURALLY under its `if (input.dispatchX)` guard, not merely
 #    appear somewhere in the file. Lifting one out makes its reviewer unconditional — a diff
 #    touching no contract/spec would still dispatch it, breaking US2.AC2. Each mutation swaps
 #    a guard line with the push beneath it (the push now runs unconditionally); BOTH the push
 #    string and the `if (input.dispatchX)` string survive, so every "appears somewhere" check
-#    stays green and ONLY js_ok's immediate-adjacency check trips (Codex P2, PR #151 — CI must
-#    catch a reviewer becoming unconditional, not just being dropped). ──
+#    stays green and the exact JS projection must report the guard relationship as unguarded. ──
 
 # JS site — lift the contract push out from under its guard (swap guard ↔ push).
 awk '/if \(input\.dispatchContract\)/ { g=$0; getline b; print b; print g; next } { print }' \
   "$JS" > "$TMP/js-ungate-contract.js"
-mut_fail "js ungate-contract" js_ok "$TMP/js-ungate-contract.js"
+mut_fail "js parser ungate-contract" js_projection_ok "$TMP/js-ungate-contract.js"
 
 # JS site — lift the spec-quality push out from under its guard (swap guard ↔ push).
 awk '/if \(input\.dispatchSpec\)/ { g=$0; getline b; print b; print g; next } { print }' \
   "$JS" > "$TMP/js-ungate-sq.js"
-mut_fail "js ungate-spec-quality" js_ok "$TMP/js-ungate-sq.js"
+mut_fail "js parser ungate-spec-quality" js_projection_ok "$TMP/js-ungate-sq.js"
 
 # ── AC6 extension — the reviewer-binding read-only site (#188). Drift here = a reviewer binding
 #    that re-grants a write-capable tool. The whole point of Option 2 is that a reviewer holds no
