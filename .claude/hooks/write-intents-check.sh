@@ -299,7 +299,13 @@ if [ "$contract_section_status" -eq 2 ]; then
 elif [ "$contract_section_status" -ne 0 ]; then
   fail "could not parse the write-intent contract section in '$CONTRACT'"
 fi
-family="$(printf '%s\n' "$contract_section" | grep -oE '^ {0,3}\|[[:blank:]]*\*\*\[[a-z][a-z-]* output\]\*\*' | grep -oE '\[[a-z][a-z-]* output\]' | sort -u)"
+contract_roles="$(printf '%s\n' "$contract_section" | grep -oE '^ {0,3}\|[[:blank:]]*\*\*\[[a-z][a-z-]* output\]\*\*' | grep -oE '\[[a-z][a-z-]* output\]')" || contract_roles=""
+duplicate_contract_roles="$(printf '%s\n' "$contract_roles" | sort | uniq -d)"
+while IFS= read -r role; do
+  [ -n "$role" ] || continue
+  fail "duplicate contract rows for '$role' in '$CONTRACT' (repair: keep exactly one definition per family role)"
+done <<< "$duplicate_contract_roles"
+family="$(printf '%s\n' "$contract_roles" | sort -u)"
 if [ -z "$family" ]; then
   fail "contract surface '$CONTRACT' defines no write-intent role rows — the closed family is empty or unparseable (repair: restore the \"Write intents (safe outputs)\" table)"
 fi

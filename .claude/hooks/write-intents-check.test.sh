@@ -176,6 +176,22 @@ expect_msg "planted (a): diagnostic names the uncovered family role" \
   "[update-pr output]" "${FIX[@]}" \
   WIC_CONTRACT="$TMP/contract-undeclared-role.md"
 
+# Contract roles are declarations, not a set assembled from possibly conflicting
+# rows. Each family role must have exactly one inputs/outputs/constraints definition.
+cat > "$TMP/contract-duplicate-role.md" <<'EOF'
+### Write intents (safe outputs)
+| Intent role | Inputs | Outputs | Constraints |
+|------|--------|---------|-------------|
+| **[create-issue output]** | title | issue | first policy |
+| **[create-issue output]** | payload | ticket | conflicting policy |
+| **[add-pr-comment output]** | body | comment | policy |
+EOF
+expect 1 "planted (a): duplicate contract role rows FAIL" \
+  "${FIX[@]}" WIC_CONTRACT="$TMP/contract-duplicate-role.md"
+expect_msg "planted (a): duplicate contract diagnostic names role" \
+  "duplicate contract rows for '[create-issue output]'" \
+  "${FIX[@]}" WIC_CONTRACT="$TMP/contract-duplicate-role.md"
+
 # Live GFM table rows may use up to three leading spaces and omit padding
 # around cell delimiters; the contract parser must still see the family role.
 cat > "$TMP/contract-indented-tight-role.md" <<'EOF'
