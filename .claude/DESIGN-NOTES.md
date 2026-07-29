@@ -203,9 +203,11 @@ mechanisms (`subagent` and `Agent tool`) to that table, without assuming an agen
 while a name inventory also catches repeated canonical reviewer names in prose. Reviewed
 fixed-SHA-256 digest ratchets pin those dispatch-line projections, the complete executable
 adapter source (including input handling before construction and the reviewer lifecycle
-through re-dispatch), the complete §7 stage card, the complete fallback rows, and both
-complete manual-fallback role-mapping tables. Those digests are portable change detectors,
-not independent correctness oracles:
+through re-dispatch), the complete neutral gate document, the complete §7 stage card, both
+complete fallback skill sources, their fallback rows, and their manual-fallback role-mapping
+tables. The complete-source ratchets close alternate-verb prose that no honest semantic grep
+can classify exhaustively. Those digests are portable change detectors, not independent
+correctness oracles:
 an intentional edit requires review plus an explicit digest update, which proves deliberate
 acknowledgement rather than semantic correctness.
 
