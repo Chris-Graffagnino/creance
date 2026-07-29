@@ -158,6 +158,24 @@ role_mapping_table() {
   ' "$1"
 }
 
+# Emit everything except the adapter's bounded role-mapping table. That table is pinned by
+# its own complete SHA-256 fixture; fallback-dispatch authority anywhere else is forbidden.
+outside_role_mapping_table() {
+  awk '
+    /^\| Neutral role/ {
+      in_table=1
+      next
+    }
+    in_table && /^\|/ {
+      next
+    }
+    in_table {
+      in_table=0
+    }
+    { print }
+  ' "$1"
+}
+
 ok()   { pass=$((pass + 1)); }
 bad() { # bad <message>
   fail=$((fail + 1))
@@ -235,8 +253,8 @@ roster_rows() {
 # inside the first roster table. A second roster table or an out-of-table dispatch path would
 # create another reviewer authority and must not be invisible to the table parser.
 all_roster_paths() {
-  grep -oE '`reviewers/[^`/[:space:]]+\.md`' "$1" \
-    | sed 's#^`reviewers/##; s#\.md`$##' \
+  grep -oE '`(workflow/)?reviewers/[^`/[:space:]]+\.md`' "$1" \
+    | sed 's#^`workflow/##; s#^`reviewers/##; s#\.md`$##' \
     | sort
 }
 
@@ -527,16 +545,25 @@ fallback_spans() {
   fallback_row "$1" "$2" | grep -oE '`[^`]+`' | sort
 }
 
-# Compare every reviewer-like agent identifier in the skill with those in the declared
-# fallback row. This catches a second out-of-table dispatch/skip instruction without freezing
-# unrelated skill prose. Occurrence counts are retained, so repeating a canonical reviewer
-# outside the row is visible as well as introducing a new reviewer name.
+# Compare every canonical reviewer-like identifier in the skill with those in the declared
+# fallback row. Occurrence counts are retained, so repeating a canonical reviewer outside
+# the row is visible as well as introducing a conventionally named reviewer.
 reviewer_names() {
   grep -oE '[a-z0-9-]+-(auditor|reviewer)' | sort
 }
 
+# Agent-type identifiers have no suffix grammar. Rather than guess one, enforce the structural
+# authority boundary: the complete role table is fixture-pinned, and no prose outside it may
+# pair a dispatch/omit/skip directive with a subagent target in either word order. Thus an
+# arbitrary `security2-checker` (or any other name) cannot establish a second fallback map.
+fallback_external_directives() {
+  outside_role_mapping_table "$1" \
+    | grep -Ei '(dispatch|omit|skip)[^|]*subagents?|subagents?[^|]*(dispatch|omit|skip)'
+}
+
 fallback_inventory_ok() {
-  [ "$(reviewer_names < "$1")" = "$(fallback_row "$1" "$2" | reviewer_names)" ]
+  [ "$(reviewer_names < "$1")" = "$(fallback_row "$1" "$2" | reviewer_names)" ] &&
+    [ -z "$(fallback_external_directives "$1")" ]
 }
 
 fallback_projection_ok() {
@@ -628,8 +655,8 @@ $(skill_map "$SK" | sed 's/^/       /')"
 
 skill_inventory_ok "$SK" \
   && ok \
-  || bad "AC7 skill inventory: next-task SKILL.md contains a reviewer-like agent identifier
-     outside its declared [reviewer] fallback row"
+  || bad "AC7 skill inventory: next-task SKILL.md contains a reviewer-like identifier or
+     fallback subagent directive outside its declared [reviewer] role-table authority"
 
 check_digest "AC7 skill row fixture" "next-task [reviewer] row" \
   "$EXPECTED_SKILL_ROW_HASH" \
@@ -650,7 +677,7 @@ $(review_response_map "$RR" | sed 's/^/       /')"
 review_response_inventory_ok "$RR" \
   && ok \
   || bad "AC7 review-response inventory: review-response SKILL.md contains a reviewer-like
-     agent identifier outside its declared re-gate fallback row"
+     identifier or fallback subagent directive outside its declared role-table authority"
 
 check_digest "AC7 review-response row fixture" "review-response re-gate row" \
   "$EXPECTED_REVIEW_RESPONSE_ROW_HASH" \
@@ -792,6 +819,15 @@ awk '
   }
 ' "$GL" > "$TMP/gl-outside-reviewer.md"
 mut_fail "roster inventory out-of-table-reviewer" roster_inventory_ok "$TMP/gl-outside-reviewer.md"
+
+awk '
+  { print }
+  END {
+    print "Also dispatch `workflow/reviewers/security2-reviewer.md` every round."
+  }
+' "$GL" > "$TMP/gl-outside-root-reviewer.md"
+mut_fail "roster inventory repository-root out-of-table reviewer" \
+  roster_inventory_ok "$TMP/gl-outside-root-reviewer.md"
 
 # JS site (gate-loop.js) — drop the gated contract push.
 grep -vF "reviewers.push({ key: 'contract-auditor'" "$JS" > "$TMP/js-drop.js"
@@ -1033,6 +1069,15 @@ awk '
 ' "$SK" > "$TMP/sk-add-outside-dispatch.md"
 mut_fail "skill inventory add-outside-dispatch" skill_inventory_ok "$TMP/sk-add-outside-dispatch.md"
 
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, also dispatch the security2-checker subagent at §7."
+  }
+' "$SK" > "$TMP/sk-add-arbitrary-agent-dispatch.md"
+mut_fail "skill inventory add-arbitrary-agent-dispatch" \
+  skill_inventory_ok "$TMP/sk-add-arbitrary-agent-dispatch.md"
+
 # The table fixture has its own falsification: a non-reviewer row wording change should
 # trip the table digest, not masquerade as reviewer-membership drift.
 awk '
@@ -1090,6 +1135,15 @@ awk '
 ' "$RR" > "$TMP/rr-add-outside-dispatch.md"
 mut_fail "review-response inventory add-outside-dispatch" \
   review_response_inventory_ok "$TMP/rr-add-outside-dispatch.md"
+
+awk '
+  { print }
+  END {
+    print "When Workflow is unavailable, also dispatch the `security2-checker` subagent at §7."
+  }
+' "$RR" > "$TMP/rr-add-arbitrary-agent-dispatch.md"
+mut_fail "review-response inventory add-arbitrary-agent-dispatch" \
+  review_response_inventory_ok "$TMP/rr-add-arbitrary-agent-dispatch.md"
 
 awk '
   index($0, "| **[headless run]** |") {
