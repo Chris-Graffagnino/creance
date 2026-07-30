@@ -370,10 +370,11 @@ jobs:
       - name: Doc-pointer resolution tests
         run: bash .claude/hooks/doc-pointer-check.test.sh
 
-      # Write-intent / safe-output contract check (T636, issue #232; P1/P3): the
-      # closed intent family (workflow/README.md) stays non-empty and enumerated;
-      # every profile-declared intent is in the family AND has an adapter mapping
-      # row (.claude/README.md); every writing ritual has a declaration row; no
+      # Write-intent / safe-output contract check (T636/#232, hardened by #284;
+      # P1/P3): the closed intent family (workflow/README.md) stays non-empty and
+      # enumerated; every profile-declared intent is in the family; every adapter
+      # mapping table matches the authoritative expected-table catalog and covers the
+      # family; every writing ritual has a row; no
       # neutral workflow/** doc names a concrete tracker write command where an
       # intent exists. The .test.sh proves both failure directions with planted
       # positives (declared-but-unmapped intent; neutral-doc write-command leak)

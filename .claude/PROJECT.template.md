@@ -109,8 +109,12 @@ with that pass's real `enabled` / `condition` / `applies-to` values — not a pl
 The per-workflow **write-intent declarations** — which of the closed write-intent /
 safe-output roles (`.claude/workflow/README.md` → "Write intents (safe outputs)") each
 writing [workflow] may use. The declaration lives **here in the profile**, never in
-neutral workflow prose; the adapter maps every declared intent to a concrete mechanism
-(the active adapter's mapping table). A workflow with no row has no write authority.
+neutral workflow prose; every discovered adapter mapping table maps the full closed
+intent family to concrete mechanisms. A workflow with no row has no write authority.
+The marker below is the authoritative expected-table set: discovery catches a new table
+missing from the catalog, while the catalog catches an existing table whose heading
+disappears.
+<!-- write-intents-check:adapter-tables .claude/README.md .claude/adapters/codex-cli.md -->
 
 | workflow | allowed intents |
 |---|---|
@@ -119,10 +123,13 @@ neutral workflow prose; the adapter maps every declared intent to a concrete mec
 **Every column's domain is closed and typed** (an off-enum value is a defect the
 write-intent check rejects):
 - **`workflow`** — a workflow ritual that writes shared surfaces. Carry one row for
-  **each** of the writing rituals your harness runs (this repo's set: `next-task`,
-  `pr-review`, `review-response`, `triage`, `intake`, `retrospective`); a missing row is
-  a defect, not an implicit empty set. Composing workflows (the [backlog-loop], the
-  [orchestrated run]) carry no row — they write only through the rituals they run.
+  **each** of the writing rituals your harness runs. The authoritative set for this
+  template is the machine-readable marker below; `write-intents-check.sh` consumes that
+  same marker, so adding a writing ritual cannot leave its enforcement list stale. A
+  missing declaration row is a defect, not an implicit empty set. Composing workflows
+  (the [backlog-loop], the [orchestrated run]) carry no row — they write only through
+  the rituals they run.
+  <!-- write-intents-check:required-workflows next-task pr-review review-response triage intake retrospective -->
 - **`allowed intents`** — either the literal `none` (the empty set — a declared read-only
   posture) or backtick-quoted intent roles drawn **only** from the contract's closed
   family. An intent outside the family, or a catch-all, is rejected.

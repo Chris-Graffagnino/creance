@@ -115,7 +115,7 @@ the **declaration of record**: a workflow with no row here has no write authorit
 `none` declares the empty set. Composing workflows (the [backlog-loop], the
 [orchestrated run]) write only through the rituals they run and carry no row.
 `write-intents-check.sh` verifies every declared intent against the contract family and
-the active adapter's mapping table.
+every cataloged/discovered adapter mapping table against the full family.
 
 | workflow | allowed intents |
 |---|---|

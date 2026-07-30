@@ -63,11 +63,13 @@ Which intents each writing [workflow] may use is **declared in the profile** (th
 profile's "Write intents" table) — a declaration, never neutral prose; a workflow with no
 declared row has no write authority, and `none` declares the empty set. Workflows that
 only compose other workflows (the [backlog-loop], the [orchestrated run]) write solely
-through the rituals they run and carry no declaration of their own. The active adapter
-maps **every** declared intent to a concrete mechanism or a documented degradation, as
-one mapping table (the active adapter's lives in `.claude/README.md`). Neutral docs name
-intents, never mechanisms (P1); a deterministic check enforces both directions — a
-declared intent with no adapter mapping, and a neutral doc naming a concrete tracker
+through the rituals they run and carry no declaration of their own. Every adapter
+mapping table carries **every role in the closed family**, each bound to a concrete
+mechanism or a documented degradation (the active adapter's table lives in
+`.claude/README.md`). Neutral docs name intents, never mechanisms (P1); a deterministic
+check enforces both directions — a family intent missing from a configured adapter
+mapping table, adapter-table discovery drifting from the profile template's authoritative
+expected-table catalog in either direction, and a neutral doc naming a concrete tracker
 write command where an intent exists (P3).
 
 | Intent role | Inputs | Outputs | Constraints |
