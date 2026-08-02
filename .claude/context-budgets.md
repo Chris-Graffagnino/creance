@@ -25,7 +25,7 @@ so verification can never go silently green without measuring.
 | `agents-resident` | `total` | `1200` | `active` | `AGENTS.md` |
 | `compact-packet` | `total` | `2000` | `active` | `.claude/PROJECT.compact.md` |
 | `stage-cards` | `each` | `1500` | `active` | `.claude/workflow/next-task/*.md` |
-| `task-index` | `total` | `4000` | `active` | `specs/TASK_INDEX.md` |
+| `task-index` | `total` | `4500` | `active` | `specs/TASK_INDEX.md` |
 | `next-task-bundle` | `total` | `18000` | `deferred` | `AGENTS.md` `.claude/skills/next-task/SKILL.md` `.claude/workflow/next-task/*.md` `.claude/PROJECT.compact.md` `memory/constitution.md` `specs/TASK_INDEX.md` |
 | `pr-review-bundle` | `total` | `10000` | `active` | `AGENTS.md` `.claude/skills/pr-review/SKILL.md` `.claude/workflow/pr-review.md` `.claude/PROJECT.compact.md` `memory/constitution.md` |
 
@@ -64,6 +64,11 @@ measure:
 - `task-index` → **T1205** — **landed; the gate is `active`**. `specs/TASK_INDEX.md` is
   the generated selection index (US5.AC1), generated from `specs/*/tasks.md` by
   `.claude/hooks/task-index.py` and staleness-checked by `--check` in `verify` (US5.AC2).
+  Budget raised `4000 → 4500` (owner-ratified, #316) for backlog-growth headroom: the
+  index is a deterministic projection of `specs/*/tasks.md`, so it grows one row per new
+  task, and the original ceiling reached 3991/4000 — the "backlog outgrows the budget →
+  owner-ratified budget-raise" path (T1201). The `--check` staleness gate and the per-row
+  selection-field discipline are unchanged; only the ceiling moved.
 - `next-task-bundle`, `pr-review-bundle` → the diff that **restructures the bundle's
   read set** (US2–US5 as they land; final shape per the spec's target outcomes). The
   compositions above reflect today's declared ordinary entrypoint reads; selected-task
