@@ -221,6 +221,37 @@
       issue) — strong: activates a standing token-budget gate over the harness's largest
       resident bundle without weakening the per-card or completeness guarantees (P2/P3)
 
+## Phase 9 — Task-index generator prose freshness (issue #322; repo-maintenance)
+
+> Two hand-authored strings in `task-index.py` assert the generated Issue/PR column is
+> unconditionally blank ("none do today"), a claim that went stale when T810 (#293)
+> populated the first row (`specs/TASK_INDEX.md` Issue/PR cell → `#293`). Docs-freshness
+> only — the header is a static string emitted verbatim by `build_index`, so it appears
+> identically in generated and committed text and `--check` stays byte-for-byte green.
+> Surfaced by triage as unmapped tracker work, converted via intake; it is
+> repo-maintenance — no new `US#`, graded against the done-when criteria carried in issue
+> #322's intake cross-link comment.
+
+- [ ] T1214 [cheap] Refresh the stale "Issue/PR column is always blank" prose in
+      `.claude/hooks/task-index.py` (`#322`): the `issue_link` docstring
+      (`task-index.py:159-160`, "…every row is honestly blank") and the emitted header comment
+      (`task-index.py:225-226`, rendered into `specs/TASK_INDEX.md:10-11`, "…none do today, so
+      it stays blank") both assert the generated Issue/PR column is unconditionally blank — a
+      claim falsified once T810 (#293) populated the first row (`specs/TASK_INDEX.md` Issue/PR
+      cell → `#293`). Refresh both strings so they accurately state the column **is** populated
+      when a task line carries a `[#NNN]` marker (with ≥1 populated today), **without dropping**
+      the US5.AC1 provenance rule the docstring documents — the cell is derived from the
+      `[#NNN]` marker only, never guessed from the ambiguous inline `(#NNN)` prose — then
+      regenerate the index in the same diff so the header change lands in `specs/TASK_INDEX.md`.
+      Ships the deterministic proof it needs: `task-index.py --check` stays green (generated ==
+      committed byte-for-byte) and the real populated row (T810 → `#293`) still renders in the
+      Issue/PR column, while neither stale assertion ("none do today", "every row is honestly
+      blank" / "so it stays blank") survives in `task-index.py` — a pure deletion that also
+      drops the marker-derivation rule fails the preservation half. Blocked by nothing; touches
+      `task-index.py` + regenerated `specs/TASK_INDEX.md` (#322; repo-maintenance — done-when on
+      issue) — cheap: a two-string prose refresh over a deterministic generator whose `--check`
+      contract is unchanged and self-verifying [#322]
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
@@ -229,7 +260,7 @@
 | US1.AC2 | T1201 |
 | US1.AC3 | T1201 |
 | US1.AC4 | T1201 |
-| US1.AC5 | T1201–T1212 (every task, graded on its own PR body) |
+| US1.AC5 | T1201–T1214 (every task, graded on its own PR body) |
 | US2.AC1 | T1202 |
 | US2.AC2 | T1202 |
 | US2.AC3 | T1202 |
