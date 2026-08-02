@@ -50,6 +50,7 @@
 | T622 | strong | [x] |  |  | Stop the review-mode §7 gate-loop (`[orchestrated run]`) from… |
 | T623 | strong | [x] |  |  | Close two enforcement-boundary bypasses found in the engineering-craft… |
 | T649 | strong | [ ] |  |  | Extend the `#256` normalized-payload sweep to `[guard]` **rule 2**… |
+| T650 | strong | [ ] |  |  | Port the `#256` quoted-span/skeleton blanking to the Omnigent… |
 | T624 | cheap | [x] |  |  | Add a short **"Finding things in this repo"** recipe block to… |
 | T625 | strong | [ ] |  |  | Mirror the neutral §7 reviewer roster's fourth member into the… |
 | T626 | strong | [x] |  |  | Ship a **worked-example set** under `docs/examples/` for a clearly… |
