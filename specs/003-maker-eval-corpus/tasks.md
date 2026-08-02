@@ -110,7 +110,7 @@
       instrument fence and docs checks stay green (`maker-eval-fence.sh`,
       `maker-eval-docs.test.sh` — no P4/P5 instrument-semantics change) (#293; bug —
       done-when on issue) — strong: closes a hang in observe-only eval tooling and adds the
-      P2 regression coverage (constitution P2/P3)
+      P2 regression coverage (constitution P2/P3) [#293]
 
 ## Criterion ownership (multi-task user stories)
 
