@@ -250,7 +250,7 @@
       drops the marker-derivation rule fails the preservation half. Blocked by nothing; touches
       `task-index.py` + regenerated `specs/TASK_INDEX.md` (#322; repo-maintenance — done-when on
       issue) — cheap: a two-string prose refresh over a deterministic generator whose `--check`
-      contract is unchanged and self-verifying
+      contract is unchanged and self-verifying [#322]
 
 ## Criterion ownership (multi-task user stories)
 
@@ -260,7 +260,7 @@
 | US1.AC2 | T1201 |
 | US1.AC3 | T1201 |
 | US1.AC4 | T1201 |
-| US1.AC5 | T1201–T1212 (every task, graded on its own PR body) |
+| US1.AC5 | T1201–T1214 (every task, graded on its own PR body) |
 | US2.AC1 | T1202 |
 | US2.AC2 | T1202 |
 | US2.AC3 | T1202 |
