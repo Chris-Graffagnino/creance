@@ -36,7 +36,7 @@ TASKS_GLOB = "specs/*/tasks.md"
 INDEX_PATH = "specs/TASK_INDEX.md"
 
 # Title cap (characters): keeps the whole index within its US1.AC1 budget (task index
-# <= 4k tokens) with growth headroom while leaving titles readable. The token-budget
+# <= 4.5k tokens, #316) with growth headroom while leaving titles readable. The token-budget
 # check (`.claude/hooks/token-budget-check.sh`, gating `active`) is the standing backstop
 # if the backlog outgrows the budget — that is an owner-ratified budget-raise decision,
 # never a silent cap change here.
