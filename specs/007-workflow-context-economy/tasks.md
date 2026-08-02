@@ -192,6 +192,35 @@
       strong: restores the deterministic drift-catch the tool exists to provide
       (constitution P2/P3)
 
+## Phase 8 — next-task bundle reduction & activation (issue #275)
+
+> The deferred `next-task-bundle` budget gate (registered by T1201/US1.AC1) that issue
+> #275 explicitly owns (`.claude/context-budgets.md` → deferred-activation map). The
+> truthful one-context composition measures 21,072 > 18,000 before selected spec/tasks
+> context, so the gate stays `deferred` — this task lands the reduction and flips it
+> `active`. Surfaced by triage as unmapped tracker work, converted via intake; it is
+> repo-maintenance — no new `US#` (it completes US1.AC1's deferred activation), graded
+> against the done-when criteria carried in issue #275's intake cross-link comment.
+> Numbered Phase 8 to sit above the parallel Phase 7 (#266); whichever of #266/#275 lands
+> second rebases the insertion point.
+
+- [ ] T1213 [strong] Reduce the accumulated `next-task-bundle` read-set below its 18,000-token
+      budget and **flip its gate `deferred → active`** (`#275`): restructure the ordinary
+      next-task read-set (`AGENTS.md` + `next-task` SKILL + the demand-loaded stage cards +
+      `.claude/PROJECT.compact.md` + `memory/constitution.md` + `specs/TASK_INDEX.md`) so the
+      **truthful accumulated composition** in `.claude/context-budgets.md` measures ≤ 18,000
+      tokens **without dropping any workflow obligation or adversarial-review context** (a real
+      reduction, not content removal), then set the row's gating `deferred → active` measured
+      against that truthful accumulated composition — explicitly guarding against the T1204
+      "measure only the largest single card" false-green (the 13,192 trap). Ships two-sided
+      tests: a planted accumulated-overage fixture FAILs naming the surface + count, the real
+      ordinary bundle passes; and the per-stage-card `each` 1,500-token gate plus the T1204
+      stage-card completeness/drift oracle stay green (the reduction drops no card's obligation
+      and does not break the completeness proof). Blocked by nothing new; touches
+      `context-budgets.md` + the next-task read surfaces (#275; repo-maintenance — done-when on
+      issue) — strong: activates a standing token-budget gate over the harness's largest
+      resident bundle without weakening the per-card or completeness guarantees (P2/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
