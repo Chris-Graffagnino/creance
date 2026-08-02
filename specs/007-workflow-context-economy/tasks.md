@@ -165,6 +165,33 @@
       reviewed-PR path (P4); maker-eval docs/fence checks and the neutrality scan
       stay green (US9.AC4)
 
+## Phase 7 — Task-index fail-loud hardening (issue #266; bug)
+
+> One correctness gap in the `task-index.py` staleness gate (spec 007 US5, T1205),
+> surfaced by triage as unmapped tracker work and converted via intake
+> (`workflow/intake.md`). It is a bug — no new `US#`; the acceptance reviewer grades it
+> against the done-when criteria carried in issue #266's intake cross-link comment,
+> exactly as it would a `US#`.
+
+- [ ] T1212 [strong] Make `task-index.py` **fail loud on a task-like-but-malformed line**
+      instead of silently dropping it (`#266`): `parse_tasks_file`
+      (`.claude/hooks/task-index.py`) skips any line that is not a full `TASK_RE` match with a
+      bare `i += 1`, and because `--check` regenerates via the **same** parse, a dropped entry
+      is invisible in **both** the generated index and the comparison — a confident clean pass
+      that contradicts the tool's own fail-loud-on-drift charter (header). Add a scan that
+      treats a line clearly attempting to be a task (a checkbox list item carrying a `T`-token
+      that nonetheless fails `TASK_RE` — e.g. a `[T609a]` letter-suffix, a missing `[tier]`
+      tag, or a malformed state char) as a **loud** `--write`/`--check` failure that **names
+      the offending file and line**, mirroring the tool's existing loud-and-named failure
+      posture (the empty-index `raise SystemExit` and `cmd_check`'s drift diagnostics that
+      name the offending entry). Genuine non-task content (prose, headings, ownership
+      rows, blank lines, indented continuations) must NOT trip it, and a clean tree still
+      passes. Ships fixture regressions in `task-index.test.sh` covering representative
+      malformed shapes (non-zero exit + named line) plus a clean-tree control; reverting the
+      scan makes the malformed fixtures pass silently (#266; bug — done-when on issue) —
+      strong: restores the deterministic drift-catch the tool exists to provide
+      (constitution P2/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |

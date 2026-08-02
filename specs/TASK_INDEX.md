@@ -144,6 +144,7 @@
 | T1209 | strong | [ ] | US1.AC5 US9.AC1 |  | Dispatch-template stability check (#303) |
 | T1210 | strong | [ ] | US1.AC5 US9.AC2-AC3 |  | Context-offloading design rules (#303) |
 | T1211 | strong | [ ] | US1.AC5 US9.AC4 |  | Maker-eval coverage-by-trajectory-class table (#303) |
+| T1212 | strong | [ ] |  |  | Make `task-index.py` **fail loud on a task-like-but-malformed line**… |
 
 ## specs/008-fast-lane-workflow/spec.md
 
