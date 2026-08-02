@@ -102,6 +102,7 @@
 | T807 | strong | [x] | US3.AC1-AC2 |  | Interval snapshot capture for corpus runs: fixed instrument-declared… |
 | T808 | strong | [x] | US3.AC3-AC4 |  | Post-hoc pinned-judge grading of snapshots + versioned schema… |
 | T809 | cheap | [x] | US4.AC1-AC3 |  | Learning-speed swap protocol doc (matched-start selection with stated… |
+| T810 | strong | [ ] |  | #293 | Guard the remaining **dangling-flag infinite loop** in the eval writer… |
 
 ## specs/004-autonomous-backlog-loop/spec.md
 
