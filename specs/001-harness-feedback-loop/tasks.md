@@ -304,6 +304,21 @@
       settings/guard regression proving review mode does not pre-approve `gh pr merge`
       (#165; bug — done-when on issue) — strong: base-branch-mutation and merge boundaries
       with their P2 regression coverage (constitution P2/P3/P4)
+- [ ] T649 [strong] Extend the `#256` normalized-payload sweep to `[guard]` **rule 2**
+      (bulk-staging `git add --all|-A|./`) in **both** implementations in parity
+      (`.claude/hooks/guard.sh` and the Omnigent port `policies/guard.py`): rule 2 must
+      apply the #256 tab-normalization plus a quote-aware evaluation that treats a
+      fully-quoted `git add …` occurrence as inert data yet sees through quotes on the flag
+      operand of an unquoted `git add`, so a tab-escaped `git add<TAB>-A` and a quoted-flag
+      `git add "-A"` are DENIED (they currently slip past as exit-0 ALLOW — the #256 sweep
+      never reached rule 2, which still matches the raw payload),
+      while benign controls — a specific path `git add path/to/file`, and a non-git command
+      merely mentioning `-A` inside a quoted string — stay ALLOWED, and the existing bare
+      `git add ./` / `--all` / `-A` block is preserved. Ships matching mutation-proof cases
+      in **both** `guard.test.sh` and `tests/test_guard.py` (the planted evasions block, the
+      benign controls allow; reverting the fix flips the planted cases red)
+      (#265; bug — done-when on issue) — strong: changes guard behavior across both
+      implementations and adds the P2 regression coverage (constitution P2/P3)
 
 ## Phase 12 — Documentation & adapter-consistency intake (discovered work)
 
