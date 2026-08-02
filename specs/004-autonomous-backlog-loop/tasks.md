@@ -47,6 +47,37 @@
       the observed stop condition, in the adapter probe-results table. Blocked by
       T901–T904 (US1)
 
+## Phase 4 — Loop concurrency & crash recovery (issue #267; bug)
+
+> Two fail-safe operational-robustness gaps in the autonomous loop, surfaced by triage as
+> unmapped tracker work and converted via intake (`workflow/intake.md`). Both fail **safe**
+> (leaked/duplicated work, never base-branch corruption — the isolation delete-guards stay
+> provenance-marker gated), so they are latent over long unattended runs. It is a bug — no
+> new `US#`; the acceptance reviewer grades it against the done-when criteria carried in
+> issue #267's intake cross-link comment, exactly as it would a `US#`.
+
+- [ ] T906 [strong] Add a **concurrency lock** and a **crash-recovery startup sweep** to the
+      autonomous loop (`#267`): (a) `.claude/hooks/backlog-loop.sh` currently has no lock or
+      `trap` (verified: no `flock`/lockdir/`trap`), so two overlapping runs can both select the
+      same task with only an incidental `git worktree add -b` name collision as an accidental
+      mutex — acquire an **atomic** lock at loop start (e.g. a `mkdir` lockdir or `flock`) and
+      release it via a `trap` on exit/signal, so a second concurrent loop while one holds the
+      lock does not start a second selection/iteration (it declines or waits, deterministically);
+      (b) `.claude/hooks/isolated-workspace.sh` reaps a workspace only on a caught in-process
+      `fail`, never on a `SIGKILL`, and nothing reaps orphans at startup — add a **startup sweep**
+      that cross-references `git worktree list --porcelain` against the `.creance-ws-owner`
+      provenance markers and prunes ONLY dead-session, marker-owned orphans, leaving any live
+      workspace and any non-lifecycle/marker-less worktree untouched. Any new delete path stays
+      **provenance-marker gated** and falsification-tested exactly as the existing lifecycle is
+      (`isolated-workspace.test.sh`, `isolation-falsification.test.sh`, #111/#114/#131), and the
+      no-base-write / no-merge isolation invariants and `backlog-loop-fence.sh` / `autonomy-mode`
+      checks stay green. Ships two-sided tests: two concurrent loop starts → exactly one proceeds
+      and a normal single run still acquires+releases (no deadlock); a simulated mid-iteration kill
+      → the orphaned worktree/marker/branch is reaped while a live workspace and a foreign
+      marker-less worktree are left untouched (reverting either fix flips its test)
+      (#267; bug — done-when on issue) — strong: closes two fail-safe robustness gaps in the
+      autonomy surface without weakening the isolation delete-guards (constitution P2/P3/P4)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
