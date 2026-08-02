@@ -151,6 +151,7 @@
 | T1211 | strong | [ ] | US1.AC5 US9.AC4 |  | Maker-eval coverage-by-trajectory-class table (#303) |
 | T1212 | strong | [ ] | US1.AC5 |  | Make `task-index.py` **fail loud on a task-like-but-malformed line**… |
 | T1213 | strong | [ ] |  |  | Reduce the accumulated `next-task-bundle` read-set below its… |
+| T1214 | cheap | [ ] |  |  | Refresh the stale "Issue/PR column is always blank" prose in… |
 
 ## specs/008-fast-lane-workflow/spec.md
 
