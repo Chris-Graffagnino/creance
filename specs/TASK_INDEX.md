@@ -49,10 +49,13 @@
 | T621 | strong | [x] |  |  | Harden `[guard]` rules 2/3/4 against global-option / cwd evasions in… |
 | T622 | strong | [x] |  |  | Stop the review-mode §7 gate-loop (`[orchestrated run]`) from… |
 | T623 | strong | [x] |  |  | Close two enforcement-boundary bypasses found in the engineering-craft… |
+| T649 | strong | [ ] |  |  | Extend the `#256` normalized-payload sweep to `[guard]` **rule 2**… |
+| T650 | strong | [ ] |  |  | Port the `#256` quoted-span/skeleton blanking to the Omnigent… |
 | T624 | cheap | [x] |  |  | Add a short **"Finding things in this repo"** recipe block to… |
 | T625 | strong | [ ] |  |  | Mirror the neutral §7 reviewer roster's fourth member into the… |
 | T626 | strong | [x] |  |  | Ship a **worked-example set** under `docs/examples/` for a clearly… |
 | T627 | strong | [x] |  |  | Ship **`docs/onboarding-prompt.md`** |
+| T651 | cheap | [ ] |  |  | Make the **Omnigent adapter visible to new readers** (`#300`): the… |
 | T628 | strong | [x] | US8.AC1-AC2 |  | `## Review passes` schema in `PROJECT.template.md` (column schema with… |
 | T629 | strong | [x] | US8.AC3 |  | Both surfaces honor the enabled set whose `condition` holds, filtered… |
 | T630 | strong | [x] | US8.AC4-AC5 |  | `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`… |
@@ -100,6 +103,7 @@
 | T807 | strong | [x] | US3.AC1-AC2 |  | Interval snapshot capture for corpus runs: fixed instrument-declared… |
 | T808 | strong | [x] | US3.AC3-AC4 |  | Post-hoc pinned-judge grading of snapshots + versioned schema… |
 | T809 | cheap | [x] | US4.AC1-AC3 |  | Learning-speed swap protocol doc (matched-start selection with stated… |
+| T810 | strong | [ ] |  | #293 | Guard the remaining **dangling-flag infinite loop** in the eval writer… |
 
 ## specs/004-autonomous-backlog-loop/spec.md
 
@@ -110,6 +114,7 @@
 | T903 | strong | [x] | US1.AC4 |  | No-merge / no-base-write falsification proof across iterations: extend… |
 | T904 | strong | [x] | US1.AC5-AC6 |  | Run report as observe-only telemetry: one line per iteration (task ID… |
 | T905 | cheap | [x] | US1.AC7 |  | Adapter binding for the `[backlog-loop]` (the `[scheduled run]` /… |
+| T906 | strong | [ ] |  |  | Add a **concurrency lock** and a **crash-recovery startup sweep** to… |
 
 ## specs/005-held-out-acceptance/spec.md
 
@@ -144,6 +149,7 @@
 | T1209 | strong | [ ] | US1.AC5 US9.AC1 |  | Dispatch-template stability check (#303) |
 | T1210 | strong | [ ] | US1.AC5 US9.AC2-AC3 |  | Context-offloading design rules (#303) |
 | T1211 | strong | [ ] | US1.AC5 US9.AC4 |  | Maker-eval coverage-by-trajectory-class table (#303) |
+| T1212 | strong | [ ] | US1.AC5 |  | Make `task-index.py` **fail loud on a task-like-but-malformed line**… |
 | T1213 | strong | [ ] |  |  | Reduce the accumulated `next-task-bundle` read-set below its… |
 
 ## specs/008-fast-lane-workflow/spec.md

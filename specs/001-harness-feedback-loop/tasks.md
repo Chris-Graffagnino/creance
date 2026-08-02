@@ -304,6 +304,37 @@
       settings/guard regression proving review mode does not pre-approve `gh pr merge`
       (#165; bug — done-when on issue) — strong: base-branch-mutation and merge boundaries
       with their P2 regression coverage (constitution P2/P3/P4)
+- [ ] T649 [strong] Extend the `#256` normalized-payload sweep to `[guard]` **rule 2**
+      (bulk-staging `git add --all|-A|./`) in **both** implementations in parity
+      (`.claude/hooks/guard.sh` and the Omnigent port `policies/guard.py`): rule 2 must
+      apply the #256 tab-normalization plus a quote-aware evaluation that treats a
+      fully-quoted `git add …` occurrence as inert data yet sees through quotes on the flag
+      operand of an unquoted `git add`, so a tab-escaped `git add<TAB>-A` and a quoted-flag
+      `git add "-A"` are DENIED (they currently slip past as exit-0 ALLOW — the #256 sweep
+      never reached rule 2, which still matches the raw payload),
+      while benign controls — a specific path `git add path/to/file`, and a non-git command
+      merely mentioning `-A` inside a quoted string — stay ALLOWED, and the existing bare
+      `git add ./` / `--all` / `-A` block is preserved. Ships matching mutation-proof cases
+      in **both** `guard.test.sh` and `tests/test_guard.py` (the planted evasions block, the
+      benign controls allow; reverting the fix flips the planted cases red)
+      (#265; bug — done-when on issue) — strong: changes guard behavior across both
+      implementations and adds the P2 regression coverage (constitution P2/P3)
+- [ ] T650 [strong] Port the `#256` quoted-span/skeleton blanking to the Omnigent
+      `policies/guard.py` **rules 3/4** so it stops diverging from `.claude/hooks/guard.sh`:
+      guard.py's commit/push-on-base and push-refspec-base matchers must evaluate a command
+      skeleton with quoted spans blanked (the guard.sh `quote_blank mode=all` /
+      `command_skeleton` equivalent), so a benign quoted mention like
+      `echo "remember to git commit"` is inert — guard.py currently DENYs it on the base
+      branch while guard.sh ALLOWs it (the `#256` suppression was never ported to guard.py).
+      Add a **differential parity harness**: a shared corpus of `{payload → expected verdict}`
+      cases run through **both** implementations, asserting identical rule-3/4 verdicts and
+      failing on any divergence — replacing the hand-mirrored parity comments with an
+      executable check; reverting the guard.py port flips the harness red on the
+      quoted-mention cases. Real `git commit`/`git push` on the base branch still DENY in
+      both. Touches the same guard surface as the rule-2 sweep (#265/T649); no hard ordering
+      — whichever lands second rebases (#264; bug — done-when on issue) — strong: closes a
+      divergence in a released artifact and makes guard.sh↔guard.py parity a deterministic
+      invariant (constitution P2/P3)
 
 ## Phase 12 — Documentation & adapter-consistency intake (discovered work)
 
@@ -373,6 +404,20 @@
       set as the target shape, and states the runtime caveat that verification assumes
       `rg`/`bash`; blocked by T626 (#16; repo-maintenance — done-when on issue) — strong:
       encodes harness-design constraints and must stay in lockstep with the Quickstart
+- [ ] T651 [cheap] Make the **Omnigent adapter visible to new readers** (`#300`): the
+      adapter has code, tests, and CI under `.claude/adapters/omnigent/` but is invisible in
+      the top-level docs — `README.md`'s adapter inventory (the "shipped: Claude Code;
+      spec'd: Codex CLI" line) names no Omnigent, and `.claude/README.md` (billed as "the
+      adapter layer") has zero Omnigent mentions. (a) The `README.md` adapter inventory names
+      **Omnigent** as an example adapter — partially built, live-wiring/install pending
+      **T620** — so a new reader learns it exists; (b) `.claude/README.md` gains a pointer to
+      `.claude/adapters/omnigent/README.md`. The added text stays **accurate to the
+      "probe before you trust" posture**: Omnigent is named as an example/partially-built
+      binding, NOT as shipped or installable, and asserts no PyPI / `pip install` path — the
+      newcomer install guide and any install-path/PyPI-status correction remain **T620's**
+      (blocked: Omnigent provisioning), not this task. Sibling to T625 (the Omnigent reviewer
+      roster-consistency task) (#300; repo-maintenance — done-when on issue) — cheap:
+      doc-visibility edits to two README surfaces, no engine/invariant change (P1 docs surface)
 
 ## Phase 13 — Configurable review passes (US8)
 
