@@ -404,6 +404,20 @@
       set as the target shape, and states the runtime caveat that verification assumes
       `rg`/`bash`; blocked by T626 (#16; repo-maintenance — done-when on issue) — strong:
       encodes harness-design constraints and must stay in lockstep with the Quickstart
+- [ ] T651 [cheap] Make the **Omnigent adapter visible to new readers** (`#300`): the
+      adapter has code, tests, and CI under `.claude/adapters/omnigent/` but is invisible in
+      the top-level docs — `README.md`'s adapter inventory (the "shipped: Claude Code;
+      spec'd: Codex CLI" line) names no Omnigent, and `.claude/README.md` (billed as "the
+      adapter layer") has zero Omnigent mentions. (a) The `README.md` adapter inventory names
+      **Omnigent** as an example adapter — partially built, live-wiring/install pending
+      **T620** — so a new reader learns it exists; (b) `.claude/README.md` gains a pointer to
+      `.claude/adapters/omnigent/README.md`. The added text stays **accurate to the
+      "probe before you trust" posture**: Omnigent is named as an example/partially-built
+      binding, NOT as shipped or installable, and asserts no PyPI / `pip install` path — the
+      newcomer install guide and any install-path/PyPI-status correction remain **T620's**
+      (blocked: Omnigent provisioning), not this task. Sibling to T625 (the Omnigent reviewer
+      roster-consistency task) (#300; repo-maintenance — done-when on issue) — cheap:
+      doc-visibility edits to two README surfaces, no engine/invariant change (P1 docs surface)
 
 ## Phase 13 — Configurable review passes (US8)
 
