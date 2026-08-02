@@ -53,6 +53,7 @@
 | T625 | strong | [ ] |  |  | Mirror the neutral §7 reviewer roster's fourth member into the… |
 | T626 | strong | [x] |  |  | Ship a **worked-example set** under `docs/examples/` for a clearly… |
 | T627 | strong | [x] |  |  | Ship **`docs/onboarding-prompt.md`** |
+| T651 | cheap | [ ] |  |  | Make the **Omnigent adapter visible to new readers** (`#300`): the… |
 | T628 | strong | [x] | US8.AC1-AC2 |  | `## Review passes` schema in `PROJECT.template.md` (column schema with… |
 | T629 | strong | [x] | US8.AC3 |  | Both surfaces honor the enabled set whose `condition` holds, filtered… |
 | T630 | strong | [x] | US8.AC4-AC5 |  | `review-pass-roster.test.sh` (sibling to `reviewer-roster.test.sh`… |
