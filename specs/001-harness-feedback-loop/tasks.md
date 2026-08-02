@@ -304,6 +304,22 @@
       settings/guard regression proving review mode does not pre-approve `gh pr merge`
       (#165; bug — done-when on issue) — strong: base-branch-mutation and merge boundaries
       with their P2 regression coverage (constitution P2/P3/P4)
+- [ ] T650 [strong] Port the `#256` quoted-span/skeleton blanking to the Omnigent
+      `policies/guard.py` **rules 3/4** so it stops diverging from `.claude/hooks/guard.sh`:
+      guard.py's commit/push-on-base and push-refspec-base matchers must evaluate a command
+      skeleton with quoted spans blanked (the guard.sh `quote_blank mode=all` /
+      `command_skeleton` equivalent), so a benign quoted mention like
+      `echo "remember to git commit"` is inert — guard.py currently DENYs it on the base
+      branch while guard.sh ALLOWs it (the `#256` suppression was never ported to guard.py).
+      Add a **differential parity harness**: a shared corpus of `{payload → expected verdict}`
+      cases run through **both** implementations, asserting identical rule-3/4 verdicts and
+      failing on any divergence — replacing the hand-mirrored parity comments with an
+      executable check; reverting the guard.py port flips the harness red on the
+      quoted-mention cases. Real `git commit`/`git push` on the base branch still DENY in
+      both. Touches the same guard surface as the rule-2 sweep (#265/T649); no hard ordering
+      — whichever lands second rebases (#264; bug — done-when on issue) — strong: closes a
+      divergence in a released artifact and makes guard.sh↔guard.py parity a deterministic
+      invariant (constitution P2/P3)
 
 ## Phase 12 — Documentation & adapter-consistency intake (discovered work)
 
