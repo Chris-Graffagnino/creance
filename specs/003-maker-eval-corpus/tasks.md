@@ -84,6 +84,34 @@
       the three EdgeBench §5.4 maker behaviors in implementation-loop guidance
       (`next-task.md` budget check stays green); blocked by T807+T808 (#212) (US4)
 
+## Phase 4 — Parser robustness (issue #293; bug)
+
+> One correctness gap in `maker-eval-emit.sh`'s option parsers, a follow-on to #290
+> (which guarded only `--trajectory`). Surfaced by triage as unmapped tracker work and
+> converted via intake (`workflow/intake.md`). It is a bug — no new `US#`; the acceptance
+> reviewer grades it against the done-when criteria carried in issue #293's intake
+> cross-link comment, exactly as it would a `US#`.
+
+- [ ] T810 [strong] Guard the remaining **dangling-flag infinite loop** in
+      `.claude/hooks/maker-eval-emit.sh` (`#293`): under `set -u` with no `set -e`, a
+      trailing flag with no value makes `shift 2` fail without consuming `$1`, so the
+      `while [ "$#" -gt 0 ]` parser re-processes the same flag forever (reproduced: a
+      dangling `record --task` spins until killed). `do_record`
+      (`--run-id`/`--task`/`--tier`/`--results`/`--prompt`/`--artifact`/`--judge`) and
+      `do_complete` (`--run-id`) still use the unguarded `val="${2:-}"; shift 2`; only
+      `--trajectory` was fixed in #290. Apply the established
+      `[ "$#" -ge 2 ] || { usage; return 2; }` idiom (already used by `--trajectory` and by
+      `agreement`/`snapshot-run`/`grade-snapshots`) to every remaining flag in both
+      parsers, so a dangling flag is a loud usage error (exit 2, nothing written) while a
+      well-formed invocation parses unchanged. Ships per-subcommand perl-`alarm`-capped
+      dangling-flag regressions in `maker-eval-emit.test.sh` (mirroring the T806 case-(viii)
+      and #290 `--trajectory` tests) — each dangling flag exits 2 within the cap, and
+      reverting a guard makes its test hang red; robustness only, so the maker-eval
+      instrument fence and docs checks stay green (`maker-eval-fence.sh`,
+      `maker-eval-docs.test.sh` — no P4/P5 instrument-semantics change) (#293; bug —
+      done-when on issue) — strong: closes a hang in observe-only eval tooling and adds the
+      P2 regression coverage (constitution P2/P3)
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
