@@ -172,7 +172,7 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
 | (a) | `iterations = N` (max-N; N from configuration/invocation, never hardcoded; N=0 → immediate no-op) | budget drained — the run cannot exceed N iterations |
 | (b) | no unblocked candidate remains (selection finds nothing startable) | backlog drained — the run must not stop early while eligible work and budget remain |
 | (c) | the same task identity fails the §7 gate **twice** in one run | non-convergence — a human reads the two discards; the loop never grinds |
-| (d) | any lifecycle or **[autonomy activation]** check fails closed (at the between-iteration re-check, aborting a cycle, or declining to start because another run is already in progress — the two layers "Reachability" above defines; this row and that section state one rule) | fail-closed — autonomy's posture is preserved, not retried around |
+| (d) | any lifecycle or **[autonomy activation]** check fails closed — at the between-iteration re-check or aborting a cycle (the two layers "Reachability" above defines; this row and that section state one rule), **or** the single-instance check declining to start because another run is already in progress (a lifecycle check, not an activation layer) | fail-closed — autonomy's posture is preserved, not retried around |
 
 ## Safety invariants (what N iterations must never change)
 
@@ -189,6 +189,10 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
   it opened — out of scope by spec (spec 004 non-goals); the PRs wait for the owner.
 - **Single-instance, and self-healing across a hard kill.** Two overlapping runs never both
   select: the second stops fail-closed rather than beginning a second selection or iteration.
+  "Overlapping" is scoped to the **repository**, not to one working tree — the startup cleanup
+  below acts on state every working tree of a repository shares, so a claim scoped any narrower
+  than that would let two runs each believe they were the only one and let each reap the other's
+  live workspaces.
   The claim a run holds is released when it ends *however* it ends, and a run killed without
   releasing cannot wedge every later run — a claim whose owner is gone is reclaimed, and of
   two runs racing to reclaim the same one exactly one proceeds. Reclaiming never forces: a

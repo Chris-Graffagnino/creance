@@ -586,13 +586,18 @@ LOCK_L="$FIX/live.lock"
 mkdir -p "$LOCK_L"
 printf 'pid=%s\nsession=someone-else\n' "$$" > "$LOCK_L/owner"
 LRC=0
+: > "$FIX/sweep.log"
 LOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
   BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
   BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_SWEEP_CMD="bash $BIN/sweep.sh" \
   BACKLOG_LOOP_LOCK_DIR="$LOCK_L" \
   bash "$SCRIPT" run 1 2>/dev/null)" || LRC=$?
 assert_eq "lock: a live holder makes the run decline" "$LOUT" "stop: fail-closed after 0 of 1"
 assert_eq "lock: nothing was selected while declining" "$(grep -c '^select$' "$FIX/events.log")" "0"
+# The most dangerous ordering for the new DESTRUCTIVE path: a run turned away by a live
+# holder must not sweep — its sweep would see the LIVE holder's workspaces as orphans.
+assert_eq "lock: a run declined by a live holder takes no sweep action" "$(grep -c '^sweep$' "$FIX/events.log")" "0"
 # and the live holder's lock is left exactly as it was — never released by the decliner.
 if [ -d "$LOCK_L" ] && grep -qxF "pid=$$" "$LOCK_L/owner"; then ok; else bad "lock: a declining run removed or rewrote the LIVE holder's lock"; fi
 
@@ -644,6 +649,89 @@ POUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
   bash "$SCRIPT" run 1 2>/dev/null)" || :
 assert_eq "lock: an unreclaimable lock path declines rather than forcing" "$POUT" "stop: fail-closed after 0 of 1"
 if [ -f "$LOCK_P/important.txt" ] && [ "$(cat "$LOCK_P/important.txt")" = "precious" ]; then ok; else bad "lock: the stale-lock reclaim destroyed unrelated directory content"; fi
+
+# ── L6. A SIGNALLED run releases the lock AND stops. A release-only handler is a
+#    trap: bash resumes the interrupted flow when the handler returns, so the loop
+#    would carry on iterating while holding no lock. With N=5 and 3 eligible tasks,
+#    a resuming loop drains the backlog (3 iterations); a correctly-exiting one
+#    stops after the iteration that was in flight when the signal landed (1).
+mkfix lock-signal
+printf 'T101\nT102\nT103\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_G="$FIX/signal.lock"
+BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter-block.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_G" \
+  bash "$SCRIPT" run 5 >/dev/null 2>&1 &
+gpid=$!
+if wait_file "$FIX/holding"; then
+  ok
+  # bash defers a trap until the foreground command returns, so signal THEN release the
+  # blocked iteration: the handler runs at the next opportunity, exactly as in production.
+  kill -TERM "$gpid" 2>/dev/null
+  : > "$FIX/go"
+  grc=0; wait "$gpid" 2>/dev/null || grc=$?
+  assert_eq "lock: a signalled run stops instead of resuming unlocked" "$(grep -c '^iteration ' "$FIX/events.log")" "1"
+  if [ ! -d "$LOCK_G" ]; then ok; else bad "lock: a signalled run did not release its lock"; fi
+  # 128+SIGTERM — a killed run must not masquerade as a clean stop.
+  assert_eq "lock: a signalled run exits 128+signo, not 0" "$grc" "143"
+else
+  bad "lock signal setup: the run never reached its iteration — no signal window opened"
+  kill "$gpid" 2>/dev/null; : > "$FIX/go"
+fi
+
+# ── L7. The lock is scoped to the REPOSITORY, not to the checkout path. Two linked
+#    worktrees of one repo hold different script paths but SHARE one worktree
+#    registry — the blast radius of the crash-recovery sweep. Keyed on the script's
+#    own directory they would take different locks, both proceed, and the second
+#    run's sweep would reap the first's LIVE workspaces.
+mkfix lock-repo-scope
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+RS="$FIX/repo"; RS2="$FIX/repo2"
+for r in "$RS" "$RS2"; do
+  git init -q -b main "$r" >/dev/null 2>&1
+  git -C "$r" config user.email t@example.com
+  git -C "$r" config user.name test
+  mkdir -p "$r/.claude/hooks"
+  cp "$SCRIPT" "$r/.claude/hooks/backlog-loop.sh"
+  git -C "$r" add .claude/hooks/backlog-loop.sh >/dev/null 2>&1
+  git -C "$r" commit -q -m seed >/dev/null 2>&1
+done
+git -C "$RS" worktree add -q "$FIX/linked" -b linked >/dev/null 2>&1
+# SETUP GATE: without a real linked worktree carrying its own copy of the script, the
+# different-path/same-repo condition never exists and the case proves nothing.
+if [ -f "$FIX/linked/.claude/hooks/backlog-loop.sh" ]; then
+  ok
+  ( cd "$RS" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+    BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+    BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter-block.sh" \
+    bash .claude/hooks/backlog-loop.sh run 1 >/dev/null 2>&1 ) &
+  rpid=$!
+  if wait_file "$FIX/holding"; then
+    ok
+    # Same repository, DIFFERENT script path -> must share the lock and decline.
+    BOUT2="$( cd "$FIX/linked" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+      BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+      BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+      bash .claude/hooks/backlog-loop.sh run 1 2>/dev/null )"
+    assert_eq "lock: a linked worktree of the SAME repo shares the lock" "$BOUT2" "stop: fail-closed after 0 of 1"
+    # ...and an UNRELATED repo must still run: the key is repo-scoped, not a global constant
+    # (a lock keyed on nothing at all would also pass the assertion above).
+    COUT="$( cd "$RS2" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+      BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+      BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+      bash .claude/hooks/backlog-loop.sh run 1 2>/dev/null )"
+    assert_eq "lock: an unrelated repo is not blocked (repo-scoped, not global)" "$COUT" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+  else
+    bad "lock repo-scope setup: the holder never reached its iteration"
+  fi
+  : > "$FIX/go"
+  wait "$rpid" 2>/dev/null || :
+else
+  bad "lock repo-scope setup: the linked worktree was not created — the same-repo/different-path condition never existed"
+fi
 
 # ── Crash-recovery sweep seam (T906, DW3): DRIVEN once at startup, before the
 #    first selection, with the run's session id — and silent-to-the-run.

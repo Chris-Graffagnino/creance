@@ -52,6 +52,20 @@
 # fail direction of this whole family is leak-never-destroy, and an unprovable owner is left
 # alone rather than guessed dead.
 #
+# That premise is only as strong as the lock's SCOPE, and the scope this sweep needs is the
+# one it acts on: the repository's worktree registry, shared by every linked worktree of a
+# repo. backlog-loop.sh therefore keys its lock on the common git dir, NOT on its own path —
+# keying per checkout would let two linked worktrees of one repo run two "single" loops whose
+# sweeps would each see the other's LIVE workspaces as foreign-session orphans and reap them.
+# If that lock is ever re-scoped narrower than the registry, this classification stops being
+# sound and the sweep must be re-derived, not merely re-tested.
+#
+# One window this does not cover: a run killed AFTER §8 promoted (pushed + opened the PR) but
+# BEFORE `exit` leaves a marker whose recorded branch is already published. A later sweep
+# deletes that LOCAL ref. The remote branch and the PR are untouched, so no work is lost — but
+# the local branch will be gone, which is why `exit` is the promote path's teardown and should
+# follow the push promptly.
+#
 # The promote-vs-discard DECISION is the §7 gate's, never the lifecycle's (T612): the
 # dispatcher calls `exit` after a PASS (having already pushed / opened the PR) and `discard`
 # after a FAIL. This script still PROMOTES nothing and carries no gate logic —

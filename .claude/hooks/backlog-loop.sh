@@ -95,14 +95,19 @@
 #     iteration <n> task <id> outcome <pass <pr-ref>|fail-discard|refused|aborted>
 # and one terminal line —
 #     stop: <max-N|backlog-drained|repeated-gate-fail|fail-closed> after <i> of <N>
-# Exit 0 on any clean stop, 2 on a usage error. The skeleton itself runs no git,
-# no gh, and no network — only shell built-ins and core utilities; everything
-# that touches real state goes through a seam. Tests:
+# Exit 0 on any clean stop, 2 on a usage error; a run stopped by a signal exits
+# 128+signo. The skeleton mutates no repository state, runs no gh, and touches no
+# network — everything that touches real state goes through a seam. Its ONE git
+# call is a read-only `rev-parse` used to key the lock to the repository (see
+# Concurrency); it reads no refs, no diffs, and no repo content. Tests:
 # .claude/hooks/backlog-loop.test.sh (wired into CI verify).
 #
-# Concurrency (T906): the loop is SINGLE-INSTANCE per checkout. Before anything
-# else it acquires an ATOMIC lock — `mkdir` on a lock directory, whose creation
-# is atomic on every POSIX filesystem. `flock` is deliberately NOT used: it is
+# Concurrency (T906): the loop is SINGLE-INSTANCE per REPOSITORY — not per
+# checkout, because the crash-recovery sweep acts on the repository's worktree
+# registry, which every linked worktree of a repo shares (see the lock-key note
+# below). Before anything else it acquires an ATOMIC lock — `mkdir` on a lock
+# directory, whose creation is atomic on every POSIX filesystem. `flock` is
+# deliberately NOT used: it is
 # absent on macOS (as are `timeout` and `setsid`) and shell-lint does not flag
 # it, so an flock-based lock would pass CI and be silently dead in production.
 # Without this, two overlapping invocations (a cron fire crossing a manual run)
@@ -130,11 +135,29 @@ SELECT_CMD="${BACKLOG_LOOP_SELECT_CMD:-}"
 ITERATION_CMD="${BACKLOG_LOOP_ITERATION_CMD:-}"
 RUN_ID="${BACKLOG_LOOP_RUN_ID:-}"
 SWEEP_CMD="${BACKLOG_LOOP_SWEEP_CMD:-}"
-# Per-checkout lock path: two clones must never share a lock, and two runs of the
-# SAME checkout always must. cksum over this script's own directory gives a stable,
-# portable tag with no hashing-tool dependency (md5sum/sha1sum/shasum differ across
-# BSD and GNU); the value only has to be collision-free between checkouts, not secure.
-lock_tag="$(printf '%s' "$SELF_DIR" | cksum 2>/dev/null)" || lock_tag=""
+# Per-REPOSITORY lock path. The lock's scope must be at least as wide as the blast
+# radius of everything it protects, and the widest of those is the crash-recovery
+# sweep, which acts on the repository's WORKTREE REGISTRY — shared by every linked
+# worktree of one repo. Keying on this script's own directory (the obvious choice)
+# is therefore too narrow: two linked worktrees of the same repo hold two different
+# script paths, would take two different locks, and would both proceed — at which
+# point the second run's startup sweep sees the FIRST run's live, marker-owned
+# workspaces as foreign-session orphans and force-removes them. So the key is the
+# common git dir, which every linked worktree of a repo shares, resolved to an
+# absolute path. Outside a repository (or with git unavailable) there is no registry
+# to protect and no sweep to run, so the script's own directory is the safe fallback.
+# cksum gives a stable, portable tag with no hashing-tool dependency (md5sum/sha1sum/
+# shasum differ across BSD and GNU); the value only has to be collision-free between
+# repositories, not secure.
+# `pwd -P` (physical), not `pwd`: git prints `--git-common-dir` as a RELATIVE path from the
+# main tree but an ABSOLUTE one from a linked worktree, and on macOS $TMPDIR lives under
+# /var/folders -> /private/var/folders. Resolving logically would therefore yield
+# /var/... from one tree and /private/var/... from the other — two different strings for
+# one directory, two different locks, and the cross-worktree reap this key exists to stop.
+lock_key="$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" || lock_key=""
+[ -n "$lock_key" ] || lock_key="$(cd "$SELF_DIR" 2>/dev/null && pwd -P)" || lock_key="$SELF_DIR"
+[ -n "$lock_key" ] || lock_key="$SELF_DIR"
+lock_tag="$(printf '%s' "$lock_key" | cksum 2>/dev/null)" || lock_tag=""
 lock_tag="${lock_tag%% *}"
 LOCK_DIR="${BACKLOG_LOOP_LOCK_DIR:-${TMPDIR:-/tmp}/creance-loop-${lock_tag:-0}.lock}"
 # This run's session identity — passed to the sweep seam and recorded in the lock, so
@@ -328,7 +351,15 @@ valid_task_id() { [[ "$1" =~ ^T[0-9]+$ ]]; }
 # same way review mode does: condition (d), a lifecycle check failing closed. The
 # trap goes up only once the lock is ours, so a declined run cannot release it.
 if acquire_lock; then
-  trap release_lock EXIT INT TERM HUP
+  # A bare `trap release_lock INT TERM HUP` would be a trap: bash RESUMES the
+  # interrupted flow once the handler returns, so a signalled loop would free its
+  # lock and then keep iterating — a running loop holding no lock, worse than
+  # either outcome. Each signal handler therefore releases AND exits, with the
+  # conventional 128+signo status so a killed run is visibly not a clean stop.
+  trap release_lock EXIT
+  trap 'release_lock; exit 130' INT
+  trap 'release_lock; exit 143' TERM
+  trap 'release_lock; exit 129' HUP
 else
   finish fail-closed
 fi
