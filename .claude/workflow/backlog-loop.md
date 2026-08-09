@@ -193,9 +193,14 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
   below acts on state every working tree of a repository shares, so a claim scoped any narrower
   than that would let two runs each believe they were the only one and let each reap the other's
   live workspaces.
-  The claim a run holds is released when it ends *however* it ends, and a run killed without
-  releasing cannot wedge every later run — a claim whose owner is gone is reclaimed, and of
-  two runs racing to reclaim the same one exactly one proceeds. Reclaiming never forces: a
+  The claim a run holds is released when it ends *however* it ends, and a claim whose owner is
+  gone is reclaimed, so an ordinary hard kill does not wedge every later run. Taking over a
+  dead claim is itself an exclusive act, so of two runs racing to reclaim the same one exactly
+  one proceeds — the alternative, each rebuilding the claim in place, ends with *both* holding
+  it and the second one's cleanup reaping the first's live workspaces. **The trade that buys
+  that:** a run killed *during* a takeover leaves the takeover itself claimed, and later runs
+  meeting a dead claim decline until an operator clears it. That is deliberate and fail-closed
+  — a stalled loop is recoverable, a double-holding pair is not. Reclaiming never forces: a
   claim that cannot be released cleanly makes the run decline, never destroy what it found
   there. An engaged run's startup cleanup then reaps only the **[isolated workspace]**s whose
   owning run has ended; an ownerless workspace — one whose owner cannot be *proven* finished

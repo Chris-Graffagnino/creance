@@ -649,6 +649,10 @@ POUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
   bash "$SCRIPT" run 1 2>/dev/null)" || :
 assert_eq "lock: an unreclaimable lock path declines rather than forcing" "$POUT" "stop: fail-closed after 0 of 1"
 if [ -f "$LOCK_P/important.txt" ] && [ "$(cat "$LOCK_P/important.txt")" = "precious" ]; then ok; else bad "lock: the stale-lock reclaim destroyed unrelated directory content"; fi
+# The takeover-intent directory must not survive the REFUSAL path either. Nothing else
+# removes it, so a leaked intent makes every later run that meets a stale lock decline
+# forever — the one way this fail-closed design turns into a permanent wedge.
+if [ ! -d "$LOCK_P.reclaim" ]; then ok; else bad "lock: the refused reclaim leaked its takeover intent ($LOCK_P.reclaim) — later runs would decline forever"; fi
 
 # ── L6. A SIGNALLED run releases the lock AND stops. A release-only handler is a
 #    trap: bash resumes the interrupted flow when the handler returns, so the loop
@@ -769,6 +773,10 @@ RR2="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
   BACKLOG_LOOP_LOCK_DIR="$LOCK_R" \
   bash "$SCRIPT" run 1 2>/dev/null)" || :
 assert_eq "lock: once the intent clears, the stale lock is reclaimed" "$RR2" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+# ...and the successful takeover released its OWN intent on the way out. This is the
+# single line standing between the accepted fail-closed trade and a permanent wedge,
+# so it is asserted rather than assumed on both the success and the refusal path.
+if [ ! -d "$LOCK_R.reclaim" ]; then ok; else bad "lock: a successful reclaim leaked its takeover intent ($LOCK_R.reclaim) — later runs would decline forever"; fi
 
 # ── L9. Outside a repository the lock key falls back to the SCRIPT's directory, not
 #    to the caller's cwd. `cd ""` succeeds silently, so an unguarded resolve of an

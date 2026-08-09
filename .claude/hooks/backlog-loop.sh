@@ -118,12 +118,20 @@
 #     is stop condition (d) — "a lifecycle check failed closed" — so the closed
 #     stop-condition set above is UNCHANGED, exactly as review mode already
 #     reports a loop that never started;
-#   * contended by a DEAD holder (the crash case) -> reclaimed, so one SIGKILL
-#     cannot wedge every future run. The reclaim removes the owner file and
-#     `rmdir`s the lock — never `rm -rf`, so a misconfigured LOCK_DIR pointing at
-#     a populated directory makes the reclaim fail rather than destroy it — and
-#     then re-reads the owner file: of two runs racing the same stale lock, only
-#     the one the file finally names proceeds;
+#   * contended by a DEAD holder (the crash case) -> reclaimed, so an ordinary
+#     SIGKILL cannot wedge every future run. The reclaim removes the owner file
+#     and `rmdir`s the lock — never `rm -rf`, and never a move, so a misconfigured
+#     LOCK_DIR pointing at a populated directory makes the reclaim decline rather
+#     than destroy what it found. The right to perform that rebuild is itself
+#     taken atomically, with a second `mkdir` on a sibling INTENT directory
+#     `<lock>.reclaim`: of two runs racing the same stale lock, only the one that
+#     creates the intent rebuilds and the other declines. THE TRADE: a run killed
+#     inside that takeover window leaves the intent directory behind, and every
+#     later run that meets a stale lock then declines until an operator removes
+#     `<lock>.reclaim`. That is fail-CLOSED and deliberate — the alternative
+#     (rebuilding in place with no intent) lets two runs BOTH end up holding the
+#     lock, and the second one's startup sweep would then treat the first's LIVE
+#     workspaces as foreign-session orphans;
 #   * released from a `trap` on EXIT/INT/TERM/HUP, and only while we still own
 #     it, so a normal run always frees the lock for the next one (no deadlock)
 #     and never removes a lock another run has taken over.

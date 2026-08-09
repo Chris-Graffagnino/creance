@@ -4,7 +4,7 @@
   "generated_from": {
     ".claude/MODELS.md": "sha256:54197eb7fc282c13fbacacbbee72c6eb274cc97ea3759900da678c020eca719d",
     ".claude/PROJECT.md": "sha256:b7d2e98757fa42ca32ed1cf4997dd761ceb167fa76b5a7849959e41fd003fd7a",
-    ".claude/README.md": "sha256:3c5bd87474421c26b601023d3ee5ff528fccfc94623bf7dcecc23dec2ed0da19",
+    ".claude/README.md": "sha256:dbd6b7a2c4b8231c8a5693ad29483e57f36ad45c75092d142b595fac21578556",
     ".claude/workflow/README.md": "sha256:09bc4747d96dcfd629619461d6fec36fe301d798cba60320c9d4a90c877cd8ca",
     ".claude/workflow/gate-loop.md": "sha256:c8c71ba3b6a77373bebca96066a6efab5ce824c6ea951cecbd83493df247c357",
     "memory/constitution.md": "sha256:f9b8eeacbc14b464db1c055dd5fa4a71457b48ec49db179f830f64b561a4f9f3"
@@ -215,7 +215,7 @@
       "[environment block]",
       "[comment marker]"
     ],
-    "table_sha256": "e3b87ab5aabedab77986201284a8efa83e0260aae3ea4dff65cce88cbe23d619"
+    "table_sha256": "66c7c5ba795f3bea099c5894e7d585dea16f0542807436a973eecac756dde124"
   },
   "observe_only_channels": {
     "telemetry": {
