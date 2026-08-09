@@ -83,8 +83,19 @@ the loop consumes as the `refused` outcome below.
 ## The loop
 
 ```text
+if another run of this loop is already in progress:
+    stop fail-closed — single-instance; a second concurrent run must never begin a
+    second selection or iteration (condition (d))
+
 if [autonomy activation] resolves to anything but an engaged autonomous run:
     stop — review mode; the loop never starts
+
+reap the [isolated workspace]s left behind by runs that have already ended
+    # crash recovery, once, before the first selection — and only for workspaces
+    # the lifecycle itself created AND whose owning run is over. A live workspace,
+    # and any working tree the lifecycle does not own, are left untouched. Placed
+    # after the activation read so a review-mode invocation, which never starts,
+    # also never takes a destructive cleanup action.
 
 iterations ← 0
 fails      ← empty map        # stable task identity → gate-FAIL count this run
@@ -161,7 +172,7 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
 | (a) | `iterations = N` (max-N; N from configuration/invocation, never hardcoded; N=0 → immediate no-op) | budget drained — the run cannot exceed N iterations |
 | (b) | no unblocked candidate remains (selection finds nothing startable) | backlog drained — the run must not stop early while eligible work and budget remain |
 | (c) | the same task identity fails the §7 gate **twice** in one run | non-convergence — a human reads the two discards; the loop never grinds |
-| (d) | any lifecycle or **[autonomy activation]** check fails closed (at the between-iteration re-check, or aborting a cycle — the two layers "Reachability" above defines; this row and that section state one rule) | fail-closed — autonomy's posture is preserved, not retried around |
+| (d) | any lifecycle or **[autonomy activation]** check fails closed — at the between-iteration re-check or aborting a cycle (the two layers "Reachability" above defines; this row and that section state one rule), **or** the single-instance check declining to start because another run is already in progress (a lifecycle check, not an activation layer) | fail-closed — autonomy's posture is preserved, not retried around |
 
 ## Safety invariants (what N iterations must never change)
 
@@ -176,6 +187,26 @@ interrupts a task mid-cycle; a started iteration always runs to its own terminal
   PR-only — constitution P4).
 - **No post-PR comment watching.** The loop never reacts to reviewer comments on the PRs
   it opened — out of scope by spec (spec 004 non-goals); the PRs wait for the owner.
+- **Single-instance, and self-healing across a hard kill.** Two overlapping runs never both
+  select: the second stops fail-closed rather than beginning a second selection or iteration.
+  "Overlapping" is scoped to the **repository**, not to one working tree — the startup cleanup
+  below acts on state every working tree of a repository shares, so a claim scoped any narrower
+  than that would let two runs each believe they were the only one and let each reap the other's
+  live workspaces.
+  The claim a run holds is released when it ends *however* it ends, and a claim whose owner is
+  gone is reclaimed, so an ordinary hard kill does not wedge every later run. Taking over a
+  dead claim is itself an exclusive act, so of two runs racing to reclaim the same one exactly
+  one proceeds — the alternative, each rebuilding the claim in place, ends with *both* holding
+  it and the second one's cleanup reaping the first's live workspaces. **The trade that buys
+  that:** a run killed *during* a takeover leaves the takeover itself claimed, and later runs
+  meeting a dead claim decline until an operator clears it. That is deliberate and fail-closed
+  — a stalled loop is recoverable, a double-holding pair is not. Reclaiming never forces: a
+  claim that cannot be released cleanly makes the run decline, never destroy what it found
+  there. An engaged run's startup cleanup then reaps only the **[isolated workspace]**s whose
+  owning run has ended; an ownerless workspace — one whose owner cannot be *proven* finished
+  — is left alone rather than guessed dead, so the failure direction stays leak-never-destroy.
+  The cleanup is observation-free: nothing is read back from it, and no outcome, selection, or
+  stop condition depends on what it did.
 
 ## The run report (observe-only)
 

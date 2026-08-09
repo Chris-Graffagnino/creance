@@ -48,6 +48,10 @@ MODEL="$REPO/.claude/workflow/backlog-loop.md"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
+# Hermetic lock (T906): every run below now takes the single-instance loop lock, so point it at
+# our scratch dir. On the real default path the suite would contend with an actual loop on this
+# machine — and with a parallel CI job — turning unrelated cases red for the wrong reason.
+export BACKLOG_LOOP_LOCK_DIR="$TMP/loop.lock"
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); }
@@ -482,6 +486,355 @@ assert_eq "review mode: loop never starts" "$OUT" "stop: fail-closed after 0 of 
 assert_eq "review mode: summary is the ONLY record" "$(grep -c . "$FIX/report.jsonl")" "1"
 assert_eq "review mode: summary stop" "$(rfield "$FIX/report.jsonl" 1 .stop)" "fail-closed"
 assert_eq "review mode: summary iterations" "$(rfield "$FIX/report.jsonl" 1 .iterations)" "0"
+
+# ── Concurrency lock (T906, issue #267 DW1/DW2). Two overlapping invocations —
+#    a cron fire crossing a manual run — must not both reach selection. Before
+#    this, the ONLY thing preventing a genuine double-start was an incidental
+#    `git worktree add -b` branch-name collision, which is not a mutex.
+
+# Blocking iteration stub: announces it is mid-iteration, then waits for a release
+# file, so run A provably HOLDS the lock while run B starts. Bounded (~60s worst
+# case) so a regression cannot hang CI forever.
+cat > "$BIN/iter-block.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+printf 'iteration %s\n' "$1" >> "$FIX/events.log"
+: > "$FIX/holding"
+i=0
+while [ ! -e "$FIX/go" ]; do
+  i=$((i + 1)); [ "$i" -lt 600 ] || break
+  sleep 0.1 2>/dev/null || sleep 1
+done
+printf 'pass PR-%s\n' "$1"
+EOF
+
+# Sweep seam stub: logs the call and its session argument, then is DELIBERATELY
+# noisy and non-zero — a broken sweep must not colour the run in any way.
+cat > "$BIN/sweep.sh" <<'EOF'
+#!/usr/bin/env bash
+set -u
+printf 'sweep\n' >> "$FIX/events.log"
+printf 'session:%s\n' "${1:-}" >> "$FIX/sweep.log"
+printf 'sweep noise on stdout\n'
+printf 'sweep noise on stderr\n' >&2
+exit 1
+EOF
+
+# wait_file <path> — bounded wait for a file to appear; non-zero if it never does.
+wait_file() {
+  local i=0
+  while [ ! -e "$1" ]; do
+    i=$((i + 1)); [ "$i" -lt 600 ] || return 1
+    sleep 0.1 2>/dev/null || sleep 1
+  done
+  return 0
+}
+
+# dead_pid — a pid that is certainly NOT running: spawn a trivial child and reap it.
+dead_pid() { ( exit 0 ) & local p=$!; wait "$p" 2>/dev/null; printf '%s\n' "$p"; }
+
+# ── L1. TWO CONCURRENT STARTS -> exactly one proceeds (DW2's first direction).
+#    Real processes, not a simulated lock file: A is held mid-iteration while B
+#    starts for real.
+mkfix lock-concurrent
+printf 'T101\nT102\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_A="$FIX/loop.lock"
+( BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter-block.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_A" \
+  bash "$SCRIPT" run 1 > "$FIX/a.out" 2>/dev/null ) &
+apid=$!
+if wait_file "$FIX/holding"; then
+  ok                                   # setup gate: the concurrency window is genuinely open
+  BRC=0
+  BOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+    BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+    BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+    BACKLOG_LOOP_LOCK_DIR="$LOCK_A" \
+    bash "$SCRIPT" run 1 2>"$FIX/b.err")" || BRC=$?
+  assert_eq "lock: the second concurrent start declines" "$BOUT" "stop: fail-closed after 0 of 1"
+  assert_eq "lock: a declined start is still a clean stop" "$BRC" "0"
+  # deterministic, not silent: the decline names the lock it could not take.
+  if grep -qF "$LOCK_A" "$FIX/b.err"; then ok; else bad "lock: the declining run printed no diagnostic naming the lock"; fi
+  : > "$FIX/go"
+  wait "$apid"
+  # THE criterion — "does not start a second selection/iteration". Counted across
+  # BOTH runs, so a B that declined only AFTER consulting the selector would fail.
+  assert_eq "lock: exactly one selection across two concurrent starts" "$(grep -c '^select$' "$FIX/events.log")" "1"
+  assert_eq "lock: exactly one iteration across two concurrent starts" "$(grep -c '^iteration ' "$FIX/events.log")" "1"
+  awant="$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+  assert_eq "lock: the holder completed its own run normally" "$(cat "$FIX/a.out")" "$awant"
+  # DW2's second direction: a normal run RELEASES, so the next run is not deadlocked.
+  if [ ! -d "$LOCK_A" ]; then ok; else bad "lock: the holder did not release the lock on exit"; fi
+  # (the blocking stub never marks its task done, so the fresh run re-selects T101 —
+  # what matters here is that it PROCEEDS at all rather than declining on a stale lock.)
+  run_loop 1
+  assert_eq "lock: a later run proceeds after the lock was released" "$OUT" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+else
+  bad "lock setup: run A never reached its iteration — the concurrency window never opened"
+  kill "$apid" 2>/dev/null
+fi
+
+# ── L2. A LIVE holder is respected (the same decision, deterministically, with no
+#    fork): the lock records THIS test process, which is certainly running.
+mkfix lock-live
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_L="$FIX/live.lock"
+mkdir -p "$LOCK_L"
+printf 'pid=%s\nsession=someone-else\n' "$$" > "$LOCK_L/owner"
+LRC=0
+: > "$FIX/sweep.log"
+LOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_SWEEP_CMD="bash $BIN/sweep.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_L" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || LRC=$?
+assert_eq "lock: a live holder makes the run decline" "$LOUT" "stop: fail-closed after 0 of 1"
+assert_eq "lock: nothing was selected while declining" "$(grep -c '^select$' "$FIX/events.log")" "0"
+# The most dangerous ordering for the new DESTRUCTIVE path: a run turned away by a live
+# holder must not sweep — its sweep would see the LIVE holder's workspaces as orphans.
+assert_eq "lock: a run declined by a live holder takes no sweep action" "$(grep -c '^sweep$' "$FIX/events.log")" "0"
+# and the live holder's lock is left exactly as it was — never released by the decliner.
+if [ -d "$LOCK_L" ] && grep -qxF "pid=$$" "$LOCK_L/owner"; then ok; else bad "lock: a declining run removed or rewrote the LIVE holder's lock"; fi
+
+# ── L3. A STALE lock is reclaimed (the crash case): one SIGKILL must not wedge
+#    every future run. The recorded holder is a reaped pid, so it cannot be alive.
+mkfix lock-stale
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_S="$FIX/stale.lock"
+mkdir -p "$LOCK_S"
+printf 'pid=%s\nsession=crashed-run\n' "$(dead_pid)" > "$LOCK_S/owner"
+SRC=0
+SOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_S" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || SRC=$?
+assert_eq "lock: a stale lock is reclaimed, not deadlocked around" "$SOUT" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+if [ ! -d "$LOCK_S" ]; then ok; else bad "lock: the reclaimed lock was not released at exit"; fi
+
+# ── L4. A lock dir with NO owner file (killed between mkdir and the owner write)
+#    is also stale — otherwise that one-instruction window wedges the loop forever.
+mkfix lock-noowner
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_N="$FIX/noowner.lock"
+mkdir -p "$LOCK_N"
+NOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_N" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "lock: an owner-less lock dir is reclaimed" "$NOUT" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+
+# ── L5. The reclaim can NEVER destroy real content. Point the lock at a populated
+#    directory that is not ours: the reclaim must fail (rmdir refuses a non-empty
+#    dir — there is no rm -rf on this path) and the run must decline, with the
+#    directory and its contents intact.
+mkfix lock-populated
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_P="$FIX/not-a-lock"
+mkdir -p "$LOCK_P"
+echo precious > "$LOCK_P/important.txt"
+POUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_P" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "lock: an unreclaimable lock path declines rather than forcing" "$POUT" "stop: fail-closed after 0 of 1"
+if [ -f "$LOCK_P/important.txt" ] && [ "$(cat "$LOCK_P/important.txt")" = "precious" ]; then ok; else bad "lock: the stale-lock reclaim destroyed unrelated directory content"; fi
+# The takeover-intent directory must not survive the REFUSAL path either. Nothing else
+# removes it, so a leaked intent makes every later run that meets a stale lock decline
+# forever — the one way this fail-closed design turns into a permanent wedge.
+if [ ! -d "$LOCK_P.reclaim" ]; then ok; else bad "lock: the refused reclaim leaked its takeover intent ($LOCK_P.reclaim) — later runs would decline forever"; fi
+
+# ── L6. A SIGNALLED run releases the lock AND stops. A release-only handler is a
+#    trap: bash resumes the interrupted flow when the handler returns, so the loop
+#    would carry on iterating while holding no lock. With N=5 and 3 eligible tasks,
+#    a resuming loop drains the backlog (3 iterations); a correctly-exiting one
+#    stops after the iteration that was in flight when the signal landed (1).
+mkfix lock-signal
+printf 'T101\nT102\nT103\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_G="$FIX/signal.lock"
+BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter-block.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_G" \
+  bash "$SCRIPT" run 5 >/dev/null 2>&1 &
+gpid=$!
+if wait_file "$FIX/holding"; then
+  ok
+  # bash defers a trap until the foreground command returns, so signal THEN release the
+  # blocked iteration: the handler runs at the next opportunity, exactly as in production.
+  kill -TERM "$gpid" 2>/dev/null
+  : > "$FIX/go"
+  grc=0; wait "$gpid" 2>/dev/null || grc=$?
+  assert_eq "lock: a signalled run stops instead of resuming unlocked" "$(grep -c '^iteration ' "$FIX/events.log")" "1"
+  if [ ! -d "$LOCK_G" ]; then ok; else bad "lock: a signalled run did not release its lock"; fi
+  # 128+SIGTERM — a killed run must not masquerade as a clean stop.
+  assert_eq "lock: a signalled run exits 128+signo, not 0" "$grc" "143"
+else
+  bad "lock signal setup: the run never reached its iteration — no signal window opened"
+  kill "$gpid" 2>/dev/null; : > "$FIX/go"
+fi
+
+# ── L7. The lock is scoped to the REPOSITORY, not to the checkout path. Two linked
+#    worktrees of one repo hold different script paths but SHARE one worktree
+#    registry — the blast radius of the crash-recovery sweep. Keyed on the script's
+#    own directory they would take different locks, both proceed, and the second
+#    run's sweep would reap the first's LIVE workspaces.
+mkfix lock-repo-scope
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+RS="$FIX/repo"; RS2="$FIX/repo2"
+for r in "$RS" "$RS2"; do
+  git init -q -b main "$r" >/dev/null 2>&1
+  git -C "$r" config user.email t@example.com
+  git -C "$r" config user.name test
+  mkdir -p "$r/.claude/hooks"
+  cp "$SCRIPT" "$r/.claude/hooks/backlog-loop.sh"
+  git -C "$r" add .claude/hooks/backlog-loop.sh >/dev/null 2>&1
+  git -C "$r" commit -q -m seed >/dev/null 2>&1
+done
+git -C "$RS" worktree add -q "$FIX/linked" -b linked >/dev/null 2>&1
+# SETUP GATE: without a real linked worktree carrying its own copy of the script, the
+# different-path/same-repo condition never exists and the case proves nothing.
+if [ -f "$FIX/linked/.claude/hooks/backlog-loop.sh" ]; then
+  ok
+  # The holder runs through a SYMLINK to the same tree. That makes `pwd` vs `pwd -P`
+  # differ on every platform, not just where $TMPDIR is itself symlinked (macOS
+  # /var -> /private/var), so a regression from the physical resolve is falsifiable
+  # on the Linux CI runner too instead of only on the owner's machine.
+  ln -s "$RS" "$FIX/repo-link" 2>/dev/null
+  ( cd "$FIX/repo-link" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+    BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+    BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter-block.sh" \
+    bash .claude/hooks/backlog-loop.sh run 1 >/dev/null 2>&1 ) &
+  rpid=$!
+  if wait_file "$FIX/holding"; then
+    ok
+    # Same repository, DIFFERENT script path -> must share the lock and decline.
+    BOUT2="$( cd "$FIX/linked" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+      BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+      BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+      bash .claude/hooks/backlog-loop.sh run 1 2>/dev/null )"
+    assert_eq "lock: a linked worktree of the SAME repo shares the lock" "$BOUT2" "stop: fail-closed after 0 of 1"
+    # ...and an UNRELATED repo must still run: the key is repo-scoped, not a global constant
+    # (a lock keyed on nothing at all would also pass the assertion above).
+    COUT="$( cd "$RS2" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+      BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+      BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+      bash .claude/hooks/backlog-loop.sh run 1 2>/dev/null )"
+    assert_eq "lock: an unrelated repo is not blocked (repo-scoped, not global)" "$COUT" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+  else
+    bad "lock repo-scope setup: the holder never reached its iteration"
+  fi
+  : > "$FIX/go"
+  wait "$rpid" 2>/dev/null || :
+else
+  bad "lock repo-scope setup: the linked worktree was not created — the same-repo/different-path condition never existed"
+fi
+
+# ── L8. The stale-lock takeover is SINGLE-WINNER. Rebuilding a stale lock in place
+#    is not: one racer finishing the whole rebuild before the other starts lets the
+#    second delete the first's FRESH owner file and recreate the lock, leaving BOTH
+#    holding it — a double-start, and the second run's sweep would then treat the
+#    first's LIVE workspaces as orphans. The right to rebuild is therefore taken
+#    with its own atomic mkdir; a run that finds that intent already held declines.
+mkfix lock-reclaim-race
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_R="$FIX/reclaim.lock"
+mkdir -p "$LOCK_R"
+printf 'pid=%s\nsession=crashed-run\n' "$(dead_pid)" > "$LOCK_R/owner"   # stale: reclaimable
+mkdir -p "$LOCK_R.reclaim"                                              # ...but a racer holds the intent
+RROUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_R" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "lock: a second reclaimer of one stale lock declines" "$RROUT" "stop: fail-closed after 0 of 1"
+assert_eq "lock: the losing reclaimer selected nothing" "$(grep -c '^select$' "$FIX/events.log")" "0"
+# and it left the in-progress reclaim alone rather than stomping it.
+if [ -d "$LOCK_R.reclaim" ]; then ok; else bad "lock: the losing reclaimer removed the winner's reclaim intent"; fi
+# with the intent released, the very next run reclaims normally (no permanent wedge
+# from the intent mechanism itself).
+rmdir "$LOCK_R.reclaim"
+RR2="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_R" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "lock: once the intent clears, the stale lock is reclaimed" "$RR2" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+# ...and the successful takeover released its OWN intent on the way out. This is the
+# single line standing between the accepted fail-closed trade and a permanent wedge,
+# so it is asserted rather than assumed on both the success and the refusal path.
+if [ ! -d "$LOCK_R.reclaim" ]; then ok; else bad "lock: a successful reclaim leaked its takeover intent ($LOCK_R.reclaim) — later runs would decline forever"; fi
+
+# ── L9. Outside a repository the lock key falls back to the SCRIPT's directory, not
+#    to the caller's cwd. `cd ""` succeeds silently, so an unguarded resolve of an
+#    empty `--git-common-dir` would key the lock to wherever the run happened to be
+#    started from — two runs of one checkout, started from different directories,
+#    would then not exclude each other at all.
+mkfix lock-nonrepo
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+NRD="$FIX/nonrepo/hooks"           # a script copy that is NOT inside any git repo
+mkdir -p "$NRD" "$FIX/elsewhere"
+cp "$SCRIPT" "$NRD/backlog-loop.sh"
+nr_key="$(cd "$NRD" && pwd -P)"
+nr_tag="$(printf '%s' "$nr_key" | cksum)"; nr_tag="${nr_tag%% *}"
+NR_LOCK="$FIX/creance-loop-${nr_tag}.lock"
+mkdir -p "$NR_LOCK"
+printf 'pid=%s\nsession=live-elsewhere\n' "$$" > "$NR_LOCK/owner"   # THIS test process: alive
+# Run from an unrelated directory. Keyed on the script dir it must see the live lock
+# above and decline; keyed on cwd it would compute a different path and run.
+NROUT="$( cd "$FIX/elsewhere" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  bash "$NRD/backlog-loop.sh" run 1 2>/dev/null )" || :
+assert_eq "lock: outside a repo the key is the script dir, not the cwd" "$NROUT" "stop: fail-closed after 0 of 1"
+
+# ── Crash-recovery sweep seam (T906, DW3): DRIVEN once at startup, before the
+#    first selection, with the run's session id — and silent-to-the-run.
+mkfix sweep-seam
+printf 'T101\nT102\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+: > "$FIX/sweep.log"
+SWOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_SWEEP_CMD="bash $BIN/sweep.sh" \
+  BACKLOG_LOOP_SESSION_ID="sess-fixed" \
+  bash "$SCRIPT" run 2 2>/dev/null)" || :
+# the failing, noisy sweep changes NOTHING about the run's transcript (P5-shaped
+# posture: driven write-only, its output and status discarded).
+assert_eq "sweep: a failing, noisy sweep leaves the run's transcript untouched" "$SWOUT" "$(printf 'iteration 1 task T101 outcome pass PR-T101\niteration 2 task T102 outcome pass PR-T102\nstop: max-N after 2 of 2')"
+assert_eq "sweep: driven exactly once per run, not once per iteration" "$(grep -c '^sweep$' "$FIX/events.log")" "1"
+assert_eq "sweep: receives the run's session id as its argument" "$(cat "$FIX/sweep.log")" "session:sess-fixed"
+# ordering: the sweep must precede the FIRST selection, so a run cannot inherit a
+# previous run's leaked workspaces.
+assert_eq "sweep: runs before the first selection" "$(grep -E '^(sweep|select)$' "$FIX/events.log" | head -1)" "sweep"
+
+# ── Sweep is gated on an ENGAGED run: review mode never starts the loop, so it
+#    must never take the sweep's destructive action either.
+mkfix sweep-review
+printf 'T101\n' > "$FIX/backlog"
+: > "$FIX/sweep.log"
+RVOUT="$(BACKLOG_LOOP_ACTIVATION_CMD="bash $BIN/act-review.sh" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_SWEEP_CMD="bash $BIN/sweep.sh" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "sweep: review mode still never starts the loop" "$RVOUT" "stop: fail-closed after 0 of 1"
+assert_eq "sweep: review mode takes no destructive sweep action" "$(grep -c '^sweep$' "$FIX/events.log")" "0"
 
 # ── Wiring (P2): the `verify` job ACTIVELY runs this test (an active `run:`
 #    step scoped to the verify job body, not a comment mention) — same

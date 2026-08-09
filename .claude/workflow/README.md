@@ -80,12 +80,14 @@ write command where an intent exists (P3).
 | **[open-pr output]** | A source (task) branch, the base branch, a title, and a body | A new open PR proposing the branch | A **proposal only** — carries no approval and never merges; merge authorization stays session-explicit (`next-task.md` §8) |
 | **[update-pr output]** | An open PR **the run itself opened**, plus replacement title/body content | That PR's own title/body updated (e.g. the §8 verdict-link fill) | Scoped to the run's own PR metadata; never changes PR state (open/closed/merged/draft), reviewers, or any other PR |
 | **[update-issue-metadata output]** | An issue reference plus metadata deltas (a retitle per the profile's conventions; labels where the tracker supports them) | The metadata applied | Metadata only — never the owner-authored body, never state changes (close/reopen) |
-| **[push-task-branch output]** | A non-base task branch with commits | The branch published to the shared remote | Never the base branch, never a base-targeting refspec (backstopped by [guard] rules 3–4); never rewrites shared history; **branch deletion is not included** — the gated [isolated workspace] discard path owns the only branch deletion |
+| **[push-task-branch output]** | A non-base task branch with commits | The branch published to the shared remote | Never the base branch, never a base-targeting refspec (backstopped by [guard] rules 3–4); never rewrites shared history; **branch deletion is not included** — the gated [isolated workspace] discard path owns the only branch deletion, whether reached by a gate FAIL or by that same path's crash-recovery cleanup of a run that has ended |
 
 **Family-wide exclusions.** No intent exists — and none may be added without the reviewed
 constitutional pass P4 requires — for: merging a PR; closing a PR or an issue as a side
 effect of review; writing the base branch directly; deleting branches outside the gated
-[isolated workspace] discard path; modifying secrets, permissions, or access controls;
+[isolated workspace] discard path (its crash-recovery cleanup re-enters that same path under
+the same ownership proof, and so adds no authority — only a second trigger for it); modifying
+secrets, permissions, or access controls;
 approving a review on a human's behalf; or changing model tiers, gate semantics, reviewer
 specs, guards, invariants, or the constitution outside the normal PR flow. This family
 **adds no write authority** anywhere: it names and bounds the writes the workflows already

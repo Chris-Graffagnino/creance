@@ -170,14 +170,63 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────────
+# SWEEP (T906, issue #267 DW3/DW4) — the crash-recovery sweep is a NEW delete path, so the wall
+# must hold through it too, not just through discard. Three adversarial workspaces in one repo,
+# swept with a LIVE session id:
+#   (1) a forged marker recording branch=main (the base) with a STALE session — DW3's forgery
+#       routed through the sweep, the strongest breach attempt on the new door;
+#   (2) a marker-less worktree under a creance-ws-* parent — the name filter alone must never
+#       authorize a delete (the #114 lesson, restated against the sweep);
+#   (3) a marker with NO session line — an owner that cannot be PROVEN dead is left alone, so
+#       the sweep can never "clean up" a workspace it merely fails to recognize.
+# Base must survive byte-identical, and (2)/(3) must still be registered and on disk after.
+# ─────────────────────────────────────────────────────────────────────────────────────────
+R5="$TMP/r5"; new_repo "$R5"
+base5=$(git -C "$R5" rev-parse main)
+forged5="$TMPDIR/creance-ws-SWEEPFORGE"; mkdir -p "$forged5"
+git -C "$R5" worktree add -q -b sweep-decoy "$forged5/wt" >/dev/null 2>&1
+printf '%s\nbranch=%s\nsession=%s\n' 'forged owner marker' 'main' 'DEAD-SESSION' > "$forged5/.creance-ws-owner"
+nomarker5="$TMPDIR/creance-ws-NOMARKER"; mkdir -p "$nomarker5"
+git -C "$R5" worktree add -q -b sweep-nomarker "$nomarker5/wt" >/dev/null 2>&1
+nosess5="$TMPDIR/creance-ws-NOSESSION"; mkdir -p "$nosess5"
+git -C "$R5" worktree add -q -b sweep-nosession "$nosess5/wt" >/dev/null 2>&1
+printf '%s\nbranch=%s\n' 'owner marker without a session' 'sweep-nosession' > "$nosess5/.creance-ws-owner"
+# SETUP GATE (Codex P2, PR #116): all three decoys must really be registered, else the sweep has
+# nothing to be refused by and every assertion below would pass vacuously.
+if git -C "$R5" worktree list 2>/dev/null | grep -q '\[sweep-decoy\]' \
+  && git -C "$R5" worktree list 2>/dev/null | grep -q '\[sweep-nomarker\]' \
+  && git -C "$R5" worktree list 2>/dev/null | grep -q '\[sweep-nosession\]'; then
+  ok
+  ( cd "$R5" && bash "$SCRIPT" sweep --session LIVE-SESSION ) >/dev/null 2>&1; src5=$?
+  # (1) NON-VACUITY: the sweep must have SELECTED the forged workspace and reached the
+  # branch-delete. The worktree dir is removed BEFORE `git branch -D`, so a removed dir proves the
+  # base-delete was attempted and refused THERE — not skipped earlier for an unrelated reason.
+  if [ ! -d "$forged5/wt" ]; then ok; else bad "SWEEP: the forged stale-session workspace was never processed — the base-delete refusal went unexercised"; fi
+  if [ "$src5" != "0" ]; then ok; else bad "SWEEP: returned 0 while told to delete the base branch — an un-reapable orphan must fail loud"; fi
+  # THE safety property: base survives byte-identical despite a forged branch=main marker.
+  if git -C "$R5" show-ref --verify --quiet refs/heads/main && [ "$(git -C "$R5" rev-parse main)" = "$base5" ]; then ok; else bad "SWEEP: a forged branch=main marker deleted/clobbered the base branch through the sweep"; fi
+  # (2) marker-less: the name filter is not ownership — dir, registration, and branch all survive.
+  if [ -d "$nomarker5/wt" ] && git -C "$R5" worktree list 2>/dev/null | grep -q '\[sweep-nomarker\]'; then ok; else bad "SWEEP: reaped a marker-less worktree under a creance-ws-* parent (the name is not ownership)"; fi
+  if git -C "$R5" show-ref --verify --quiet refs/heads/sweep-nomarker; then ok; else bad "SWEEP: deleted the branch of a marker-less worktree"; fi
+  # (3) no session recorded: an unprovable owner is left alone, never guessed dead.
+  if [ -d "$nosess5/wt" ] && git -C "$R5" worktree list 2>/dev/null | grep -q '\[sweep-nosession\]'; then ok; else bad "SWEEP: reaped a workspace whose marker records no session (an unprovable owner must be left alone)"; fi
+  if git -C "$R5" show-ref --verify --quiet refs/heads/sweep-nosession; then ok; else bad "SWEEP: deleted the branch of a no-session workspace"; fi
+else
+  bad "SWEEP setup: the three decoy worktrees are not all registered — the sweep proof would be vacuous"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
 # DW4 — negative space: the wall has no door. A source backstop behind the behavioral proofs:
 # the lifecycle dispatches ONLY enter/exit/discard, and its source carries no base-ref-writing
 # operation. Greps over the script text — brittle by nature, so it BACKS the behavioral tests
 # (DW1–DW3 are the real proof), catching an obvious future regression that adds a promotion door.
 # ─────────────────────────────────────────────────────────────────────────────────────────
-# (a) the only dispatched subcommands are enter/exit/discard (plus usage) — no promote/merge verb.
-arms=$(grep -oE '^[[:space:]]*(enter|exit|discard|push|promote|merge|land)\)' "$SCRIPT" | tr -d ' ')
-if [ "$(printf '%s\n' "$arms" | sort -u | tr '\n' ' ')" = "discard) enter) exit) " ]; then ok; else bad "DW4: lifecycle case arms are not exactly enter/exit/discard (a promotion verb may have been added): got [$arms]"; fi
+# (a) the only dispatched subcommands are enter/exit/discard/sweep (plus the usage catch-all) —
+# no promote/merge verb. Enumerated from the dispatch block's own arms (the 2-space indentation
+# level; inner `case` arms sit deeper), NOT matched against a fixed name allowlist: an allowlist
+# silently ignores an arm nobody predicted, which is exactly how a promotion door would get in.
+arms=$(grep -oE '^  [a-z*]+\)' "$SCRIPT" | tr -d ' ')
+if [ "$(printf '%s\n' "$arms" | sort -u | tr '\n' ' ')" = "*) discard) enter) exit) sweep) " ]; then ok; else bad "DW4: lifecycle case arms are not exactly enter/exit/discard/sweep (a promotion verb may have been added): got [$arms]"; fi
 # (b) no merge and no push anywhere in the lifecycle — promotion is the dispatcher's job, not this script's.
 if grep -qE 'git[[:space:]]+merge' "$SCRIPT"; then bad "DW4: the lifecycle script contains a git merge (it must never fold work into a branch)"; else ok; fi
 if grep -qE 'git[[:space:]]+push' "$SCRIPT"; then bad "DW4: the lifecycle script contains a git push (promotion is the dispatcher's gated PR, not the lifecycle's)"; else ok; fi

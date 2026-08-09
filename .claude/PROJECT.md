@@ -260,7 +260,9 @@ row's first two backticked tokens are the glob and its checker: `` `<glob>` → 
   context** (the workspace location passed to the gate), never an inferred working directory — a
   CWD-only scheme could audit the empty main tree and pass vacuously (T612). Promotion is a PR
   through the §7-gated path, **never an auto-merge** (merge stays session-explicit); the discard
-  path deletes only the ephemeral `creance-ws-*` branch, never the base branch.
+  path deletes only the ephemeral `creance-ws-*` branch, never the base branch — including when
+  that same path is re-entered by the crash-recovery sweep, which adds a trigger, not authority
+  (it reaps only marker-owned workspaces whose owning run has ended; T906/#267).
 - The §7 `[orchestrated run]` auditing an **inferred working-directory HEAD** on ANY dispatch —
   **review mode included**, not only the autonomous gate-in-place path above — FAIL (T639/#240).
   Every dispatch audits an **explicit** ref: an `[isolated workspace]`/worktree pinned to the task
