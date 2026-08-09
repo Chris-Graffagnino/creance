@@ -115,6 +115,7 @@
 | T904 | strong | [x] | US1.AC5-AC6 |  | Run report as observe-only telemetry: one line per iteration (task ID… |
 | T905 | cheap | [x] | US1.AC7 |  | Adapter binding for the `[backlog-loop]` (the `[scheduled run]` /… |
 | T906 | strong | [ ] |  |  | Add a **concurrency lock** and a **crash-recovery startup sweep** to… |
+| T907 | strong | [ ] |  | #324 | Contain and reap the loop's fan-out child processes, and bound the one… |
 
 ## specs/005-held-out-acceptance/spec.md
 
