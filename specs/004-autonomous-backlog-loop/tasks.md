@@ -78,6 +78,63 @@
       (#267; bug — done-when on issue) — strong: closes two fail-safe robustness gaps in the
       autonomy surface without weakening the isolation delete-guards (constitution P2/P3/P4)
 
+## Phase 5 — Fan-out child containment & bounded hooks (issue #324; bug)
+
+> An **ungracefully** stopped loop session (SIGKILL / app crash / force-quit) strands the
+> parallel tool shells its auditor/gate rounds spawned: they reparent to PID 1 and, being
+> mid busy-loop, burn CPU indefinitely. One observed incident held ~24 orphaned shells plus
+> one runaway metric hook alive for 6h+ at load ~60 with 0% idle. This is the orphaned
+> **process** axis and is disjoint from T906, which reaps orphaned **worktrees/branches** —
+> but the two rewrite the same control paths, so T907 is sequenced behind it. Surfaced by
+> the owner as unmapped tracker work and converted via intake (`workflow/intake.md`). It is
+> a bug — no new `US#`; the acceptance reviewer grades it against the done-when criteria
+> carried in issue #324's intake cross-link comment, exactly as it would a `US#`.
+
+- [ ] T907 [strong] Contain and reap the loop's fan-out child processes, and bound the one
+      hook that can spin on its own (`#324`): (a) `.claude/hooks/effective-fix-rate.sh:111-153`
+      pipes the whole telemetry stream through `jq -s` (slurp-all) with **no wall-clock bound
+      and no input-size cap**, so a large or pathological stream churns CPU without
+      self-limiting — add both, and give the bound its **own distinct terminal state**: a run
+      that hits the time bound or the size cap must be reported as such, never collapsed into
+      the documented `no-data` state (`effective-fix-rate.sh:42,50,94-107` — only an absent or
+      empty stream is `no-data`; a broken source already fails loud), and the observe-only
+      posture (P5) is unchanged — it still writes nothing and still returns nothing any gate,
+      tier, guard, or selection path reads. (b) `.claude/settings.json:64-88` wires `guard.sh`
+      on `PreToolUse` (`Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell|Agent|Task`) and
+      `PostToolUse` with **no explicit `timeout`** — declare one, and because that is a change
+      to guard *wiring* it ships its matching `guard.test.sh` case in the same diff (P2's
+      settings.json wiring assertion). Establish the timeout's **fail direction** by
+      observation, not assumption: a `PreToolUse` guard that times out must not let the tool
+      call proceed ungated, so record the runtime's actual behavior as a dated adapter probe
+      (the T303/P-IW pattern) and, if it fails *open*, say so and carry the residual risk
+      explicitly rather than shipping a silently dead guard. (c) `.claude/hooks/backlog-loop.sh`
+      and `backlog-loop-iterate.sh` contain **no** `trap`, `kill`, or process-group handling
+      (verified: zero hits), and `docs/launchers/backlog-loop.sh:58-64` traps only `EXIT` to
+      append its run log — it never signals children — so launch each iteration's fan-out in
+      its own **process group** and tear the whole group down on launcher exit, giving a
+      graceful stop a single "kill the round" handle. (d) `SIGKILL` cannot be trapped, so add
+      the backstop: a **reaper**, runnable as a loop pre-flight, that terminates orphaned
+      (reparented) harness-owned spinners. Its kill predicate is **provenance-gated** exactly
+      as the isolation lifecycle's delete paths are (`isolated-workspace.sh`, #114) — a
+      command-string match like `shell-snapshots` alone would also kill a *live* concurrent
+      session's shells and is rejected. **Portability is load-bearing here, not incidental:**
+      `timeout`, `gtimeout`, `setsid`, and `flock` are all **absent** on the environment that
+      hit this bug (verified), so (a)/(c)/(d) must be built from primitives that exist there
+      and stay `shell-lint.sh`-clean with no new diagnostic. Ships two-sided tests, each
+      flipping when its fix is reverted: a pathological stream terminates within the bound
+      with the distinct state **while** a normal stream still yields byte-identical
+      `rate`/`no-fix-rounds`/`no-data` output; an over-cap and an under-cap stream take
+      different paths; every wired `guard.sh` entry declares a timeout and removing the field
+      fails the wiring case; killing the launcher leaves zero surviving descendants **while**
+      an ordinary run still completes every iteration un-killed; and a planted orphan matching
+      the ownership predicate is reaped **while** a live session's shell and a foreign PID-1
+      process that merely matches the command pattern are left untouched. Blocked by T906
+      (it rewrites the same `backlog-loop.sh` control path and adds the sibling startup sweep;
+      landing these out of order guarantees a conflicting rewrite and a second competing sweep,
+      P2) (#324; bug — done-when on issue) — strong: spans the guard wiring, the autonomy
+      launcher's process control, and a new provenance-gated kill path, each under a
+      constitution invariant (P2/P3/P5) [#324]
+
 ## Criterion ownership (multi-task user stories)
 
 | Criterion | Owning task |
