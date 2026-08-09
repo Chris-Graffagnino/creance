@@ -23,6 +23,12 @@
 #         explicit in the prompt text (the explicit-context rule); the outcome
 #         is read from the run's own return (the BACKLOG-LOOP-OUTCOME marker),
 #         never from a report file (constitution P5)
+#     BACKLOG_LOOP_SWEEP_CMD                    — the crash-recovery startup
+#         sweep (T906): once per engaged run, the [isolated workspace] lifecycle
+#         reaps the workspaces a PREVIOUS run leaked by being killed mid-iteration.
+#         Driven write-only — its output and exit status are discarded, so a
+#         broken sweep cannot stall or steer an unattended run. The loop appends
+#         its session id, which is what scopes the reap to runs that have ended.
 #     BACKLOG_LOOP_RUN_ID                       — enables the observe-only run
 #         report (one line per iteration + the terminal summary) on the
 #         existing out-of-repo telemetry stream; /triage surfaces the batch
@@ -100,6 +106,7 @@ export BACKLOG_LOOP_HEADLESS_CMD="$CLAUDE_BIN -p --model $MODEL --dangerously-sk
 
 out="$(BACKLOG_LOOP_SELECT_CMD="bash .claude/hooks/backlog-loop-select.sh" \
   BACKLOG_LOOP_ITERATION_CMD="bash .claude/hooks/backlog-loop-iterate.sh" \
+  BACKLOG_LOOP_SWEEP_CMD="bash .claude/hooks/isolated-workspace.sh sweep --session" \
   BACKLOG_LOOP_RUN_ID="$run_id" \
   bash .claude/hooks/backlog-loop.sh run "$N" 2>&1)"
 code=$?

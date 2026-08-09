@@ -56,7 +56,7 @@
 > new `US#`; the acceptance reviewer grades it against the done-when criteria carried in
 > issue #267's intake cross-link comment, exactly as it would a `US#`.
 
-- [ ] T906 [strong] Add a **concurrency lock** and a **crash-recovery startup sweep** to the
+- [x] T906 [strong] Add a **concurrency lock** and a **crash-recovery startup sweep** to the
       autonomous loop (`#267`): (a) `.claude/hooks/backlog-loop.sh` currently has no lock or
       `trap` (verified: no `flock`/lockdir/`trap`), so two overlapping runs can both select the
       same task with only an incidental `git worktree add -b` name collision as an accidental

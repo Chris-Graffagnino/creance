@@ -44,6 +44,25 @@
 #       reads as `aborted` (fail closed).
 #   SELECT/ITERATION carry NO defaults on purpose: a missing seam is a loud
 #   usage error (exit 2), never a silent default that touches real state.
+#   BACKLOG_LOOP_SWEEP_CMD       optional. The [isolated workspace] crash-recovery
+#       sweep (T906), invoked ONCE at loop start with the run's session id as its
+#       single argument — after [autonomy activation] has resolved autonomous, so
+#       a review-mode run takes no destructive action. WRITE-ONLY and
+#       silent-to-the-run: output and exit status are discarded, exactly like the
+#       report drive below, so a broken or missing sweep can never stall the loop,
+#       change an outcome, or steer selection. Unset -> no sweep (the pre-T906
+#       behavior, unchanged). The real binding is
+#       `bash .claude/hooks/isolated-workspace.sh sweep --session`.
+#   BACKLOG_LOOP_LOCK_DIR        optional. Path of the mutual-exclusion lock
+#       directory; defaults to a per-checkout path under ${TMPDIR:-/tmp} derived
+#       from this script's own location, so two clones never share a lock and two
+#       runs of the SAME checkout always do. Tests point it at a scratch dir.
+#   BACKLOG_LOOP_SESSION_ID      optional. This run's session identity, passed to
+#       the sweep seam and recorded in the lock. Defaults to a pid+timestamp
+#       token. Deliberately SEPARATE from BACKLOG_LOOP_RUN_ID: the run id names
+#       the observe-only report channel, and wiring a control path (the lock, the
+#       sweep) to that identity would hand the measurement channel authority it
+#       must never have (constitution P5).
 #   BACKLOG_LOOP_RUN_ID          optional. When set, the loop DRIVES the T904
 #       run-report emitter (backlog-loop-report.sh) under this run id — one
 #       iteration record per completed cycle (outcome mapped to the emitter's
@@ -76,8 +95,33 @@
 #     iteration <n> task <id> outcome <pass <pr-ref>|fail-discard|refused|aborted>
 # and one terminal line —
 #     stop: <max-N|backlog-drained|repeated-gate-fail|fail-closed> after <i> of <N>
-# Exit 0 on any clean stop, 2 on a usage error. Bash only — no git, no gh, no
-# network. Tests: .claude/hooks/backlog-loop.test.sh (wired into CI verify).
+# Exit 0 on any clean stop, 2 on a usage error. The skeleton itself runs no git,
+# no gh, and no network — only shell built-ins and core utilities; everything
+# that touches real state goes through a seam. Tests:
+# .claude/hooks/backlog-loop.test.sh (wired into CI verify).
+#
+# Concurrency (T906): the loop is SINGLE-INSTANCE per checkout. Before anything
+# else it acquires an ATOMIC lock — `mkdir` on a lock directory, whose creation
+# is atomic on every POSIX filesystem. `flock` is deliberately NOT used: it is
+# absent on macOS (as are `timeout` and `setsid`) and shell-lint does not flag
+# it, so an flock-based lock would pass CI and be silently dead in production.
+# Without this, two overlapping invocations (a cron fire crossing a manual run)
+# both reach selection and can pick the SAME task, with only an incidental
+# `git worktree add -b` name collision as an accidental mutex (#267).
+#   * contended by a LIVE holder -> decline: a diagnostic naming the holder on
+#     stderr, and on stdout the ordinary terminal line `stop: fail-closed`. This
+#     is stop condition (d) — "a lifecycle check failed closed" — so the closed
+#     stop-condition set above is UNCHANGED, exactly as review mode already
+#     reports a loop that never started;
+#   * contended by a DEAD holder (the crash case) -> reclaimed, so one SIGKILL
+#     cannot wedge every future run. The reclaim removes the owner file and
+#     `rmdir`s the lock — never `rm -rf`, so a misconfigured LOCK_DIR pointing at
+#     a populated directory makes the reclaim fail rather than destroy it — and
+#     then re-reads the owner file: of two runs racing the same stale lock, only
+#     the one the file finally names proceeds;
+#   * released from a `trap` on EXIT/INT/TERM/HUP, and only while we still own
+#     it, so a normal run always frees the lock for the next one (no deadlock)
+#     and never removes a lock another run has taken over.
 set -u
 
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -85,6 +129,24 @@ ACTIVATION_CMD="${BACKLOG_LOOP_ACTIVATION_CMD:-bash .claude/hooks/autonomy-mode.
 SELECT_CMD="${BACKLOG_LOOP_SELECT_CMD:-}"
 ITERATION_CMD="${BACKLOG_LOOP_ITERATION_CMD:-}"
 RUN_ID="${BACKLOG_LOOP_RUN_ID:-}"
+SWEEP_CMD="${BACKLOG_LOOP_SWEEP_CMD:-}"
+# Per-checkout lock path: two clones must never share a lock, and two runs of the
+# SAME checkout always must. cksum over this script's own directory gives a stable,
+# portable tag with no hashing-tool dependency (md5sum/sha1sum/shasum differ across
+# BSD and GNU); the value only has to be collision-free between checkouts, not secure.
+lock_tag="$(printf '%s' "$SELF_DIR" | cksum 2>/dev/null)" || lock_tag=""
+lock_tag="${lock_tag%% *}"
+LOCK_DIR="${BACKLOG_LOOP_LOCK_DIR:-${TMPDIR:-/tmp}/creance-loop-${lock_tag:-0}.lock}"
+# This run's session identity — passed to the sweep seam and recorded in the lock, so
+# a workspace's marker can be told apart from THIS run's. Separate from RUN_ID by
+# design (P5: the observe-only report channel never gains control authority).
+SESSION_ID="${BACKLOG_LOOP_SESSION_ID:-loop-$$-$(date +%s 2>/dev/null)}"
+# Exported so an iteration's own child processes — the cycle binding, and the
+# [isolated workspace] `enter` it drives — can record THIS run as the workspace's
+# owner. Without an owner recorded, nothing is ever reapable and the sweep, though
+# wired and running, would have no orphan it is allowed to touch.
+export BACKLOG_LOOP_SESSION_ID="$SESSION_ID"
+LOCK_HELD=0
 
 usage() {
   echo "usage: backlog-loop.sh run <N>" >&2
@@ -141,6 +203,100 @@ finish() {
   exit 0
 }
 
+# ── Single-instance lock (T906, #267). See the header's "Concurrency" note for
+# why this is a mkdir lockdir and not flock.
+
+# lock_owner_pid — echo the pid recorded in the lock's owner file, or return
+# non-zero when there is none (no file, or a file with no pid= line).
+lock_owner_pid() {
+  local line
+  [ -f "$LOCK_DIR/owner" ] || return 1
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in pid=*) printf '%s\n' "${line#pid=}"; return 0 ;; esac
+  done < "$LOCK_DIR/owner"
+  return 1
+}
+
+# holder_alive <pid> — is the recorded holder still running? `ps -p` rather than
+# `kill -0`, because kill reports EPERM (i.e. "dead") for a LIVE process owned by
+# another user, and a false "dead" is the one answer that must never happen here:
+# it would let a second run reclaim a lock a live run is holding. A false "alive"
+# only costs a declined start, which is the safe direction.
+holder_alive() {
+  case "${1:-}" in '' | *[!0-9]*) return 1 ;; esac
+  ps -p "$1" >/dev/null 2>&1
+}
+
+# write_lock_owner — record this run as the holder. Written to a temp file BESIDE
+# the lock dir and renamed in, so (1) a reader never sees a half-written owner
+# file, and (2) the lock dir only ever contains `owner`, which is what lets the
+# stale-lock reclaim below use rmdir instead of rm -rf.
+write_lock_owner() {
+  local tmp="$LOCK_DIR.tmp.$$"
+  printf 'pid=%s\nsession=%s\n' "$$" "$SESSION_ID" > "$tmp" 2>/dev/null || return 1
+  mv -f "$tmp" "$LOCK_DIR/owner" 2>/dev/null || { rm -f "$tmp" 2>/dev/null; return 1; }
+  return 0
+}
+
+# acquire_lock — 0 when this run may proceed, non-zero when it must decline.
+acquire_lock() {
+  if mkdir "$LOCK_DIR" 2>/dev/null; then # atomic: exactly one creator wins
+    write_lock_owner || return 1
+    LOCK_HELD=1
+    return 0
+  fi
+  local holder
+  holder="$(lock_owner_pid)" || holder=""
+  if holder_alive "$holder"; then
+    printf 'backlog-loop.sh: another run holds the loop lock %s (pid %s) — declining to start a second selection/iteration\n' \
+      "$LOCK_DIR" "$holder" >&2
+    return 1
+  fi
+  # Stale: the recorded holder is gone (SIGKILL, crash, machine sleep) or never
+  # recorded itself. Reclaim, so one hard kill cannot wedge every future run.
+  # rm the owner file then RMDIR — never rm -rf: rmdir refuses a non-empty
+  # directory, so a misconfigured LOCK_DIR pointing at real content makes the
+  # reclaim fail loudly instead of destroying it.
+  printf 'backlog-loop.sh: reclaiming a stale loop lock %s (recorded holder %s is not running)\n' \
+    "$LOCK_DIR" "${holder:-none}" >&2
+  rm -f "$LOCK_DIR/owner" 2>/dev/null
+  rmdir "$LOCK_DIR" 2>/dev/null || return 1
+  mkdir "$LOCK_DIR" 2>/dev/null || return 1
+  write_lock_owner || return 1
+  # Two runs can race the same stale lock: both may rmdir/mkdir and both may
+  # write. The owner file settles it — proceed only if it still names us, so
+  # exactly one of the racers continues and the other declines.
+  [ "$(lock_owner_pid 2>/dev/null)" = "$$" ] || {
+    printf 'backlog-loop.sh: lost the race to reclaim the stale loop lock %s — declining\n' "$LOCK_DIR" >&2
+    return 1
+  }
+  LOCK_HELD=1
+  return 0
+}
+
+# release_lock — the trap. Idempotent, and a no-op unless we still own the lock,
+# so a declined run never frees the live holder's lock and a reclaimed-from-under-us
+# run never frees its successor's.
+release_lock() {
+  [ "$LOCK_HELD" -eq 1 ] || return 0
+  if [ "$(lock_owner_pid 2>/dev/null)" = "$$" ]; then
+    rm -f "$LOCK_DIR/owner" 2>/dev/null
+    rmdir "$LOCK_DIR" 2>/dev/null
+  fi
+  LOCK_HELD=0
+  return 0
+}
+
+# Crash-recovery startup sweep (T906): DRIVE the seam, exactly as report_iteration
+# drives the report emitter — output and exit status discarded, so a broken sweep
+# can never stall the run, alter an outcome, or steer selection. The loop learns
+# nothing from it; it is cleanup, not a signal.
+run_sweep() {
+  [ -n "$SWEEP_CMD" ] || return 0
+  bash -c "$SWEEP_CMD \"\$@\"" backlog-loop-sweep "$SESSION_ID" >/dev/null 2>&1 || :
+  return 0
+}
+
 # in_list <id> <newline-list> — exact whole-line identity match (stable task
 # identity, never a substring/prefix match).
 in_list() { printf '%s\n' "$2" | grep -qxF "$1"; }
@@ -167,6 +323,17 @@ select_candidate() {
 # never slip through as a candidate identity.
 valid_task_id() { [[ "$1" =~ ^T[0-9]+$ ]]; }
 
+# ── Single-instance gate, before any selection or iteration. A live holder means
+# this invocation must not start a second selection/iteration, so it stops the
+# same way review mode does: condition (d), a lifecycle check failing closed. The
+# trap goes up only once the lock is ours, so a declined run cannot release it.
+if acquire_lock; then
+  trap release_lock EXIT INT TERM HUP
+else
+  finish fail-closed
+fi
+swept=0
+
 while :; do
   # ── loop head: every stop condition is evaluated HERE, between iterations,
   # never mid-task. [autonomy activation] is consulted once per head. At the
@@ -176,6 +343,14 @@ while :; do
   # max-N.
   if [ "$iterations" -eq 0 ]; then
     activation_autonomous || finish fail-closed # the loop never starts in review
+    # Crash-recovery startup sweep (T906), once per run and only on an ENGAGED
+    # run: placed after the activation check so a review-mode invocation — which
+    # never starts — also never takes a destructive action. It runs before the
+    # first selection so this run cannot inherit a previous run's leaked state.
+    if [ "$swept" -eq 0 ]; then
+      swept=1
+      run_sweep
+    fi
     [ "$iterations" -lt "$N" ] || finish max-N  # (a): N=0 stops before any iteration
   else
     [ "$iterations" -lt "$N" ] || finish max-N  # (a)

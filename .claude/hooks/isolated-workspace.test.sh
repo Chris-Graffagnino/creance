@@ -207,13 +207,76 @@ if [ "$got" = "1" ]; then ok; else bad "ownership: exit on a non-owned registere
 if [ -d "$foreign" ]; then ok; else bad "ownership: exit force-removed a non-owned worktree directory (unrelated work lost)"; fi
 if git -C "$R3" worktree list 2>/dev/null | grep -q '\[foreign-branch\]'; then ok; else bad "ownership: exit de-registered a non-owned worktree"; fi
 
+# ── Crash-recovery sweep (T906, issue #267 DW3/DW4). `enter` only reaps on a caught in-process
+# failure, so a SIGKILL mid-iteration strands the workspace forever. The sweep reaps ONLY
+# dead-session marker-owned orphans. One repo carries all four shapes at once, so "reaped the
+# right one" and "left the other three" are proved against the SAME sweep invocation rather than
+# four independent runs that could each be passing for a different reason. ──
+RSW="$TMP/repo-sweep"; new_repo "$RSW"
+base_sw=$(git -C "$RSW" rev-parse main)
+
+# (1) the orphan: a workspace whose session ENDED without exit/discard — the mid-iteration kill.
+orphan=$( cd "$RSW" && bash "$SCRIPT" enter ws-orphan --base main --session SESSION-DEAD 2>/dev/null )
+# (2) a workspace belonging to the LIVE session — the run currently sweeping must not eat its own.
+livews=$( cd "$RSW" && bash "$SCRIPT" enter ws-live --base main --session SESSION-LIVE 2>/dev/null )
+# (3) a workspace entered with NO --session: its owner cannot be proven dead, so it is unreapable.
+nosess=$( cd "$RSW" && bash "$SCRIPT" enter ws-nosession --base main 2>/dev/null )
+# (4) a foreign, marker-less worktree outside the lifecycle entirely, carrying uncommitted work.
+foreign_sw="$TMP/foreign-sweep-wt"
+git -C "$RSW" worktree add -q -b foreign-sweep "$foreign_sw" >/dev/null 2>&1
+echo dirty > "$foreign_sw/uncommitted"
+
+# enter --session RECORDS the session (that line is the ONLY thing that makes a workspace
+# reapable); a plain enter records none. Assert the marker content directly — the sweep's whole
+# classification rests on it.
+if grep -qxF 'session=SESSION-DEAD' "$(dirname "$orphan")/.creance-ws-owner" 2>/dev/null; then ok; else bad "enter --session did not record session= in the provenance marker"; fi
+if grep -q '^session=' "$(dirname "$nosess")/.creance-ws-owner" 2>/dev/null; then bad "enter without --session recorded a session= line anyway (it would become reapable)"; else ok; fi
+# the recorded branch must survive alongside the new field (discard still needs it).
+if grep -qxF 'branch=ws-orphan' "$(dirname "$orphan")/.creance-ws-owner" 2>/dev/null; then ok; else bad "enter --session clobbered the recorded branch= line"; fi
+
+# SETUP GATE: all four must exist and be registered, else "left untouched" passes vacuously.
+if [ -d "$orphan" ] && [ -d "$livews" ] && [ -d "$nosess" ] && [ -d "$foreign_sw" ] \
+  && git -C "$RSW" worktree list 2>/dev/null | grep -q '\[ws-orphan\]'; then
+  ok
+  swout=$( cd "$RSW" && bash "$SCRIPT" sweep --session SESSION-LIVE 2>/dev/null ); swrc=$?
+  if [ "$swrc" = "0" ]; then ok; else bad "sweep: clean sweep must exit 0 (got rc=$swrc)"; fi
+  # (1) REAPED, all three artifacts: directory, registration, and the ephemeral branch.
+  if [ ! -d "$orphan" ]; then ok; else bad "sweep: the dead-session orphan's directory survived"; fi
+  if git -C "$RSW" worktree list 2>/dev/null | grep -q '\[ws-orphan\]'; then bad "sweep: the dead-session orphan is still a registered worktree"; else ok; fi
+  if git -C "$RSW" show-ref --verify --quiet refs/heads/ws-orphan; then bad "sweep: the dead-session orphan's ephemeral branch survived"; else ok; fi
+  # and it says so — a silent reap is indistinguishable from a no-op.
+  if printf '%s\n' "$swout" | grep -qF 'ws-orphan'; then ok; else bad "sweep: reaped the orphan without naming it on stdout"; fi
+  # (2) the LIVE session's workspace is untouched on all three axes.
+  if [ -d "$livews" ]; then ok; else bad "sweep: reaped the LIVE session's own workspace directory"; fi
+  if git -C "$RSW" worktree list 2>/dev/null | grep -q '\[ws-live\]'; then ok; else bad "sweep: de-registered the LIVE session's workspace"; fi
+  if git -C "$RSW" show-ref --verify --quiet refs/heads/ws-live; then ok; else bad "sweep: deleted the LIVE session's ephemeral branch"; fi
+  # (3) the session-less workspace is untouched — unprovable owners are left alone.
+  if [ -d "$nosess" ]; then ok; else bad "sweep: reaped a workspace whose marker records no session"; fi
+  if git -C "$RSW" show-ref --verify --quiet refs/heads/ws-nosession; then ok; else bad "sweep: deleted the branch of a session-less workspace"; fi
+  # (4) the foreign marker-less worktree keeps its registration AND its uncommitted work.
+  if [ -d "$foreign_sw" ] && [ -f "$foreign_sw/uncommitted" ]; then ok; else bad "sweep: destroyed a foreign worktree's unrelated uncommitted work"; fi
+  if git -C "$RSW" worktree list 2>/dev/null | grep -q '\[foreign-sweep\]'; then ok; else bad "sweep: de-registered a foreign marker-less worktree"; fi
+  # base is never a sweep target.
+  if [ "$(git -C "$RSW" rev-parse main)" = "$base_sw" ]; then ok; else bad "sweep: the base ref moved"; fi
+  # idempotent: a second sweep finds nothing left to reap and still succeeds (no deadlock/relapse).
+  sw2=$( cd "$RSW" && bash "$SCRIPT" sweep --session SESSION-LIVE 2>/dev/null ); swrc2=$?
+  if [ "$swrc2" = "0" ] && printf '%s\n' "$sw2" | grep -qF '0 reaped'; then ok; else bad "sweep: a second sweep must be a clean no-op (rc=$swrc2)"; fi
+  if [ -d "$livews" ] && [ -d "$nosess" ]; then ok; else bad "sweep: the second sweep reaped survivors the first correctly spared"; fi
+else
+  bad "sweep setup: the four sweep fixtures were not all created/registered — the proof would be vacuous"
+fi
+
 # ── Usage guards (exit 2, before any git work) ──
 rc "no args -> usage"              2
 rc "enter w/o branch -> usage"     2 enter
 rc "enter --base w/o value"        2 enter b --base
+rc "enter --session w/o value"     2 enter b --session
 rc "exit w/o path -> usage"        2 exit
 rc "discard w/o path -> usage"     2 discard
 rc "discard extra arg -> usage"    2 discard p extra
+rc "sweep w/o --session -> usage"  2 sweep
+rc "sweep --session w/o value"     2 sweep --session
+rc "sweep unknown flag -> usage"   2 sweep --session s --bogus
 rc "unknown subcommand -> usage"   2 frobnicate
 
 # ── Wiring (P2): the required `verify` job must ACTIVELY run this test, else the lifecycle

@@ -114,7 +114,7 @@
 | T903 | strong | [x] | US1.AC4 |  | No-merge / no-base-write falsification proof across iterations: extend… |
 | T904 | strong | [x] | US1.AC5-AC6 |  | Run report as observe-only telemetry: one line per iteration (task ID… |
 | T905 | cheap | [x] | US1.AC7 |  | Adapter binding for the `[backlog-loop]` (the `[scheduled run]` /… |
-| T906 | strong | [ ] |  |  | Add a **concurrency lock** and a **crash-recovery startup sweep** to… |
+| T906 | strong | [x] |  |  | Add a **concurrency lock** and a **crash-recovery startup sweep** to… |
 
 ## specs/005-held-out-acceptance/spec.md
 
