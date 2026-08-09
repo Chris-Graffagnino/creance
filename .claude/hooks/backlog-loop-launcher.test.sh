@@ -166,5 +166,13 @@ else
   bad "verify must lint docs/launchers/*.sh (the launcher's standing portability gate)"
 fi
 
+# ── Seam wiring (T906): the launcher is the ONLY production trigger for the
+# crash-recovery sweep — the skeleton's seam is optional and defaults to no sweep,
+# so deleting this one line disables crash recovery entirely with a fully green
+# suite. Pin the seam AND the `--session` tail the skeleton appends the run's
+# session id to (the seam is inert without it).
+if grep -qE '^[[:space:]]*BACKLOG_LOOP_SWEEP_CMD=' "$LAUNCHER"; then ok; else bad "launcher no longer wires BACKLOG_LOOP_SWEEP_CMD — crash recovery is silently disabled"; fi
+if grep -qE 'BACKLOG_LOOP_SWEEP_CMD="bash \.claude/hooks/isolated-workspace\.sh sweep --session"' "$LAUNCHER"; then ok; else bad "launcher's sweep seam is not the isolated-workspace sweep binding ending in --session (the skeleton appends the session id)"; fi
+
 printf 'backlog-loop-launcher.test.sh: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1

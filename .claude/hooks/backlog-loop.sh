@@ -154,8 +154,14 @@ SWEEP_CMD="${BACKLOG_LOOP_SWEEP_CMD:-}"
 # /var/folders -> /private/var/folders. Resolving logically would therefore yield
 # /var/... from one tree and /private/var/... from the other — two different strings for
 # one directory, two different locks, and the cross-worktree reap this key exists to stop.
-lock_key="$(cd "$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" || lock_key=""
-[ -n "$lock_key" ] || lock_key="$(cd "$SELF_DIR" 2>/dev/null && pwd -P)" || lock_key="$SELF_DIR"
+# Capture the common dir BEFORE resolving it: `cd ""` SUCCEEDS (it is a no-op), so
+# feeding an empty rev-parse result straight into `cd … && pwd -P` would silently
+# yield the CALLER'S cwd instead of taking the fallback below — a cwd-scoped lock
+# wearing a repo-scoped comment.
+lock_common_dir="$(git rev-parse --git-common-dir 2>/dev/null)" || lock_common_dir=""
+lock_key=""
+[ -z "$lock_common_dir" ] || lock_key="$(cd "$lock_common_dir" 2>/dev/null && pwd -P)" || lock_key=""
+[ -n "$lock_key" ] || lock_key="$(cd "$SELF_DIR" 2>/dev/null && pwd -P)" || lock_key=""
 [ -n "$lock_key" ] || lock_key="$SELF_DIR"
 lock_tag="$(printf '%s' "$lock_key" | cksum 2>/dev/null)" || lock_tag=""
 lock_tag="${lock_tag%% *}"
@@ -277,22 +283,47 @@ acquire_lock() {
   fi
   # Stale: the recorded holder is gone (SIGKILL, crash, machine sleep) or never
   # recorded itself. Reclaim, so one hard kill cannot wedge every future run.
-  # rm the owner file then RMDIR — never rm -rf: rmdir refuses a non-empty
-  # directory, so a misconfigured LOCK_DIR pointing at real content makes the
-  # reclaim fail loudly instead of destroying it.
+  #
+  # The takeover must be SINGLE-WINNER, and a rebuild-in-place (rm owner, rmdir,
+  # mkdir, write, re-read) is NOT: if one racer finishes the whole sequence before
+  # the other starts, the second deletes the FIRST's fresh owner file, removes its
+  # live lock dir, and recreates its own — leaving BOTH runs believing they hold
+  # the lock, which is precisely the double-start this lock exists to prevent (and
+  # worse than the original bug, since the second run's startup sweep would then
+  # see the first's LIVE workspaces as foreign-session orphans). So the right to
+  # rebuild is itself taken atomically, with one more mkdir: exactly one racer can
+  # create the intent directory, and only that one touches the stale lock.
+  #
+  # A crash inside the intent window leaves the intent dir behind and every later
+  # run declines — fail-CLOSED, the safe direction, and recoverable by removing it.
+  # That is deliberately preferred over the double-hold a fail-open reclaim allows.
   printf 'backlog-loop.sh: reclaiming a stale loop lock %s (recorded holder %s is not running)\n' \
     "$LOCK_DIR" "${holder:-none}" >&2
-  rm -f "$LOCK_DIR/owner" 2>/dev/null
-  rmdir "$LOCK_DIR" 2>/dev/null || return 1
-  mkdir "$LOCK_DIR" 2>/dev/null || return 1
-  write_lock_owner || return 1
-  # Two runs can race the same stale lock: both may rmdir/mkdir and both may
-  # write. The owner file settles it — proceed only if it still names us, so
-  # exactly one of the racers continues and the other declines.
-  [ "$(lock_owner_pid 2>/dev/null)" = "$$" ] || {
-    printf 'backlog-loop.sh: lost the race to reclaim the stale loop lock %s — declining\n' "$LOCK_DIR" >&2
+  if ! mkdir "$LOCK_DIR.reclaim" 2>/dev/null; then
+    printf 'backlog-loop.sh: another run is already reclaiming the stale loop lock %s — declining\n' "$LOCK_DIR" >&2
     return 1
-  }
+  fi
+  # Sole reclaimer from here. Every exit path below drops the intent directory.
+  local reclaimed=1
+  # Only something that actually LOOKS like our lock may be torn down: empty, or
+  # holding nothing but the owner file. A populated directory a misconfigured
+  # LOCK_DIR points at is never removed and never moved — the run declines and the
+  # content is left exactly as found (there is no rm -rf on this path at all).
+  case "$(ls -A "$LOCK_DIR" 2>/dev/null | tr '\n' ' ')" in
+    '' | 'owner ') : ;;
+    *)
+      printf 'backlog-loop.sh: refusing to reclaim %s — it holds content this lock did not write\n' "$LOCK_DIR" >&2
+      reclaimed=0
+      ;;
+  esac
+  if [ "$reclaimed" -eq 1 ]; then
+    rm -f "$LOCK_DIR/owner" 2>/dev/null
+    rmdir "$LOCK_DIR" 2>/dev/null || reclaimed=0
+  fi
+  [ "$reclaimed" -eq 0 ] || mkdir "$LOCK_DIR" 2>/dev/null || reclaimed=0
+  [ "$reclaimed" -eq 0 ] || write_lock_owner || reclaimed=0
+  rmdir "$LOCK_DIR.reclaim" 2>/dev/null || :
+  [ "$reclaimed" -eq 1 ] || return 1
   LOCK_HELD=1
   return 0
 }

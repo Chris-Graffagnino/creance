@@ -704,7 +704,12 @@ git -C "$RS" worktree add -q "$FIX/linked" -b linked >/dev/null 2>&1
 # different-path/same-repo condition never exists and the case proves nothing.
 if [ -f "$FIX/linked/.claude/hooks/backlog-loop.sh" ]; then
   ok
-  ( cd "$RS" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  # The holder runs through a SYMLINK to the same tree. That makes `pwd` vs `pwd -P`
+  # differ on every platform, not just where $TMPDIR is itself symlinked (macOS
+  # /var -> /private/var), so a regression from the physical resolve is falsifiable
+  # on the Linux CI runner too instead of only on the owner's machine.
+  ln -s "$RS" "$FIX/repo-link" 2>/dev/null
+  ( cd "$FIX/repo-link" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
     BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
     BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter-block.sh" \
     bash .claude/hooks/backlog-loop.sh run 1 >/dev/null 2>&1 ) &
@@ -732,6 +737,62 @@ if [ -f "$FIX/linked/.claude/hooks/backlog-loop.sh" ]; then
 else
   bad "lock repo-scope setup: the linked worktree was not created — the same-repo/different-path condition never existed"
 fi
+
+# ── L8. The stale-lock takeover is SINGLE-WINNER. Rebuilding a stale lock in place
+#    is not: one racer finishing the whole rebuild before the other starts lets the
+#    second delete the first's FRESH owner file and recreate the lock, leaving BOTH
+#    holding it — a double-start, and the second run's sweep would then treat the
+#    first's LIVE workspaces as orphans. The right to rebuild is therefore taken
+#    with its own atomic mkdir; a run that finds that intent already held declines.
+mkfix lock-reclaim-race
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+LOCK_R="$FIX/reclaim.lock"
+mkdir -p "$LOCK_R"
+printf 'pid=%s\nsession=crashed-run\n' "$(dead_pid)" > "$LOCK_R/owner"   # stale: reclaimable
+mkdir -p "$LOCK_R.reclaim"                                              # ...but a racer holds the intent
+RROUT="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_R" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "lock: a second reclaimer of one stale lock declines" "$RROUT" "stop: fail-closed after 0 of 1"
+assert_eq "lock: the losing reclaimer selected nothing" "$(grep -c '^select$' "$FIX/events.log")" "0"
+# and it left the in-progress reclaim alone rather than stomping it.
+if [ -d "$LOCK_R.reclaim" ]; then ok; else bad "lock: the losing reclaimer removed the winner's reclaim intent"; fi
+# with the intent released, the very next run reclaims normally (no permanent wedge
+# from the intent mechanism itself).
+rmdir "$LOCK_R.reclaim"
+RR2="$(BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  BACKLOG_LOOP_LOCK_DIR="$LOCK_R" \
+  bash "$SCRIPT" run 1 2>/dev/null)" || :
+assert_eq "lock: once the intent clears, the stale lock is reclaimed" "$RR2" "$(printf 'iteration 1 task T101 outcome pass PR-T101\nstop: max-N after 1 of 1')"
+
+# ── L9. Outside a repository the lock key falls back to the SCRIPT's directory, not
+#    to the caller's cwd. `cd ""` succeeds silently, so an unguarded resolve of an
+#    empty `--git-common-dir` would key the lock to wherever the run happened to be
+#    started from — two runs of one checkout, started from different directories,
+#    would then not exclude each other at all.
+mkfix lock-nonrepo
+printf 'T101\n' > "$FIX/backlog"
+ACT="bash $BIN/act-auto.sh"
+NRD="$FIX/nonrepo/hooks"           # a script copy that is NOT inside any git repo
+mkdir -p "$NRD" "$FIX/elsewhere"
+cp "$SCRIPT" "$NRD/backlog-loop.sh"
+nr_key="$(cd "$NRD" && pwd -P)"
+nr_tag="$(printf '%s' "$nr_key" | cksum)"; nr_tag="${nr_tag%% *}"
+NR_LOCK="$FIX/creance-loop-${nr_tag}.lock"
+mkdir -p "$NR_LOCK"
+printf 'pid=%s\nsession=live-elsewhere\n' "$$" > "$NR_LOCK/owner"   # THIS test process: alive
+# Run from an unrelated directory. Keyed on the script dir it must see the live lock
+# above and decline; keyed on cwd it would compute a different path and run.
+NROUT="$( cd "$FIX/elsewhere" && TMPDIR="$FIX" BACKLOG_LOOP_LOCK_DIR= BACKLOG_LOOP_ACTIVATION_CMD="$ACT" \
+  BACKLOG_LOOP_SELECT_CMD="bash $BIN/select.sh" \
+  BACKLOG_LOOP_ITERATION_CMD="bash $BIN/iter.sh" \
+  bash "$NRD/backlog-loop.sh" run 1 2>/dev/null )" || :
+assert_eq "lock: outside a repo the key is the script dir, not the cwd" "$NROUT" "stop: fail-closed after 0 of 1"
 
 # ── Crash-recovery sweep seam (T906, DW3): DRIVEN once at startup, before the
 #    first selection, with the run's session id — and silent-to-the-run.
